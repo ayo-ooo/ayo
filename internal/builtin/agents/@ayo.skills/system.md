@@ -71,7 +71,6 @@ description: >
   What this skill does and when to use it.
   This appears in skill listings and helps agents
   understand when to apply this skill.
-license: MIT
 metadata:
   author: your-name
   version: "1.0"
@@ -93,7 +92,6 @@ Detailed instructions for the agent when this skill is active...
 
 | Field | Purpose |
 |-------|---------|
-| `license` | License identifier (MIT, Apache-2.0, etc.) |
 | `compatibility` | Environment requirements (max 500 chars) |
 | `metadata` | Key-value pairs (author, version, etc.) |
 | `allowed-tools` | Pre-approved tools (experimental) |

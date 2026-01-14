@@ -1,7 +1,6 @@
 ---
 name: ayo
 description: Manage ayo agents, skills, and configuration using the ayo CLI. Use when the user wants to create, list, or modify agents and skills.
-license: MIT
 metadata:
   author: ayo
   version: "1.0"

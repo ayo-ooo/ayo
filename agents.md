@@ -2,6 +2,7 @@
 
 **CRITICAL:** After every code change, you MUST add/maintain tests and keep them passing. NEVER reply to the user while tests are failing. Never skip tests.
 **CRITICAL:** Do not modify anything under ./.read-only (vendored, read-only). Explore only.
+**CRITICAL:** Do not modify anything under `./.local/share/ayo/` (installed built-ins). This directory contains files copied from source by `./install.sh`. To modify built-in agents, skills, or prompts, edit the source files in `internal/builtin/` and run `./install.sh` to reinstall.
 **CRITICAL:** Always use `./install.sh` to build the application. This script automatically installs to `.local/bin/` unless on a clean `main` branch in sync with origin. If you cannot use the script, you MUST set `GOBIN=$(pwd)/.local/bin` manually. NEVER install to the standard GOBIN location unless on an unmodified `main` branch that is in sync with `origin/main`.
 **CRITICAL:** Never use emojis or unicode glyphs that have inherent colors. This ensures the UI respects user terminal theme preferences. The following is a non-exhaustive list:
 	- **Geometric shapes:** `◆ ◇ ● ○ ◐ ◑ ◒ ◓ ◉ ◎ ■ □ ▪ ▫ ▲ △ ▼ ▽ ▶ ▷ ◀ ◁ ▸ ▹`
@@ -663,7 +664,6 @@ Each skill is a directory containing a `SKILL.md` with YAML frontmatter:
 ---
 name: my-skill
 description: What this skill does and when to use it.
-license: MIT
 metadata:
   author: your-name
   version: "1.0"
@@ -679,7 +679,6 @@ Detailed instructions for the agent...
 - `description`: 1-1024 chars, describes what the skill does and when to use it
 
 **Optional fields:**
-- `license`: License identifier
 - `compatibility`: Environment requirements (max 500 chars)
 - `metadata`: Key-value pairs (author, version, etc.)
 - `allowed-tools`: Pre-approved tools (experimental)

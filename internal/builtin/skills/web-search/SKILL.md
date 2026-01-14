@@ -1,7 +1,6 @@
 ---
 name: web-search
 description: Search the web for live, verifiable information using SearXNG via curl. Use when the user needs current data, facts, news, or information that may have changed since your training cutoff.
-license: MIT
 compatibility: Requires curl, internet access, and SEARXNG_ENDPOINT environment variable
 metadata:
   author: ayo

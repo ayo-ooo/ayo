@@ -1,7 +1,6 @@
 ---
 name: project-summary
 description: Generate a comprehensive summary of a project's structure, dependencies, and key files. Use when the user asks for a project overview, wants to understand a codebase, or needs to document project structure.
-license: MIT
 metadata:
   author: ayo
   version: "1.0"

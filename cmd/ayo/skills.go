@@ -328,7 +328,6 @@ func createSkillCmd(cfgPath *string) *cobra.Command {
 				template := fmt.Sprintf(`---
 name: %s
 description: Brief description of what this skill does and when to use it.
-license: MIT
 metadata:
   author: your-name
   version: "1.0"

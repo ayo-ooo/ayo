@@ -1,514 +1,341 @@
-# ayo
+# `ayo` - Agents You Orchestrate
 
-A command-line tool for running AI agents with tool execution, skills, and agent chaining.
+`ayo` is a command-line tool for running AI agents that can execute tasks, use tools, and chain together via Unix pipes. Define agents with custom system prompts, extend them with skills, and compose them into powerful workflows.
 
-## Table of Contents
-
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Running Agents](#running-agents)
-- [Commands](#commands)
-  - [setup](#setup)
-  - [agents](#agents)
-  - [skills](#skills)
-  - [chain](#chain)
-- [Configuration](#configuration)
-- [Directory Structure](#directory-structure)
-- [Agent Chaining](#agent-chaining)
-
----
-
-## Installation
+## Getting Started
 
 ```bash
-go install ./cmd/ayo
+go install github.com/alexcabrera/ayo/cmd/ayo@latest
 ```
 
-Built-in agents and skills are automatically installed on first run. No manual setup required.
+That's it. Built-in agents and skills install automatically on first run.
 
-To reinstall built-ins (e.g., after modifying them):
-
-```bash
-ayo setup              # Reinstall built-ins
-ayo setup --force      # Overwrite modifications without prompting
-```
-
-For project-local installation (useful for development or project-specific agents):
+Start chatting with built-in default agent:
 
 ```bash
-ayo setup --dev
-```
-
-This installs to `./.local/share/ayo` and `./.config/ayo` in your current directory instead of the global locations.
-
----
-
-## Quick Start
-
-```bash
-# Start interactive chat with the default @ayo agent
-ayo
-
-# Run a single prompt
-ayo "tell me a joke"
-
-# Chat with a specific agent
 ayo @ayo
-
-# Run a prompt with file attachments
-ayo -a file.txt "summarize this"
 ```
 
----
-
-## Running Agents
-
-### Usage
-
-```
-ayo [command] [@agent] [prompt] [--flags]
-```
-
-### Interactive Mode
-
-Start an interactive chat session that continues until you exit:
+Shortcut to prompt @ayo single prompt:
 
 ```bash
-ayo              # Chat with default @ayo agent
-ayo @ayo         # Chat with a specific agent
+ayo "write a haiku about terminal emulators"
 ```
 
-- First `Ctrl+C` interrupts the current request
-- Second `Ctrl+C` (at prompt) exits the session
-
-### Non-Interactive Mode
-
-Execute a single prompt and exit:
+Attach files for context:
 
 ```bash
-ayo "your prompt here"
-ayo @ayo "explain this code"
+ayo -a go.sum "review this code"
 ```
 
-### File Attachments
+## Agents
 
-Attach files to provide context:
+Agents are AIs with custom system prompts and capabilities. Each agent is a directory containing configuration and instructions.
+
+### Built-in Agents
+
+| Agent | Description |
+|-------|-------------|
+| `@ayo` | The default agent - a versatile command-line assistant |
+| `@ayo.research` | Web-enabled research agent for finding information online |
+| `@ayo.skills` | Skill management agent for creating and organizing skills |
+
+### Running Agents
 
 ```bash
-ayo -a file.txt "summarize this"
-ayo -a src/main.go -a src/utils.go "review this code"
+# Interactive chat (continues until Ctrl+C)
+ayo @ayo.research
+
+# Single prompt
+ayo @ayo.research "what's new in Go 1.22?"
 ```
 
-### Global Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--attachment` | `-a` | File attachments (can be repeated) |
-| `--config` | | Path to config file |
-| `--debug` | | Show debug output including raw tool payloads |
-| `--help` | `-h` | Help for ayo |
-| `--version` | `-v` | Version for ayo |
-
----
-
-## Commands
-
-### setup
-
-Reinstall built-in agents and skills and create user directories.
-
-Built-ins are automatically installed on first run, so this command is only needed to:
-- Reinstall after modifying built-in agents/skills
-- Install to a project-local directory with `--dev`
-
-```bash
-ayo setup              # Reinstall built-ins
-ayo setup --dev        # Project-local setup to ./.config/ayo and ./.local/share/ayo
-ayo setup --force      # Overwrite modifications without prompting
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--dev` | | Install to local project directories instead of global |
-| `--force` | `-f` | Overwrite modifications without prompting |
-
----
-
-### agents
-
-Manage agents: list, show, create, update, and navigate.
-
-```bash
-ayo agents list                    # List all available agents
-ayo agents list --source=user      # Filter by source (user, built-in)
-ayo agents show @ayo               # Show agent details
-ayo agents create myagent          # Create a new agent
-ayo agents dir                     # Show agents directories
-ayo agents update                  # Update built-in agents
-ayo agents update --force          # Overwrite without checking for modifications
-```
-
-#### agents list
-
-```bash
-ayo agents list [--source=<source>]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--source` | Filter by source: `user`, `built-in` |
-
-#### agents show
-
-Display detailed information about an agent including its system prompt, skills, and configuration.
-
-```bash
-ayo agents show @ayo
-```
-
-#### agents create
-
-Create a new agent interactively or with flags.
+### Creating Agents
 
 ```bash
 ayo agents create @myagent
-ayo agents create @myagent --description "My custom agent"
-ayo agents create @helper --model gpt-4.1 --system "You are a helpful assistant"
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--description` | Agent description |
-| `--model` | Model to use |
-| `--system` | System message text |
-| `--system-file` | Path to system message file |
-| `--ignore-shared` | Ignore shared system message |
-
-#### agents dir
-
-Show paths to user and built-in agent directories.
-
-#### agents update
-
-Update built-in agents to the latest version embedded in the binary.
+This launches an interactive wizard to configure your agent. For non-interactive creation:
 
 ```bash
-ayo agents update           # Check for modifications first
-ayo agents update --force   # Overwrite without prompting
+ayo agents create @helper -n \
+  --description "A helpful assistant" \
+  --model gpt-4.1 \
+  --system "You are concise and friendly."
 ```
 
+### Agent Structure
+
+```
+@myagent/
+├── config.json         # Agent configuration
+├── system.md           # System prompt
+├── skills/             # Agent-specific skills
+├── input.jsonschema    # Optional: structured input schema
+└── output.jsonschema   # Optional: structured output schema
+```
+
+### Managing Agents
+
+```bash
+ayo agents list              # List all agents
+ayo agents show @ayo         # Show agent details
+ayo agents update            # Update built-in agents
+```
+
+## Skills
+
+Skills extend agent capabilities with domain-specific instructions. They follow the [agentskills spec](https://agentskills.org).
+
+### Built-in Skills
+
+| Skill | Description |
+|-------|-------------|
+| `ayo` | CLI documentation for programmatic use |
+| `debugging` | Systematic debugging techniques |
+| `web-search` | Web search capabilities |
+
+### Creating Skills
+
+```bash
+# Create in current directory (project-local)
+ayo skills create my-skill
+
+# Create in user shared directory
+ayo skills create my-skill --shared
+
+# Create in dev location (./.config/ayo/skills/)
+ayo skills create my-skill --dev
+```
+
+### Skill Structure
+
+Each skill is a directory with a `SKILL.md` file:
+
+```
+my-skill/
+├── SKILL.md            # Required: skill definition with YAML frontmatter
+├── scripts/            # Optional: executable code
+├── references/         # Optional: additional documentation
+└── assets/             # Optional: templates, data files
+```
+
+The `SKILL.md` format:
+
+```markdown
+---
+name: my-skill
+description: What this skill does and when to use it.
+metadata:
+  author: your-name
+  version: "1.0"
 ---
 
-### skills
+# Skill Instructions
 
-Manage skills: list, show, create, validate, update, and navigate.
-
-Skills extend agent capabilities with domain-specific instructions following the [agentskills spec](https://agentskills.org).
-
-```bash
-ayo skills list                      # List all available skills
-ayo skills list --source=built-in    # Filter by source
-ayo skills show debugging            # Show skill details
-ayo skills create my-skill           # Create a new skill (agent-specific)
-ayo skills create my-skill --shared  # Create in shared skills directory
-ayo skills validate ./path           # Validate a skill directory
-ayo skills dir                       # Go to skills directory
-ayo skills update                    # Update built-in skills
-ayo skills update --force            # Overwrite without prompting
+Detailed instructions for the agent...
 ```
 
-#### skills list
+### Managing Skills
 
 ```bash
-ayo skills list [--source=<source>]
+ayo skills list                  # List all skills
+ayo skills list --source=built-in # Filter by source
+ayo skills show debugging        # Show skill details
+ayo skills validate ./my-skill   # Validate a skill directory
+ayo skills update                # Update built-in skills
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--source` | Filter by source: `agent`, `user`, `installed`, `built-in` |
+## Agent Chaining
 
-#### skills show
-
-Display detailed information about a skill including its description, metadata, and full content.
+Agents with structured I/O schemas can be composed via Unix pipes. The output of one agent becomes the input to the next.
 
 ```bash
-ayo skills show debugging
+# Chain agents together
+ayo @code-reviewer '{"files":["main.go"]}' | ayo @issue-reporter
 ```
 
-#### skills create
+When stdout is piped:
+- UI (spinners, reasoning, tool calls) goes to stderr
+- Raw JSON output goes to stdout for downstream consumption
 
-Create a new skill from template.
+### Chain Discovery
 
 ```bash
-ayo skills create <name> [--flags]
+# List chainable agents
+ayo chain ls
+
+# Inspect schemas
+ayo chain inspect @myagent
+
+# Find compatible agents
+ayo chain from @source-agent    # What can receive this output?
+ayo chain to @target-agent      # What can feed this input?
+
+# Validate and test
+ayo chain validate @myagent '{"key": "value"}'
+ayo chain example @myagent      # Generate example input
 ```
-
-| Flag | Description |
-|------|-------------|
-| `--shared` | Create in shared skills directory (available to all agents) |
-
-Without `--shared`, creates an agent-specific skill.
-
-#### skills validate
-
-Validate a skill directory against the agentskills spec.
-
-```bash
-ayo skills validate ./my-skill
-ayo skills validate ~/.config/ayo/skills/debugging
-```
-
-#### skills dir
-
-Show paths to user and built-in skill directories.
-
-#### skills update
-
-Update built-in skills to the latest version embedded in the binary.
-
-```bash
-ayo skills update           # Check for modifications first
-ayo skills update --force   # Overwrite without prompting
-```
-
----
-
-### chain
-
-Commands for discovering compatible agents and validating chain connections.
-
-Agents with structured input/output schemas (JSON Schema) can be composed via Unix pipes.
-
-```bash
-ayo chain ls                              # List all chainable agents
-ayo chain ls --json                       # Output as JSON
-ayo chain inspect @ayo.debug.structured-io # Show agent's input and output schemas
-ayo chain from @ayo.example.chain.code-reviewer  # List agents that can receive this agent's output
-ayo chain to @ayo.example.chain.issue-reporter   # List agents whose output this agent can receive
-ayo chain validate @ayo.debug.structured-io '{"environment": "staging", "service": "api"}'  # Validate JSON against input schema
-ayo chain example @ayo.debug.structured-io  # Generate example input JSON
-```
-
-#### chain ls
-
-List all agents that have input or output schemas (chainable agents).
-
-```bash
-ayo chain ls [--json]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output as JSON |
-
-#### chain inspect
-
-Show an agent's input and output schemas.
-
-```bash
-ayo chain inspect @ayo.debug.structured-io [--json]
-```
-
-#### chain from
-
-Find agents that can receive output from the specified agent.
-
-```bash
-ayo chain from @ayo.example.chain.code-reviewer
-```
-
-#### chain to
-
-Find agents whose output the specified agent can receive.
-
-```bash
-ayo chain to @ayo.example.chain.issue-reporter
-```
-
-#### chain validate
-
-Validate JSON against an agent's input schema.
-
-```bash
-ayo chain validate @ayo.debug.structured-io '{"environment": "staging", "service": "api"}'
-echo '{"environment": "staging", "service": "api"}' | ayo chain validate @ayo.debug.structured-io
-```
-
-#### chain example
-
-Generate example input JSON based on an agent's input schema.
-
-```bash
-ayo chain example @ayo.debug.structured-io
-```
-
----
 
 ## Configuration
 
 ### Config File
 
-The main config file is located at `~/.config/ayo/ayo.json`:
+Located at `~/.config/ayo/ayo.json`:
 
 ```json
 {
   "$schema": "./ayo-schema.json",
-  "agents_dir": "~/.config/ayo/agents",
-  "skills_dir": "~/.config/ayo/skills",
-  "system_prefix": "~/.config/ayo/prompts/prefix.md",
-  "system_suffix": "~/.config/ayo/prompts/suffix.md",
   "default_model": "gpt-4.1",
   "provider": {
-    "name": "openai",
-    "id": "openai",
-    "api_endpoint": "https://api.openai.com/v1"
+    "name": "openai"
   }
 }
 ```
-
-The JSON schema is installed at `~/.config/ayo/ayo-schema.json` and provides IDE autocomplete and validation. You can also reference the hosted schema at `https://ayo.alexcabrera.me/ayo.json`.
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | API key for OpenAI provider |
-| `ANTHROPIC_API_KEY` | API key for Anthropic provider |
-| `CATWALK_URL` | URL for Catwalk model proxy (default: `http://localhost:8080`) |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
+| `GOOGLE_API_KEY` | Google AI API key |
 
----
+### Directory Structure
 
-## Directory Structure
-
-### Load Priority
-
-Ayo searches for agents and skills in the following order (first found wins):
-
-| Priority | Path | Description |
-|----------|------|-------------|
-| 1 | `./.config/ayo/` | Local project config |
-| 2 | `./.local/share/ayo/` | Local project data |
-| 3 | `~/.config/ayo/` | User config |
-| 4 | `~/.local/share/ayo/` | Built-in data |
-
-This allows project-specific agents/skills to override user and built-in ones.
-
-### Platform Directories
+ayo uses XDG-style directories:
 
 | Platform | User Config | Built-in Data |
 |----------|-------------|---------------|
 | macOS/Linux | `~/.config/ayo/` | `~/.local/share/ayo/` |
 | Windows | `%LOCALAPPDATA%\ayo\` | `%LOCALAPPDATA%\ayo\` |
 
-### Directory Layout
-
 ```
 ~/.config/ayo/                    # User configuration
-├── ayo.json                      # Main config file
-├── ayo-schema.json               # JSON schema for config
-├── agents/                       # User-defined agents
-│   └── @myagent/
-│       ├── config.json
-│       ├── system.md
-│       └── skills/               # Agent-specific skills
-├── skills/                       # User-defined shared skills
-│   └── my-skill/
-│       └── SKILL.md
+├── ayo.json                      # Main config
+├── agents/                       # User agents
+├── skills/                       # User skills
 └── prompts/                      # Custom system prompts
-    ├── prefix.md
-    ├── system.md
-    └── suffix.md
+    ├── prefix.md                 # Prepended to all agents
+    └── suffix.md                 # Appended to all agents
 
-~/.local/share/ayo/               # Built-in data (managed by ayo setup)
+~/.local/share/ayo/               # Built-in data
 ├── agents/                       # Built-in agents
-│   └── @ayo/
-│       ├── config.json
-│       ├── system.md
-│       └── skills/
-├── skills/                       # Built-in shared skills
-│   └── debugging/
-│       └── SKILL.md
+├── skills/                       # Built-in skills
 └── .builtin-version              # Version marker
 ```
 
-### Local Project Setup
+### Load Priority
 
-With `ayo setup --dev`, ayo creates project-local directories:
+Resources are discovered in this order (first found wins):
 
-```
-./                               # Your project root
-├── .config/
-│   └── ayo/                     # Local project config
-│       ├── agents/
-│       └── skills/
-└── .local/
-    └── share/
-        └── ayo/                 # Local project data
-            ├── agents/
-            └── skills/
-```
+1. Agent-specific (in agent's `skills/` directory)
+2. Project-local (`./.config/ayo/`)
+3. User config (`~/.config/ayo/`)
+4. Built-in (`~/.local/share/ayo/`)
 
-These directories are automatically added to `.gitignore` and `.crushignore`.
+This allows project-specific overrides of user and built-in resources.
 
----
+## Commands
 
-## Agent Chaining
-
-Agents with structured input/output schemas can be composed via Unix pipes.
-
-### Schema Files
-
-Agents can define optional JSON schemas:
-
-```
-@my-agent/
-├── config.json
-├── system.md
-├── input.jsonschema    # Optional: validates input JSON
-└── output.jsonschema   # Optional: structures output JSON
-```
-
-### Piping Agents
+### Root Command
 
 ```bash
-# Chain two agents (code reviewer -> issue reporter)
-ayo @ayo.example.chain.code-reviewer '{"repo":".", "files":["main.go"]}' | ayo @ayo.example.chain.issue-reporter
+ayo [command] [@agent] [prompt] [--flags]
 ```
 
-### Pipeline Behavior
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--attachment` | `-a` | File attachments (repeatable) |
+| `--config` | | Path to config file |
+| `--debug` | | Show raw tool payloads |
+| `--help` | `-h` | Help |
+| `--version` | `-v` | Version |
 
-- **Stdin is piped**: Agent reads JSON from stdin
-- **Stdout is piped**: UI goes to stderr, raw JSON goes to stdout
-- **Full UI visible**: Spinners, reasoning, and tool calls always appear on stderr
-
-### Schema Compatibility
-
-When piping agents, ayo validates that:
-
-1. **Exact match**: Output schema identical to input schema
-2. **Structural match**: Output has all required fields of input (superset OK)
-3. **Freeform**: Target agent has no input schema (accepts anything)
-
-### Discovery Commands
+### agents
 
 ```bash
-# List all chainable agents
-ayo chain ls
-
-# Show agent's schemas
-ayo chain inspect @ayo.example.chain.code-reviewer
-
-# Find compatible agents
-ayo chain from @ayo.example.chain.code-reviewer   # What can receive this output?
-ayo chain to @ayo.example.chain.issue-reporter    # What can feed this input?
-
-# Validate and test
-ayo chain validate @ayo.debug.structured-io '{"environment": "staging", "service": "api"}'
-ayo chain example @ayo.debug.structured-io
+ayo agents list              # List agents
+ayo agents show <handle>     # Show details
+ayo agents create <handle>   # Create agent
+ayo agents update            # Update built-ins
 ```
 
----
+### skills
 
-## License
+```bash
+ayo skills list              # List skills
+ayo skills show <name>       # Show details
+ayo skills create <name>     # Create skill
+ayo skills validate <path>   # Validate skill
+ayo skills update            # Update built-ins
+```
 
-See [LICENSE](LICENSE) for details.
+### chain
+
+```bash
+ayo chain ls                 # List chainable agents
+ayo chain inspect <agent>    # Show schemas
+ayo chain from <agent>       # Find output consumers
+ayo chain to <agent>         # Find input producers
+ayo chain validate <agent>   # Validate input JSON
+ayo chain example <agent>    # Generate example input
+```
+
+### setup
+
+```bash
+ayo setup              # Reinstall built-ins
+ayo setup --force      # Overwrite without prompting
+```
+
+## Tool System
+
+Agents execute tasks through tools. The default tool is `bash`, which executes shell commands.
+
+When the agent runs a command, you'll see:
+- A spinner with the command description
+- The command output in a styled box
+- Success/failure status with elapsed time
+
+Tools are configured per-agent in `config.json`:
+
+```json
+{
+  "allowed_tools": ["bash"]
+}
+```
+
+## Interactive Mode
+
+In interactive mode, ayo maintains conversation context across turns:
+
+- First `Ctrl+C` interrupts the current request
+- Second `Ctrl+C` at the prompt exits the session
+
+```bash
+ayo @ayo          # Start interactive session
+```
+
+## Piping and Scripting
+
+ayo is designed for Unix pipelines:
+
+```bash
+# Pipe input
+echo "explain this" | ayo
+
+# Pipe output (UI goes to stderr)
+ayo @reporter "analyze logs" | jq .
+
+# Chain agents
+ayo @analyzer '{"data":"..."}' | ayo @reporter
+```
+
+When stdin or stdout is a pipe, ayo adjusts its behavior:
+- UI output always goes to stderr
+- Raw content goes to stdout
+- JSON output is not markdown-rendered
+

@@ -1,7 +1,6 @@
 ---
 name: debugging
 description: Systematic debugging techniques for diagnosing issues. Use when troubleshooting errors, unexpected behavior, test failures, or when the user is stuck on a problem.
-license: MIT
 compatibility: Requires bash and common Unix utilities
 metadata:
   author: ayo
