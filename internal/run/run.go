@@ -12,9 +12,9 @@ import (
 
 	"charm.land/fantasy"
 
-	"ayo/internal/agent"
-	"ayo/internal/config"
-	uipkg "ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/config"
+	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
 
 // Runner executes agents using Fantasy's Agent abstraction.

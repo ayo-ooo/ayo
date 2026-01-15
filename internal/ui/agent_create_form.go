@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 
-	"ayo/internal/skills"
+	"github.com/alexcabrera/ayo/internal/skills"
 )
 
 // AgentCreateResult contains all the data collected from the agent creation wizard.

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"ayo/internal/skills"
+	"github.com/alexcabrera/ayo/internal/skills"
 )
 
 func buildSkillsPrompt(metas []skills.Metadata) string {

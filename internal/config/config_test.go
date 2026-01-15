@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/paths"
 )
 
 func TestDefaultPaths(t *testing.T) {

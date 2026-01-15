@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/paths"
 )
 
 // Version is the current version of built-in agents and skills.

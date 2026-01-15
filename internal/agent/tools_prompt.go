@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	"ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/builtin"
 )
 
 // BuildToolsPrompt returns system prompt instructions for tool usage

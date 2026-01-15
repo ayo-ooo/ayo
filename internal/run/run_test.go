@@ -8,7 +8,7 @@ import (
 
 	"charm.land/fantasy"
 
-	"ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/agent"
 )
 
 func TestBuildMessagesOmitsEmpty(t *testing.T) {

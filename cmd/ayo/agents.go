@@ -12,12 +12,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"ayo/internal/agent"
-	"ayo/internal/builtin"
-	"ayo/internal/config"
-	"ayo/internal/paths"
-	"ayo/internal/skills"
-	"ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/skills"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 func newAgentsCmd(cfgPath *string) *cobra.Command {

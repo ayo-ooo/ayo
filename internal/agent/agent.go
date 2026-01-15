@@ -13,10 +13,10 @@ import (
 
 	"charm.land/fantasy/schema"
 
-	"ayo/internal/builtin"
-	"ayo/internal/config"
-	"ayo/internal/paths"
-	"ayo/internal/skills"
+	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/skills"
 )
 
 // Schema is a type alias for the fantasy schema type.

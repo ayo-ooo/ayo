@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"ayo/internal/builtin"
-	"ayo/internal/config"
-	"ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/paths"
 )
 
 func newSetupCmd(cfgPath *string) *cobra.Command {

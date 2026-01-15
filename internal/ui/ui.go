@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"ayo/internal/pipe"
+	"github.com/alexcabrera/ayo/internal/pipe"
 )
 
 type SelectAgentResult struct {

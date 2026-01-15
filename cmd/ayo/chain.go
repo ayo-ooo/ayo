@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"ayo/internal/agent"
-	"ayo/internal/config"
-	"ayo/internal/pipe"
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/pipe"
 )
 
 func newChainCmd(cfgPath *string) *cobra.Command {

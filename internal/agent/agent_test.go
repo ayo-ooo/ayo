@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/config"
 )
 
 func TestDefaultAgent(t *testing.T) {

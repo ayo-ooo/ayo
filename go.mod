@@ -1,9 +1,11 @@
-module ayo
+module github.com/alexcabrera/ayo
 
 go 1.25.5
 
 require (
 	charm.land/fantasy v0.6.0
+	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
+	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/catwalk v0.11.5
 	github.com/charmbracelet/fang v0.4.4
 	github.com/charmbracelet/glamour v0.7.0
@@ -43,8 +45,6 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20251024181547-21d6f3d9a904 // indirect
-	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
-	github.com/charmbracelet/bubbletea v1.3.6 // indirect
 	github.com/charmbracelet/colorprofile v0.3.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20251106190538-99ea45596692 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14 // indirect

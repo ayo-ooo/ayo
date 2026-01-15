@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/paths"
 
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 )

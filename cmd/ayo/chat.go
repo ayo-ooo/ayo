@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"ayo/internal/agent"
-	"ayo/internal/run"
-	"ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/run"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 // runInteractiveChat handles the interactive chat session loop.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/fang"
 
-	"ayo/internal/builtin"
-	"ayo/internal/version"
+	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/version"
 )
 
 //go:embed ayo-config-schema.json

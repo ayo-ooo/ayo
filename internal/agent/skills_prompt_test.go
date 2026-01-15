@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"ayo/internal/skills"
+	"github.com/alexcabrera/ayo/internal/skills"
 )
 
 func TestBuildSkillsPromptEmpty(t *testing.T) {
