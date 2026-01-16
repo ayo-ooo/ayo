@@ -22,14 +22,10 @@ import (
 var (
 	devRoot     string
 	devRootOnce sync.Once
-
-	// localDevMode is set by SetLocalDevMode to force local directory paths
-	localDevMode     bool
-	localDevModeOnce sync.Once
 )
 
 // IsDevMode returns true if ayo is running from a source checkout.
-// In dev mode, built-in data is stored in {repo}/.ayo/ instead of ~/.local/share/ayo/.
+// In dev mode, built-in data is stored in {repo}/.local/share/ayo/ instead of ~/.local/share/ayo/.
 func IsDevMode() bool {
 	return getDevRoot() != ""
 }
@@ -75,7 +71,7 @@ func executableDir() string {
 	return filepath.Dir(exe)
 }
 
-// findDevRootFrom walks up from the given directory looking for a go.mod with "module ayo".
+// findDevRootFrom walks up from the given directory looking for a go.mod with the ayo module.
 func findDevRootFrom(startDir string) string {
 	if startDir == "" {
 		return ""
@@ -85,10 +81,11 @@ func findDevRootFrom(startDir string) string {
 	for {
 		goModPath := filepath.Join(dir, "go.mod")
 		if data, err := os.ReadFile(goModPath); err == nil {
-			// Check if this is the ayo module
+			// Check if this is the ayo module (matches both "module ayo" and "module github.com/.../ayo")
 			content := string(data)
 			if strings.HasPrefix(content, "module ayo") ||
-				strings.Contains(content, "\nmodule ayo") {
+				strings.Contains(content, "\nmodule ayo") ||
+				strings.Contains(content, "/ayo\n") {
 				return dir
 			}
 		}
@@ -102,37 +99,18 @@ func findDevRootFrom(startDir string) string {
 	return ""
 }
 
-// SetLocalDevMode enables local dev mode, which uses ./.local/share/ayo and ./.config/ayo
-// instead of the default directories. This is typically set via the --dev flag on setup.
-// Must be called before any directory functions are used.
-func SetLocalDevMode() {
-	localDevModeOnce.Do(func() {
-		localDevMode = true
-	})
-}
-
-// IsLocalDevMode returns true if local dev mode is enabled via SetLocalDevMode.
-func IsLocalDevMode() bool {
-	return localDevMode
-}
-
 // DataDir returns the data directory for ayo.
 //
-// Local dev mode: ./.local/share/ayo (current directory)
-// Dev mode: {repo}/.ayo (project-local built-ins)
+// Dev mode: {repo}/.local/share/ayo (project-local built-ins)
 // Production Unix: ~/.local/share/ayo (XDG compliant)
 // Production Windows: %LOCALAPPDATA%\ayo
 //
 // This directory stores built-in agents, built-in skills, and version markers.
 // In dev mode, each checkout has its own isolated built-ins.
 func DataDir() string {
-	if localDevMode {
-		wd, _ := os.Getwd()
-		return filepath.Join(wd, ".local", "share", "ayo")
-	}
-
+	// Dev mode: use project-local .local/share/ayo
 	if root := getDevRoot(); root != "" {
-		return filepath.Join(root, ".ayo")
+		return filepath.Join(root, ".local", "share", "ayo")
 	}
 
 	if runtime.GOOS == "windows" {
@@ -150,17 +128,16 @@ func DataDir() string {
 
 // ConfigDir returns the config directory for ayo.
 //
-// Local dev mode: ./.config/ayo (current directory)
-// Unix (macOS, Linux): ~/.config/ayo
-// Windows: %LOCALAPPDATA%\ayo (same as production DataDir)
+// Dev mode: {repo}/.config/ayo (project-local config)
+// Production Unix: ~/.config/ayo
+// Production Windows: %LOCALAPPDATA%\ayo
 //
 // This directory stores user configuration and user-created content:
 // ayo.json, user agents, user skills, and system prompts.
-// This is always the global user directory, even in dev mode (unless local dev mode).
 func ConfigDir() string {
-	if localDevMode {
-		wd, _ := os.Getwd()
-		return filepath.Join(wd, ".config", "ayo")
+	// Dev mode: use project-local .config/ayo
+	if root := getDevRoot(); root != "" {
+		return filepath.Join(root, ".config", "ayo")
 	}
 
 	if runtime.GOOS == "windows" {
@@ -184,7 +161,7 @@ func AgentsDir() string {
 }
 
 // BuiltinAgentsDir returns the directory for installed built-in agents.
-// Dev mode: {repo}/.ayo/agents
+// Dev mode: {repo}/.local/share/ayo/agents
 // Production: ~/.local/share/ayo/agents (Unix) or %LOCALAPPDATA%\ayo\agents (Windows)
 func BuiltinAgentsDir() string {
 	return filepath.Join(DataDir(), "agents")
@@ -198,7 +175,7 @@ func SkillsDir() string {
 }
 
 // BuiltinSkillsDir returns the directory for installed built-in skills.
-// Dev mode: {repo}/.ayo/skills
+// Dev mode: {repo}/.local/share/ayo/skills
 // Production: ~/.local/share/ayo/skills (Unix) or %LOCALAPPDATA%\ayo\skills (Windows)
 func BuiltinSkillsDir() string {
 	return filepath.Join(DataDir(), "skills")
@@ -308,6 +285,34 @@ func HasLocalData() bool {
 	return err == nil && info.IsDir()
 }
 
+// DataDirs returns all data directories where built-in agents/skills could be installed.
+// This includes both dev mode locations and production locations.
+// Used to determine if an agent should be treated as built-in.
+func DataDirs() []string {
+	var dirs []string
+	seen := make(map[string]bool)
+
+	add := func(dir string) {
+		if dir != "" && !seen[dir] {
+			seen[dir] = true
+			dirs = append(dirs, dir)
+		}
+	}
+
+	// Dev mode: {repo}/.local/share/ayo
+	if root := getDevRoot(); root != "" {
+		add(filepath.Join(root, ".local", "share", "ayo"))
+	}
+
+	// Local data: ./.local/share/ayo (from cwd)
+	add(LocalDataDir())
+
+	// Production: ~/.local/share/ayo
+	add(UserDataDir())
+
+	return dirs
+}
+
 // AgentsDirs returns all agent directories in lookup priority order.
 // Order: local config, local data, user config, user data (built-in).
 // Only includes directories that exist.
@@ -391,4 +396,15 @@ func FindPromptFile(name string) string {
 		}
 	}
 	return ""
+}
+
+// DatabasePath returns the path to the SQLite database file.
+//
+// Local dev mode: ./.local/share/ayo/ayo.db
+// Dev mode: {repo}/.ayo/ayo.db
+// Production: ~/.local/share/ayo/ayo.db
+//
+// The database stores session history and messages.
+func DatabasePath() string {
+	return filepath.Join(DataDir(), "ayo.db")
 }

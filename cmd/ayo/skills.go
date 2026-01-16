@@ -281,7 +281,6 @@ func validateSkillCmd() *cobra.Command {
 
 func createSkillCmd(cfgPath *string) *cobra.Command {
 	var shared bool
-	var devMode bool
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
@@ -295,15 +294,10 @@ func createSkillCmd(cfgPath *string) *cobra.Command {
 				return fmt.Errorf("invalid skill name: %s", errors[0])
 			}
 
-			// If dev mode, use local config directory
-			if devMode {
-				paths.SetLocalDevMode()
-			}
-
 			return withConfig(cfgPath, func(cfg config.Config) error {
 				var skillDir string
-				if shared || devMode {
-					// --shared or --dev: create in skills directory (cfg.SkillsDir respects dev mode)
+				if shared {
+					// --shared: create in skills directory
 					skillDir = filepath.Join(cfg.SkillsDir, name)
 				} else {
 					// Default: use current directory
@@ -364,7 +358,6 @@ Show example interactions.
 	}
 
 	cmd.Flags().BoolVar(&shared, "shared", false, "create in shared skills directory")
-	cmd.Flags().BoolVar(&devMode, "dev", false, "create skill in local ./.config/ayo/ directory for testing")
 
 	return cmd
 }

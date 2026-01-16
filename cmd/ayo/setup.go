@@ -16,7 +16,6 @@ import (
 
 func newSetupCmd(cfgPath *string) *cobra.Command {
 	var forceOverwrite bool
-	var devMode bool
 
 	cmd := &cobra.Command{
 		Use:   "setup",
@@ -24,21 +23,11 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 		Long:  "Runs complete ayo setup: installs built-in agents and skills, creates user directories.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Enable local dev mode before any paths are accessed
-			if devMode {
-				paths.SetLocalDevMode()
-			}
-
 			return withConfig(cfgPath, func(cfg config.Config) error {
 				sui := newSetupUI(cmd.OutOrStdout())
 
 				// Show mode
-				if paths.IsLocalDevMode() {
-					wd, _ := os.Getwd()
-					sui.Header("Local dev mode (--dev)")
-					sui.Info(fmt.Sprintf("  Directory: %s", wd))
-					sui.Blank()
-				} else if paths.IsDevMode() {
+				if paths.IsDevMode() {
 					sui.Header("Dev mode detected")
 					sui.Info(fmt.Sprintf("  Repo: %s", paths.DevRoot()))
 					sui.Blank()
@@ -144,10 +133,7 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 
 				// 4. Summary
 				sui.Header("Directory structure:")
-				if paths.IsLocalDevMode() {
-					wd, _ := os.Getwd()
-					sui.Info(fmt.Sprintf("  Mode:            local-dev (%s)", wd))
-				} else if paths.IsDevMode() {
+				if paths.IsDevMode() {
 					sui.Info(fmt.Sprintf("  Mode:            dev (%s)", paths.DevRoot()))
 				}
 				sui.Info(fmt.Sprintf("  User config:     %s", paths.ConfigDir()))
@@ -174,7 +160,6 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&forceOverwrite, "force", "f", false, "overwrite modifications without prompting")
-	cmd.Flags().BoolVar(&devMode, "dev", false, "install to ./.local/share/ayo and ./.config/ayo instead of default locations")
 
 	return cmd
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
+	"github.com/alexcabrera/ayo/internal/session"
 )
 
 func newRootCmd() *cobra.Command {
@@ -60,7 +61,20 @@ func newRootCmd() *cobra.Command {
 					return err
 				}
 
-				runner, err := run.NewRunnerFromConfig(cfg, debug)
+				// Initialize session services
+				services, err := session.Connect(cmd.Context(), paths.DatabasePath())
+				if err != nil {
+					// Log warning but continue without persistence
+					if debug {
+						fmt.Fprintf(os.Stderr, "Warning: session persistence unavailable: %v\n", err)
+					}
+					services = nil
+				}
+				if services != nil {
+					defer services.Close()
+				}
+
+				runner, err := run.NewRunnerWithServices(cfg, debug, services)
 				if err != nil {
 					return err
 				}
@@ -105,13 +119,19 @@ func newRootCmd() *cobra.Command {
 					ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 					defer cancel()
 
-					resp, err := runner.Text(ctx, ag, prompt, attachments)
+					result, err := runner.TextWithSession(ctx, ag, prompt, attachments)
 					if err != nil {
 						return err
 					}
 
 					// Output to stdout (for piping)
-					fmt.Println(resp)
+					fmt.Println(result.Response)
+
+					// Print session ID to stderr (visible even when piped)
+					if result.SessionID != "" && !pipe.IsStdoutPiped() {
+						sessionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+						fmt.Fprintln(os.Stderr, sessionStyle.Render(fmt.Sprintf("\nSession: %s", result.SessionID)))
+					}
 					return nil
 				}
 
@@ -130,6 +150,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newAgentsCmd(&cfgPath))
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
 	cmd.AddCommand(newChainCmd(&cfgPath))
+	cmd.AddCommand(newSessionsCmd(&cfgPath))
 
 	return cmd
 }

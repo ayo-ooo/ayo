@@ -1,0 +1,5 @@
+{
+  "description": "Agent management agent for creating and managing user-defined ayo agents",
+  "allowed_tools": ["bash"],
+  "skills": ["ayo"]
+}

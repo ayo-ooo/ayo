@@ -15,7 +15,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
@@ -184,9 +183,6 @@ func createAgentCmd(cfgPath *string) *cobra.Command {
 		// System prompt options
 		noSystemWrapper bool
 
-		// Dev mode
-		devMode bool
-
 		// Non-interactive mode
 		nonInteractive bool
 	)
@@ -252,20 +248,12 @@ Examples:
     --model gpt-4.1 \
     --system-file ~/prompts/analyzer.md \
     --input-schema ~/schemas/input.json \
-    --output-schema ~/schemas/output.json
-
-  # Create in local project directory (for development)
-  ayo agents create @test-agent --dev --model gpt-4.1 -n`,
+    --output-schema ~/schemas/output.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var handle string
 			if len(args) > 0 {
 				handle = agent.NormalizeHandle(args[0])
-			}
-
-			// If dev mode, use local config directory
-			if devMode {
-				paths.SetLocalDevMode()
 			}
 
 			return withConfig(cfgPath, func(cfg config.Config) error {
@@ -445,7 +433,6 @@ Examples:
 
 	// Mode flags
 	cmd.Flags().BoolVarP(&nonInteractive, "non-interactive", "n", false, "skip wizard, fail if required fields missing")
-	cmd.Flags().BoolVar(&devMode, "dev", false, "create in local ./.config/ayo/ directory")
 
 	return cmd
 }

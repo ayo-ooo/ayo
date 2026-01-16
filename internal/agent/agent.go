@@ -139,9 +139,12 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 		dirs = newDirs
 	}
 
+	// Build set of data directories where builtins live
+	builtinDirs := paths.DataDirs()
+
 	// Try each directory
 	for _, dir := range dirs {
-		isBuiltIn := dir == builtin.InstallDir()
+		isBuiltIn := isDataDir(dir, builtinDirs)
 		agent, err := loadFromDir(cfg, normalized, dir, isBuiltIn)
 		if err == nil {
 			return agent, nil
@@ -326,6 +329,18 @@ var ErrReservedNamespace = errors.New("agent name cannot use reserved 'ayo.' nam
 func IsReservedNamespace(handle string) bool {
 	name := strings.TrimPrefix(handle, "@")
 	return strings.HasPrefix(name, "ayo.") || name == "ayo"
+}
+
+// isDataDir checks if dir is within one of the data directories (where builtins live).
+// The dir parameter is an agents directory, e.g., "./.ayo/agents" or "~/.local/share/ayo/agents".
+func isDataDir(dir string, dataDirs []string) bool {
+	for _, dataDir := range dataDirs {
+		agentsDir := filepath.Join(dataDir, "agents")
+		if dir == agentsDir {
+			return true
+		}
+	}
+	return false
 }
 
 func Save(cfg config.Config, handle string, cfgData Config, systemMessage string) (Agent, error) {

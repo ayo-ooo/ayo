@@ -461,33 +461,50 @@ func (u *UI) PrintChatHeader(agentHandle string) {
 
 // PrintChatHeaderWithSkills prints the header with skill count.
 func (u *UI) PrintChatHeaderWithSkills(agentHandle string, skillCount int) {
-	// Create a styled header box
+	width := getTerminalWidth()
+	if width > 100 {
+		width = 100
+	}
+
+	// Create styled components
 	titleStyle := lipgloss.NewStyle().
 		Foreground(colorPrimary).
 		Bold(true)
 
 	hintStyle := lipgloss.NewStyle().
 		Foreground(colorMuted)
-	
+
 	skillStyle := lipgloss.NewStyle().
 		Foreground(colorTertiary)
 
+	lineStyle := lipgloss.NewStyle().
+		Foreground(colorSubtle)
+
+	// Build the title part
 	title := titleStyle.Render(fmt.Sprintf("Chat with %s", agentHandle))
-	
+
 	var skillsInfo string
 	if skillCount > 0 {
-		skillsInfo = skillStyle.Render(fmt.Sprintf("  •  %d skills", skillCount))
+		skillsInfo = skillStyle.Render(fmt.Sprintf(" %s %d skills", IconBullet, skillCount))
 	}
-	
-	hint := hintStyle.Render("Ctrl+C to interrupt • Ctrl+C again to exit")
 
-	headerBox := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(colorSubtle).
-		Padding(0, 2).
-		Render(title + skillsInfo + "  " + hint)
+	hint := hintStyle.Render("Ctrl+C to exit")
 
-	u.println(headerBox)
+	// Calculate line length to fill remaining space
+	// Format: "  title skills ─── hint  "
+	contentWidth := lipgloss.Width(title) + lipgloss.Width(skillsInfo) + lipgloss.Width(hint) + 6 // 6 = padding + min gap
+	lineWidth := width - contentWidth
+	if lineWidth < 3 {
+		lineWidth = 3
+	}
+
+	line := lineStyle.Render(strings.Repeat("─", lineWidth))
+
+	// Compose the header line
+	header := "  " + title + skillsInfo + " " + line + " " + hint
+
+	u.println()
+	u.println(header)
 	u.println()
 }
 

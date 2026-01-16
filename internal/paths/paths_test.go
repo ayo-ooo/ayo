@@ -107,14 +107,14 @@ func TestDevModeDataDir(t *testing.T) {
 	dataDir := DataDir()
 	devRoot := DevRoot()
 
-	// DataDir should be {devRoot}/.ayo
-	expected := filepath.Join(devRoot, ".ayo")
+	// DataDir should be {devRoot}/.local/share/ayo
+	expected := filepath.Join(devRoot, ".local", "share", "ayo")
 	if dataDir != expected {
 		t.Errorf("Dev DataDir: expected %s, got %s", expected, dataDir)
 	}
 }
 
-func TestDevModeConfigDirIsGlobal(t *testing.T) {
+func TestDevModeConfigDir(t *testing.T) {
 	if !IsDevMode() {
 		t.Skip("not in dev mode")
 	}
@@ -123,29 +123,22 @@ func TestDevModeConfigDirIsGlobal(t *testing.T) {
 		t.Skip("skipping on Windows")
 	}
 
-	home, _ := os.UserHomeDir()
+	devRoot := DevRoot()
 	configDir := ConfigDir()
-	expected := filepath.Join(home, ".config", "ayo")
+	expected := filepath.Join(devRoot, ".config", "ayo")
 
-	// ConfigDir should always be global, even in dev mode
+	// ConfigDir should be project-local in dev mode
 	if configDir != expected {
-		t.Errorf("ConfigDir should be global even in dev mode: expected %s, got %s", expected, configDir)
+		t.Errorf("ConfigDir should be project-local in dev mode: expected %s, got %s", expected, configDir)
 	}
 }
 
-func TestConfigDirAlwaysGlobal(t *testing.T) {
+func TestConfigDirStructure(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skipping on Windows")
 	}
 
-	home, _ := os.UserHomeDir()
-
-	// ConfigDir should be ~/.config/ayo regardless of dev mode
 	configDir := ConfigDir()
-	expectedConfig := filepath.Join(home, ".config", "ayo")
-	if configDir != expectedConfig {
-		t.Errorf("ConfigDir: expected %s, got %s", expectedConfig, configDir)
-	}
 
 	// User dirs should be under ConfigDir
 	if !strings.HasPrefix(AgentsDir(), configDir) {

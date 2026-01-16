@@ -49,7 +49,7 @@ func TestBuildMessagesOrdersSystemSkillsUser(t *testing.T) {
 }
 
 func TestRunChatStopsAfterEmptyModel(t *testing.T) {
-	r := &Runner{sessions: make(map[string]*Session)}
+	r := &Runner{sessions: make(map[string]*ChatSession)}
 	_, err := r.runChat(context.Background(), agent.Agent{Model: ""}, nil)
 	if err == nil {
 		t.Fatalf("expected error from empty model")

@@ -596,6 +596,14 @@ ayo skills create <name>    # Create new skill
 ayo skills validate <path>  # Validate skill directory
 ayo skills dir              # Show skills directories
 ayo skills update           # Update built-in skills
+
+# Sessions management
+ayo sessions list           # List conversation sessions
+ayo sessions list -a @ayo   # Filter by agent
+ayo sessions show <id>      # Show session details and messages
+ayo sessions continue       # Continue a session (interactive picker)
+ayo sessions continue <id>  # Continue a specific session
+ayo sessions delete <id>    # Delete a session
 ```
 
 ### Default Agent
@@ -612,6 +620,43 @@ When no agent is specified, ayo uses the `@ayo` agent (the default built-in agen
 ### Non-Interactive Mode
 
 `ayo @agentname "Your prompt here"` executes the prompt and exits.
+
+### Sessions
+
+Sessions persist conversation history to a local SQLite database. This enables:
+- Resuming previous conversations
+- Reviewing past interactions
+- Managing conversation history
+
+**Storage location:** `~/.local/share/ayo/ayo.db`
+
+**Session lifecycle:**
+1. Session created when chat starts (interactive or single prompt)
+2. Messages persisted as the conversation progresses
+3. Session ID displayed after each interaction
+4. Sessions can be resumed with `ayo sessions continue`
+
+**Common workflows:**
+
+```bash
+# List recent sessions
+ayo sessions list
+
+# Continue the most recent session (shows picker)
+ayo sessions continue
+
+# Continue a specific session by ID prefix
+ayo sessions continue abc123
+
+# Search and continue by title
+ayo sessions continue "debugging issue"
+
+# View session details
+ayo sessions show abc123
+
+# Clean up old sessions
+ayo sessions delete abc123
+```
 
 ## UI Behavior
 

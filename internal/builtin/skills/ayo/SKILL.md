@@ -16,6 +16,7 @@ Activate this skill when:
 - User wants to create a new agent
 - User wants to list or inspect existing agents
 - User wants to create or manage skills
+- User wants to continue or manage conversation sessions
 - User asks about agent chaining or structured I/O
 - User wants to configure ayo
 
@@ -32,6 +33,7 @@ ayo [command] [@agent] [prompt] [--flags]
 | `ayo @agent "prompt"` | Run a prompt with the specified agent |
 | `ayo agents` | Manage agents (list, create, show, update) |
 | `ayo skills` | Manage skills (list, create, show, validate, update) |
+| `ayo sessions` | Manage conversation sessions |
 | `ayo chain` | Explore and validate agent chaining |
 | `ayo setup` | Install/update built-in agents and skills |
 
@@ -176,6 +178,57 @@ Checks that a skill directory has valid structure and metadata.
 ```bash
 ayo skills update
 ayo skills update --force
+```
+
+## Session Management
+
+Sessions persist conversation history, allowing you to continue previous conversations.
+
+### List Sessions
+
+```bash
+# List recent sessions
+ayo sessions list
+
+# Filter by agent
+ayo sessions list --agent @ayo
+
+# Limit results
+ayo sessions list --limit 50
+```
+
+### Show Session Details
+
+```bash
+# Show session info and messages
+ayo sessions show abc123
+```
+
+Accepts full session ID or prefix.
+
+### Continue a Session
+
+```bash
+# Interactive picker for recent sessions
+ayo sessions continue
+
+# Continue specific session by ID prefix
+ayo sessions continue abc123
+
+# Search by title
+ayo sessions continue "debugging issue"
+```
+
+Alias: `ayo sessions resume`
+
+### Delete a Session
+
+```bash
+# With confirmation prompt
+ayo sessions delete abc123
+
+# Force delete without confirmation
+ayo sessions delete abc123 --force
 ```
 
 ## Agent Chaining

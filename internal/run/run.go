@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/session"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
 
@@ -22,13 +23,16 @@ type Runner struct {
 	config   config.Config
 	debug    bool
 	depth    int // 0 = top-level, 1+ = sub-agent calls
-	sessions map[string]*Session
+	sessions map[string]*ChatSession
+	services *session.Services // nil = no persistence
 }
 
-// Session maintains conversation state for interactive chat.
-type Session struct {
-	Agent    agent.Agent
-	Messages []fantasy.Message
+// ChatSession maintains conversation state for interactive chat.
+type ChatSession struct {
+	Agent          agent.Agent
+	Messages       []fantasy.Message
+	SessionID      string // Database session ID (empty if no persistence)
+	TitleGenerated bool   // Whether title generation has been triggered
 }
 
 const maxToolIterations = 8
@@ -39,7 +43,17 @@ func NewRunnerFromConfig(cfg config.Config, debug bool) (*Runner, error) {
 	return &Runner{
 		config:   cfg,
 		debug:    debug,
-		sessions: make(map[string]*Session),
+		sessions: make(map[string]*ChatSession),
+	}, nil
+}
+
+// NewRunnerWithServices creates a runner with session persistence.
+func NewRunnerWithServices(cfg config.Config, debug bool, services *session.Services) (*Runner, error) {
+	return &Runner{
+		config:   cfg,
+		debug:    debug,
+		sessions: make(map[string]*ChatSession),
+		services: services,
 	}, nil
 }
 
@@ -47,7 +61,7 @@ func NewRunnerFromConfig(cfg config.Config, debug bool) (*Runner, error) {
 
 // Chat sends a message in an interactive session, maintaining conversation history.
 func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string, error) {
-	session, ok := r.sessions[ag.Handle]
+	chatSession, ok := r.sessions[ag.Handle]
 	if !ok {
 		// Initialize new session with system messages
 		var msgs []fantasy.Message
@@ -60,30 +74,173 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 		if strings.TrimSpace(ag.SkillsPrompt) != "" {
 			msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
 		}
-		session = &Session{Agent: ag, Messages: msgs}
-		r.sessions[ag.Handle] = session
+		chatSession = &ChatSession{Agent: ag, Messages: msgs}
+		r.sessions[ag.Handle] = chatSession
+
+		// Create database session if services available
+		if r.services != nil {
+			dbSession, err := r.services.Sessions.Create(ctx, session.CreateParams{
+				AgentHandle: ag.Handle,
+				Title:       generateSessionTitle(input),
+			})
+			if err == nil {
+				chatSession.SessionID = dbSession.ID
+			}
+		}
 	}
 
 	// Add user message
-	session.Messages = append(session.Messages, fantasy.NewUserMessage(input))
+	chatSession.Messages = append(chatSession.Messages, fantasy.NewUserMessage(input))
+
+	// Persist user message
+	if r.services != nil && chatSession.SessionID != "" {
+		r.services.Messages.Create(ctx, session.CreateMessageParams{
+			SessionID: chatSession.SessionID,
+			Role:      session.RoleUser,
+			Parts:     []session.ContentPart{session.TextContent{Text: input}},
+			Model:     ag.Model,
+		})
+	}
 
 	// Run the chat and get response
-	resp, newMsgs, err := r.runChatWithHistory(ctx, ag, session.Messages)
+	resp, newMsgs, err := r.runChatWithHistory(ctx, ag, chatSession.Messages)
 	if err != nil {
 		// Remove the failed user message
-		session.Messages = session.Messages[:len(session.Messages)-1]
+		chatSession.Messages = chatSession.Messages[:len(chatSession.Messages)-1]
 		return "", err
 	}
 
 	// Update session with full message history
-	session.Messages = newMsgs
+	chatSession.Messages = newMsgs
+
+	// Persist assistant response
+	if r.services != nil && chatSession.SessionID != "" {
+		// Get the last assistant message from newMsgs
+		for i := len(newMsgs) - 1; i >= 0; i-- {
+			if newMsgs[i].Role == fantasy.MessageRoleAssistant {
+				parts := r.fantasyPartsToSessionParts(newMsgs[i].Content)
+				r.services.Messages.Create(ctx, session.CreateMessageParams{
+					SessionID: chatSession.SessionID,
+					Role:      session.RoleAssistant,
+					Parts:     parts,
+					Model:     ag.Model,
+				})
+				break
+			}
+		}
+
+		// Generate title async after first exchange
+		if !chatSession.TitleGenerated {
+			chatSession.TitleGenerated = true
+			go r.generateTitleAsync(ag.Model, chatSession.SessionID, input, resp)
+		}
+	}
+
 	return resp, nil
+}
+
+// GetSessionID returns the current session ID for an agent (empty if no session).
+func (r *Runner) GetSessionID(agentHandle string) string {
+	if s, ok := r.sessions[agentHandle]; ok {
+		return s.SessionID
+	}
+	return ""
+}
+
+// ResumeSession restores a chat session from persisted messages.
+// This allows continuing a previous conversation.
+func (r *Runner) ResumeSession(ctx context.Context, ag agent.Agent, sessionID string, messages []session.Message) error {
+	// Build system messages
+	var msgs []fantasy.Message
+	if strings.TrimSpace(ag.CombinedSystem) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(ag.CombinedSystem))
+	}
+	if strings.TrimSpace(ag.ToolsPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(ag.ToolsPrompt))
+	}
+	if strings.TrimSpace(ag.SkillsPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
+	}
+
+	// Convert persisted messages to Fantasy messages
+	for _, msg := range messages {
+		// Skip system messages as we already added them
+		if msg.Role == session.RoleSystem {
+			continue
+		}
+		msgs = append(msgs, msg.ToFantasyMessage())
+	}
+
+	// Create the chat session
+	chatSession := &ChatSession{
+		Agent:     ag,
+		Messages:  msgs,
+		SessionID: sessionID,
+	}
+	r.sessions[ag.Handle] = chatSession
+
+	return nil
+}
+
+// TextResult contains the response and session ID from a Text call.
+type TextResult struct {
+	Response  string
+	SessionID string
 }
 
 // Text runs a single prompt without maintaining history.
 func (r *Runner) Text(ctx context.Context, ag agent.Agent, prompt string, attachments []string) (string, error) {
+	result, err := r.TextWithSession(ctx, ag, prompt, attachments)
+	if err != nil {
+		return "", err
+	}
+	return result.Response, nil
+}
+
+// TextWithSession runs a single prompt and returns the session ID.
+func (r *Runner) TextWithSession(ctx context.Context, ag agent.Agent, prompt string, attachments []string) (TextResult, error) {
 	msgs := r.buildMessagesWithAttachments(ag, prompt, attachments)
-	return r.runChat(ctx, ag, msgs)
+
+	var sessionID string
+
+	// Create database session if services available
+	if r.services != nil {
+		dbSession, err := r.services.Sessions.Create(ctx, session.CreateParams{
+			AgentHandle: ag.Handle,
+			Title:       generateSessionTitle(prompt),
+		})
+		if err == nil {
+			sessionID = dbSession.ID
+
+			// Persist user message
+			r.services.Messages.Create(ctx, session.CreateMessageParams{
+				SessionID: sessionID,
+				Role:      session.RoleUser,
+				Parts:     []session.ContentPart{session.TextContent{Text: prompt}},
+				Model:     ag.Model,
+			})
+		}
+	}
+
+	resp, err := r.runChat(ctx, ag, msgs)
+	if err != nil {
+		return TextResult{}, err
+	}
+
+	// Persist assistant response and generate title
+	if r.services != nil && sessionID != "" {
+		r.services.Messages.Create(ctx, session.CreateMessageParams{
+			SessionID: sessionID,
+			Role:      session.RoleAssistant,
+			Parts:     []session.ContentPart{session.TextContent{Text: resp}},
+			Model:     ag.Model,
+		})
+
+		// Generate title async
+		go r.generateTitleAsync(ag.Model, sessionID, prompt, resp)
+	}
+
+	return TextResult{Response: resp, SessionID: sessionID}, nil
 }
 
 func (r *Runner) buildMessages(ag agent.Agent, prompt string) []fantasy.Message {
@@ -426,7 +583,8 @@ func (r *Runner) agentCallExecutor() func(ctx context.Context, params AgentCallP
 			config:   r.config,
 			debug:    r.debug,
 			depth:    r.depth + 1,
-			sessions: make(map[string]*Session),
+			sessions: make(map[string]*ChatSession),
+			services: r.services, // Pass services through for persistence
 		}
 
 		// Run the agent
@@ -488,6 +646,78 @@ func formatElapsed(d time.Duration) string {
 		return fmt.Sprintf("%.0fs", d.Seconds())
 	}
 	return fmt.Sprintf("%.1fm", d.Minutes())
+}
+
+// generateSessionTitle creates a simple fallback title from the prompt.
+// Used when LLM title generation fails or services are unavailable.
+func generateSessionTitle(prompt string) string {
+	const maxLen = 60
+
+	// Trim whitespace and collapse multiple spaces/newlines
+	title := strings.TrimSpace(prompt)
+	title = strings.Join(strings.Fields(title), " ")
+
+	if len(title) <= maxLen {
+		return title
+	}
+
+	// Truncate and add ellipsis
+	return title[:maxLen-1] + "…"
+}
+
+// generateTitleAsync uses an LLM to generate a concise title for the session.
+// Runs in a goroutine so it doesn't block the conversation.
+func (r *Runner) generateTitleAsync(modelID, sessionID, userMessage, assistantResponse string) {
+	if r.services == nil || sessionID == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Create a model for title generation
+	model, err := NewLanguageModel(ctx, r.config.Provider, modelID)
+	if err != nil {
+		return // Silent fail - title stays as default
+	}
+
+	// Truncate messages to avoid excessive token usage
+	userMsg := truncateForTitle(userMessage, 500)
+	assistantMsg := truncateForTitle(assistantResponse, 500)
+
+	titlePrompt := fmt.Sprintf("Generate a short, descriptive title (max 50 chars) for this conversation. The title should capture the main topic or intent. Return ONLY the title, no quotes or explanation.\n\nUser: %s\n\nAssistant: %s", userMsg, assistantMsg)
+
+	agent := fantasy.NewAgent(model)
+	result, err := agent.Generate(ctx, fantasy.AgentCall{
+		Prompt: titlePrompt,
+	})
+	if err != nil {
+		return // Silent fail
+	}
+
+	// Extract title from response
+	title := strings.TrimSpace(result.Response.Content.Text())
+	if title == "" {
+		return
+	}
+
+	// Truncate if too long
+	if len(title) > 60 {
+		title = title[:59] + "…"
+	}
+
+	// Update the session title
+	r.services.Sessions.UpdateTitle(ctx, sessionID, title)
+}
+
+// truncateForTitle truncates a string to maxLen for title generation prompts.
+func truncateForTitle(s string, maxLen int) string {
+	s = strings.TrimSpace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-1] + "…"
 }
 
 // castToStructuredOutput takes the agent's response and casts it to the required output schema.
@@ -557,4 +787,45 @@ func (r *Runner) castToStructuredOutput(ctx context.Context, model fantasy.Langu
 	}
 
 	return "", fmt.Errorf("failed to produce valid structured output after %d attempts: %w", maxOutputCastRetries, lastError)
+}
+
+// fantasyPartsToSessionParts converts Fantasy message parts to session content parts.
+func (r *Runner) fantasyPartsToSessionParts(parts []fantasy.MessagePart) []session.ContentPart {
+	var result []session.ContentPart
+	for _, p := range parts {
+		switch part := p.(type) {
+		case fantasy.TextPart:
+			result = append(result, session.TextContent{Text: part.Text})
+		case fantasy.ReasoningPart:
+			result = append(result, session.ReasoningContent{Text: part.Text})
+		case fantasy.FilePart:
+			result = append(result, session.FileContent{
+				Filename:  part.Filename,
+				Data:      part.Data,
+				MediaType: part.MediaType,
+			})
+		case fantasy.ToolCallPart:
+			result = append(result, session.ToolCall{
+				ID:               part.ToolCallID,
+				Name:             part.ToolName,
+				Input:            part.Input,
+				ProviderExecuted: part.ProviderExecuted,
+			})
+		case fantasy.ToolResultPart:
+			tr := session.ToolResult{
+				ToolCallID: part.ToolCallID,
+			}
+			switch out := part.Output.(type) {
+			case fantasy.ToolResultOutputContentText:
+				tr.Content = out.Text
+			case fantasy.ToolResultOutputContentError:
+				tr.Content = out.Error.Error()
+				tr.IsError = true
+			case fantasy.ToolResultOutputContentMedia:
+				tr.Content = out.Text
+			}
+			result = append(result, tr)
+		}
+	}
+	return result
 }
