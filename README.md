@@ -37,6 +37,7 @@ Agents are AIs with custom system prompts and capabilities. Each agent is a dire
 | Agent | Description |
 |-------|-------------|
 | `@ayo` | The default agent - a versatile command-line assistant |
+| `@ayo.agents` | Agent management agent for creating and managing agents |
 | `@ayo.research` | Web-enabled research agent for finding information online |
 | `@ayo.skills` | Skill management agent for creating and organizing skills |
 
@@ -104,9 +105,6 @@ ayo skills create my-skill
 
 # Create in user shared directory
 ayo skills create my-skill --shared
-
-# Create in dev location (./.config/ayo/skills/)
-ayo skills create my-skill --dev
 ```
 
 ### Skill Structure
@@ -282,6 +280,17 @@ ayo chain from <agent>       # Find output consumers
 ayo chain to <agent>         # Find input producers
 ayo chain validate <agent>   # Validate input JSON
 ayo chain example <agent>    # Generate example input
+```
+
+### sessions
+
+```bash
+ayo sessions list              # List conversation sessions
+ayo sessions list -a @ayo      # Filter by agent
+ayo sessions show <id>         # Show session details
+ayo sessions continue          # Continue a session (interactive picker)
+ayo sessions continue <id>     # Continue a specific session
+ayo sessions delete <id>       # Delete a session
 ```
 
 ### setup
