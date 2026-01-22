@@ -113,18 +113,6 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 		toolOpts = append(toolOpts, huh.NewOption(label, t.Name))
 	}
 
-	// Build skill options with descriptions (word-wrapped)
-	skillOpts := make([]huh.Option[string], 0, len(f.opts.AvailableSkills))
-	for _, s := range f.opts.AvailableSkills {
-		label := s.Name
-		if s.Description != "" {
-			// Word-wrap description to ~50 chars, indent continuation lines
-			wrapped := wordWrap(s.Description, 50)
-			label = fmt.Sprintf("%s\n    %s", s.Name, wrapped)
-		}
-		skillOpts = append(skillOpts, huh.NewOption(label, s.Name))
-	}
-
 	hasSkills := len(f.opts.AvailableSkills) > 0
 
 	// Get editor name for help text
@@ -210,14 +198,87 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 
 	// Step 3: Skills (only if skills exist)
 	if hasSkills {
+		// Helper to get required skills based on selected tools
+		getRequiredSkills := func() []string {
+			return skills.GetRequiredSkillsForTools(res.AllowedTools)
+		}
+
+		// Helper to format required skills note
+		formatRequiredSkillsNote := func() string {
+			reqs := skills.GetToolRequirementsForTools(res.AllowedTools)
+			if len(reqs) == 0 {
+				return ""
+			}
+			var lines []string
+			lines = append(lines, "Skills Required by Tools:")
+			for _, req := range reqs {
+				// Format skill names as comma-separated inline code
+				var skillCodes []string
+				for _, s := range req.RequiredSkills {
+					skillCodes = append(skillCodes, "`"+s+"`")
+				}
+				lines = append(lines, fmt.Sprintf("- `%s` requires: %s", req.ToolName, strings.Join(skillCodes, ", ")))
+			}
+			return strings.Join(lines, "\n")
+		}
+
+		// Build skill name set for filtering
+		skillNameSet := make(map[string]struct{})
+		for _, s := range f.opts.AvailableSkills {
+			skillNameSet[s.Name] = struct{}{}
+		}
+
+		// Dynamic options that filter out required skills
+		optionalSkillsOptionsFunc := func() []huh.Option[string] {
+			requiredSet := make(map[string]struct{})
+			for _, s := range getRequiredSkills() {
+				requiredSet[s] = struct{}{}
+			}
+
+			var opts []huh.Option[string]
+			for _, s := range f.opts.AvailableSkills {
+				if _, isRequired := requiredSet[s.Name]; isRequired {
+					continue // Skip required skills
+				}
+				label := s.Name
+				if s.Description != "" {
+					wrapped := wordWrap(s.Description, 50)
+					label = fmt.Sprintf("%s\n    %s", s.Name, wrapped)
+				}
+				opts = append(opts, huh.NewOption(label, s.Name))
+			}
+			return opts
+		}
+
+		// Build the skills group - MultiSelect is the only field so it can fill available space
+		// Required skills info is shown in the MultiSelect's description
+
+		// Dynamic description for the MultiSelect
+		skillsFieldDescriptionFunc := func() string {
+			reqNote := formatRequiredSkillsNote()
+			if reqNote != "" {
+				return reqNote
+			}
+			return ""
+		}
+
+		// Add optional skills multi-select
+		// Use a large height that will be clamped by the Group to available space
 		groups = append(groups, huh.NewGroup(
 			huh.NewMultiSelect[string]().
-				Title("Available Skills").
-				Options(skillOpts...).
+				TitleFunc(func() string {
+					if len(getRequiredSkills()) > 0 {
+						return "Optional Skills"
+					}
+					return "Available Skills"
+				}, &res.AllowedTools).
+				DescriptionFunc(skillsFieldDescriptionFunc, &res.AllowedTools).
+				OptionsFunc(optionalSkillsOptionsFunc, &res.AllowedTools).
 				Value(&res.Skills).
-				Filterable(true),
+				Filterable(true).
+				Height(100),
 		).Title(stepTitle(stepSkills, "Skills")).
-			Description("Skills are reusable instruction sets that teach your agent specialized tasks.\n\nSelect any skills that match what you want this agent to do."))
+			Description("Skills are reusable instruction sets that teach your agent specialized tasks."))
 	}
 
 	// Step 4: System Prompt Source
@@ -424,14 +485,26 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 			sections = append(sections, ReviewSection{Label: "Tools", Value: "(none)"})
 		}
 
-		// Skills
+		// Skills - show required and optional separately
+		requiredSkills := skills.GetRequiredSkillsForTools(res.AllowedTools)
+		if len(requiredSkills) > 0 {
+			skillList := strings.Join(requiredSkills, ", ")
+			if len(skillList) > 50 {
+				skillList = skillList[:47] + "..."
+			}
+			sections = append(sections, ReviewSection{Label: "Required Skills", Value: skillList})
+		}
 		if len(res.Skills) > 0 {
 			skillList := strings.Join(res.Skills, ", ")
 			if len(skillList) > 50 {
 				skillList = skillList[:47] + "..."
 			}
-			sections = append(sections, ReviewSection{Label: "Skills", Value: skillList})
-		} else {
+			label := "Skills"
+			if len(requiredSkills) > 0 {
+				label = "Optional Skills"
+			}
+			sections = append(sections, ReviewSection{Label: label, Value: skillList})
+		} else if len(requiredSkills) == 0 {
 			sections = append(sections, ReviewSection{Label: "Skills", Value: "(none)"})
 		}
 
@@ -533,6 +606,22 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 
 	// Convert useGuardrails (true = keep guardrails) to NoSystemWrapper (true = disable)
 	res.NoSystemWrapper = !useGuardrails
+
+	// Merge required skills into the skills list
+	requiredSkills := skills.GetRequiredSkillsForTools(res.AllowedTools)
+	if len(requiredSkills) > 0 {
+		// Build set of already-selected skills
+		skillSet := make(map[string]struct{})
+		for _, s := range res.Skills {
+			skillSet[s] = struct{}{}
+		}
+		// Add required skills that aren't already selected
+		for _, s := range requiredSkills {
+			if _, exists := skillSet[s]; !exists {
+				res.Skills = append(res.Skills, s)
+			}
+		}
+	}
 
 	// If file source was selected, read the file content
 	if systemSource == "file" && res.SystemFile != "" {

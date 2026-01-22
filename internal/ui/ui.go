@@ -488,7 +488,7 @@ func (u *UI) PrintChatHeaderWithSkills(agentHandle string, skillCount int) {
 		skillsInfo = skillStyle.Render(fmt.Sprintf(" %s %d skills", IconBullet, skillCount))
 	}
 
-	hint := hintStyle.Render("Ctrl+C to exit")
+	hint := hintStyle.Render("^H history · ^C exit")
 
 	// Calculate line length to fill remaining space
 	// Format: "  title skills ─── hint  "

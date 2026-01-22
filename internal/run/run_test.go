@@ -160,3 +160,49 @@ func TestBuildMessagesWithMissingAttachment(t *testing.T) {
 		t.Errorf("expected error message in prompt, got %q", content)
 	}
 }
+
+func TestGetSessionMessages_NoServices(t *testing.T) {
+	r := &Runner{sessions: make(map[string]*ChatSession)}
+
+	// No services configured - should return nil, nil
+	msgs, err := r.GetSessionMessages(context.Background(), "@test")
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if msgs != nil {
+		t.Errorf("expected nil messages, got %v", msgs)
+	}
+}
+
+func TestGetSessionMessages_NoSession(t *testing.T) {
+	r := &Runner{
+		sessions: make(map[string]*ChatSession),
+		// services would be set but we're testing the no-session case
+	}
+
+	// No session for this agent - should return nil, nil
+	msgs, err := r.GetSessionMessages(context.Background(), "@nonexistent")
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if msgs != nil {
+		t.Errorf("expected nil messages, got %v", msgs)
+	}
+}
+
+func TestGetSessionMessages_EmptySessionID(t *testing.T) {
+	r := &Runner{
+		sessions: map[string]*ChatSession{
+			"@test": {SessionID: ""}, // Empty session ID
+		},
+	}
+
+	// Session exists but has no ID - should return nil, nil
+	msgs, err := r.GetSessionMessages(context.Background(), "@test")
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if msgs != nil {
+		t.Errorf("expected nil messages, got %v", msgs)
+	}
+}

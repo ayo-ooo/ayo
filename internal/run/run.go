@@ -182,6 +182,21 @@ func (r *Runner) ResumeSession(ctx context.Context, ag agent.Agent, sessionID st
 	return nil
 }
 
+// GetSessionMessages retrieves messages for the current session from the database.
+// Returns nil if no session exists or no services are configured.
+func (r *Runner) GetSessionMessages(ctx context.Context, agentHandle string) ([]session.Message, error) {
+	if r.services == nil {
+		return nil, nil
+	}
+
+	chatSession, ok := r.sessions[agentHandle]
+	if !ok || chatSession.SessionID == "" {
+		return nil, nil
+	}
+
+	return r.services.Messages.List(ctx, chatSession.SessionID)
+}
+
 // TextResult contains the response and session ID from a Text call.
 type TextResult struct {
 	Response  string
