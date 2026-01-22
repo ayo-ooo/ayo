@@ -136,9 +136,9 @@ func NewFantasyToolSet(allowed []string) FantasyToolSet {
 
 // NewFantasyToolSetWithBaseDir creates a Fantasy tool set with explicit base directory.
 func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolSet {
-	// Default to bash if no tools specified
+	// Default to bash and plan if no tools specified
 	if len(allowed) == 0 {
-		allowed = []string{"bash"}
+		allowed = []string{"bash", "plan"}
 	}
 
 	var tools []fantasy.AgentTool
@@ -146,6 +146,8 @@ func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolS
 		switch name {
 		case "bash":
 			tools = append(tools, NewBashTool(baseDir))
+		case "plan":
+			tools = append(tools, NewPlanTool())
 		// agent_call is added separately when needed
 		}
 	}

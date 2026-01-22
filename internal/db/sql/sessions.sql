@@ -55,3 +55,10 @@ SELECT COUNT(*) FROM sessions;
 
 -- name: CountSessionsByAgent :one
 SELECT COUNT(*) FROM sessions WHERE agent_handle = @agent_handle;
+
+-- name: UpdateSessionPlan :one
+UPDATE sessions SET
+    plan = @plan,
+    updated_at = strftime('%s', 'now')
+WHERE id = @id
+RETURNING *;

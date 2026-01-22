@@ -21,6 +21,7 @@ type Session struct {
 	ChainDepth       int64
 	ChainSource      string
 	MessageCount     int64
+	Plan             Plan
 	CreatedAt        int64
 	UpdatedAt        int64
 	FinishedAt       int64
@@ -168,7 +169,24 @@ func (s *SessionService) CountByAgent(ctx context.Context, agentHandle string) (
 	return s.q.CountSessionsByAgent(ctx, agentHandle)
 }
 
+// UpdatePlan updates a session's plan.
+func (s *SessionService) UpdatePlan(ctx context.Context, id string, plan Plan) (Session, error) {
+	planJSON, err := marshalPlan(plan)
+	if err != nil {
+		return Session{}, err
+	}
+	dbSession, err := s.q.UpdateSessionPlan(ctx, db.UpdateSessionPlanParams{
+		ID:   id,
+		Plan: toNullString(planJSON),
+	})
+	if err != nil {
+		return Session{}, err
+	}
+	return sessionFromDB(dbSession), nil
+}
+
 func sessionFromDB(d db.Session) Session {
+	plan, _ := unmarshalPlan(d.Plan.String)
 	return Session{
 		ID:               d.ID,
 		AgentHandle:      d.AgentHandle,
@@ -180,6 +198,7 @@ func sessionFromDB(d db.Session) Session {
 		ChainDepth:       d.ChainDepth,
 		ChainSource:      d.ChainSource.String,
 		MessageCount:     d.MessageCount,
+		Plan:             plan,
 		CreatedAt:        d.CreatedAt,
 		UpdatedAt:        d.UpdatedAt,
 		FinishedAt:       d.FinishedAt.Int64,

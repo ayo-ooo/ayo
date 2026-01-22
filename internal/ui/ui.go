@@ -13,8 +13,10 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/term"
 
 	"github.com/alexcabrera/ayo/internal/pipe"
+	"github.com/alexcabrera/ayo/internal/session"
 )
 
 type SelectAgentResult struct {
@@ -544,6 +546,7 @@ type ToolCallInfo struct {
 	Output      string // Result output
 	Error       string // Error message if failed
 	Duration    string // How long the call took
+	Metadata    string // Tool-specific metadata (JSON)
 }
 
 // PrintToolCallStart prints the tool call header with the command.
@@ -561,14 +564,22 @@ func (u *UI) PrintToolCallStart(tc ToolCallInfo) {
 		label = tc.Name
 	}
 
-	if tc.Name == "bash" {
+	switch tc.Name {
+	case "bash":
 		u.printf("%s%s %s %s %s\n",
 			indent,
 			iconStyle.Render(IconBash),
 			toolStyle.Render("bash"),
 			sepStyle.Render("·"),
 			labelStyle.Render(label))
-	} else {
+	case "plan":
+		u.printf("%s%s %s %s %s\n",
+			indent,
+			iconStyle.Render(IconPlan),
+			toolStyle.Render("plan"),
+			sepStyle.Render("·"),
+			labelStyle.Render("updating plan"))
+	default:
 		u.printf("%s%s %s\n",
 			indent,
 			iconStyle.Render(IconTool),
@@ -585,6 +596,12 @@ func (u *UI) PrintToolCallStart(tc ToolCallInfo) {
 // PrintToolCallResult prints the result of a tool call.
 func (u *UI) PrintToolCallResult(tc ToolCallInfo) {
 	indent := u.indent()
+
+	// Handle plan tool specially
+	if tc.Name == "plan" {
+		u.printPlanResult(tc)
+		return
+	}
 
 	// Status line: ✓ completed (1.2s) or ✕ failed (1.2s)
 	var statusIcon string
@@ -636,6 +653,154 @@ func (u *UI) PrintToolCallResult(tc ToolCallInfo) {
 	}
 
 	u.println() // Blank line after each tool call
+}
+
+// planResponseMetadata mirrors run.PlanResponseMetadata to avoid circular imports.
+type planResponseMetadata struct {
+	IsNew         bool         `json:"is_new"`
+	Plan          session.Plan `json:"plan"`
+	JustCompleted []string     `json:"just_completed,omitempty"`
+	JustStarted   string       `json:"just_started,omitempty"`
+	Completed     int          `json:"completed"`
+	Total         int          `json:"total"`
+}
+
+// printPlanResult handles plan tool output display.
+func (u *UI) printPlanResult(tc ToolCallInfo) {
+	indent := u.indent()
+
+	if tc.Error != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(colorError)
+		durationStyle := lipgloss.NewStyle().Foreground(colorMuted)
+		u.printf("%s  %s %s %s\n",
+			indent,
+			statusStyle.Render(IconError),
+			statusStyle.Render("failed"),
+			durationStyle.Render("("+tc.Duration+")"))
+		u.println(lipgloss.NewStyle().Foreground(colorError).Render(indent + "  " + tc.Error))
+		u.println()
+		return
+	}
+
+	statusStyle := lipgloss.NewStyle().Foreground(colorSuccess)
+	durationStyle := lipgloss.NewStyle().Foreground(colorMuted)
+
+	// Try to parse metadata for rich display
+	var meta planResponseMetadata
+	if tc.Metadata != "" {
+		if err := json.Unmarshal([]byte(tc.Metadata), &meta); err == nil {
+			u.printPlanWithMetadata(tc.Duration, meta)
+			return
+		}
+	}
+
+	// Fallback: parse counts from output text
+	summaryStyle := lipgloss.NewStyle().Foreground(colorTextDim)
+	var summary string
+	lines := strings.Split(tc.Output, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Status:") {
+			summary = strings.TrimPrefix(line, "Status: ")
+			break
+		}
+	}
+
+	if summary != "" {
+		u.printf("%s  %s %s %s %s\n",
+			indent,
+			statusStyle.Render(IconSuccess),
+			statusStyle.Render("plan updated"),
+			durationStyle.Render("("+tc.Duration+")"),
+			summaryStyle.Render("· "+summary))
+	} else {
+		u.printf("%s  %s %s %s\n",
+			indent,
+			statusStyle.Render(IconSuccess),
+			statusStyle.Render("plan updated"),
+			durationStyle.Render("("+tc.Duration+")"))
+	}
+
+	u.println()
+}
+
+// printPlanWithMetadata renders a rich plan display using metadata.
+func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
+	indent := u.indent()
+	statusStyle := lipgloss.NewStyle().Foreground(colorSuccess)
+	durationStyle := lipgloss.NewStyle().Foreground(colorMuted)
+	summaryStyle := lipgloss.NewStyle().Foreground(colorTextDim)
+
+	// Get terminal width for formatting
+	width := 80
+	if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 {
+		width = w
+	}
+
+	if meta.IsNew {
+		// New plan: show full plan structure
+		headerText := fmt.Sprintf("created %d items", meta.Total)
+		u.printf("%s  %s %s %s %s\n",
+			indent,
+			statusStyle.Render(IconSuccess),
+			statusStyle.Render("plan"),
+			durationStyle.Render("("+duration+")"),
+			summaryStyle.Render("· "+headerText))
+
+		// Show the full plan indented
+		planStr := FormatPlan(meta.Plan, width-4)
+		if planStr != "" {
+			for _, line := range strings.Split(planStr, "\n") {
+				u.printf("%s  %s\n", indent, line)
+			}
+		}
+	} else {
+		// Update: show compact progress line with current action
+		progressText := fmt.Sprintf("%d/%d", meta.Completed, meta.Total)
+
+		// Show what's in progress
+		if meta.JustStarted != "" {
+			// Truncate if needed
+			maxLen := width - 40
+			actionText := meta.JustStarted
+			if maxLen > 0 && len(actionText) > maxLen {
+				actionText = actionText[:maxLen-1] + "…"
+			}
+
+			actionStyle := lipgloss.NewStyle().Foreground(colorText)
+			u.printf("%s  %s %s %s %s %s\n",
+				indent,
+				statusStyle.Render(IconSuccess),
+				statusStyle.Render("plan"),
+				durationStyle.Render("("+duration+")"),
+				summaryStyle.Render("· "+progressText),
+				actionStyle.Render("▸ "+actionText))
+		} else if len(meta.JustCompleted) > 0 {
+			// Show what was just completed
+			completedText := meta.JustCompleted[len(meta.JustCompleted)-1]
+			maxLen := width - 40
+			if maxLen > 0 && len(completedText) > maxLen {
+				completedText = completedText[:maxLen-1] + "…"
+			}
+
+			completedStyle := lipgloss.NewStyle().Foreground(colorTextDim)
+			u.printf("%s  %s %s %s %s %s\n",
+				indent,
+				statusStyle.Render(IconSuccess),
+				statusStyle.Render("plan"),
+				durationStyle.Render("("+duration+")"),
+				summaryStyle.Render("· "+progressText),
+				completedStyle.Render("✓ "+completedText))
+		} else {
+			u.printf("%s  %s %s %s %s\n",
+				indent,
+				statusStyle.Render(IconSuccess),
+				statusStyle.Render("plan"),
+				durationStyle.Render("("+duration+")"),
+				summaryStyle.Render("· "+progressText))
+		}
+	}
+
+	u.println()
 }
 
 func (u *UI) printCommandOutput(output string, isError bool) {
