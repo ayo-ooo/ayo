@@ -53,6 +53,33 @@ ayo @agent-name "Your prompt here"
 ayo @agent-name -a file.txt "Analyze this file"
 ```
 
+### Built-in Agents
+
+| Agent | Description |
+|-------|-------------|
+| `@ayo` | Default versatile assistant with bash and agent delegation |
+| `@ayo.crush` | Coding agent powered by Crush for complex source code tasks |
+| `@ayo.research` | Research assistant with web search capabilities |
+| `@ayo.agents` | Agent management for creating/modifying agents |
+| `@ayo.skills` | Skill management for creating/modifying skills |
+
+### Using @ayo.crush
+
+For complex coding tasks, use the `@ayo.crush` agent:
+
+```bash
+# Direct invocation
+ayo @ayo.crush "Refactor the authentication module to use JWT tokens"
+
+# Multi-file changes
+ayo @ayo.crush "Add comprehensive error handling to all database operations in internal/db/"
+
+# With context
+ayo @ayo.crush "Fix the failing tests in internal/session/ and ensure all edge cases are covered"
+```
+
+@ayo.crush requires Crush to be installed: `go install github.com/charmbracelet/crush@latest`
+
 ## Agent Management
 
 ### List Agents
@@ -192,6 +219,9 @@ ayo sessions list
 
 # Filter by agent
 ayo sessions list --agent @ayo
+
+# Filter by source (ayo, crush, crush-via-ayo)
+ayo sessions list --source crush-via-ayo
 
 # Limit results
 ayo sessions list --limit 50

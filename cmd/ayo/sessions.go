@@ -34,6 +34,7 @@ func newSessionsCmd(cfgPath *string) *cobra.Command {
 
 func newSessionsListCmd() *cobra.Command {
 	var agentFilter string
+	var sourceFilter string
 	var limit int64
 
 	cmd := &cobra.Command{
@@ -47,9 +48,12 @@ func newSessionsListCmd() *cobra.Command {
 			defer services.Close()
 
 			var sessions []session.Session
-			if agentFilter != "" {
+			switch {
+			case agentFilter != "":
 				sessions, err = services.Sessions.ListByAgent(cmd.Context(), agentFilter, limit)
-			} else {
+			case sourceFilter != "":
+				sessions, err = services.Sessions.ListBySource(cmd.Context(), sourceFilter, limit)
+			default:
 				sessions, err = services.Sessions.List(cmd.Context(), limit)
 			}
 			if err != nil {
@@ -84,14 +88,21 @@ func newSessionsListCmd() *cobra.Command {
 				// Format time
 				timeAgo := formatTimeAgo(s.UpdatedAt)
 
+				// Show source indicator for non-ayo sessions
+				sourceIndicator := ""
+				if s.Source != "" && s.Source != session.SourceAyo {
+					sourceIndicator = countStyle.Render(fmt.Sprintf(" [%s]", s.Source))
+				}
+
 				// Print each session
 				fmt.Printf("  %s  %s\n",
 					idStyle.Render(s.ID[:8]),
 					agentStyle.Render(s.AgentHandle),
 				)
-				fmt.Printf("    %s  %s  %s\n",
+				fmt.Printf("    %s  %s%s  %s\n",
 					titleStyle.Render(title),
 					countStyle.Render(fmt.Sprintf("(%d msgs)", s.MessageCount)),
+					sourceIndicator,
 					timeStyle.Render(timeAgo),
 				)
 				fmt.Println()
@@ -105,6 +116,7 @@ func newSessionsListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "filter by agent handle")
+	cmd.Flags().StringVarP(&sourceFilter, "source", "s", "", "filter by source (ayo, crush, crush-via-ayo)")
 	cmd.Flags().Int64VarP(&limit, "limit", "n", 20, "maximum number of sessions to show")
 
 	return cmd

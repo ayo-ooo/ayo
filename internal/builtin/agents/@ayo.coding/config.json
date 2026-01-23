@@ -1,0 +1,5 @@
+{
+  "description": "Coding agent that uses Crush for complex source code tasks. Handles multi-file refactoring, feature implementation, debugging, and test creation.",
+  "allowed_tools": ["crush"],
+  "skills": []
+}

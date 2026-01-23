@@ -288,6 +288,12 @@ func (r *Runner) buildMessagesWithAttachments(ag agent.Agent, prompt string, att
 		msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
 	}
 
+	// Add model context for sub-agents that need to pass the model through
+	if ag.Model != "" {
+		modelContext := fmt.Sprintf("<model_context>\nYou are running with model: %s\nWhen delegating to external tools that accept a model parameter (like crush run --model), use this model.\n</model_context>", ag.Model)
+		msgs = append(msgs, fantasy.NewSystemMessage(modelContext))
+	}
+
 	// Build file parts from attachments
 	// Text files are inlined into the prompt; binary files use FilePart
 	var fileParts []fantasy.FilePart
@@ -393,8 +399,9 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		return "", nil, fmt.Errorf("create language model: %w", err)
 	}
 
-	// Build tool set
-	tools := NewFantasyToolSet(ag.Config.AllowedTools)
+	// Build tool set with depth for proper UI nesting
+	baseDir, _ := os.Getwd()
+	tools := NewFantasyToolSetWithDepth(ag.Config.AllowedTools, baseDir, r.depth)
 
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
@@ -589,6 +596,11 @@ func (r *Runner) agentCallExecutor() func(ctx context.Context, params AgentCallP
 		targetAgent, err := agent.Load(r.config, agentHandle)
 		if err != nil {
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("failed to load agent %s: %v", agentHandle, err)), nil
+		}
+
+		// Override model if specified in params
+		if params.Model != "" {
+			targetAgent.Model = params.Model
 		}
 
 		// Configure timeout

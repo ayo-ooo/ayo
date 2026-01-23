@@ -904,8 +904,79 @@ internal/builtin/agents/{name}/
 ### Current Built-in Agents
 
 - `@ayo` - The default agent, a versatile command-line assistant
+- `@ayo.coding` - Coding agent that uses Crush for complex source code tasks
+- `@ayo.research` - Research assistant with web search capabilities
+- `@ayo.agents` - Agent management agent for creating and managing agents
+- `@ayo.skills` - Skill management agent for creating and managing skills
 
 The `ayo` namespace is reserved - users cannot create agents with the `@ayo` handle or `@ayo.` prefix.
+
+## Crush Integration
+
+The `@ayo.coding` agent provides integration with the [Crush](https://github.com/charmbracelet/crush) coding agent. Crush excels at complex source code tasks that require multi-file modifications.
+
+### Prerequisites
+
+Crush must be installed and available in your PATH:
+```bash
+# Install Crush (see Crush documentation for latest instructions)
+go install github.com/charmbracelet/crush@latest
+```
+
+The `install.sh` script will prompt to install Crush if it's not found.
+
+### Architecture
+
+- `@ayo` uses the `coding` skill to know when to delegate to `@ayo.coding`
+- `@ayo.coding` has ONLY the `crush` tool - it cannot use bash or other tools
+- The `crush` tool maps directly to `crush run --quiet` with model passthrough
+
+### Usage
+
+Direct invocation:
+```bash
+ayo @ayo.coding "Add comprehensive error handling to the database layer"
+```
+
+Via @ayo delegation (automatic when appropriate):
+```bash
+ayo "Refactor the authentication module to use JWT tokens"
+# @ayo will delegate this to @ayo.coding if it requires code changes
+```
+
+### The Crush Tool
+
+The `crush` tool is available to `@ayo.coding` and maps to `crush run`:
+
+```json
+{
+  "prompt": "Add input validation to auth handlers",
+  "model": "claude-sonnet-4",
+  "small_model": "gpt-4.1-mini",
+  "working_dir": "./internal/auth"
+}
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `prompt` | The coding task (required) |
+| `model` | Model to use (optional, passed from caller) |
+| `small_model` | Small model for auxiliary tasks (optional) |
+| `working_dir` | Working directory (optional, defaults to project root) |
+
+### Model Passthrough
+
+When `@ayo` delegates to `@ayo.coding`, it can pass the model to use:
+
+```json
+{
+  "agent": "@ayo.coding",
+  "prompt": "Add rate limiting middleware",
+  "model": "claude-sonnet-4"
+}
+```
+
+The `@ayo.coding` agent receives the model in a `<model_context>` system message and passes it to the `crush` tool.
 
 ## Versioning
 
