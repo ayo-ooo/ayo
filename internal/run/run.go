@@ -14,17 +14,20 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/session"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
 
 // Runner executes agents using Fantasy's Agent abstraction.
 type Runner struct {
-	config   config.Config
-	debug    bool
-	depth    int // 0 = top-level, 1+ = sub-agent calls
-	sessions map[string]*ChatSession
-	services *session.Services // nil = no persistence
+	config           config.Config
+	debug            bool
+	depth            int // 0 = top-level, 1+ = sub-agent calls
+	sessions         map[string]*ChatSession
+	services         *session.Services        // nil = no persistence
+	memoryService    *memory.Service          // nil = no memory
+	formationService *memory.FormationService // nil = no async formation
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -57,6 +60,31 @@ func NewRunnerWithServices(cfg config.Config, debug bool, services *session.Serv
 	}, nil
 }
 
+// RunnerOptions provides optional configuration for the runner.
+type RunnerOptions struct {
+	Services         *session.Services
+	MemoryService    *memory.Service
+	FormationService *memory.FormationService
+}
+
+// NewRunner creates a runner with all options.
+func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, error) {
+	return &Runner{
+		config:           cfg,
+		debug:            debug,
+		sessions:         make(map[string]*ChatSession),
+		services:         opts.Services,
+		memoryService:    opts.MemoryService,
+		formationService: opts.FormationService,
+	}, nil
+}
+
+// WaitForFormations waits for any pending memory formations to complete.
+func (r *Runner) WaitForFormations(timeout time.Duration) {
+	if r.formationService != nil {
+		r.formationService.Wait(timeout)
+	}
+}
 
 
 // Chat sends a message in an interactive session, maintaining conversation history.
@@ -65,8 +93,18 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 	if !ok {
 		// Initialize new session with system messages
 		var msgs []fantasy.Message
-		if strings.TrimSpace(ag.CombinedSystem) != "" {
-			msgs = append(msgs, fantasy.NewSystemMessage(ag.CombinedSystem))
+		
+		// Build combined system prompt with memory context
+		systemPrompt := ag.CombinedSystem
+		if r.memoryService != nil && ag.Config.Memory.Enabled {
+			memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", input, ag.Config.Memory)
+			if err == nil && memCtx != nil {
+				systemPrompt = agent.InjectMemoryContext(systemPrompt, memCtx)
+			}
+		}
+		
+		if strings.TrimSpace(systemPrompt) != "" {
+			msgs = append(msgs, fantasy.NewSystemMessage(systemPrompt))
 		}
 		if strings.TrimSpace(ag.ToolsPrompt) != "" {
 			msgs = append(msgs, fantasy.NewSystemMessage(ag.ToolsPrompt))
@@ -141,6 +179,11 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 			chatSession.TitleGenerated = true
 			go r.generateTitleAsync(ag.Model, chatSession.SessionID, input, resp)
 		}
+	}
+
+	// Async memory formation: detect triggers and queue formation
+	if r.formationService != nil && ag.Config.Memory.Enabled {
+		r.maybeFormMemory(ctx, ag, input, chatSession.SessionID)
 	}
 
 	return resp, nil
@@ -221,7 +264,7 @@ func (r *Runner) Text(ctx context.Context, ag agent.Agent, prompt string, attach
 
 // TextWithSession runs a single prompt and returns the session ID.
 func (r *Runner) TextWithSession(ctx context.Context, ag agent.Agent, prompt string, attachments []string) (TextResult, error) {
-	msgs := r.buildMessagesWithAttachments(ag, prompt, attachments)
+	msgs := r.buildMessagesWithAttachments(ctx, ag, prompt, attachments)
 
 	var sessionID string
 
@@ -269,17 +312,32 @@ func (r *Runner) TextWithSession(ctx context.Context, ag agent.Agent, prompt str
 		go r.generateTitleAsync(ag.Model, sessionID, prompt, resp)
 	}
 
+	// Async memory formation: detect triggers and queue formation
+	if r.formationService != nil && ag.Config.Memory.Enabled {
+		r.maybeFormMemory(ctx, ag, prompt, sessionID)
+	}
+
 	return TextResult{Response: resp, SessionID: sessionID}, nil
 }
 
-func (r *Runner) buildMessages(ag agent.Agent, prompt string) []fantasy.Message {
-	return r.buildMessagesWithAttachments(ag, prompt, nil)
+func (r *Runner) buildMessages(ctx context.Context, ag agent.Agent, prompt string) []fantasy.Message {
+	return r.buildMessagesWithAttachments(ctx, ag, prompt, nil)
 }
 
-func (r *Runner) buildMessagesWithAttachments(ag agent.Agent, prompt string, attachments []string) []fantasy.Message {
+func (r *Runner) buildMessagesWithAttachments(ctx context.Context, ag agent.Agent, prompt string, attachments []string) []fantasy.Message {
 	var msgs []fantasy.Message
-	if strings.TrimSpace(ag.CombinedSystem) != "" {
-		msgs = append(msgs, fantasy.NewSystemMessage(ag.CombinedSystem))
+	
+	// Build combined system prompt with memory context
+	systemPrompt := ag.CombinedSystem
+	if r.memoryService != nil && ag.Config.Memory.Enabled {
+		memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", prompt, ag.Config.Memory)
+		if err == nil && memCtx != nil {
+			systemPrompt = agent.InjectMemoryContext(systemPrompt, memCtx)
+		}
+	}
+	
+	if strings.TrimSpace(systemPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(systemPrompt))
 	}
 	if strings.TrimSpace(ag.ToolsPrompt) != "" {
 		msgs = append(msgs, fantasy.NewSystemMessage(ag.ToolsPrompt))
@@ -394,7 +452,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	}
 
 	// Build tool set
-	tools := NewFantasyToolSet(ag.Config.AllowedTools)
+	tools := NewFantasyToolSetWithBaseDir(ag.Config.AllowedTools, "")
 
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
@@ -748,6 +806,56 @@ func truncateForTitle(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-1] + "…"
+}
+
+// maybeFormMemory checks for memory triggers in the user message and queues formation if found.
+func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessage, sessionID string) {
+	if r.formationService == nil {
+		return
+	}
+
+	// Check trigger configuration
+	cfg := ag.Config.Memory.FormationTriggers
+	
+	// Detect triggers in user message
+	triggers := memory.DetectTriggers(userMessage)
+	if len(triggers) == 0 {
+		return
+	}
+
+	// Filter based on agent config
+	for _, trigger := range triggers {
+		// Skip if this trigger type is not enabled
+		switch trigger.Type {
+		case memory.TriggerExplicit:
+			// Always allow explicit "remember" requests
+		case memory.TriggerCorrection:
+			if !cfg.OnCorrection {
+				continue
+			}
+		case memory.TriggerPreference:
+			if !cfg.OnPreference {
+				continue
+			}
+		case memory.TriggerFact:
+			if !cfg.OnProjectFact {
+				continue
+			}
+		}
+
+		// Skip non-explicit triggers if explicit_only is set
+		if cfg.ExplicitOnly && trigger.Type != memory.TriggerExplicit {
+			continue
+		}
+
+		// Queue formation
+		r.formationService.QueueFormation(ctx, memory.FormationIntent{
+			Content:       trigger.Content,
+			Category:      trigger.Category,
+			AgentHandle:   ag.Handle,
+			SourceSession: sessionID,
+		})
+	}
 }
 
 // castToStructuredOutput takes the agent's response and casts it to the required output schema.

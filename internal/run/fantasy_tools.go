@@ -136,6 +136,10 @@ func NewFantasyToolSet(allowed []string) FantasyToolSet {
 
 // NewFantasyToolSetWithBaseDir creates a Fantasy tool set with explicit base directory.
 func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolSet {
+	if baseDir == "" {
+		baseDir, _ = os.Getwd()
+	}
+
 	// Default to bash and plan if no tools specified
 	if len(allowed) == 0 {
 		allowed = []string{"bash", "plan"}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
@@ -362,8 +363,16 @@ Supports session ID prefix matching and title search.`,
 				return fmt.Errorf("failed to load messages: %w", err)
 			}
 
+			// Create memory services
+			memSvc := memory.NewService(services.Queries(), nil)
+			formSvc := memory.NewFormationService(memSvc)
+
 			// Create runner with services
-			runner, err := run.NewRunnerWithServices(cfg, debug, services)
+			runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
+				Services:         services,
+				MemoryService:    memSvc,
+				FormationService: formSvc,
+			})
 			if err != nil {
 				return err
 			}

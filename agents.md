@@ -604,6 +604,15 @@ ayo sessions show <id>      # Show session details and messages
 ayo sessions continue       # Continue a session (interactive picker)
 ayo sessions continue <id>  # Continue a specific session
 ayo sessions delete <id>    # Delete a session
+
+# Memory management
+ayo memory list             # List all memories
+ayo memory list -a @ayo     # Filter by agent
+ayo memory search <query>   # Search memories semantically
+ayo memory show <id>        # Show memory details
+ayo memory forget <id>      # Forget a memory (soft delete)
+ayo memory stats            # Show memory statistics
+ayo memory clear            # Clear all memories (with confirmation)
 ```
 
 ### Default Agent
@@ -657,6 +666,53 @@ ayo sessions show abc123
 # Clean up old sessions
 ayo sessions delete abc123
 ```
+
+### Memory
+
+Memories are persistent facts, preferences, and patterns learned about users that help agents provide more personalized and contextual responses across sessions.
+
+**How it works:**
+1. Agents detect memorable information during conversations (preferences, corrections, facts)
+2. Memories are stored with vector embeddings for semantic search
+3. Relevant memories are retrieved and injected into prompts
+4. Memory formation happens asynchronously with UI feedback
+
+**Memory categories:**
+- `preference`: User preferences (tools, styles, communication)
+- `fact`: Facts about user or project
+- `correction`: User corrections to agent behavior
+- `pattern`: Observed behavioral patterns
+
+**Memory scopes:**
+- **Global**: Applies to all agents
+- **Agent-scoped**: Applies only to specific agent
+- **Path-scoped**: Applies to specific project/directory
+
+**Agent configuration:**
+```json
+{
+  "memory": {
+    "enabled": true,
+    "scope": "hybrid",
+    "formation_triggers": {
+      "on_correction": true,
+      "on_preference": true,
+      "on_project_fact": true,
+      "explicit_only": false
+    },
+    "retrieval": {
+      "auto_inject": true,
+      "threshold": 0.5,
+      "max_memories": 10
+    }
+  }
+}
+```
+
+**Local embedding model:**
+Memory uses a local ONNX-based embedding model (all-MiniLM-L6-v2) for privacy-first, offline semantic search. The model is downloaded during `ayo setup`.
+
+**Storage:** Memories are stored in SQLite (`~/.local/share/ayo/ayo.db`) with vector embeddings as BLOBs. Similarity search is performed in Go without requiring external vector databases.
 
 ## UI Behavior
 

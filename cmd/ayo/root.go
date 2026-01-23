@@ -14,6 +14,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
@@ -74,7 +75,28 @@ func newRootCmd() *cobra.Command {
 					defer services.Close()
 				}
 
-				runner, err := run.NewRunnerWithServices(cfg, debug, services)
+				// Create memory services if database available
+				var memSvc *memory.Service
+				var formSvc *memory.FormationService
+				if services != nil {
+					memSvc = memory.NewService(services.Queries(), nil) // nil embedder for now
+					formSvc = memory.NewFormationService(memSvc)
+					
+					// Register callback for memory formation feedback
+					formSvc.OnFormation(func(result memory.FormationResult) {
+						if result.Success && !pipe.IsStdoutPiped() {
+							// Subtle feedback when memory is formed
+							style := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+							fmt.Fprintf(os.Stderr, "%s\n", style.Render("  ◆ Remembered"))
+						}
+					})
+				}
+
+				runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
+					Services:         services,
+					MemoryService:    memSvc,
+					FormationService: formSvc,
+				})
 				if err != nil {
 					return err
 				}
@@ -124,6 +146,9 @@ func newRootCmd() *cobra.Command {
 						return err
 					}
 
+					// Wait for any pending memory formations to complete
+					runner.WaitForFormations(2 * time.Second)
+
 					// Output to stdout (for piping)
 					fmt.Println(result.Response)
 
@@ -151,6 +176,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
 	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
+	cmd.AddCommand(newMemoryCmd())
 
 	return cmd
 }

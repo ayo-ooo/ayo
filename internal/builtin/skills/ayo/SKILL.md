@@ -34,6 +34,7 @@ ayo [command] [@agent] [prompt] [--flags]
 | `ayo agents` | Manage agents (list, create, show, update) |
 | `ayo skills` | Manage skills (list, create, show, validate, update) |
 | `ayo sessions` | Manage conversation sessions |
+| `ayo memory` | Manage agent memories |
 | `ayo chain` | Explore and validate agent chaining |
 | `ayo setup` | Install/update built-in agents and skills |
 
@@ -229,6 +230,76 @@ ayo sessions delete abc123
 
 # Force delete without confirmation
 ayo sessions delete abc123 --force
+```
+
+## Memory Management
+
+Memories are persistent facts, preferences, and patterns learned about users across sessions.
+
+### List Memories
+
+```bash
+# List all memories
+ayo memory list
+
+# Filter by agent
+ayo memory list --agent @ayo
+
+# Filter by category
+ayo memory list --category preference
+
+# Limit results
+ayo memory list --limit 20
+```
+
+### Search Memories
+
+```bash
+# Semantic search
+ayo memory search "coding preferences"
+
+# With threshold and limit
+ayo memory search "project setup" --threshold 0.7 --limit 5
+
+# Filter by agent
+ayo memory search "tools" --agent @ayo
+```
+
+### Show Memory Details
+
+```bash
+ayo memory show abc123
+```
+
+Displays full content, category, confidence, access count, and supersession chain.
+
+### Forget a Memory
+
+```bash
+# With confirmation prompt
+ayo memory forget abc123
+
+# Force without confirmation
+ayo memory forget abc123 --force
+```
+
+### Memory Statistics
+
+```bash
+ayo memory stats
+```
+
+### Clear All Memories
+
+```bash
+# Clear all (with confirmation)
+ayo memory clear
+
+# Clear for specific agent
+ayo memory clear --agent @ayo
+
+# Force without confirmation
+ayo memory clear --force
 ```
 
 ## Agent Chaining
