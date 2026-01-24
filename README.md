@@ -317,6 +317,59 @@ Tools are configured per-agent in `config.json`:
 }
 ```
 
+## Plugins
+
+Plugins extend ayo with additional agents, skills, and tools distributed via git repositories.
+
+### Installing Plugins
+
+```bash
+# Install from GitHub
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+
+# Install from any git URL
+ayo plugins install https://gitlab.com/org/ayo-plugins-mytools.git
+ayo plugins install git@github.com:user/ayo-plugins-custom.git
+
+# Reinstall/update
+ayo plugins install https://github.com/user/repo --force
+```
+
+### Managing Plugins
+
+```bash
+ayo plugins list           # List installed plugins
+ayo plugins show <name>    # Show plugin details
+ayo plugins update         # Update all plugins
+ayo plugins update <name>  # Update specific plugin
+ayo plugins remove <name>  # Uninstall plugin
+```
+
+### What Plugins Provide
+
+| Component | Description |
+|-----------|-------------|
+| **Agents** | Custom AI agents with specialized system prompts and tools |
+| **Skills** | Domain-specific instructions that extend agent capabilities |
+| **Tools** | External CLI commands wrapped as agent tools |
+| **Delegates** | Task-type handlers (e.g., coding, research) |
+
+### Example: Crush Coding Plugin
+
+The [crush plugin](https://github.com/alexcabrera/ayo-plugins-crush) adds a powerful coding agent:
+
+```bash
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+```
+
+After installation, you can:
+- Use `@crush` directly: `ayo @crush "refactor the auth module"`
+- Let `@ayo` delegate coding tasks to `@crush` automatically
+
+### Creating Plugins
+
+See [docs/plugins.md](docs/plugins.md) for a complete guide to creating plugins.
+
 ## Interactive Mode
 
 In interactive mode, ayo maintains conversation context across turns:
