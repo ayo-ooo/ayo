@@ -32,6 +32,7 @@ type Querier interface {
 	SearchSessionsByTitle(ctx context.Context, arg SearchSessionsByTitleParams) ([]Session, error)
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) (Session, error)
+	UpdateSessionPlan(ctx context.Context, arg UpdateSessionPlanParams) (Session, error)
 	UpdateSessionTitle(ctx context.Context, arg UpdateSessionTitleParams) error
 }
 

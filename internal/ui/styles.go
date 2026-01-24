@@ -459,6 +459,7 @@ const (
 	IconSubAgent   = "▹"  // White right-pointing small triangle - sub-agent
 	IconEllipsis   = "⋯"  // Midline horizontal ellipsis - loading/truncated
 	IconMenu       = "≡"  // Identical to - menu (hamburger alternative)
+	IconPlan       = "□"  // White square - plan/todo
 )
 
 // FormatToolLabel formats a tool label with an icon.

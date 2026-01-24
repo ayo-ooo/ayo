@@ -14,6 +14,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 func newSessionsCmd(cfgPath *string) *cobra.Command {
@@ -111,22 +112,66 @@ func newSessionsListCmd() *cobra.Command {
 
 func newSessionsShowCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "show <session-id>",
-		Short: "Show session details and messages",
-		Args:  cobra.ExactArgs(1),
+		Use:   "show [session-id]",
+		Short: "Show session details and conversation",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sessionQuery := args[0]
-
 			services, err := session.Connect(cmd.Context(), paths.DatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to connect to database: %w", err)
 			}
 			defer services.Close()
 
-			// Find session by ID or prefix
-			sess, err := findSession(cmd, services, sessionQuery)
-			if err != nil {
-				return err
+			var sess session.Session
+
+			if len(args) == 0 {
+				// No session specified, show selector
+				sessions, err := services.Sessions.List(cmd.Context(), 10)
+				if err != nil {
+					return fmt.Errorf("failed to list sessions: %w", err)
+				}
+
+				if len(sessions) == 0 {
+					fmt.Println("No sessions found.")
+					return nil
+				}
+
+				options := make([]huh.Option[string], len(sessions))
+				for i, s := range sessions {
+					timeAgo := formatTimeAgo(s.UpdatedAt)
+					title := s.Title
+					if len(title) > 30 {
+						title = title[:27] + "..."
+					}
+					label := fmt.Sprintf("%s  %s  %s  %s",
+						s.ID[:8],
+						s.AgentHandle,
+						title,
+						timeAgo,
+					)
+					options[i] = huh.NewOption(label, s.ID)
+				}
+
+				var selectedID string
+				err = huh.NewSelect[string]().
+					Title("Select a session to show:").
+					Options(options...).
+					Value(&selectedID).
+					Run()
+				if err != nil {
+					return err
+				}
+
+				sess, err = services.Sessions.Get(cmd.Context(), selectedID)
+				if err != nil {
+					return fmt.Errorf("failed to get session: %w", err)
+				}
+			} else {
+				// Find session by query
+				sess, err = findSession(cmd, services, args[0])
+				if err != nil {
+					return err
+				}
 			}
 
 			// Get messages
@@ -139,13 +184,11 @@ func newSessionsShowCmd() *cobra.Command {
 			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 			labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 			valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
-			userStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Bold(true)
-			assistantStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-			contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
 
+			// Session details
 			fmt.Println()
 			fmt.Println(headerStyle.Render("  Session Details"))
-			fmt.Println(headerStyle.Render("  " + strings.Repeat("-", 60)))
+			fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 60)))
 			fmt.Println()
 			fmt.Printf("  %s %s\n", labelStyle.Render("ID:"), valueStyle.Render(sess.ID))
 			fmt.Printf("  %s %s\n", labelStyle.Render("Agent:"), valueStyle.Render(sess.AgentHandle))
@@ -155,43 +198,17 @@ func newSessionsShowCmd() *cobra.Command {
 			fmt.Printf("  %s %s\n", labelStyle.Render("Updated:"), valueStyle.Render(formatTime(sess.UpdatedAt)))
 			fmt.Println()
 
+			// Conversation using common renderer
 			if len(messages) > 0 {
-				fmt.Println(headerStyle.Render("  Messages"))
-				fmt.Println(headerStyle.Render("  " + strings.Repeat("-", 60)))
+				fmt.Println(headerStyle.Render("  Conversation"))
+				fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 60)))
 				fmt.Println()
-
-				for _, msg := range messages {
-					// Skip system messages
-					if msg.Role == session.RoleSystem {
-						continue
-					}
-
-					var roleLabel string
-					switch msg.Role {
-					case session.RoleUser:
-						roleLabel = userStyle.Render("  You:")
-					case session.RoleAssistant:
-						roleLabel = assistantStyle.Render("  Assistant:")
-					case session.RoleTool:
-						continue // Skip tool messages in display
-					default:
-						roleLabel = labelStyle.Render(fmt.Sprintf("  %s:", msg.Role))
-					}
-
-					fmt.Println(roleLabel)
-
-					// Show text content, truncated
-					text := msg.TextContent()
-					if len(text) > 200 {
-						text = text[:197] + "..."
-					}
-					if text != "" {
-						for _, line := range strings.Split(text, "\n") {
-							fmt.Println("    " + contentStyle.Render(line))
-						}
-					}
-					fmt.Println()
-				}
+				output := ui.RenderHistory(messages, sess.AgentHandle)
+				fmt.Println(output)
+				fmt.Println()
+			} else {
+				fmt.Println(labelStyle.Render("  No messages in this session."))
+				fmt.Println()
 			}
 
 			return nil
@@ -356,13 +373,15 @@ Supports session ID prefix matching and title search.`,
 				return fmt.Errorf("failed to resume session: %w", err)
 			}
 
-			// Show resumption header
-			headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-			infoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-			fmt.Println()
-			fmt.Println(headerStyle.Render(fmt.Sprintf("  Continuing session with %s", sess.AgentHandle)))
-			fmt.Println(infoStyle.Render(fmt.Sprintf("  %s (%d messages)", sess.Title, sess.MessageCount)))
-			fmt.Println()
+			// Show preview of last 3 messages if there's history
+			if len(messages) > 0 {
+				preview := ui.RenderHistoryPreview(messages, sess.AgentHandle, 3)
+				if preview != "" {
+					fmt.Println()
+					fmt.Println(preview)
+					fmt.Println()
+				}
+			}
 
 			// Run interactive chat
 			return runInteractiveChat(cmd.Context(), runner, ag, debug)

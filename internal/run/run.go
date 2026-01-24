@@ -102,8 +102,15 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 		})
 	}
 
+	// Inject session context for tools
+	toolCtx := ctx
+	if chatSession.SessionID != "" && r.services != nil {
+		toolCtx = WithSessionID(toolCtx, chatSession.SessionID)
+		toolCtx = WithServices(toolCtx, r.services)
+	}
+
 	// Run the chat and get response
-	resp, newMsgs, err := r.runChatWithHistory(ctx, ag, chatSession.Messages)
+	resp, newMsgs, err := r.runChatWithHistory(toolCtx, ag, chatSession.Messages)
 	if err != nil {
 		// Remove the failed user message
 		chatSession.Messages = chatSession.Messages[:len(chatSession.Messages)-1]
@@ -182,6 +189,21 @@ func (r *Runner) ResumeSession(ctx context.Context, ag agent.Agent, sessionID st
 	return nil
 }
 
+// GetSessionMessages retrieves messages for the current session from the database.
+// Returns nil if no session exists or no services are configured.
+func (r *Runner) GetSessionMessages(ctx context.Context, agentHandle string) ([]session.Message, error) {
+	if r.services == nil {
+		return nil, nil
+	}
+
+	chatSession, ok := r.sessions[agentHandle]
+	if !ok || chatSession.SessionID == "" {
+		return nil, nil
+	}
+
+	return r.services.Messages.List(ctx, chatSession.SessionID)
+}
+
 // TextResult contains the response and session ID from a Text call.
 type TextResult struct {
 	Response  string
@@ -222,7 +244,14 @@ func (r *Runner) TextWithSession(ctx context.Context, ag agent.Agent, prompt str
 		}
 	}
 
-	resp, err := r.runChat(ctx, ag, msgs)
+	// Inject session context for tools
+	toolCtx := ctx
+	if sessionID != "" && r.services != nil {
+		toolCtx = WithSessionID(toolCtx, sessionID)
+		toolCtx = WithServices(toolCtx, r.services)
+	}
+
+	resp, err := r.runChat(toolCtx, ag, msgs)
 	if err != nil {
 		return TextResult{}, err
 	}
@@ -451,6 +480,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		OnToolResult: func(result fantasy.ToolResultContent) error {
 			currentTool.Duration = formatElapsed(time.Since(toolStartTime))
 			currentTool.Output = formatToolResultContent(result)
+			currentTool.Metadata = result.ClientMetadata
 			if result.Result.GetType() == fantasy.ToolResultContentTypeError {
 				currentTool.Error = currentTool.Output
 			}

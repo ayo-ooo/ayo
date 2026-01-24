@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -46,8 +48,9 @@ func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Run migrations
+	// Run migrations (silently)
 	goose.SetBaseFS(Migrations)
+	goose.SetLogger(log.New(io.Discard, "", 0))
 
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		db.Close()

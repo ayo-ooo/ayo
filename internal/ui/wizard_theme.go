@@ -93,6 +93,18 @@ func wizardTheme() *huh.Theme {
 		SetString("○ ").
 		Foreground(subtle)
 
+	// Also set Blurred styles for MultiSelect
+	t.Blurred.MultiSelectSelector = lipgloss.NewStyle().
+		SetString("  ")
+
+	t.Blurred.SelectedPrefix = lipgloss.NewStyle().
+		SetString("◉ ").
+		Foreground(gray)
+
+	t.Blurred.UnselectedPrefix = lipgloss.NewStyle().
+		SetString("○ ").
+		Foreground(subtle)
+
 	// Button styles
 	t.Focused.FocusedButton = lipgloss.NewStyle().
 		Background(purple).

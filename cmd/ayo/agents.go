@@ -213,6 +213,7 @@ AVAILABLE MODELS:
 AVAILABLE TOOLS:
   bash         Execute shell commands (default)
   agent_call   Delegate tasks to other agents
+  plan         Track multi-step tasks with phases and todos
 
 SKILLS:
   Skills are instruction sets that teach agents specialized tasks.
@@ -288,6 +289,7 @@ Examples:
 					availableTools := []ui.ToolInfo{
 						{Name: "bash", Description: "Execute shell commands"},
 						{Name: "agent_call", Description: "Delegate tasks to other agents"},
+						{Name: "plan", Description: "Track multi-step tasks with phases and todos"},
 					}
 
 					// Get existing agent handles for conflict detection (pre-normalized)
@@ -373,6 +375,20 @@ Examples:
 					tools = []string{"bash"}
 				}
 
+				// Merge required skills based on selected tools (both modes)
+				requiredSkills := skills.GetRequiredSkillsForTools(tools)
+				if len(requiredSkills) > 0 {
+					skillSet := make(map[string]struct{}, len(skills_))
+					for _, s := range skills_ {
+						skillSet[s] = struct{}{}
+					}
+					for _, s := range requiredSkills {
+						if _, exists := skillSet[s]; !exists {
+							skills_ = append(skills_, s)
+						}
+					}
+				}
+
 				agCfg := agent.Config{
 					Model:               model,
 					Description:         description,
@@ -416,7 +432,7 @@ Examples:
 	cmd.Flags().StringVarP(&systemFile, "system-file", "f", "", "path to system prompt file (.md or .txt)")
 
 	// Tool flags
-	cmd.Flags().StringSliceVarP(&tools, "tools", "t", nil, "allowed tools: bash, agent_call (comma-separated)")
+	cmd.Flags().StringSliceVarP(&tools, "tools", "t", nil, "allowed tools: bash, agent_call, plan (comma-separated)")
 
 	// Skill flags
 	cmd.Flags().StringSliceVar(&skills_, "skills", nil, "skills to include (comma-separated, see 'ayo skills list')")
