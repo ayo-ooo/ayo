@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
@@ -208,6 +209,15 @@ Examples:
 			// Show warnings
 			for _, warn := range result.Warnings {
 				fmt.Printf("  %s %s\n", pluginWarnStyle.Render("!"), warn)
+			}
+
+			// Handle delegation setup if plugin declares delegates
+			if len(result.Manifest.Delegates) > 0 {
+				fmt.Println()
+				if err := handleDelegateSetup(result.Manifest.Delegates); err != nil {
+					// Don't fail install, just warn
+					fmt.Printf("  %s Could not configure delegates: %v\n", pluginWarnStyle.Render("!"), err)
+				}
 			}
 
 			return nil
@@ -458,4 +468,87 @@ func removePluginCmd(cfgPath *string) *cobra.Command {
 	cmd.Flags().BoolVarP(&noConfirm, "yes", "y", false, "Skip confirmation prompt")
 
 	return cmd
+}
+
+// handleDelegateSetup prompts the user to configure delegates declared by a plugin.
+func handleDelegateSetup(delegates map[string]string) error {
+	for taskType, agentHandle := range delegates {
+		// Check if there's already a delegate configured for this task type
+		currentDelegate, err := config.GetDelegate(taskType)
+		if err != nil {
+			return err
+		}
+
+		if currentDelegate != "" && currentDelegate == agentHandle {
+			// Already configured correctly
+			fmt.Printf("%s %s delegate already set to %s\n",
+				pluginCheckmark,
+				taskType,
+				pluginNameStyle.Render(agentHandle),
+			)
+			continue
+		}
+
+		// Build the prompt
+		var title, description string
+		if currentDelegate != "" {
+			title = fmt.Sprintf("Set %s as the default %s agent?",
+				pluginNameStyle.Render(agentHandle),
+				taskType,
+			)
+			description = fmt.Sprintf("Current %s delegate: %s", taskType, currentDelegate)
+		} else {
+			title = fmt.Sprintf("Set %s as the default %s agent?",
+				pluginNameStyle.Render(agentHandle),
+				taskType,
+			)
+			description = fmt.Sprintf("This will handle all %s tasks automatically.", taskType)
+		}
+
+		var confirm bool
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title(title).
+					Description(description).
+					Affirmative("Yes").
+					Negative("No").
+					Value(&confirm),
+			),
+		).WithTheme(huh.ThemeCharm())
+
+		if err := form.Run(); err != nil {
+			return err
+		}
+
+		if confirm {
+			previous, err := config.SetDelegate(taskType, agentHandle)
+			if err != nil {
+				return err
+			}
+
+			if previous != "" {
+				fmt.Printf("%s %s delegate: %s %s %s\n",
+					pluginCheckmark,
+					taskType,
+					pluginMutedStyle.Render(previous),
+					pluginArrow,
+					pluginNameStyle.Render(agentHandle),
+				)
+			} else {
+				fmt.Printf("%s %s delegate set to %s\n",
+					pluginCheckmark,
+					taskType,
+					pluginNameStyle.Render(agentHandle),
+				)
+			}
+		} else {
+			fmt.Printf("%s Skipped %s delegate configuration\n",
+				pluginMutedStyle.Render("-"),
+				taskType,
+			)
+		}
+	}
+
+	return nil
 }

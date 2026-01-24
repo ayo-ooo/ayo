@@ -47,6 +47,11 @@ type Manifest struct {
 	// These must exist in the tools/ directory.
 	Tools []string `json:"tools,omitempty"`
 
+	// Delegates declares task types this plugin's agents can handle.
+	// On install, user is prompted to set these as global defaults.
+	// Example: {"coding": "@crush"}
+	Delegates map[string]string `json:"delegates,omitempty"`
+
 	// Dependencies specifies external requirements.
 	Dependencies *Dependencies `json:"dependencies,omitempty"`
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/delegates"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
 )
@@ -43,19 +44,20 @@ type Config struct {
 }
 
 type Agent struct {
-	Handle         string
-	Dir            string
-	Model          string
-	System         string
-	CombinedSystem string
-	Skills         []skills.Metadata
-	SkillsWarnings []string
-	SkillsPrompt   string
-	ToolsPrompt    string
-	Config         Config
-	BuiltIn        bool
-	InputSchema    *schema.Schema // JSON schema for input validation (optional)
-	OutputSchema   *schema.Schema // JSON schema for output formatting (optional)
+	Handle          string
+	Dir             string
+	Model           string
+	System          string
+	CombinedSystem  string
+	Skills          []skills.Metadata
+	SkillsWarnings  []string
+	SkillsPrompt    string
+	ToolsPrompt     string
+	DelegateContext string // XML block with configured delegates
+	Config          Config
+	BuiltIn         bool
+	InputSchema     *schema.Schema // JSON schema for input validation (optional)
+	OutputSchema    *schema.Schema // JSON schema for output formatting (optional)
 }
 
 func NormalizeHandle(handle string) string {
@@ -270,20 +272,24 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 		return agent, fmt.Errorf("load output schema: %w", err)
 	}
 
+	// Build delegate context from all sources
+	delegateContext := buildDelegateContext(cfg, agentConfig.Delegates)
+
 	agent = Agent{
-		Handle:         normalized,
-		Dir:            dir,
-		Model:          resolveModel(cfg, agentConfig),
-		System:         agentSystem,
-		CombinedSystem: combined,
-		Skills:         discovery.Skills,
-		SkillsWarnings: discovery.Warnings,
-		SkillsPrompt:   skillsPrompt,
-		ToolsPrompt:    toolsPrompt,
-		Config:         agentConfig,
-		BuiltIn:        isBuiltIn,
-		InputSchema:    inputSchema,
-		OutputSchema:   outputSchema,
+		Handle:          normalized,
+		Dir:             dir,
+		Model:           resolveModel(cfg, agentConfig),
+		System:          agentSystem,
+		CombinedSystem:  combined,
+		Skills:          discovery.Skills,
+		SkillsWarnings:  discovery.Warnings,
+		SkillsPrompt:    skillsPrompt,
+		ToolsPrompt:     toolsPrompt,
+		DelegateContext: delegateContext,
+		Config:          agentConfig,
+		BuiltIn:         isBuiltIn,
+		InputSchema:     inputSchema,
+		OutputSchema:    outputSchema,
 	}
 	return agent, nil
 }
@@ -304,6 +310,35 @@ func readOptional(path string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// buildDelegateContext builds an XML block with configured delegates.
+// This tells the agent which other agents handle specific task types.
+func buildDelegateContext(cfg config.Config, agentDelegates map[string]string) string {
+	allDelegates := delegates.GetAllDelegates(agentDelegates, cfg)
+	if len(allDelegates) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("<delegate_context>\n")
+	b.WriteString("The following task types have configured delegate agents:\n\n")
+
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(allDelegates))
+	for k := range allDelegates {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, taskType := range keys {
+		agent := allDelegates[taskType]
+		b.WriteString(fmt.Sprintf("- %s: %s\n", taskType, agent))
+	}
+
+	b.WriteString("\nUse agent_call with the appropriate agent for these task types.\n")
+	b.WriteString("</delegate_context>")
+	return b.String()
 }
 
 // buildEnvContext returns environment information for the system prompt.

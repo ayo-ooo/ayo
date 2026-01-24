@@ -74,6 +74,9 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 		if strings.TrimSpace(ag.SkillsPrompt) != "" {
 			msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
 		}
+		if strings.TrimSpace(ag.DelegateContext) != "" {
+			msgs = append(msgs, fantasy.NewSystemMessage(ag.DelegateContext))
+		}
 		chatSession = &ChatSession{Agent: ag, Messages: msgs}
 		r.sessions[ag.Handle] = chatSession
 

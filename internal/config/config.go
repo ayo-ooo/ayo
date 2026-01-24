@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/paths"
@@ -84,4 +85,61 @@ func Load(path string) (Config, error) {
 // DefaultPath returns the default config file path.
 func DefaultPath() string {
 	return paths.ConfigFile()
+}
+
+// Save writes the configuration to the given path.
+func Save(path string, cfg Config) error {
+	// Ensure parent directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+
+	return nil
+}
+
+// SetDelegate sets a delegate in the global config.
+// Returns the previous value if any.
+func SetDelegate(taskType, agentHandle string) (previous string, err error) {
+	cfgPath := DefaultPath()
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		return "", err
+	}
+
+	if cfg.Delegates == nil {
+		cfg.Delegates = make(map[string]string)
+	}
+
+	previous = cfg.Delegates[taskType]
+	cfg.Delegates[taskType] = agentHandle
+
+	if err := Save(cfgPath, cfg); err != nil {
+		return previous, err
+	}
+
+	return previous, nil
+}
+
+// GetDelegate returns the current delegate for a task type from global config.
+func GetDelegate(taskType string) (string, error) {
+	cfg, err := Load(DefaultPath())
+	if err != nil {
+		return "", err
+	}
+
+	if cfg.Delegates == nil {
+		return "", nil
+	}
+
+	return cfg.Delegates[taskType], nil
 }

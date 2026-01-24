@@ -2,60 +2,18 @@
 name: coding
 description: |
   Skill for all source code creation and modification tasks.
-  Delegate coding work to the configured coding agent (default: @crush from ayo-plugins-crush).
-  This skill requires a coding plugin to be installed.
+  Delegate coding work to the configured coding agent.
+  Check <delegate_context> for the current coding delegate.
 metadata:
   author: ayo
-  version: "4.0"
+  version: "5.0"
 ---
 
 # Coding Skill
 
-**This skill requires a coding plugin to be installed.**
+**All source code creation and modification tasks must be delegated to the configured coding agent.**
 
-By default, ayo delegates coding tasks to `@crush` (provided by `ayo-plugins-crush`). 
-If no coding plugin is installed, coding tasks cannot be delegated.
-
-## Installation
-
-Install a coding plugin:
-
-```bash
-ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
-```
-
-This installs the `@crush` agent which uses Crush for complex source code tasks.
-
-## Configuration
-
-The coding agent can be configured at three levels (highest priority first):
-
-1. **Directory level** (`.ayo.json` in project directory):
-```json
-{
-  "delegates": {
-    "coding": "@crush"
-  }
-}
-```
-
-2. **Agent level** (in agent's `config.json`):
-```json
-{
-  "delegates": {
-    "coding": "@crush"
-  }
-}
-```
-
-3. **Global level** (`~/.config/ayo/ayo.json`):
-```json
-{
-  "delegates": {
-    "coding": "@crush"
-  }
-}
-```
+Check your `<delegate_context>` system message to see which agent handles coding tasks. If no coding delegate is configured, inform the user they need to install a coding plugin.
 
 ## When to Delegate
 
@@ -88,18 +46,18 @@ The coding agent can be configured at three levels (highest priority first):
 
 ```
 Does the task involve creating or modifying source code?
-├── YES → Delegate to coding agent (@crush)
+├── YES → Check <delegate_context> for coding agent, then use agent_call
 └── NO → Use bash tool or handle directly
 ```
 
 ## How to Delegate
 
-Use the `agent_call` tool to delegate coding tasks:
+Use the `agent_call` tool with the agent from your `<delegate_context>`:
 
 ```json
 {
-  "agent": "@crush",
-  "prompt": "Create a basic React single page application in the test-app directory with a home page and about page"
+  "agent": "<coding_agent_from_context>",
+  "prompt": "Detailed description of the coding task"
 }
 ```
 
@@ -109,7 +67,7 @@ Pass your current model to the sub-agent for consistency:
 
 ```json
 {
-  "agent": "@crush",
+  "agent": "<coding_agent_from_context>",
   "prompt": "Add comprehensive error handling to the database layer",
   "model": "claude-sonnet-4"
 }
@@ -124,22 +82,11 @@ Pass your current model to the sub-agent for consistency:
 3. **Constraints**: What should NOT be changed
 4. **Success criteria**: How to verify the task is complete
 
-**Good prompt examples:**
-
-Creating a new project:
+**Good prompt example:**
 ```json
 {
-  "agent": "@crush",
+  "agent": "<coding_agent>",
   "prompt": "Create a basic single page application in the my-app directory. Use vanilla HTML, CSS, and JavaScript. Include an index.html with a simple navigation header, a main content area, and a footer.",
-  "model": "claude-sonnet-4"
-}
-```
-
-Modifying existing code:
-```json
-{
-  "agent": "@crush",
-  "prompt": "Add comprehensive error handling to the database connection logic in internal/db/. Wrap all database calls with proper error context. Do NOT modify the connection pool configuration.",
   "model": "claude-sonnet-4"
 }
 ```
@@ -147,53 +94,19 @@ Modifying existing code:
 **Bad prompt example:**
 ```json
 {
-  "agent": "@crush",
+  "agent": "<coding_agent>",
   "prompt": "Fix the database errors"
 }
 ```
 
-### Scope Setting
+## If No Coding Agent is Configured
 
-| Scope | How to Specify |
-|-------|----------------|
-| New project | `"in the my-app directory"` or `"in a new directory called my-app"` |
-| Single file | `"in api/handlers/user.go"` |
-| Directory | `"in the internal/auth/ directory"` |
-| Multiple files | `"in user.go, auth.go, and session.go"` |
-| Project-wide | `"across the entire codebase"` (use sparingly) |
+If `<delegate_context>` shows no coding delegate, inform the user:
 
-### Constraint Specification
-
-Always specify what should NOT be modified:
-
-- `"Do not modify any test files"`
-- `"Preserve the existing public API"`
-- `"Keep backwards compatibility with v1 endpoints"`
-- `"Do not change the database schema"`
-
-## Understanding Results
-
-When the coding agent completes, you receive:
-
-1. **Summary**: What was accomplished
-2. **Files modified**: List of changed files
-3. **Test results**: Whether tests pass (if applicable)
-4. **Any issues encountered**: Warnings or errors
-
-### Success Indicators
-
-The delegation succeeded if:
-- No error messages in output
-- Agent confirms completion with specific details
-- Modified files match the expected scope
-
-### When to Iterate
-
-Retry with a refined prompt if:
-- The scope was misunderstood
-- Changes were incomplete
-- Tests are failing due to missed edge cases
-- Output doesn't match expectations
+> No coding agent is configured. Install a coding plugin:
+> ```
+> ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+> ```
 
 ## Best Practices
 
@@ -203,41 +116,3 @@ Retry with a refined prompt if:
 4. **Pass your model**: Use the `model` parameter for consistency
 5. **Iterate incrementally**: Large tasks should be broken into phases
 6. **Provide context**: Include relevant background for complex tasks
-
-## Example Delegations
-
-### Creating a New Project
-```json
-{
-  "agent": "@crush",
-  "prompt": "Create a new Go CLI application in the my-cli directory. Use cobra for command handling. Include a root command with version flag, and subcommands for 'init' and 'run'. Add a Makefile with build and test targets.",
-  "model": "claude-sonnet-4"
-}
-```
-
-### Adding a New Feature
-```json
-{
-  "agent": "@crush",
-  "prompt": "Add a rate limiting middleware to the API server: Create internal/middleware/ratelimit.go using a token bucket algorithm. Add configuration options in config/config.go. Apply to all API endpoints.",
-  "model": "claude-sonnet-4"
-}
-```
-
-### Debugging an Issue
-```json
-{
-  "agent": "@crush",
-  "prompt": "Debug and fix the memory leak in the WebSocket handler. The issue is in internal/ws/handler.go - connections are not being properly cleaned up on disconnect.",
-  "model": "claude-sonnet-4"
-}
-```
-
-### Refactoring Code
-```json
-{
-  "agent": "@crush",
-  "prompt": "Refactor the user service to use the repository pattern: Extract database operations from internal/user/service.go into a new Repository interface and implementation.",
-  "model": "claude-sonnet-4"
-}
-```
