@@ -266,3 +266,30 @@ func (p *InstalledPlugin) GetOriginalAgentHandle(renamedHandle string) string {
 	}
 	return renamedHandle
 }
+
+// PluginAgentInfo contains information about a plugin agent for display.
+type PluginAgentInfo struct {
+	Handle      string
+	Description string
+	PluginName  string
+}
+
+// ListPluginAgents returns info about all agents from enabled plugins.
+func ListPluginAgents() []PluginAgentInfo {
+	reg, err := LoadRegistry()
+	if err != nil {
+		return nil
+	}
+
+	var agents []PluginAgentInfo
+	for _, plugin := range reg.ListEnabled() {
+		for _, handle := range plugin.Agents {
+			resolved := plugin.GetResolvedAgentHandle(handle)
+			agents = append(agents, PluginAgentInfo{
+				Handle:     resolved,
+				PluginName: plugin.Name,
+			})
+		}
+	}
+	return agents
+}

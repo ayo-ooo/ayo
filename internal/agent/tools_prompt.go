@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
 // BuildToolsPrompt returns system prompt instructions for tool usage
@@ -70,29 +71,46 @@ func BuildToolsPrompt(allowedTools []string) string {
 	if hasAgentCall {
 		// Only include agent_call section if there are builtin agents to call
 		agentInfos := builtin.ListAgentInfo()
-		if len(agentInfos) == 0 {
-			// No builtin agents available, skip agent_call section
+		pluginAgents := plugins.ListPluginAgents()
+
+		if len(agentInfos) == 0 && len(pluginAgents) == 0 {
+			// No agents available, skip agent_call section
 		} else {
 			b.WriteString("<agent_call>\n")
-			b.WriteString("You have access to specialized builtin agents via the agent_call tool.\n\n")
+			b.WriteString("You have access to specialized agents via the agent_call tool.\n\n")
 
-			b.WriteString("Available builtin agents:\n\n")
+			if len(agentInfos) > 0 {
+				b.WriteString("Available builtin agents:\n\n")
 
-			// Dynamically list builtin agents with their delegation hints
-			for _, info := range agentInfos {
-				b.WriteString("### ")
-				b.WriteString(info.Handle)
-				b.WriteString("\n")
-				if info.Description != "" {
-					b.WriteString(info.Description)
+				// Dynamically list builtin agents with their delegation hints
+				for _, info := range agentInfos {
+					b.WriteString("### ")
+					b.WriteString(info.Handle)
+					b.WriteString("\n")
+					if info.Description != "" {
+						b.WriteString(info.Description)
+						b.WriteString("\n")
+					}
+					if info.DelegateHint != "" {
+						b.WriteString("**When to use**: ")
+						b.WriteString(info.DelegateHint)
+						b.WriteString("\n")
+					}
 					b.WriteString("\n")
 				}
-				if info.DelegateHint != "" {
-					b.WriteString("**When to use**: ")
-					b.WriteString(info.DelegateHint)
+			}
+
+			if len(pluginAgents) > 0 {
+				b.WriteString("Available plugin agents:\n\n")
+
+				for _, info := range pluginAgents {
+					b.WriteString("### ")
+					b.WriteString(info.Handle)
 					b.WriteString("\n")
+					b.WriteString("(from plugin: ")
+					b.WriteString(info.PluginName)
+					b.WriteString(")\n\n")
 				}
-				b.WriteString("\n")
 			}
 
 			b.WriteString("The called agent runs as a subprocess and returns its complete response.\n")

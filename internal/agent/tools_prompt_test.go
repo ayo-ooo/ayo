@@ -46,7 +46,7 @@ func TestBuildToolsPrompt(t *testing.T) {
 
 	t.Run("agent_call describes tool usage", func(t *testing.T) {
 		prompt := BuildToolsPrompt([]string{"agent_call"})
-		if !strings.Contains(prompt, "specialized builtin agents") {
+		if !strings.Contains(prompt, "specialized agents") {
 			t.Error("expected prompt to describe agent_call purpose")
 		}
 	})
