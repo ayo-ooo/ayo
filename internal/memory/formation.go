@@ -19,11 +19,14 @@ type FormationIntent struct {
 
 // FormationResult represents the result of memory formation.
 type FormationResult struct {
-	Intent  FormationIntent
-	Memory  Memory
-	Success bool
-	Error   error
-	Elapsed time.Duration
+	Intent       FormationIntent
+	Memory       Memory
+	Success      bool
+	Error        error
+	Elapsed      time.Duration
+	Deduplicated bool   // True if an exact duplicate was found (no new memory created)
+	Superseded   bool   // True if a similar memory was superseded
+	SupersededID string // ID of the superseded memory (if any)
 }
 
 // FormationCallback is called when memory formation completes.
@@ -98,6 +101,14 @@ func (f *FormationService) Wait(timeout time.Duration) {
 	}
 }
 
+// Similarity thresholds for deduplication
+const (
+	// ExactDuplicateThreshold: memories above this are considered exact duplicates (skip creation)
+	ExactDuplicateThreshold float32 = 0.95
+	// SupersedeThreshold: memories above this but below exact are superseded
+	SupersedeThreshold float32 = 0.85
+)
+
 func (f *FormationService) processFormation(ctx context.Context, intent FormationIntent) {
 	start := time.Now()
 
@@ -105,15 +116,46 @@ func (f *FormationService) processFormation(ctx context.Context, intent Formatio
 		Intent: intent,
 	}
 
-	// Create the memory
-	mem, err := f.svc.Create(ctx, Memory{
-		Content:         intent.Content,
-		Category:        intent.Category,
-		AgentHandle:     intent.AgentHandle,
-		PathScope:       intent.PathScope,
-		SourceSessionID: intent.SourceSession,
-		SourceMessageID: intent.SourceMessage,
+	// Check for duplicate/similar memories before creating
+	existing, err := f.svc.Search(ctx, intent.Content, SearchOptions{
+		AgentHandle: intent.AgentHandle,
+		PathScope:   intent.PathScope,
+		Threshold:   SupersedeThreshold,
+		Limit:       1,
 	})
+	if err != nil {
+		// Log but continue with creation
+		existing = nil
+	}
+
+	var mem Memory
+	if len(existing) > 0 && existing[0].Similarity >= ExactDuplicateThreshold {
+		// Exact duplicate - skip creation, return existing memory
+		mem = existing[0].Memory
+		result.Deduplicated = true
+	} else if len(existing) > 0 && existing[0].Similarity >= SupersedeThreshold {
+		// Similar memory exists - supersede it
+		mem, err = f.svc.Supersede(ctx, existing[0].Memory.ID, Memory{
+			Content:         intent.Content,
+			Category:        intent.Category,
+			AgentHandle:     intent.AgentHandle,
+			PathScope:       intent.PathScope,
+			SourceSessionID: intent.SourceSession,
+			SourceMessageID: intent.SourceMessage,
+		}, "updated via memory formation")
+		result.Superseded = true
+		result.SupersededID = existing[0].Memory.ID
+	} else {
+		// No duplicate - create new memory
+		mem, err = f.svc.Create(ctx, Memory{
+			Content:         intent.Content,
+			Category:        intent.Category,
+			AgentHandle:     intent.AgentHandle,
+			PathScope:       intent.PathScope,
+			SourceSessionID: intent.SourceSession,
+			SourceMessageID: intent.SourceMessage,
+		})
+	}
 
 	result.Elapsed = time.Since(start)
 
