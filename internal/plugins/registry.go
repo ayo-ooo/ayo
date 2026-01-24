@@ -228,6 +228,22 @@ func PluginDir(name string) string {
 	return filepath.Join(PluginsDir(), name)
 }
 
+// IsPluginAgent checks if an agent handle belongs to any installed plugin.
+func IsPluginAgent(handle string) bool {
+	reg, err := LoadRegistry()
+	if err != nil {
+		return false
+	}
+	for _, plugin := range reg.Plugins {
+		for _, agentHandle := range plugin.Agents {
+			if agentHandle == handle {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GetResolvedAgentHandle returns the effective handle for an agent,
 // accounting for any renames that may have been applied.
 func (p *InstalledPlugin) GetResolvedAgentHandle(originalHandle string) string {

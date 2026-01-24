@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/session"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
@@ -409,7 +410,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
 	if tools.HasTool("agent_call") || !ag.BuiltIn {
-		tools.AddAgentCallTool(r.agentCallExecutor())
+		tools.AddAgentCallTool(r.agentCallExecutor(ag.Handle))
 	}
 
 	// Create Fantasy agent
@@ -585,14 +586,19 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	return "", msgs, nil
 }
 
-func (r *Runner) agentCallExecutor() func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	return func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		// Normalize handle
 		agentHandle := agent.NormalizeHandle(params.Agent)
 
-		// Only allow calling builtin agents
-		if !agent.IsReservedNamespace(agentHandle) {
-			return fantasy.NewTextErrorResponse("agent_call can only invoke builtin agents (prefixed with 'ayo.')"), nil
+		// Prevent self-delegation loops
+		if agentHandle == currentAgentHandle {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("cannot delegate to self (%s) - use bash or other tools directly", agentHandle)), nil
+		}
+
+		// Only allow calling builtin agents or plugin agents
+		if !agent.IsReservedNamespace(agentHandle) && !plugins.IsPluginAgent(agentHandle) {
+			return fantasy.NewTextErrorResponse("agent_call can only invoke builtin or plugin agents"), nil
 		}
 
 		// Load the target agent
