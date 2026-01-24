@@ -370,6 +370,53 @@ After installation, you can:
 
 See [docs/plugins.md](docs/plugins.md) for a complete guide to creating plugins.
 
+## Delegation
+
+Delegation allows agents to route specific task types to specialized agents. For example, `@ayo` can delegate coding tasks to `@crush` when configured.
+
+### Configuration Priority
+
+Delegation is resolved from three sources (highest priority first):
+
+1. **Directory config** (`.ayo.json` in project or parent)
+2. **Agent config** (`delegates` field in user agent's `config.json`)
+3. **Global config** (`~/.config/ayo/ayo.json`)
+
+### Setting Up Delegation
+
+Add a `.ayo.json` file to your project:
+
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+Or configure globally in `~/.config/ayo/ayo.json`:
+
+```json
+{
+  "delegates": {
+    "coding": "@crush",
+    "research": "@ayo.research"
+  }
+}
+```
+
+### Task Types
+
+| Type | Description |
+|------|-------------|
+| `coding` | Source code creation/modification |
+| `research` | Web research and information gathering |
+| `debug` | Debugging and troubleshooting |
+| `test` | Test creation and execution |
+| `docs` | Documentation generation |
+
+When a delegate is configured, the primary agent automatically routes matching tasks to the delegate agent.
+
 ## Interactive Mode
 
 In interactive mode, ayo maintains conversation context across turns:

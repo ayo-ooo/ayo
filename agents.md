@@ -1013,16 +1013,28 @@ Agents can delegate specific task types to other agents. Delegation is configure
 
 ### 1. Directory Config (`.ayo.json`)
 
+Project-level configuration file placed in your project root or any parent directory:
+
 ```json
 {
   "delegates": {
     "coding": "@crush",
     "research": "@ayo.research"
-  }
+  },
+  "model": "gpt-4.1",
+  "agent": "@ayo"
 }
 ```
 
+| Field | Description |
+|-------|-------------|
+| `delegates` | Task type to agent handle mappings |
+| `model` | Override the default model for this directory |
+| `agent` | Default agent for this directory |
+
 ### 2. Agent Config (`config.json`)
+
+User-defined agents can specify delegates in their `config.json`:
 
 ```json
 {
@@ -1031,6 +1043,8 @@ Agents can delegate specific task types to other agents. Delegation is configure
   }
 }
 ```
+
+**Note:** Built-in agents do not support the `delegates` field. To configure delegation for built-in agents, use directory config or global config.
 
 ### 3. Global Config (`~/.config/ayo/ayo.json`)
 
@@ -1052,12 +1066,27 @@ Agents can delegate specific task types to other agents. Delegation is configure
 | `test` | Test creation and execution |
 | `docs` | Documentation generation |
 
+### Plugin-Provided Delegates
+
+Plugins can declare delegates in their `manifest.json`. When installed, users are prompted to set these as global defaults:
+
+```json
+{
+  "name": "crush",
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+This allows plugins to automatically configure delegation for the task types they handle.
+
 ## Crush Integration (via Plugin)
 
 For complex coding tasks, install the crush plugin:
 
 ```bash
-ayo plugins install alexcabrera/crush
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
 ```
 
 ### Prerequisites
