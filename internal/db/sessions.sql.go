@@ -32,6 +32,17 @@ func (q *Queries) CountSessionsByAgent(ctx context.Context, agentHandle string) 
 	return count, err
 }
 
+const countSessionsBySource = `-- name: CountSessionsBySource :one
+SELECT COUNT(*) FROM sessions WHERE source = ?1
+`
+
+func (q *Queries) CountSessionsBySource(ctx context.Context, source string) (int64, error) {
+	row := q.queryRow(ctx, q.countSessionsBySourceStmt, countSessionsBySource, source)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (
     id,
@@ -43,13 +54,14 @@ INSERT INTO sessions (
     structured_output,
     chain_depth,
     chain_source,
+    source,
     message_count,
     created_at,
     updated_at,
     finished_at
 ) VALUES (
-    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, strftime('%s', 'now'), strftime('%s', 'now'), NULL
-) RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan"
+    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, strftime('%s', 'now'), strftime('%s', 'now'), NULL
+) RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source
 `
 
 type CreateSessionParams struct {
@@ -62,6 +74,7 @@ type CreateSessionParams struct {
 	StructuredOutput sql.NullString `json:"structured_output"`
 	ChainDepth       int64          `json:"chain_depth"`
 	ChainSource      sql.NullString `json:"chain_source"`
+	Source           string         `json:"source"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -75,6 +88,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.StructuredOutput,
 		arg.ChainDepth,
 		arg.ChainSource,
+		arg.Source,
 	)
 	var i Session
 	err := row.Scan(
@@ -92,6 +106,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Plan,
+		&i.Source,
 	)
 	return i, err
 }
@@ -106,7 +121,7 @@ func (q *Queries) DeleteSession(ctx context.Context, id string) error {
 }
 
 const getSession = `-- name: GetSession :one
-SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan" FROM sessions WHERE id = ?1 LIMIT 1
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions WHERE id = ?1 LIMIT 1
 `
 
 func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
@@ -127,12 +142,13 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Plan,
+		&i.Source,
 	)
 	return i, err
 }
 
 const getSessionByPrefix = `-- name: GetSessionByPrefix :many
-SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan" FROM sessions WHERE id LIKE ?1 || '%' ORDER BY updated_at DESC LIMIT 10
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions WHERE id LIKE ?1 || '%' ORDER BY updated_at DESC LIMIT 10
 `
 
 func (q *Queries) GetSessionByPrefix(ctx context.Context, prefix sql.NullString) ([]Session, error) {
@@ -159,6 +175,7 @@ func (q *Queries) GetSessionByPrefix(ctx context.Context, prefix sql.NullString)
 			&i.UpdatedAt,
 			&i.FinishedAt,
 			&i.Plan,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +191,7 @@ func (q *Queries) GetSessionByPrefix(ctx context.Context, prefix sql.NullString)
 }
 
 const listSessions = `-- name: ListSessions :many
-SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan" FROM sessions ORDER BY updated_at DESC LIMIT ?1
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions ORDER BY updated_at DESC LIMIT ?1
 `
 
 func (q *Queries) ListSessions(ctx context.Context, limit int64) ([]Session, error) {
@@ -201,6 +218,7 @@ func (q *Queries) ListSessions(ctx context.Context, limit int64) ([]Session, err
 			&i.UpdatedAt,
 			&i.FinishedAt,
 			&i.Plan,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -216,7 +234,7 @@ func (q *Queries) ListSessions(ctx context.Context, limit int64) ([]Session, err
 }
 
 const listSessionsByAgent = `-- name: ListSessionsByAgent :many
-SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan" FROM sessions WHERE agent_handle = ?1 ORDER BY updated_at DESC LIMIT ?2
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions WHERE agent_handle = ?1 ORDER BY updated_at DESC LIMIT ?2
 `
 
 type ListSessionsByAgentParams struct {
@@ -248,6 +266,55 @@ func (q *Queries) ListSessionsByAgent(ctx context.Context, arg ListSessionsByAge
 			&i.UpdatedAt,
 			&i.FinishedAt,
 			&i.Plan,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsBySource = `-- name: ListSessionsBySource :many
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions WHERE source = ?1 ORDER BY updated_at DESC LIMIT ?2
+`
+
+type ListSessionsBySourceParams struct {
+	Source string `json:"source"`
+	Limit  int64  `json:"limit"`
+}
+
+func (q *Queries) ListSessionsBySource(ctx context.Context, arg ListSessionsBySourceParams) ([]Session, error) {
+	rows, err := q.query(ctx, q.listSessionsBySourceStmt, listSessionsBySource, arg.Source, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.Title,
+			&i.InputSchema,
+			&i.OutputSchema,
+			&i.StructuredInput,
+			&i.StructuredOutput,
+			&i.ChainDepth,
+			&i.ChainSource,
+			&i.MessageCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+			&i.Plan,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +330,7 @@ func (q *Queries) ListSessionsByAgent(ctx context.Context, arg ListSessionsByAge
 }
 
 const searchSessionsByTitle = `-- name: SearchSessionsByTitle :many
-SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan" FROM sessions WHERE title LIKE '%' || ?1 || '%' ORDER BY updated_at DESC LIMIT ?2
+SELECT id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source FROM sessions WHERE title LIKE '%' || ?1 || '%' ORDER BY updated_at DESC LIMIT ?2
 `
 
 type SearchSessionsByTitleParams struct {
@@ -295,6 +362,7 @@ func (q *Queries) SearchSessionsByTitle(ctx context.Context, arg SearchSessionsB
 			&i.UpdatedAt,
 			&i.FinishedAt,
 			&i.Plan,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -316,7 +384,7 @@ UPDATE sessions SET
     finished_at = ?3,
     updated_at = strftime('%s', 'now')
 WHERE id = ?4
-RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan"
+RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source
 `
 
 type UpdateSessionParams struct {
@@ -349,6 +417,7 @@ func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) (S
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Plan,
+		&i.Source,
 	)
 	return i, err
 }
@@ -358,7 +427,7 @@ UPDATE sessions SET
     plan = ?1,
     updated_at = strftime('%s', 'now')
 WHERE id = ?2
-RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan"
+RETURNING id, agent_handle, title, input_schema, output_schema, structured_input, structured_output, chain_depth, chain_source, message_count, created_at, updated_at, finished_at, "plan", source
 `
 
 type UpdateSessionPlanParams struct {
@@ -384,6 +453,7 @@ func (q *Queries) UpdateSessionPlan(ctx context.Context, arg UpdateSessionPlanPa
 		&i.UpdatedAt,
 		&i.FinishedAt,
 		&i.Plan,
+		&i.Source,
 	)
 	return i, err
 }

@@ -1,4 +1,5 @@
 {
   "description": "The default ayo agent - a versatile command-line assistant",
-  "allowed_tools": ["bash", "agent_call"]
+  "allowed_tools": ["bash", "agent_call"],
+  "skills": ["coding"]
 }

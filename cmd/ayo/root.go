@@ -151,6 +151,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
 	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
+	cmd.AddCommand(newPluginsCmd(&cfgPath))
 
 	return cmd
 }

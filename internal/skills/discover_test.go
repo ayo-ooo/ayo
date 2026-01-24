@@ -26,6 +26,7 @@ func TestDiscoverAll(t *testing.T) {
 		AgentSkillsDir: agentDir,
 		UserSharedDir:  userDir,
 		BuiltinDir:     builtinDir,
+		IgnorePlugins:  true,
 	})
 
 	// Should have 4 skills: agent-skill, user-skill, builtin-skill, common-skill
@@ -55,6 +56,7 @@ func TestDiscoverAllWithIncludeFilter(t *testing.T) {
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: root,
 		IncludeSkills: []string{"skill-a", "skill-c"},
+		IgnorePlugins: true,
 	})
 
 	if len(result.Skills) != 2 {
@@ -79,6 +81,7 @@ func TestDiscoverAllWithExcludeFilter(t *testing.T) {
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: root,
 		ExcludeSkills: []string{"skill-b"},
+		IgnorePlugins: true,
 	})
 
 	if len(result.Skills) != 2 {
@@ -103,6 +106,7 @@ func TestDiscoverAllIgnoreBuiltin(t *testing.T) {
 		UserSharedDir: userDir,
 		BuiltinDir:    builtinDir,
 		IgnoreBuiltin: true,
+		IgnorePlugins: true,
 	})
 
 	if len(result.Skills) != 1 {
@@ -126,6 +130,7 @@ func TestDiscoverAllIgnoreShared(t *testing.T) {
 		UserSharedDir: userDir,
 		BuiltinDir:    builtinDir,
 		IgnoreShared:  true,
+		IgnorePlugins: true,
 	})
 
 	if len(result.Skills) != 1 {
@@ -145,6 +150,7 @@ func TestDiscoverAllSortsByName(t *testing.T) {
 
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: root,
+		IgnorePlugins: true,
 	})
 
 	if len(result.Skills) != 3 {
@@ -167,7 +173,9 @@ func TestDiscoverForAgent(t *testing.T) {
 	mustWriteSkill(t, filepath.Join(agentDir, "agent-skill"), "agent-skill", "agent")
 	mustWriteSkill(t, filepath.Join(userDir, "user-skill"), "user-skill", "user")
 
-	result := DiscoverForAgent(agentDir, []string{userDir}, DiscoveryFilterConfig{})
+	result := DiscoverForAgent(agentDir, []string{userDir}, DiscoveryFilterConfig{
+		IgnorePlugins: true,
+	})
 
 	if len(result.Skills) != 2 {
 		t.Fatalf("expected 2 skills, got %d", len(result.Skills))

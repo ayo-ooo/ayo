@@ -9,11 +9,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// Session source constants.
+const (
+	SourceAyo         = "ayo"           // Session created by ayo
+	SourceCrush       = "crush"         // Session created by standalone Crush
+	SourceCrushViaAyo = "crush-via-ayo" // Session created by Crush invoked through ayo
+)
+
 // Session represents a conversation session.
 type Session struct {
 	ID               string
 	AgentHandle      string
 	Title            string
+	Source           string // Session source: ayo, crush, crush-via-ayo
 	InputSchema      string
 	OutputSchema     string
 	StructuredInput  string
@@ -41,6 +49,7 @@ func NewSessionService(q *db.Queries) *SessionService {
 type CreateParams struct {
 	AgentHandle      string
 	Title            string
+	Source           string // Defaults to SourceAyo if empty
 	InputSchema      string
 	OutputSchema     string
 	StructuredInput  string
@@ -55,10 +64,16 @@ func (s *SessionService) Create(ctx context.Context, params CreateParams) (Sessi
 		title = "Untitled Session"
 	}
 
+	source := params.Source
+	if source == "" {
+		source = SourceAyo
+	}
+
 	dbSession, err := s.q.CreateSession(ctx, db.CreateSessionParams{
 		ID:              uuid.New().String(),
 		AgentHandle:     params.AgentHandle,
 		Title:           title,
+		Source:          source,
 		InputSchema:     toNullString(params.InputSchema),
 		OutputSchema:    toNullString(params.OutputSchema),
 		StructuredInput: toNullString(params.StructuredInput),
@@ -169,6 +184,26 @@ func (s *SessionService) CountByAgent(ctx context.Context, agentHandle string) (
 	return s.q.CountSessionsByAgent(ctx, agentHandle)
 }
 
+// ListBySource returns sessions for a specific source.
+func (s *SessionService) ListBySource(ctx context.Context, source string, limit int64) ([]Session, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	dbSessions, err := s.q.ListSessionsBySource(ctx, db.ListSessionsBySourceParams{
+		Source: source,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sessionsFromDB(dbSessions), nil
+}
+
+// CountBySource returns the number of sessions for a source.
+func (s *SessionService) CountBySource(ctx context.Context, source string) (int64, error) {
+	return s.q.CountSessionsBySource(ctx, source)
+}
+
 // UpdatePlan updates a session's plan.
 func (s *SessionService) UpdatePlan(ctx context.Context, id string, plan Plan) (Session, error) {
 	planJSON, err := marshalPlan(plan)
@@ -191,6 +226,7 @@ func sessionFromDB(d db.Session) Session {
 		ID:               d.ID,
 		AgentHandle:      d.AgentHandle,
 		Title:            d.Title,
+		Source:           d.Source,
 		InputSchema:      d.InputSchema.String,
 		OutputSchema:     d.OutputSchema.String,
 		StructuredInput:  d.StructuredInput.String,

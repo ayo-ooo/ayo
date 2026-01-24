@@ -14,6 +14,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/session"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
@@ -73,6 +74,9 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 		}
 		if strings.TrimSpace(ag.SkillsPrompt) != "" {
 			msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
+		}
+		if strings.TrimSpace(ag.DelegateContext) != "" {
+			msgs = append(msgs, fantasy.NewSystemMessage(ag.DelegateContext))
 		}
 		chatSession = &ChatSession{Agent: ag, Messages: msgs}
 		r.sessions[ag.Handle] = chatSession
@@ -288,6 +292,12 @@ func (r *Runner) buildMessagesWithAttachments(ag agent.Agent, prompt string, att
 		msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
 	}
 
+	// Add model context for sub-agents that need to pass the model through
+	if ag.Model != "" {
+		modelContext := fmt.Sprintf("<model_context>\nYou are running with model: %s\nWhen delegating to external tools that accept a model parameter (like crush run --model), use this model.\n</model_context>", ag.Model)
+		msgs = append(msgs, fantasy.NewSystemMessage(modelContext))
+	}
+
 	// Build file parts from attachments
 	// Text files are inlined into the prompt; binary files use FilePart
 	var fileParts []fantasy.FilePart
@@ -393,13 +403,14 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		return "", nil, fmt.Errorf("create language model: %w", err)
 	}
 
-	// Build tool set
-	tools := NewFantasyToolSet(ag.Config.AllowedTools)
+	// Build tool set with depth for proper UI nesting
+	baseDir, _ := os.Getwd()
+	tools := NewFantasyToolSetWithDepth(ag.Config.AllowedTools, baseDir, r.depth)
 
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
 	if tools.HasTool("agent_call") || !ag.BuiltIn {
-		tools.AddAgentCallTool(r.agentCallExecutor())
+		tools.AddAgentCallTool(r.agentCallExecutor(ag.Handle))
 	}
 
 	// Create Fantasy agent
@@ -484,7 +495,10 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 			if result.Result.GetType() == fantasy.ToolResultContentTypeError {
 				currentTool.Error = currentTool.Output
 			}
-			ui.PrintToolCallResult(currentTool)
+			// Skip normal display for agent_call - sub-agent already shows its result
+			if currentTool.Name != "agent_call" {
+				ui.PrintToolCallResult(currentTool)
+			}
 			currentTool = uipkg.ToolCallInfo{}
 			return nil
 		},
@@ -575,20 +589,30 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	return "", msgs, nil
 }
 
-func (r *Runner) agentCallExecutor() func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	return func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		// Normalize handle
 		agentHandle := agent.NormalizeHandle(params.Agent)
 
-		// Only allow calling builtin agents
-		if !agent.IsReservedNamespace(agentHandle) {
-			return fantasy.NewTextErrorResponse("agent_call can only invoke builtin agents (prefixed with 'ayo.')"), nil
+		// Prevent self-delegation loops
+		if agentHandle == currentAgentHandle {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("cannot delegate to self (%s) - use bash or other tools directly", agentHandle)), nil
+		}
+
+		// Only allow calling builtin agents or plugin agents
+		if !agent.IsReservedNamespace(agentHandle) && !plugins.IsPluginAgent(agentHandle) {
+			return fantasy.NewTextErrorResponse("agent_call can only invoke builtin or plugin agents"), nil
 		}
 
 		// Load the target agent
 		targetAgent, err := agent.Load(r.config, agentHandle)
 		if err != nil {
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("failed to load agent %s: %v", agentHandle, err)), nil
+		}
+
+		// Override model if specified in params
+		if params.Model != "" {
+			targetAgent.Model = params.Model
 		}
 
 		// Configure timeout

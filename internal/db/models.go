@@ -35,6 +35,7 @@ type Session struct {
 	UpdatedAt        int64          `json:"updated_at"`
 	FinishedAt       sql.NullInt64  `json:"finished_at"`
 	Plan             sql.NullString `json:"plan"`
+	Source           string         `json:"source"`
 }
 
 type SessionEdge struct {

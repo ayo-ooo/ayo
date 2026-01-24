@@ -9,12 +9,13 @@ INSERT INTO sessions (
     structured_output,
     chain_depth,
     chain_source,
+    source,
     message_count,
     created_at,
     updated_at,
     finished_at
 ) VALUES (
-    @id, @agent_handle, @title, @input_schema, @output_schema, @structured_input, @structured_output, @chain_depth, @chain_source, 0, strftime('%s', 'now'), strftime('%s', 'now'), NULL
+    @id, @agent_handle, @title, @input_schema, @output_schema, @structured_input, @structured_output, @chain_depth, @chain_source, @source, 0, strftime('%s', 'now'), strftime('%s', 'now'), NULL
 ) RETURNING *;
 
 -- name: GetSession :one
@@ -55,6 +56,12 @@ SELECT COUNT(*) FROM sessions;
 
 -- name: CountSessionsByAgent :one
 SELECT COUNT(*) FROM sessions WHERE agent_handle = @agent_handle;
+
+-- name: ListSessionsBySource :many
+SELECT * FROM sessions WHERE source = @source ORDER BY updated_at DESC LIMIT @limit;
+
+-- name: CountSessionsBySource :one
+SELECT COUNT(*) FROM sessions WHERE source = @source;
 
 -- name: UpdateSessionPlan :one
 UPDATE sessions SET
