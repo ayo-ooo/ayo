@@ -495,7 +495,10 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 			if result.Result.GetType() == fantasy.ToolResultContentTypeError {
 				currentTool.Error = currentTool.Output
 			}
-			ui.PrintToolCallResult(currentTool)
+			// Skip normal display for agent_call - sub-agent already shows its result
+			if currentTool.Name != "agent_call" {
+				ui.PrintToolCallResult(currentTool)
+			}
 			currentTool = uipkg.ToolCallInfo{}
 			return nil
 		},
