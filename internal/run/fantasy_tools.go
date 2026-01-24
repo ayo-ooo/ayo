@@ -152,6 +152,8 @@ func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolS
 			tools = append(tools, NewBashTool(baseDir))
 		case "plan":
 			tools = append(tools, NewPlanTool())
+		case "memory":
+			tools = append(tools, NewMemoryTool(""))
 		// agent_call is added separately when needed
 		}
 	}
@@ -249,4 +251,99 @@ func (l *fantasyLimitedBuffer) Write(p []byte) (int, error) {
 
 func (l *fantasyLimitedBuffer) String() string {
 	return l.buf.String()
+}
+
+// MemoryParams defines the parameters for the memory tool.
+type MemoryParams struct {
+	Operation string `json:"operation" description:"The memory operation to perform: 'search', 'store', 'list', 'forget'"`
+	Query     string `json:"query,omitempty" description:"For 'search': the semantic search query"`
+	Content   string `json:"content,omitempty" description:"For 'store': the memory content to store"`
+	Category  string `json:"category,omitempty" description:"For 'store': the memory category (preference, fact, correction, pattern). Default: fact"`
+	ID        string `json:"id,omitempty" description:"For 'forget': the memory ID (or prefix) to forget"`
+	Limit     int    `json:"limit,omitempty" description:"For 'search' or 'list': maximum number of results. Default: 10"`
+}
+
+// NewMemoryTool creates the memory tool for Fantasy.
+// This tool shells out to the ayo CLI for memory operations.
+func NewMemoryTool(ayoBinary string) fantasy.AgentTool {
+	if ayoBinary == "" {
+		// Use the currently running executable
+		if exe, err := os.Executable(); err == nil {
+			ayoBinary = exe
+		} else {
+			// Fallback to 'ayo' in PATH
+			ayoBinary = "ayo"
+		}
+	}
+
+	return fantasy.NewAgentTool(
+		"memory",
+		"Manage persistent memories that persist across sessions. Use 'search' to find relevant memories, 'store' to save new information, 'list' to see all memories, or 'forget' to remove memories.",
+		func(ctx context.Context, params MemoryParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			var args []string
+
+			switch params.Operation {
+			case "search":
+				if params.Query == "" {
+					return fantasy.NewTextErrorResponse("query is required for search operation"), nil
+				}
+				args = []string{"memory", "search", params.Query, "--json"}
+				if params.Limit > 0 {
+					args = append(args, "-n", fmt.Sprintf("%d", params.Limit))
+				}
+
+			case "store":
+				if params.Content == "" {
+					return fantasy.NewTextErrorResponse("content is required for store operation"), nil
+				}
+				args = []string{"memory", "store", params.Content, "--json"}
+				if params.Category != "" {
+					args = append(args, "-c", params.Category)
+				}
+
+			case "list":
+				args = []string{"memory", "list", "--json"}
+				if params.Limit > 0 {
+					args = append(args, "-n", fmt.Sprintf("%d", params.Limit))
+				}
+
+			case "forget":
+				if params.ID == "" {
+					return fantasy.NewTextErrorResponse("id is required for forget operation"), nil
+				}
+				args = []string{"memory", "forget", params.ID, "--json"}
+
+			default:
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("unknown operation: %s. Valid operations: search, store, list, forget", params.Operation)), nil
+			}
+
+			// Execute the ayo command
+			timeout := 30 * time.Second
+			execCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			cmd := exec.CommandContext(execCtx, ayoBinary, args...)
+
+			stdoutBuf := &fantasyLimitedBuffer{max: fantasyOutputLimitBytes}
+			stderrBuf := &fantasyLimitedBuffer{max: fantasyOutputLimitBytes}
+			cmd.Stdout = stdoutBuf
+			cmd.Stderr = stderrBuf
+
+			runErr := cmd.Run()
+
+			if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+				return fantasy.NewTextErrorResponse("memory operation timed out"), nil
+			}
+
+			if runErr != nil {
+				errMsg := stderrBuf.String()
+				if errMsg == "" {
+					errMsg = runErr.Error()
+				}
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("memory operation failed: %s", errMsg)), nil
+			}
+
+			return fantasy.NewTextResponse(stdoutBuf.String()), nil
+		},
+	)
 }

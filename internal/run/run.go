@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
 
@@ -28,6 +29,7 @@ type Runner struct {
 	services         *session.Services        // nil = no persistence
 	memoryService    *memory.Service          // nil = no memory
 	formationService *memory.FormationService // nil = no async formation
+	smallModel       *smallmodel.Service      // nil = no small model for memory extraction
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -65,6 +67,7 @@ type RunnerOptions struct {
 	Services         *session.Services
 	MemoryService    *memory.Service
 	FormationService *memory.FormationService
+	SmallModel       *smallmodel.Service
 }
 
 // NewRunner creates a runner with all options.
@@ -76,6 +79,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		services:         opts.Services,
 		memoryService:    opts.MemoryService,
 		formationService: opts.FormationService,
+		smallModel:       opts.SmallModel,
 	}, nil
 }
 
@@ -200,10 +204,34 @@ func (r *Runner) GetSessionID(agentHandle string) string {
 // ResumeSession restores a chat session from persisted messages.
 // This allows continuing a previous conversation.
 func (r *Runner) ResumeSession(ctx context.Context, ag agent.Agent, sessionID string, messages []session.Message) error {
+	// Build system prompt with memory context
+	systemPrompt := ag.CombinedSystem
+	if r.memoryService != nil && ag.Config.Memory.Enabled && ag.Config.Memory.Retrieval.AutoInject {
+		// Use last user message as query for memory retrieval
+		var query string
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role == session.RoleUser {
+				for _, part := range messages[i].Parts {
+					if textPart, ok := part.(session.TextContent); ok {
+						query = textPart.Text
+						break
+					}
+				}
+				break
+			}
+		}
+		if query != "" {
+			memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", query, ag.Config.Memory)
+			if err == nil && memCtx != nil {
+				systemPrompt = agent.InjectMemoryContext(systemPrompt, memCtx)
+			}
+		}
+	}
+
 	// Build system messages
 	var msgs []fantasy.Message
-	if strings.TrimSpace(ag.CombinedSystem) != "" {
-		msgs = append(msgs, fantasy.NewSystemMessage(ag.CombinedSystem))
+	if strings.TrimSpace(systemPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(systemPrompt))
 	}
 	if strings.TrimSpace(ag.ToolsPrompt) != "" {
 		msgs = append(msgs, fantasy.NewSystemMessage(ag.ToolsPrompt))
@@ -808,93 +836,166 @@ func truncateForTitle(s string, maxLen int) string {
 	return s[:maxLen-1] + "…"
 }
 
-// maybeFormMemory checks for memory triggers in the user message and creates memories if found.
+// maybeFormMemory uses small model to extract memorable content from user messages.
 func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessage, sessionID string) {
 	// Need memory service with embedder for deduplication and embedding generation
 	if r.memoryService == nil || !r.memoryService.HasEmbedder() {
 		return
 	}
 
-	// Check trigger configuration
-	cfg := ag.Config.Memory.FormationTriggers
-	
-	// Detect triggers in user message
-	triggers := memory.DetectTriggers(userMessage)
-	if len(triggers) == 0 {
+	// Need small model for intelligent extraction
+	if r.smallModel == nil {
 		return
 	}
 
-	// Deduplicate triggers by content - keep the best one per unique content
-	// This prevents multiple triggers (e.g., explicit + preference) from creating duplicates
-	bestByContent := make(map[string]memory.FormationTrigger)
-	for _, trigger := range triggers {
-		existing, ok := bestByContent[trigger.Content]
-		if !ok || trigger.Confidence > existing.Confidence ||
-			(trigger.Confidence == existing.Confidence && trigger.Type == memory.TriggerExplicit) {
-			bestByContent[trigger.Content] = trigger
+	// Check if memory is enabled for this agent
+	if !ag.Config.Memory.Enabled {
+		return
+	}
+
+	// Check if explicit_only mode - skip automatic extraction
+	cfg := ag.Config.Memory.FormationTriggers
+	if cfg.ExplicitOnly {
+		return
+	}
+
+	// Use small model to extract memorable content
+	extraction, err := r.smallModel.ExtractMemory(ctx, userMessage)
+	if err != nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "DEBUG: memory extraction failed: %v\n", err)
+		}
+		return
+	}
+
+	// Nothing to remember
+	if !extraction.ShouldRemember || extraction.Content == "" {
+		return
+	}
+
+	// Filter based on agent config
+	switch extraction.Category {
+	case "correction":
+		if !cfg.OnCorrection {
+			return
+		}
+	case "preference":
+		if !cfg.OnPreference {
+			return
+		}
+	case "fact":
+		if !cfg.OnProjectFact {
+			return
 		}
 	}
 
-	// Filter based on agent config and create memories
-	for _, trigger := range bestByContent {
-		// Skip if this trigger type is not enabled
-		switch trigger.Type {
-		case memory.TriggerExplicit:
-			// Always allow explicit "remember" requests
-		case memory.TriggerCorrection:
-			if !cfg.OnCorrection {
-				continue
-			}
-		case memory.TriggerPreference:
-			if !cfg.OnPreference {
-				continue
-			}
-		case memory.TriggerFact:
-			if !cfg.OnProjectFact {
-				continue
+	// Map category string to memory.Category
+	category := categoryFromString(extraction.Category)
+
+	// Check for duplicates using small model if we have similar memories
+	existing, err := r.memoryService.Search(ctx, extraction.Content, memory.SearchOptions{
+		AgentHandle: ag.Handle,
+		Threshold:   memory.SupersedeThreshold,
+		Limit:       5,
+	})
+	if err != nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "DEBUG: memory search failed: %v\n", err)
+		}
+		// Continue with creation anyway
+		existing = nil
+	}
+
+	// If we have similar memories, use small model to decide what to do
+	if len(existing) > 0 {
+		existingList := make([]smallmodel.ExistingMemory, len(existing))
+		for i, m := range existing {
+			existingList[i] = smallmodel.ExistingMemory{
+				ID:      m.Memory.ID,
+				Content: m.Memory.Content,
 			}
 		}
 
-		// Skip non-explicit triggers if explicit_only is set
-		if cfg.ExplicitOnly && trigger.Type != memory.TriggerExplicit {
-			continue
-		}
-
-		// Check if we already have this memory (or similar)
-		existing, err := r.memoryService.Search(ctx, trigger.Content, memory.SearchOptions{
-			AgentHandle: ag.Handle,
-			Threshold:   memory.ExactDuplicateThreshold,
-			Limit:       1,
-		})
-		if err == nil && len(existing) > 0 && existing[0].Similarity >= memory.ExactDuplicateThreshold {
-			// Already have this exact memory, notify and skip
-			if r.formationService != nil {
-				r.formationService.NotifySkipped(trigger.Content, existing[0].Memory.ID)
-			}
-			continue
-		}
-
-		// Create the memory synchronously
-		mem, err := r.memoryService.Create(ctx, memory.Memory{
-			Content:         trigger.Content,
-			Category:        trigger.Category,
-			AgentHandle:     ag.Handle,
-			SourceSessionID: sessionID,
-		})
+		decision, err := r.smallModel.CheckDuplicate(ctx, extraction.Content, existingList)
 		if err != nil {
-			// Notify failure with debug output
 			if r.debug {
-				fmt.Fprintf(os.Stderr, "DEBUG: memory creation failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "DEBUG: dedup check failed: %v\n", err)
 			}
-			if r.formationService != nil {
-				r.formationService.NotifyFailed(trigger.Content, err)
-			}
+			// Continue with creation anyway
 		} else {
-			// Notify success
-			if r.formationService != nil {
-				r.formationService.NotifyCreated(mem)
+			switch decision.Action {
+			case "duplicate":
+				// Already have this memory, skip
+				if r.formationService != nil {
+					r.formationService.NotifySkipped(extraction.Content, existingList[0].ID)
+				}
+				return
+			case "supersede":
+				// Find the memory to supersede
+				targetID := decision.TargetID
+				if targetID == "" && len(existingList) > 0 {
+					targetID = existingList[0].ID
+				}
+				if targetID != "" {
+					mem, err := r.memoryService.Supersede(ctx, targetID, memory.Memory{
+						Content:         extraction.Content,
+						Category:        category,
+						AgentHandle:     ag.Handle,
+						SourceSessionID: sessionID,
+					}, decision.Reason)
+					if err != nil {
+						if r.debug {
+							fmt.Fprintf(os.Stderr, "DEBUG: memory supersede failed: %v\n", err)
+						}
+						if r.formationService != nil {
+							r.formationService.NotifyFailed(extraction.Content, err)
+						}
+					} else {
+						if r.formationService != nil {
+							r.formationService.NotifySuperseded(mem, targetID)
+						}
+					}
+					return
+				}
 			}
+			// action == "new", fall through to create
 		}
+	}
+
+	// Create the memory
+	mem, err := r.memoryService.Create(ctx, memory.Memory{
+		Content:         extraction.Content,
+		Category:        category,
+		AgentHandle:     ag.Handle,
+		SourceSessionID: sessionID,
+	})
+	if err != nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "DEBUG: memory creation failed: %v\n", err)
+		}
+		if r.formationService != nil {
+			r.formationService.NotifyFailed(extraction.Content, err)
+		}
+	} else {
+		if r.formationService != nil {
+			r.formationService.NotifyCreated(mem)
+		}
+	}
+}
+
+// categoryFromString converts a category string to memory.Category.
+func categoryFromString(s string) memory.Category {
+	switch s {
+	case "preference":
+		return memory.CategoryPreference
+	case "fact":
+		return memory.CategoryFact
+	case "correction":
+		return memory.CategoryCorrection
+	case "pattern":
+		return memory.CategoryPattern
+	default:
+		return memory.CategoryFact
 	}
 }
 

@@ -250,7 +250,7 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 		opts.Limit = 10
 	}
 	if opts.Threshold == 0 {
-		opts.Threshold = 0.5
+		opts.Threshold = 0.3
 	}
 
 	// Generate query embedding

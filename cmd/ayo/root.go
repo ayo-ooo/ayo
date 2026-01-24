@@ -16,10 +16,12 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
 )
 
 func newRootCmd() *cobra.Command {
@@ -79,15 +81,22 @@ func newRootCmd() *cobra.Command {
 				// Create memory services if database available
 				var memSvc *memory.Service
 				var formSvc *memory.FormationService
+				var smallModelSvc *smallmodel.Service
 				if services != nil {
-					// Try to create embedder for semantic deduplication
+					// Create Ollama-based embedder and small model service
 					var embedder embedding.Embedder
-					if embedding.IsModelAvailable() {
-						var err error
-						embedder, err = embedding.NewLocalEmbedder(embedding.LocalConfig{})
-						if err != nil && debug {
-							fmt.Fprintf(os.Stderr, "Warning: failed to create embedder: %v\n", err)
-						}
+					ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
+					if ollamaClient.IsAvailable(cmd.Context()) {
+						embedder = embedding.NewOllamaEmbedder(embedding.OllamaConfig{
+							Host:  cfg.OllamaHost,
+							Model: cfg.Embedding.Model,
+						})
+						smallModelSvc = smallmodel.NewService(smallmodel.Config{
+							Host:  cfg.OllamaHost,
+							Model: cfg.SmallModel,
+						})
+					} else if debug {
+						fmt.Fprintf(os.Stderr, "Warning: Ollama not available at %s, memory features disabled\n", cfg.OllamaHost)
 					}
 					memSvc = memory.NewService(services.Queries(), embedder)
 					if embedder != nil {
@@ -118,6 +127,7 @@ func newRootCmd() *cobra.Command {
 					Services:         services,
 					MemoryService:    memSvc,
 					FormationService: formSvc,
+					SmallModel:       smallModelSvc,
 				})
 				if err != nil {
 					return err
@@ -199,6 +209,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())
+	cmd.AddCommand(newDoctorCmd(&cfgPath))
 
 	return cmd
 }

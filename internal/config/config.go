@@ -20,6 +20,8 @@ type Config struct {
 	SkillsDir      string           `json:"skills_dir,omitempty"`
 	DefaultModel   string           `json:"default_model,omitempty"`
 	SmallModel     string           `json:"small_model,omitempty"`
+	EmbeddingModel string           `json:"embedding_model,omitempty"`
+	OllamaHost     string           `json:"ollama_host,omitempty"`
 	CatwalkBaseURL string           `json:"catwalk_base_url,omitempty"`
 	Provider       catwalk.Provider `json:"provider,omitempty"`
 	Embedding      EmbeddingConfig  `json:"embedding,omitempty"`
@@ -63,7 +65,9 @@ func Default() Config {
 		SystemSuffix:   "", // Uses paths.FindPromptFile("system-suffix.md")
 		SkillsDir:      paths.SkillsDir(),
 		DefaultModel:   "gpt-4.1",
-		SmallModel:     "gpt-4.1-mini",
+		SmallModel:     "ollama/ministral-3:3b",
+		EmbeddingModel: "ollama/nomic-embed-text",
+		OllamaHost:     "http://localhost:11434",
 		CatwalkBaseURL: defaultCatwalkURL(),
 		Provider: catwalk.Provider{
 			Name:        "openai",
@@ -71,7 +75,8 @@ func Default() Config {
 			APIEndpoint: "https://api.openai.com/v1",
 		},
 		Embedding: EmbeddingConfig{
-			Provider: "local",
+			Provider: "ollama",
+			Model:    "nomic-embed-text",
 		},
 	}
 }

@@ -1,10 +1,14 @@
 package main
 
 import (
-	"database/sql"
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/huh"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -12,7 +16,10 @@ import (
 	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 func newMemoryCmd() *cobra.Command {
@@ -25,6 +32,7 @@ func newMemoryCmd() *cobra.Command {
 	cmd.AddCommand(newMemoryListCmd())
 	cmd.AddCommand(newMemorySearchCmd())
 	cmd.AddCommand(newMemoryShowCmd())
+	cmd.AddCommand(newMemoryStoreCmd())
 	cmd.AddCommand(newMemoryForgetCmd())
 	cmd.AddCommand(newMemoryStatsCmd())
 	cmd.AddCommand(newMemoryClearCmd())
@@ -32,26 +40,11 @@ func newMemoryCmd() *cobra.Command {
 	return cmd
 }
 
-func getMemoryService(ctx interface{ Context() interface{} }) (*memory.Service, *db.Queries, *sql.DB, error) {
-	dbConn, queries, err := db.ConnectWithQueries(ctx.(interface{ Context() interface{} }).Context().(interface {
-		Done() <-chan struct{}
-		Err() error
-		Deadline() (time.Time, bool)
-		Value(interface{}) interface{}
-	}), paths.DatabasePath())
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Use a nil embedder for CLI operations (no embedding generation needed for list/show/etc.)
-	svc := memory.NewService(queries, nil)
-	return svc, queries, dbConn, nil
-}
-
 func newMemoryListCmd() *cobra.Command {
 	var agentFilter string
 	var categoryFilter string
 	var limit int64
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -70,11 +63,6 @@ func newMemoryListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list memories: %w", err)
 			}
 
-			if len(memories) == 0 {
-				fmt.Println("No memories found")
-				return nil
-			}
-
 			// Filter by category if specified
 			if categoryFilter != "" {
 				var filtered []memory.Memory
@@ -84,6 +72,15 @@ func newMemoryListCmd() *cobra.Command {
 					}
 				}
 				memories = filtered
+			}
+
+			if jsonOutput {
+				return writeJSON(memoriesToJSON(memories))
+			}
+
+			if len(memories) == 0 {
+				fmt.Println("No memories found")
+				return nil
 			}
 
 			// Styles
@@ -135,6 +132,7 @@ func newMemoryListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Filter by agent handle")
 	cmd.Flags().StringVarP(&categoryFilter, "category", "c", "", "Filter by category")
 	cmd.Flags().Int64VarP(&limit, "limit", "n", 50, "Maximum number of memories to show")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
@@ -143,6 +141,7 @@ func newMemorySearchCmd() *cobra.Command {
 	var agentFilter string
 	var threshold float64
 	var limit int
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -173,6 +172,10 @@ func newMemorySearchCmd() *cobra.Command {
 			})
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
+			}
+
+			if jsonOutput {
+				return writeJSON(searchResultsToJSON(results))
 			}
 
 			if len(results) == 0 {
@@ -219,20 +222,21 @@ func newMemorySearchCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Filter by agent handle")
-	cmd.Flags().Float64VarP(&threshold, "threshold", "t", 0.5, "Minimum similarity threshold (0-1)")
+	cmd.Flags().Float64VarP(&threshold, "threshold", "t", 0.3, "Minimum similarity threshold (0-1)")
 	cmd.Flags().IntVarP(&limit, "limit", "n", 10, "Maximum number of results")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
 
 func newMemoryShowCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "show <id>",
-		Short: "Show memory details",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
+	var jsonOutput bool
 
+	cmd := &cobra.Command{
+		Use:   "show [id]",
+		Short: "Show memory details",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			dbConn, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to connect to database: %w", err)
@@ -241,9 +245,23 @@ func newMemoryShowCmd() *cobra.Command {
 
 			svc := memory.NewService(queries, nil)
 
-			mem, err := svc.GetByPrefix(cmd.Context(), id)
-			if err != nil {
-				return fmt.Errorf("memory not found: %w", err)
+			var mem memory.Memory
+
+			if len(args) == 0 {
+				// Interactive picker
+				mem, err = pickMemory(cmd.Context(), svc, "Select memory to view")
+				if err != nil {
+					return err
+				}
+			} else {
+				mem, err = svc.GetByPrefix(cmd.Context(), args[0])
+				if err != nil {
+					return fmt.Errorf("memory not found: %w", err)
+				}
+			}
+
+			if jsonOutput {
+				return writeJSON(memoryToJSON(mem))
 			}
 
 			// Styles
@@ -285,19 +303,162 @@ func newMemoryShowCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+
+	return cmd
+}
+
+func newMemoryStoreCmd() *cobra.Command {
+	var agentHandle string
+	var category string
+	var pathScope string
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "store <content>",
+		Short: "Store a new memory",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			content := args[0]
+			ctx := cmd.Context()
+
+			// Don't show spinner for JSON output (used by agents)
+			var spinner *ui.Spinner
+			if !jsonOutput {
+				spinner = ui.NewSpinnerWithType("storing memory...", ui.SpinnerMemory)
+				spinner.Start()
+			}
+
+			dbConn, queries, err := db.ConnectWithQueries(ctx, paths.DatabasePath())
+			if err != nil {
+				if spinner != nil {
+					spinner.StopWithError("failed to connect to database")
+				}
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer dbConn.Close()
+
+			// Try to create embedder for storing with embeddings
+			embedder, err := createEmbedder()
+			if err != nil {
+				// Fall back to storing without embeddings
+				embedder = nil
+			}
+			if embedder != nil {
+				defer embedder.Close()
+			}
+
+			svc := memory.NewService(queries, embedder)
+
+			// Determine category: use provided or auto-categorize
+			var cat memory.Category
+			categoryProvided := cmd.Flags().Changed("category")
+
+			if categoryProvided {
+				// User explicitly provided a category
+				switch category {
+				case "preference":
+					cat = memory.CategoryPreference
+				case "fact":
+					cat = memory.CategoryFact
+				case "correction":
+					cat = memory.CategoryCorrection
+				case "pattern":
+					cat = memory.CategoryPattern
+				default:
+					cat = memory.CategoryFact
+				}
+			} else {
+				// Auto-categorize using small model
+				if spinner != nil {
+					spinner.Stop()
+					spinner = ui.NewSpinnerWithType("categorizing...", ui.SpinnerMemory)
+					spinner.Start()
+				}
+
+				smallSvc := smallmodel.NewService(smallmodel.Config{})
+				if smallSvc.IsAvailable(ctx) {
+					result, err := smallSvc.CategorizeMemory(ctx, content)
+					if err == nil {
+						switch result.Category {
+						case "preference":
+							cat = memory.CategoryPreference
+						case "correction":
+							cat = memory.CategoryCorrection
+						case "pattern":
+							cat = memory.CategoryPattern
+						default:
+							cat = memory.CategoryFact
+						}
+					} else {
+						// Fallback to fact on error
+						cat = memory.CategoryFact
+					}
+				} else {
+					// Ollama not available, default to fact
+					cat = memory.CategoryFact
+				}
+
+				if spinner != nil {
+					spinner.Stop()
+					spinner = ui.NewSpinnerWithType("storing memory...", ui.SpinnerMemory)
+					spinner.Start()
+				}
+			}
+
+			mem, err := svc.Create(ctx, memory.Memory{
+				Content:     content,
+				Category:    cat,
+				AgentHandle: agentHandle,
+				PathScope:   pathScope,
+			})
+			if err != nil {
+				if spinner != nil {
+					spinner.StopWithError("failed to store memory")
+				}
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"success": false,
+						"error":   err.Error(),
+					})
+				}
+				return fmt.Errorf("failed to store memory: %w", err)
+			}
+
+			if spinner != nil {
+				spinner.StopWithMessage("memory stored")
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"success": true,
+					"memory":  memoryToJSON(mem),
+				})
+			}
+
+			// Show category in output so user knows what was chosen
+			fmt.Printf("Stored as %s: %s\n", mem.Category, mem.ID[:8])
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&agentHandle, "agent", "a", "", "Agent handle for scoping")
+	cmd.Flags().StringVarP(&category, "category", "c", "fact", "Memory category (preference, fact, correction, pattern) - auto-detected if not specified")
+	cmd.Flags().StringVarP(&pathScope, "path", "p", "", "Path scope for this memory")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+
 	return cmd
 }
 
 func newMemoryForgetCmd() *cobra.Command {
 	var force bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
-		Use:   "forget <id>",
+		Use:   "forget [id]",
 		Short: "Forget a memory (soft delete)",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
-
 			dbConn, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to connect to database: %w", err)
@@ -306,13 +467,29 @@ func newMemoryForgetCmd() *cobra.Command {
 
 			svc := memory.NewService(queries, nil)
 
-			// Show the memory first
-			mem, err := svc.GetByPrefix(cmd.Context(), id)
-			if err != nil {
-				return fmt.Errorf("memory not found: %w", err)
+			var mem memory.Memory
+
+			if len(args) == 0 {
+				// Interactive picker
+				mem, err = pickMemory(cmd.Context(), svc, "Select memory to forget")
+				if err != nil {
+					return err
+				}
+			} else {
+				mem, err = svc.GetByPrefix(cmd.Context(), args[0])
+				if err != nil {
+					if jsonOutput {
+						return writeJSON(map[string]interface{}{
+							"success": false,
+							"error":   "memory not found",
+						})
+					}
+					return fmt.Errorf("memory not found: %w", err)
+				}
 			}
 
-			if !force {
+			// Skip confirmation in JSON mode (assume --force)
+			if !force && !jsonOutput {
 				fmt.Printf("Memory to forget: %s\n", mem.Content)
 				fmt.Print("Are you sure? [y/N] ")
 				var confirm string
@@ -325,7 +502,21 @@ func newMemoryForgetCmd() *cobra.Command {
 
 			err = svc.Forget(cmd.Context(), mem.ID)
 			if err != nil {
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"success": false,
+						"error":   err.Error(),
+					})
+				}
 				return fmt.Errorf("failed to forget memory: %w", err)
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"success":   true,
+					"forgotten": true,
+					"memory_id": mem.ID,
+				})
 			}
 
 			fmt.Println("Memory forgotten")
@@ -334,11 +525,14 @@ func newMemoryForgetCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
 
 func newMemoryStatsCmd() *cobra.Command {
+	var jsonOutput bool
+
 	cmd := &cobra.Command{
 		Use:   "stats",
 		Short: "Show memory statistics",
@@ -356,6 +550,12 @@ func newMemoryStatsCmd() *cobra.Command {
 				return fmt.Errorf("failed to count memories: %w", err)
 			}
 
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"total_active": total,
+				})
+			}
+
 			// Styles
 			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 			labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
@@ -371,6 +571,8 @@ func newMemoryStatsCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
@@ -434,9 +636,110 @@ func newMemoryClearCmd() *cobra.Command {
 }
 
 func createEmbedder() (embedding.Embedder, error) {
-	if !embedding.IsModelAvailable() {
-		return nil, fmt.Errorf("embedding model not available")
+	client := ollama.NewClient()
+	if !client.IsAvailable(context.Background()) {
+		return nil, fmt.Errorf("Ollama not available at %s", client.Host())
 	}
 
-	return embedding.NewLocalEmbedder(embedding.LocalConfig{})
+	return embedding.NewOllamaEmbedder(embedding.OllamaConfig{}), nil
+}
+
+// writeJSON writes JSON to stdout.
+func writeJSON(v interface{}) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}
+
+// memoryToJSON converts a memory to a JSON-friendly map.
+func memoryToJSON(m memory.Memory) map[string]interface{} {
+	result := map[string]interface{}{
+		"id":           m.ID,
+		"content":      m.Content,
+		"category":     string(m.Category),
+		"status":       string(m.Status),
+		"confidence":   m.Confidence,
+		"access_count": m.AccessCount,
+		"created_at":   m.CreatedAt.Format(time.RFC3339),
+		"updated_at":   m.UpdatedAt.Format(time.RFC3339),
+	}
+	if m.AgentHandle != "" {
+		result["agent_handle"] = m.AgentHandle
+	}
+	if m.PathScope != "" {
+		result["path_scope"] = m.PathScope
+	}
+	if m.SupersedesID != "" {
+		result["supersedes_id"] = m.SupersedesID
+	}
+	if m.SupersededByID != "" {
+		result["superseded_by_id"] = m.SupersededByID
+	}
+	return result
+}
+
+// memoriesToJSON converts a slice of memories to JSON-friendly format.
+func memoriesToJSON(memories []memory.Memory) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(memories))
+	for i, m := range memories {
+		result[i] = memoryToJSON(m)
+	}
+	return result
+}
+
+// searchResultsToJSON converts search results to JSON-friendly format.
+func searchResultsToJSON(results []memory.SearchResult) []map[string]interface{} {
+	output := make([]map[string]interface{}, len(results))
+	for i, r := range results {
+		output[i] = map[string]interface{}{
+			"memory":     memoryToJSON(r.Memory),
+			"similarity": r.Similarity,
+		}
+	}
+	return output
+}
+
+// pickMemory shows an interactive picker for selecting a memory.
+func pickMemory(ctx context.Context, svc *memory.Service, title string) (memory.Memory, error) {
+	memories, err := svc.List(ctx, "", 50, 0)
+	if err != nil {
+		return memory.Memory{}, fmt.Errorf("failed to list memories: %w", err)
+	}
+
+	if len(memories) == 0 {
+		return memory.Memory{}, fmt.Errorf("no memories found")
+	}
+
+	// Build options for the select
+	options := make([]huh.Option[string], len(memories))
+	for i, m := range memories {
+		// Truncate content for display
+		content := m.Content
+		if len(content) > 50 {
+			content = content[:47] + "..."
+		}
+		label := fmt.Sprintf("[%s] %s", m.Category, content)
+		options[i] = huh.NewOption(label, m.ID)
+	}
+
+	var selectedID string
+	err = huh.NewSelect[string]().
+		Title(title).
+		Options(options...).
+		Value(&selectedID).
+		WithTheme(huh.ThemeCharm()).
+		Run()
+
+	if err != nil {
+		return memory.Memory{}, err
+	}
+
+	// Find the selected memory
+	for _, m := range memories {
+		if m.ID == selectedID {
+			return m, nil
+		}
+	}
+
+	return memory.Memory{}, fmt.Errorf("memory not found")
 }

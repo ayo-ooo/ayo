@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,10 +12,13 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
 
@@ -363,8 +367,24 @@ Supports session ID prefix matching and title search.`,
 				return fmt.Errorf("failed to load messages: %w", err)
 			}
 
-			// Create memory services
-			memSvc := memory.NewService(services.Queries(), nil)
+			// Create memory services with Ollama if available
+			var embedder embedding.Embedder
+			var smallModelSvc *smallmodel.Service
+			ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
+			if ollamaClient.IsAvailable(cmd.Context()) {
+				embedder = embedding.NewOllamaEmbedder(embedding.OllamaConfig{
+					Host:  cfg.OllamaHost,
+					Model: cfg.Embedding.Model,
+				})
+				defer embedder.Close()
+				smallModelSvc = smallmodel.NewService(smallmodel.Config{
+					Host:  cfg.OllamaHost,
+					Model: cfg.SmallModel,
+				})
+			} else if debug {
+				fmt.Fprintf(os.Stderr, "Warning: Ollama not available at %s, memory features disabled\n", cfg.OllamaHost)
+			}
+			memSvc := memory.NewService(services.Queries(), embedder)
 			formSvc := memory.NewFormationService(memSvc)
 
 			// Create runner with services
@@ -372,6 +392,7 @@ Supports session ID prefix matching and title search.`,
 				Services:         services,
 				MemoryService:    memSvc,
 				FormationService: formSvc,
+				SmallModel:       smallModelSvc,
 			})
 			if err != nil {
 				return err

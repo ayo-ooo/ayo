@@ -18,7 +18,6 @@ require (
 	github.com/ncruces/go-sqlite3 v0.30.4
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/spf13/cobra v1.10.2
-	github.com/yalue/onnxruntime_go v1.25.0
 	golang.org/x/term v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 )
