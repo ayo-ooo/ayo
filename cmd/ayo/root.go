@@ -14,6 +14,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
@@ -79,16 +80,37 @@ func newRootCmd() *cobra.Command {
 				var memSvc *memory.Service
 				var formSvc *memory.FormationService
 				if services != nil {
-					memSvc = memory.NewService(services.Queries(), nil) // nil embedder for now
+					// Try to create embedder for semantic deduplication
+					var embedder embedding.Embedder
+					if embedding.IsModelAvailable() {
+						var err error
+						embedder, err = embedding.NewLocalEmbedder(embedding.LocalConfig{})
+						if err != nil && debug {
+							fmt.Fprintf(os.Stderr, "Warning: failed to create embedder: %v\n", err)
+						}
+					}
+					memSvc = memory.NewService(services.Queries(), embedder)
+					if embedder != nil {
+						defer embedder.Close()
+					}
 					formSvc = memory.NewFormationService(memSvc)
 					
 					// Register callback for memory formation feedback
 					formSvc.OnFormation(func(result memory.FormationResult) {
-						if result.Success && !pipe.IsStdoutPiped() {
-							// Subtle feedback when memory is formed
-							style := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-							fmt.Fprintf(os.Stderr, "%s\n", style.Render("  ◆ Remembered"))
+						var msg string
+						switch result.EventType() {
+						case memory.FormationEventCreated:
+							msg = "  ◆ Remembered"
+						case memory.FormationEventSkipped:
+							msg = "  ◇ Already remembered"
+						case memory.FormationEventSuperseded:
+							msg = "  ◆ Memory updated"
+						case memory.FormationEventFailed:
+							msg = "  × Failed to remember"
+						default:
+							return
 						}
+						fmt.Fprintln(os.Stderr, msg)
 					})
 				}
 

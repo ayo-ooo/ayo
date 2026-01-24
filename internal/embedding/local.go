@@ -171,7 +171,7 @@ func (e *LocalEmbedder) Embed(ctx context.Context, text string) ([]float32, erro
 
 // EmbedBatch generates embeddings for multiple texts.
 func (e *LocalEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	if e.session == nil {
+	if e == nil || e.session == nil {
 		return nil, ErrModelNotLoaded
 	}
 
@@ -295,6 +295,9 @@ func (e *LocalEmbedder) Dimension() int {
 
 // Close releases resources.
 func (e *LocalEmbedder) Close() error {
+	if e == nil {
+		return nil
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

@@ -17,8 +17,9 @@ import (
 
 func newMemoryCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "memory",
-		Short: "Manage agent memories",
+		Use:     "memory",
+		Aliases: []string{"memories"},
+		Short:   "Manage agent memories",
 	}
 
 	cmd.AddCommand(newMemoryListCmd())

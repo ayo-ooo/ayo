@@ -808,9 +808,10 @@ func truncateForTitle(s string, maxLen int) string {
 	return s[:maxLen-1] + "…"
 }
 
-// maybeFormMemory checks for memory triggers in the user message and queues formation if found.
+// maybeFormMemory checks for memory triggers in the user message and creates memories if found.
 func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessage, sessionID string) {
-	if r.formationService == nil {
+	// Need memory service with embedder for deduplication and embedding generation
+	if r.memoryService == nil || !r.memoryService.HasEmbedder() {
 		return
 	}
 
@@ -823,8 +824,19 @@ func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessag
 		return
 	}
 
-	// Filter based on agent config
+	// Deduplicate triggers by content - keep the best one per unique content
+	// This prevents multiple triggers (e.g., explicit + preference) from creating duplicates
+	bestByContent := make(map[string]memory.FormationTrigger)
 	for _, trigger := range triggers {
+		existing, ok := bestByContent[trigger.Content]
+		if !ok || trigger.Confidence > existing.Confidence ||
+			(trigger.Confidence == existing.Confidence && trigger.Type == memory.TriggerExplicit) {
+			bestByContent[trigger.Content] = trigger
+		}
+	}
+
+	// Filter based on agent config and create memories
+	for _, trigger := range bestByContent {
 		// Skip if this trigger type is not enabled
 		switch trigger.Type {
 		case memory.TriggerExplicit:
@@ -848,13 +860,38 @@ func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessag
 			continue
 		}
 
-		// Queue formation
-		r.formationService.QueueFormation(ctx, memory.FormationIntent{
-			Content:       trigger.Content,
-			Category:      trigger.Category,
-			AgentHandle:   ag.Handle,
-			SourceSession: sessionID,
+		// Check if we already have this memory (or similar)
+		existing, err := r.memoryService.Search(ctx, trigger.Content, memory.SearchOptions{
+			AgentHandle: ag.Handle,
+			Threshold:   memory.ExactDuplicateThreshold,
+			Limit:       1,
 		})
+		if err == nil && len(existing) > 0 && existing[0].Similarity >= memory.ExactDuplicateThreshold {
+			// Already have this exact memory, notify and skip
+			if r.formationService != nil {
+				r.formationService.NotifySkipped(trigger.Content, existing[0].Memory.ID)
+			}
+			continue
+		}
+
+		// Create the memory synchronously
+		mem, err := r.memoryService.Create(ctx, memory.Memory{
+			Content:         trigger.Content,
+			Category:        trigger.Category,
+			AgentHandle:     ag.Handle,
+			SourceSessionID: sessionID,
+		})
+		if err != nil {
+			// Notify failure
+			if r.formationService != nil {
+				r.formationService.NotifyFailed(trigger.Content, err)
+			}
+		} else {
+			// Notify success
+			if r.formationService != nil {
+				r.formationService.NotifyCreated(mem)
+			}
+		}
 	}
 }
 

@@ -24,9 +24,37 @@ type FormationResult struct {
 	Success      bool
 	Error        error
 	Elapsed      time.Duration
-	Deduplicated bool   // True if an exact duplicate was found (no new memory created)
-	Superseded   bool   // True if a similar memory was superseded
-	SupersededID string // ID of the superseded memory (if any)
+	Deduplicated bool    // True if an exact duplicate was found (no new memory created)
+	Superseded   bool    // True if a similar memory was superseded
+	SupersededID string  // ID of the superseded memory (if any)
+	Skipped      bool    // True if skipped due to existing memory
+	SkipReason   string  // Reason for skipping (e.g., "already remembered")
+	Failed       bool    // True if creation failed
+	FailReason   string  // Reason for failure
+}
+
+// FormationEventType describes what happened during memory formation.
+type FormationEventType string
+
+const (
+	FormationEventCreated    FormationEventType = "created"    // New memory created
+	FormationEventSkipped    FormationEventType = "skipped"    // Already exists, skipped
+	FormationEventSuperseded FormationEventType = "superseded" // Old memory replaced
+	FormationEventFailed     FormationEventType = "failed"     // Creation failed
+)
+
+// EventType returns the type of formation event.
+func (r FormationResult) EventType() FormationEventType {
+	if r.Failed || r.Error != nil {
+		return FormationEventFailed
+	}
+	if r.Skipped || r.Deduplicated {
+		return FormationEventSkipped
+	}
+	if r.Superseded {
+		return FormationEventSuperseded
+	}
+	return FormationEventCreated
 }
 
 // FormationCallback is called when memory formation completes.
@@ -101,6 +129,68 @@ func (f *FormationService) Wait(timeout time.Duration) {
 	}
 }
 
+// NotifyCreated notifies callbacks that a memory was created (for synchronous creation).
+func (f *FormationService) NotifyCreated(mem Memory) {
+	if f == nil {
+		return
+	}
+	f.notify(FormationResult{
+		Memory:  mem,
+		Success: true,
+	})
+}
+
+// NotifySkipped notifies callbacks that a memory was skipped (already exists).
+func (f *FormationService) NotifySkipped(content string, existingID string) {
+	if f == nil {
+		return
+	}
+	f.notify(FormationResult{
+		Memory:     Memory{Content: content, ID: existingID},
+		Success:    true,
+		Skipped:    true,
+		SkipReason: "already remembered",
+	})
+}
+
+// NotifySuperseded notifies callbacks that a memory was superseded.
+func (f *FormationService) NotifySuperseded(mem Memory, oldID string) {
+	if f == nil {
+		return
+	}
+	f.notify(FormationResult{
+		Memory:       mem,
+		Success:      true,
+		Superseded:   true,
+		SupersededID: oldID,
+	})
+}
+
+// NotifyFailed notifies callbacks that memory creation failed.
+func (f *FormationService) NotifyFailed(content string, err error) {
+	if f == nil {
+		return
+	}
+	f.notify(FormationResult{
+		Memory:     Memory{Content: content},
+		Success:    false,
+		Failed:     true,
+		FailReason: err.Error(),
+		Error:      err,
+	})
+}
+
+func (f *FormationService) notify(result FormationResult) {
+	f.mu.RLock()
+	callbacks := make([]FormationCallback, len(f.callbacks))
+	copy(callbacks, f.callbacks)
+	f.mu.RUnlock()
+
+	for _, cb := range callbacks {
+		cb(result)
+	}
+}
+
 // Similarity thresholds for deduplication
 const (
 	// ExactDuplicateThreshold: memories above this are considered exact duplicates (skip creation)
@@ -116,7 +206,8 @@ func (f *FormationService) processFormation(ctx context.Context, intent Formatio
 		Intent: intent,
 	}
 
-	// Check for duplicate/similar memories before creating
+	// Secondary deduplication check (primary check happens before queueing in maybeFormMemory).
+	// This catches race conditions and handles the supersede logic for similar-but-not-exact matches.
 	existing, err := f.svc.Search(ctx, intent.Content, SearchOptions{
 		AgentHandle: intent.AgentHandle,
 		PathScope:   intent.PathScope,

@@ -86,6 +86,11 @@ func NewService(queries *db.Queries, embedder embedding.Embedder) *Service {
 	}
 }
 
+// HasEmbedder returns true if the service has an embedder configured.
+func (s *Service) HasEmbedder() bool {
+	return s != nil && s.embedder != nil
+}
+
 // Create stores a new memory with automatic embedding generation.
 func (s *Service) Create(ctx context.Context, m Memory) (Memory, error) {
 	if m.ID == "" {
@@ -105,11 +110,10 @@ func (s *Service) Create(ctx context.Context, m Memory) (Memory, error) {
 	if s.embedder != nil && len(m.Embedding) == 0 {
 		emb, err := s.embedder.Embed(ctx, m.Content)
 		if err != nil {
-			// Log but don't fail - memory can still be stored without embedding
-			// The embedding can be generated later
-		} else {
-			m.Embedding = emb
+			// Return error - embedding is required for deduplication
+			return Memory{}, fmt.Errorf("failed to generate embedding: %w", err)
 		}
+		m.Embedding = emb
 	}
 
 	err := s.queries.CreateMemory(ctx, db.CreateMemoryParams{
