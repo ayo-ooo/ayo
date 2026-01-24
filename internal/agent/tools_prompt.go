@@ -41,6 +41,13 @@ func BuildToolsPrompt(allowedTools []string) string {
 
 		b.WriteString("**NEVER** call `date`, `timedatectl`, or any time-checking command - the current datetime is already in your system context.\n\n")
 
+		b.WriteString("**CRITICAL - Check <delegate_context> first:**\n")
+		b.WriteString("If a coding delegate is configured, use agent_call instead of bash for:\n")
+		b.WriteString("- Creating projects or applications (even with scaffolding tools like create-react-app, vite, etc.)\n")
+		b.WriteString("- Writing any source code files\n")
+		b.WriteString("- Implementing features or making code changes\n")
+		b.WriteString("The coding delegate handles the ENTIRE task including any scaffolding.\n\n")
+
 		b.WriteString("When bash IS needed:\n")
 		b.WriteString("- Don't ask permission, just run the command\n")
 		b.WriteString("- Don't explain what you'll do, just do it\n")

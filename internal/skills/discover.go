@@ -27,6 +27,8 @@ type DiscoveryOptions struct {
 	IgnoreBuiltin bool
 	// IgnoreShared skips user shared skills.
 	IgnoreShared bool
+	// IgnorePlugins skips plugin skills (used in tests).
+	IgnorePlugins bool
 }
 
 // DiscoverAll scans all configured directories for skills in priority order.
@@ -78,12 +80,14 @@ func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 	}
 
 	// 5. Plugin skills (lowest priority)
-	for _, dir := range paths.AllPluginSkillsDirs() {
-		sources = append(sources, SkillSourceDir{
-			Path:   dir,
-			Source: SourcePlugin,
-			Label:  "plugin",
-		})
+	if !opts.IgnorePlugins {
+		for _, dir := range paths.AllPluginSkillsDirs() {
+			sources = append(sources, SkillSourceDir{
+				Path:   dir,
+				Source: SourcePlugin,
+				Label:  "plugin",
+			})
+		}
 	}
 
 	// Discover from all sources
@@ -141,6 +145,7 @@ func DiscoverForAgent(agentDir string, skillsDirs []string, cfg DiscoveryFilterC
 		ExcludeSkills:  cfg.ExcludeSkills,
 		IgnoreBuiltin:  cfg.IgnoreBuiltin,
 		IgnoreShared:   cfg.IgnoreShared,
+		IgnorePlugins:  cfg.IgnorePlugins,
 	})
 }
 
@@ -150,4 +155,5 @@ type DiscoveryFilterConfig struct {
 	ExcludeSkills []string
 	IgnoreBuiltin bool
 	IgnoreShared  bool
+	IgnorePlugins bool
 }

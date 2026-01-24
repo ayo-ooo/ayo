@@ -74,6 +74,23 @@ var (
 	ErrPluginExists       = errors.New("plugin already installed")
 )
 
+// testDataDir is used to override the data directory in tests.
+// When set, it takes precedence over paths.DataDir().
+var testDataDir string
+
+// SetTestDataDir sets a custom data directory for testing.
+// Call with empty string to reset to default behavior.
+func SetTestDataDir(dir string) {
+	testDataDir = dir
+}
+
+func getDataDir() string {
+	if testDataDir != "" {
+		return testDataDir
+	}
+	return paths.DataDir()
+}
+
 // LoadRegistry reads the plugin registry from disk.
 // Returns an empty registry if the file doesn't exist.
 func LoadRegistry() (*Registry, error) {
@@ -198,12 +215,12 @@ func (r *Registry) ListEnabled() []*InstalledPlugin {
 
 // RegistryPath returns the path to the registry file.
 func RegistryPath() string {
-	return filepath.Join(paths.DataDir(), RegistryFile)
+	return filepath.Join(getDataDir(), RegistryFile)
 }
 
 // PluginsDir returns the directory where plugins are installed.
 func PluginsDir() string {
-	return filepath.Join(paths.DataDir(), "plugins")
+	return filepath.Join(getDataDir(), "plugins")
 }
 
 // PluginDir returns the directory for a specific plugin.

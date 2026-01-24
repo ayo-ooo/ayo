@@ -10,9 +10,8 @@ import (
 func TestRegistry(t *testing.T) {
 	// Use a temp directory for registry
 	dir := t.TempDir()
-	origDataDir := os.Getenv("XDG_DATA_HOME")
-	os.Setenv("XDG_DATA_HOME", dir)
-	defer os.Setenv("XDG_DATA_HOME", origDataDir)
+	SetTestDataDir(dir)
+	defer SetTestDataDir("")
 
 	// Create ayo subdirectory
 	os.MkdirAll(filepath.Join(dir, "ayo"), 0o755)
