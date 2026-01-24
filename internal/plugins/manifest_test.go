@@ -135,6 +135,7 @@ func TestParsePluginURL(t *testing.T) {
 		ref      string
 		wantURL  string
 		wantName string
+		wantErr  bool
 	}{
 		{
 			ref:      "https://github.com/owner/ayo-plugins-test.git",
@@ -142,25 +143,44 @@ func TestParsePluginURL(t *testing.T) {
 			wantName: "test",
 		},
 		{
-			ref:      "owner/test",
-			wantURL:  "https://github.com/owner/ayo-plugins-test.git",
+			ref:      "https://github.com/owner/ayo-plugins-test",
+			wantURL:  "https://github.com/owner/ayo-plugins-test",
 			wantName: "test",
 		},
 		{
-			ref:      "owner/ayo-plugins-test",
-			wantURL:  "https://github.com/owner/ayo-plugins-test.git",
+			ref:      "https://gitlab.com/org/ayo-plugins-mytools.git",
+			wantURL:  "https://gitlab.com/org/ayo-plugins-mytools.git",
+			wantName: "mytools",
+		},
+		{
+			ref:      "git@github.com:owner/ayo-plugins-test.git",
+			wantURL:  "git@github.com:owner/ayo-plugins-test.git",
 			wantName: "test",
 		},
 		{
-			ref:      "test",
-			wantURL:  "https://github.com/test/ayo-plugins-test.git",
-			wantName: "test",
+			ref:      "https://github.com/owner/custom-repo-name",
+			wantURL:  "https://github.com/owner/custom-repo-name",
+			wantName: "custom-repo-name",
+		},
+		{
+			ref:     "owner/test",
+			wantErr: true,
+		},
+		{
+			ref:     "test",
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
 			gotURL, gotName, err := ParsePluginURL(tt.ref)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParsePluginURL(%q) expected error, got nil", tt.ref)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("ParsePluginURL(%q) error: %v", tt.ref, err)
 			}

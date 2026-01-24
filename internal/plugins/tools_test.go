@@ -116,7 +116,7 @@ func TestToolDefinitionValidation(t *testing.T) {
 	}
 }
 
-func TestToolDefinitionToJSONSchema(t *testing.T) {
+func TestToolDefinitionToParameters(t *testing.T) {
 	td := ToolDefinition{
 		Name:        "test",
 		Description: "test tool",
@@ -127,29 +127,35 @@ func TestToolDefinitionToJSONSchema(t *testing.T) {
 		},
 	}
 
-	schema := td.ToJSONSchema()
+	params := td.ToParameters()
 
-	// Check type
-	if schema["type"] != "object" {
-		t.Errorf("schema type = %v, want object", schema["type"])
+	// Check properties count
+	if len(params) != 2 {
+		t.Errorf("params count = %d, want 2", len(params))
 	}
 
-	// Check required
-	required, ok := schema["required"].([]string)
+	// Check required_arg property
+	reqArg, ok := params["required_arg"].(map[string]any)
 	if !ok {
-		t.Fatal("required field is not []string")
+		t.Fatal("required_arg is not a map")
 	}
+	if reqArg["type"] != "string" {
+		t.Errorf("required_arg type = %v, want string", reqArg["type"])
+	}
+
+	// Check optional_arg property
+	optArg, ok := params["optional_arg"].(map[string]any)
+	if !ok {
+		t.Fatal("optional_arg is not a map")
+	}
+	if optArg["type"] != "number" {
+		t.Errorf("optional_arg type = %v, want number", optArg["type"])
+	}
+
+	// Check required params separately
+	required := td.GetRequiredParams()
 	if len(required) != 1 || required[0] != "required_arg" {
 		t.Errorf("required = %v, want [required_arg]", required)
-	}
-
-	// Check properties
-	props, ok := schema["properties"].(map[string]any)
-	if !ok {
-		t.Fatal("properties field is not map")
-	}
-	if len(props) != 2 {
-		t.Errorf("properties count = %d, want 2", len(props))
 	}
 }
 

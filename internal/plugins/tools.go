@@ -37,6 +37,11 @@ type ToolDefinition struct {
 	// "param" = use working_dir parameter
 	WorkingDir string `json:"working_dir,omitempty"`
 
+	// AllowAnyDir allows the working_dir parameter to be any directory,
+	// not just subdirectories of the base directory. Use with caution -
+	// only for trusted tools that manage their own security.
+	AllowAnyDir bool `json:"allow_any_dir,omitempty"`
+
 	// Quiet suppresses command output in the UI.
 	Quiet bool `json:"quiet,omitempty"`
 
@@ -210,28 +215,17 @@ func (p *ToolParameter) Validate() error {
 	return nil
 }
 
-// ToJSONSchema converts the tool definition to a Fantasy-compatible JSON schema.
-func (td *ToolDefinition) ToJSONSchema() map[string]any {
+// ToParameters converts the tool definition to a Fantasy-compatible parameters map.
+// This returns just the properties map (not a full JSON schema), which is what
+// ToolInfo.Parameters expects. The required fields go in ToolInfo.Required separately.
+func (td *ToolDefinition) ToParameters() map[string]any {
 	properties := make(map[string]any)
-	required := []string{}
 
 	for _, param := range td.Parameters {
 		properties[param.Name] = param.ToSchemaProperty()
-		if param.Required {
-			required = append(required, param.Name)
-		}
 	}
 
-	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
-	}
-
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-
-	return schema
+	return properties
 }
 
 // ToSchemaProperty converts a parameter to a JSON schema property.

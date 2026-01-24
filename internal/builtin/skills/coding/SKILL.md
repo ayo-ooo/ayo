@@ -21,7 +21,7 @@ If no coding plugin is installed, coding tasks cannot be delegated.
 Install a coding plugin:
 
 ```bash
-ayo plugins install alexcabrera/crush
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
 ```
 
 This installs the `@crush` agent which uses Crush for complex source code tasks.

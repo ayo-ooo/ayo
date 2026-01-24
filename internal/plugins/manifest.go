@@ -82,6 +82,7 @@ var (
 	ErrAgentNotFound       = errors.New("manifest: declared agent not found in agents/ directory")
 	ErrSkillNotFound       = errors.New("manifest: declared skill not found in skills/ directory")
 	ErrToolNotFound        = errors.New("manifest: declared tool not found in tools/ directory")
+	ErrInvalidPluginRef    = errors.New("invalid plugin reference: must be a full git URL (https:// or git@)")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -170,50 +171,27 @@ func (m *Manifest) ValidateContents(pluginDir string) error {
 	return nil
 }
 
-// ParsePluginURL parses a plugin reference into owner and name.
-// Accepts:
-//   - Full URL: https://github.com/owner/ayo-plugins-name
-//   - Shorthand: owner/ayo-plugins-name
-//   - Name only: name (assumes github.com/name/ayo-plugins-name)
+// ParsePluginURL parses a plugin reference into a git URL and plugin name.
+// Only full git URLs are accepted (https:// or git@).
+// The plugin name is extracted from the repository name by removing the
+// ayo-plugins- prefix if present.
 func ParsePluginURL(ref string) (gitURL string, name string, err error) {
 	ref = strings.TrimSpace(ref)
 
-	// Full URL
-	if strings.HasPrefix(ref, "https://") || strings.HasPrefix(ref, "git@") {
-		gitURL = ref
-		// Extract name from URL
-		parts := strings.Split(strings.TrimSuffix(ref, ".git"), "/")
-		repoName := parts[len(parts)-1]
-		if strings.HasPrefix(repoName, PluginPrefix) {
-			name = strings.TrimPrefix(repoName, PluginPrefix)
-		} else {
-			name = repoName
-		}
-		return gitURL, name, nil
+	// Only accept full URLs
+	if !strings.HasPrefix(ref, "https://") && !strings.HasPrefix(ref, "git@") {
+		return "", "", ErrInvalidPluginRef
 	}
 
-	// Shorthand: owner/repo or owner/ayo-plugins-name
-	if strings.Contains(ref, "/") {
-		parts := strings.SplitN(ref, "/", 2)
-		owner := parts[0]
-		repoName := parts[1]
-
-		// Add prefix if not present
-		if !strings.HasPrefix(repoName, PluginPrefix) {
-			repoName = PluginPrefix + repoName
-		}
-
-		gitURL = fmt.Sprintf("https://github.com/%s/%s.git", owner, repoName)
+	gitURL = ref
+	// Extract name from URL
+	parts := strings.Split(strings.TrimSuffix(ref, ".git"), "/")
+	repoName := parts[len(parts)-1]
+	if strings.HasPrefix(repoName, PluginPrefix) {
 		name = strings.TrimPrefix(repoName, PluginPrefix)
-		return gitURL, name, nil
+	} else {
+		name = repoName
 	}
-
-	// Name only: assume github.com/<name>/ayo-plugins-<name>
-	// This is a common pattern where the org/user matches the plugin name
-	name = ref
-	repoName := PluginPrefix + name
-	gitURL = fmt.Sprintf("https://github.com/%s/%s.git", name, repoName)
-
 	return gitURL, name, nil
 }
 

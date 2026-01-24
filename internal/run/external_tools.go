@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -32,7 +33,8 @@ func (w *externalToolWrapper) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
 		Name:        w.def.Name,
 		Description: w.def.Description,
-		Parameters:  w.def.ToJSONSchema(),
+		Parameters:  w.def.ToParameters(),
+		Required:    w.def.GetRequiredParams(),
 	}
 }
 
@@ -118,11 +120,25 @@ func executeExternalTool(
 		workingDir = pluginDir
 	case "param":
 		if wd, ok := params["working_dir"].(string); ok && wd != "" {
-			resolved, err := fantasyResolveWorkingDir(baseDir, wd)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid working_dir: %v", err)), nil
+			if def.AllowAnyDir {
+				// Trusted tool - allow any directory
+				absWd, err := filepath.Abs(wd)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid working_dir: %v", err)), nil
+				}
+				// Ensure directory exists
+				if _, err := os.Stat(absWd); err != nil {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf("working_dir does not exist: %s", absWd)), nil
+				}
+				workingDir = absWd
+			} else {
+				// Restricted - must stay within baseDir
+				resolved, err := fantasyResolveWorkingDir(baseDir, wd)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid working_dir: %v", err)), nil
+				}
+				workingDir = resolved
 			}
-			workingDir = resolved
 		}
 	case "inherit", "":
 		// Use baseDir (default)

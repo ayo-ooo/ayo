@@ -69,7 +69,7 @@ For complex coding tasks, install and use the `@crush` agent:
 
 ```bash
 # Install the crush plugin
-ayo plugins install alexcabrera/crush
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
 
 # Direct invocation
 ayo @crush "Refactor the authentication module to use JWT tokens"

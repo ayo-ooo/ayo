@@ -983,9 +983,9 @@ External tools map CLI commands to Fantasy tool definitions:
 ### CLI Commands
 
 ```bash
-# Install from git
-ayo plugins install owner/name
+# Install from git (full URL required)
 ayo plugins install https://github.com/owner/ayo-plugins-name.git
+ayo plugins install git@gitlab.com:org/ayo-plugins-tools.git
 ayo plugins install --local ./my-plugin  # For development
 
 # Management

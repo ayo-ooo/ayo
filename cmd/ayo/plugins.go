@@ -47,7 +47,7 @@ func listPluginsCmd(cfgPath *string) *cobra.Command {
 				fmt.Println("No plugins installed.")
 				fmt.Println("")
 				fmt.Println("Install a plugin with:")
-				fmt.Println("  ayo plugins install <owner/name>")
+				fmt.Println("  ayo plugins install <git-url>")
 				return nil
 			}
 
@@ -119,18 +119,15 @@ func installPluginCmd(cfgPath *string) *cobra.Command {
 	var skipDeps bool
 
 	cmd := &cobra.Command{
-		Use:   "install <plugin>",
+		Use:   "install <git-url>",
 		Short: "Install a plugin from a git repository",
 		Long: `Install a plugin from a git repository.
 
-Plugin references can be:
-  - Full URL: https://github.com/owner/ayo-plugins-name
-  - Shorthand: owner/name or owner/ayo-plugins-name  
-  - Name only: name (assumes github.com/name/ayo-plugins-name)
+The plugin reference must be a full git URL (https:// or git@).
 
 Examples:
-  ayo plugins install alexcabrera/crush
   ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+  ayo plugins install git@gitlab.com:org/ayo-plugins-tools.git
   ayo plugins install --local ./my-plugin`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

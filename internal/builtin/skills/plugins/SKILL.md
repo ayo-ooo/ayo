@@ -31,11 +31,9 @@ A plugin can contain:
 ### Installing a Plugin
 
 ```bash
-# From GitHub (shorthand)
-ayo plugins install owner/name
-
-# From GitHub (full URL)
+# From a git URL
 ayo plugins install https://github.com/owner/ayo-plugins-name
+ayo plugins install git@gitlab.com:org/ayo-plugins-tools.git
 
 # From local directory (for development)
 ayo plugins install --local ./my-plugin
@@ -79,7 +77,7 @@ ayo plugins remove <name>
 Provides the `@crush` agent for complex source code tasks.
 
 ```bash
-ayo plugins install alexcabrera/crush
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
 ```
 
 ## Creating Plugins
