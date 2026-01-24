@@ -882,7 +882,10 @@ func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessag
 			SourceSessionID: sessionID,
 		})
 		if err != nil {
-			// Notify failure
+			// Notify failure with debug output
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "DEBUG: memory creation failed: %v\n", err)
+			}
 			if r.formationService != nil {
 				r.formationService.NotifyFailed(trigger.Content, err)
 			}

@@ -112,11 +112,11 @@ var (
 
 func initONNXRuntime() error {
 	onnxInitOnce.Do(func() {
-		// Try to set library path automatically if not already set
-		if os.Getenv("ONNX_LIBRARY_PATH") == "" {
-			if libPath := findONNXLibrary(); libPath != "" {
-				ort.SetSharedLibraryPath(libPath)
-			}
+		// Set library path - check env var first, then auto-detect
+		if libPath := os.Getenv("ONNX_LIBRARY_PATH"); libPath != "" {
+			ort.SetSharedLibraryPath(libPath)
+		} else if libPath := findONNXLibrary(); libPath != "" {
+			ort.SetSharedLibraryPath(libPath)
 		}
 		onnxInitErr = ort.InitializeEnvironment()
 	})
