@@ -36,6 +36,10 @@ type Config struct {
 	ExcludeSkills     []string `json:"exclude_skills,omitempty"`     // Explicit exclude list
 	IgnoreBuiltinSkills bool     `json:"ignore_builtin_skills,omitempty"`
 	IgnoreSharedSkills  bool     `json:"ignore_shared_skills,omitempty"`
+
+	// Delegation configuration
+	// Maps task types (e.g., "coding", "research") to agent handles (e.g., "@crush")
+	Delegates map[string]string `json:"delegates,omitempty"`
 }
 
 type Agent struct {
@@ -94,6 +98,19 @@ func ListHandles(cfg config.Config) ([]string, error) {
 		}
 	}
 
+	// Add plugin agents
+	for _, dir := range paths.AllPluginAgentsDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && strings.HasPrefix(entry.Name(), "@") {
+				handleSet[entry.Name()] = struct{}{}
+			}
+		}
+	}
+
 	// Convert to sorted slice
 	handles := make([]string, 0, len(handleSet))
 	for h := range handleSet {
@@ -111,6 +128,7 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 	// 2. ./.local/share/ayo/agents (local project data)
 	// 3. cfg.AgentsDir (user config, typically ~/.config/ayo/agents)
 	// 4. ~/.local/share/ayo/agents (user data / built-in)
+	// 5. Plugin agent directories
 	dirs := paths.AgentsDirs()
 
 	// Add cfg.AgentsDir if not already included
@@ -138,6 +156,9 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 		}
 		dirs = newDirs
 	}
+
+	// Add plugin directories at the end (lower priority than user/builtin)
+	dirs = append(dirs, paths.AllPluginAgentsDirs()...)
 
 	// Build set of data directories where builtins live
 	builtinDirs := paths.DataDirs()

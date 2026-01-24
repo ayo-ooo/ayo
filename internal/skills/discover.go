@@ -2,6 +2,8 @@ package skills
 
 import (
 	"sort"
+
+	"github.com/alexcabrera/ayo/internal/paths"
 )
 
 // DiscoveryOptions configures skill discovery behavior.
@@ -29,7 +31,7 @@ type DiscoveryOptions struct {
 
 // DiscoverAll scans all configured directories for skills in priority order.
 // Earlier sources take priority over later sources with the same skill name.
-// Priority: agent-specific > shared dirs (in order) > user shared > built-in
+// Priority: agent-specific > shared dirs (in order) > user shared > built-in > plugins
 // Skills are filtered by include/exclude lists and ignore flags.
 func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 	// Build source list in priority order
@@ -66,12 +68,21 @@ func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 		})
 	}
 
-	// 4. Built-in skills (~/.local/share/ayo/skills) - lowest priority
+	// 4. Built-in skills (~/.local/share/ayo/skills)
 	if opts.BuiltinDir != "" && !opts.IgnoreBuiltin {
 		sources = append(sources, SkillSourceDir{
 			Path:   opts.BuiltinDir,
 			Source: SourceBuiltIn,
 			Label:  "builtin",
+		})
+	}
+
+	// 5. Plugin skills (lowest priority)
+	for _, dir := range paths.AllPluginSkillsDirs() {
+		sources = append(sources, SkillSourceDir{
+			Path:   dir,
+			Source: SourcePlugin,
+			Label:  "plugin",
 		})
 	}
 

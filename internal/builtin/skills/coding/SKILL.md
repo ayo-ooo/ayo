@@ -2,26 +2,62 @@
 name: coding
 description: |
   Skill for all source code creation and modification tasks.
-  ALWAYS delegate coding work to @ayo.coding - including project scaffolding,
-  code generation, refactoring, debugging, and any task that creates or modifies source code.
+  Delegate coding work to the configured coding agent (default: @crush from ayo-plugins-crush).
+  This skill requires a coding plugin to be installed.
 metadata:
   author: ayo
-  version: "3.0"
+  version: "4.0"
 ---
 
 # Coding Skill
 
-**CRITICAL: ALL source code creation and modification tasks MUST be delegated to `@ayo.coding`.**
+**This skill requires a coding plugin to be installed.**
 
-This includes:
-- Creating new projects or applications
-- Writing any source code files
-- Modifying existing code
-- Refactoring, debugging, testing
+By default, ayo delegates coding tasks to `@crush` (provided by `ayo-plugins-crush`). 
+If no coding plugin is installed, coding tasks cannot be delegated.
 
-Do NOT use bash to run code generators, scaffolding tools, or write code yourself. Delegate to `@ayo.coding`.
+## Installation
 
-## When to Delegate to @ayo.coding
+Install a coding plugin:
+
+```bash
+ayo plugins install alexcabrera/crush
+```
+
+This installs the `@crush` agent which uses Crush for complex source code tasks.
+
+## Configuration
+
+The coding agent can be configured at three levels (highest priority first):
+
+1. **Directory level** (`.ayo.json` in project directory):
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+2. **Agent level** (in agent's `config.json`):
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+3. **Global level** (`~/.config/ayo/ayo.json`):
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+## When to Delegate
 
 **ALWAYS delegate for ANY task involving source code:**
 
@@ -52,34 +88,32 @@ Do NOT use bash to run code generators, scaffolding tools, or write code yoursel
 
 ```
 Does the task involve creating or modifying source code?
-├── YES → Delegate to @ayo.coding
+├── YES → Delegate to coding agent (@crush)
 └── NO → Use bash tool or handle directly
 ```
 
 ## How to Delegate
 
-Use the `agent_call` tool to delegate coding tasks to `@ayo.coding`:
+Use the `agent_call` tool to delegate coding tasks:
 
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Create a basic React single page application in the test-app directory with a home page and about page"
 }
 ```
 
 ### Model Passthrough
 
-**Important:** Pass your current model to the sub-agent so it uses the same model for Crush:
+Pass your current model to the sub-agent for consistency:
 
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Add comprehensive error handling to the database layer",
   "model": "claude-sonnet-4"
 }
 ```
-
-The `model` parameter ensures `@ayo.coding` uses the same model you're using, which it will then pass to Crush. This maintains consistency across the delegation chain.
 
 ### Prompt Formatting Guidelines
 
@@ -95,7 +129,7 @@ The `model` parameter ensures `@ayo.coding` uses the same model you're using, wh
 Creating a new project:
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Create a basic single page application in the my-app directory. Use vanilla HTML, CSS, and JavaScript. Include an index.html with a simple navigation header, a main content area, and a footer.",
   "model": "claude-sonnet-4"
 }
@@ -104,7 +138,7 @@ Creating a new project:
 Modifying existing code:
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Add comprehensive error handling to the database connection logic in internal/db/. Wrap all database calls with proper error context. Do NOT modify the connection pool configuration.",
   "model": "claude-sonnet-4"
 }
@@ -113,7 +147,7 @@ Modifying existing code:
 **Bad prompt example:**
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Fix the database errors"
 }
 ```
@@ -139,7 +173,7 @@ Always specify what should NOT be modified:
 
 ## Understanding Results
 
-When @ayo.coding completes, you receive:
+When the coding agent completes, you receive:
 
 1. **Summary**: What was accomplished
 2. **Files modified**: List of changed files
@@ -150,7 +184,7 @@ When @ayo.coding completes, you receive:
 
 The delegation succeeded if:
 - No error messages in output
-- @ayo.coding confirms completion with specific details
+- Agent confirms completion with specific details
 - Modified files match the expected scope
 
 ### When to Iterate
@@ -175,7 +209,7 @@ Retry with a refined prompt if:
 ### Creating a New Project
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Create a new Go CLI application in the my-cli directory. Use cobra for command handling. Include a root command with version flag, and subcommands for 'init' and 'run'. Add a Makefile with build and test targets.",
   "model": "claude-sonnet-4"
 }
@@ -184,7 +218,7 @@ Retry with a refined prompt if:
 ### Adding a New Feature
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Add a rate limiting middleware to the API server: Create internal/middleware/ratelimit.go using a token bucket algorithm. Add configuration options in config/config.go. Apply to all API endpoints.",
   "model": "claude-sonnet-4"
 }
@@ -193,7 +227,7 @@ Retry with a refined prompt if:
 ### Debugging an Issue
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Debug and fix the memory leak in the WebSocket handler. The issue is in internal/ws/handler.go - connections are not being properly cleaned up on disconnect.",
   "model": "claude-sonnet-4"
 }
@@ -202,7 +236,7 @@ Retry with a refined prompt if:
 ### Refactoring Code
 ```json
 {
-  "agent": "@ayo.coding",
+  "agent": "@crush",
   "prompt": "Refactor the user service to use the repository pattern: Extract database operations from internal/user/service.go into a new Repository interface and implementation.",
   "model": "claude-sonnet-4"
 }

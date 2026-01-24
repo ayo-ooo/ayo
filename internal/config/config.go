@@ -21,6 +21,10 @@ type Config struct {
 	DefaultModel   string           `json:"default_model,omitempty"`
 	CatwalkBaseURL string           `json:"catwalk_base_url,omitempty"`
 	Provider       catwalk.Provider `json:"provider,omitempty"`
+
+	// Delegates maps task types to agent handles for global delegation.
+	// Example: {"coding": "@crush", "research": "@ayo.research"}
+	Delegates map[string]string `json:"delegates,omitempty"`
 }
 
 func apiKeyEnvForProvider(p catwalk.Provider) string {
@@ -75,4 +79,9 @@ func Load(path string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// DefaultPath returns the default config file path.
+func DefaultPath() string {
+	return paths.ConfigFile()
 }
