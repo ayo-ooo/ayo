@@ -33,6 +33,7 @@ ayo [command] [@agent] [prompt] [--flags]
 | `ayo @agent "prompt"` | Run a prompt with the specified agent |
 | `ayo agents` | Manage agents (list, create, show, update) |
 | `ayo skills` | Manage skills (list, create, show, validate, update) |
+| `ayo plugins` | Manage plugins (install, list, update, remove) |
 | `ayo sessions` | Manage conversation sessions |
 | `ayo memory` | Manage agent memories |
 | `ayo chain` | Explore and validate agent chaining |
@@ -53,6 +54,32 @@ ayo @agent-name "Your prompt here"
 # With file attachment
 ayo @agent-name -a file.txt "Analyze this file"
 ```
+
+### Built-in Agents
+
+| Agent | Description |
+|-------|-------------|
+| `@ayo` | Default versatile assistant with bash and agent delegation |
+| `@ayo.research` | Research assistant with web search capabilities |
+| `@ayo.agents` | Agent management for creating/modifying agents |
+| `@ayo.skills` | Skill management for creating/modifying skills |
+
+### Coding with @crush (via plugin)
+
+For complex coding tasks, install and use the `@crush` agent:
+
+```bash
+# Install the crush plugin
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+
+# Direct invocation
+ayo @crush "Refactor the authentication module to use JWT tokens"
+
+# Multi-file changes
+ayo @crush "Add comprehensive error handling to all database operations in internal/db/"
+```
+
+The crush plugin requires Crush to be installed: `go install github.com/charmbracelet/crush@latest`
 
 ## Agent Management
 
@@ -181,6 +208,64 @@ ayo skills update
 ayo skills update --force
 ```
 
+## Plugin Management
+
+Plugins extend ayo with additional agents, skills, and tools from git repositories.
+
+### Install a Plugin
+
+```bash
+# From GitHub (shorthand)
+ayo plugins install owner/name
+
+# From GitHub (full URL)
+ayo plugins install https://github.com/owner/ayo-plugins-name
+
+# From local directory (for development)
+ayo plugins install --local ./my-plugin
+
+# Force reinstall
+ayo plugins install owner/name --force
+```
+
+### List Installed Plugins
+
+```bash
+ayo plugins list
+```
+
+### Show Plugin Details
+
+```bash
+ayo plugins show <name>
+```
+
+### Update Plugins
+
+```bash
+# Update all plugins
+ayo plugins update
+
+# Update specific plugin
+ayo plugins update <name>
+
+# Check for updates without applying
+ayo plugins update --dry-run
+```
+
+### Remove a Plugin
+
+```bash
+ayo plugins remove <name>
+ayo plugins remove <name> --yes  # Skip confirmation
+```
+
+### Popular Plugins
+
+| Plugin | Command | Provides |
+|--------|---------|----------|
+| crush | `ayo plugins install alexcabrera/crush` | @crush agent for coding tasks |
+
 ## Session Management
 
 Sessions persist conversation history, allowing you to continue previous conversations.
@@ -193,6 +278,9 @@ ayo sessions list
 
 # Filter by agent
 ayo sessions list --agent @ayo
+
+# Filter by source (ayo, crush, crush-via-ayo)
+ayo sessions list --source crush-via-ayo
 
 # Limit results
 ayo sessions list --limit 50

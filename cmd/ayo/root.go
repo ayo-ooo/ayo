@@ -231,6 +231,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
+	cmd.AddCommand(newPluginsCmd(&cfgPath))
 
 	return cmd
 }

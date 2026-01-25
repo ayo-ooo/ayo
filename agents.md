@@ -977,8 +977,221 @@ internal/builtin/agents/{name}/
 ### Current Built-in Agents
 
 - `@ayo` - The default agent, a versatile command-line assistant
+- `@ayo.coding` - Coding agent that uses Crush for complex source code tasks
+- `@ayo.research` - Research assistant with web search capabilities
+- `@ayo.agents` - Agent management agent for creating and managing agents
+- `@ayo.skills` - Skill management agent for creating and managing skills
 
 The `ayo` namespace is reserved - users cannot create agents with the `@ayo` handle or `@ayo.` prefix.
+
+## Plugin System
+
+Ayo supports plugins distributed via git repositories. Plugins can provide agents, skills, and tools.
+
+### Repository Naming Convention
+
+Plugin repositories must be named `ayo-plugins-<name>`:
+- `ayo-plugins-crush` for the "crush" plugin
+- `ayo-plugins-research` for a "research" plugin
+
+### Plugin Structure
+
+```
+ayo-plugins-<name>/
+├── manifest.json           # Required: plugin metadata
+├── agents/                  # Optional: agent definitions
+│   └── @agent-name/
+│       ├── config.json
+│       └── system.md
+├── skills/                  # Optional: shared skills
+│   └── skill-name/
+│       └── SKILL.md
+└── tools/                   # Optional: external tools
+    └── tool-name/
+        └── tool.json
+```
+
+### manifest.json
+
+```json
+{
+  "name": "crush",
+  "version": "1.0.0",
+  "description": "Crush coding agent for ayo",
+  "author": "alexcabrera",
+  "repository": "https://github.com/alexcabrera/ayo-plugins-crush",
+  "agents": ["@crush"],
+  "skills": ["crush-coding"],
+  "tools": ["crush"],
+  "dependencies": {
+    "binaries": ["crush"]
+  },
+  "ayo_version": ">=0.2.0"
+}
+```
+
+### External Tools (tool.json)
+
+External tools map CLI commands to Fantasy tool definitions:
+
+```json
+{
+  "name": "my-tool",
+  "description": "What this tool does",
+  "command": "my-binary",
+  "args": ["--flag"],
+  "parameters": [
+    {
+      "name": "input",
+      "description": "Input text",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "timeout": 60,
+  "working_dir": "param"
+}
+```
+
+### CLI Commands
+
+```bash
+# Install from git (full URL required)
+ayo plugins install https://github.com/owner/ayo-plugins-name.git
+ayo plugins install git@gitlab.com:org/ayo-plugins-tools.git
+ayo plugins install --local ./my-plugin  # For development
+
+# Management
+ayo plugins list           # List installed plugins
+ayo plugins show <name>    # Show plugin details
+ayo plugins update         # Update all plugins
+ayo plugins update <name>  # Update specific plugin
+ayo plugins remove <name>  # Uninstall plugin
+```
+
+### Installation Locations
+
+- Plugins: `~/.local/share/ayo/plugins/<name>/`
+- Registry: `~/.local/share/ayo/packages.json`
+
+### Conflict Resolution
+
+When installing a plugin that conflicts with existing agents/skills:
+- User is prompted to choose: skip, replace, or rename
+- Renames are tracked in the registry for resolution
+
+## Delegation System
+
+Agents can delegate specific task types to other agents. Delegation is configured at three levels (highest priority first):
+
+### 1. Directory Config (`.ayo.json`)
+
+Project-level configuration file placed in your project root or any parent directory:
+
+```json
+{
+  "delegates": {
+    "coding": "@crush",
+    "research": "@ayo.research"
+  },
+  "model": "gpt-4.1",
+  "agent": "@ayo"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `delegates` | Task type to agent handle mappings |
+| `model` | Override the default model for this directory |
+| `agent` | Default agent for this directory |
+
+### 2. Agent Config (`config.json`)
+
+User-defined agents can specify delegates in their `config.json`:
+
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+**Note:** Built-in agents do not support the `delegates` field. To configure delegation for built-in agents, use directory config or global config.
+
+### 3. Global Config (`~/.config/ayo/ayo.json`)
+
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+### Task Types
+
+| Type | Description |
+|------|-------------|
+| `coding` | Source code creation/modification |
+| `research` | Web research and information gathering |
+| `debug` | Debugging and troubleshooting |
+| `test` | Test creation and execution |
+| `docs` | Documentation generation |
+
+### Plugin-Provided Delegates
+
+Plugins can declare delegates in their `manifest.json`. When installed, users are prompted to set these as global defaults:
+
+```json
+{
+  "name": "crush",
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
+
+This allows plugins to automatically configure delegation for the task types they handle.
+
+## Crush Integration (via Plugin)
+
+For complex coding tasks, install the crush plugin:
+
+```bash
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+```
+
+### Prerequisites
+
+Crush must be installed and available in your PATH:
+```bash
+go install github.com/charmbracelet/crush@latest
+```
+
+### Usage
+
+Direct invocation:
+```bash
+ayo @crush "Add comprehensive error handling to the database layer"
+```
+
+Via delegation (configure in `.ayo.json` or agent config):
+```bash
+ayo "Refactor the authentication module to use JWT tokens"
+# @ayo will delegate this to @crush via the coding skill
+```
+
+### Configuration
+
+Add to `.ayo.json` in your project:
+```json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
+```
 
 ## Versioning
 

@@ -24,12 +24,13 @@ type SelectAgentResult struct {
 }
 
 type UI struct {
-	debug    bool
-	depth    int       // 0 = top-level, 1+ = sub-agent calls
-	styles   Styles
-	renderer *markdownRenderer
-	out      io.Writer // Where to write UI output (stdout or stderr)
-	piped    bool      // Whether output is being piped
+	debug       bool
+	depth       int       // 0 = top-level, 1+ = sub-agent calls
+	styles      Styles
+	renderer    *markdownRenderer
+	out         io.Writer // Where to write UI output (stdout or stderr)
+	piped       bool      // Whether output is being piped
+	atLineStart bool      // Track if we're at the start of a line (for streaming indent)
 }
 
 // markdownRenderer wraps glamour rendering with fallback.
@@ -535,6 +536,8 @@ func (u *UI) PrintAgentResponseHeader(agentHandle string) {
 	handleStyle := lipgloss.NewStyle().Foreground(colorPrimary).Bold(true)
 
 	u.printf("%s%s %s\n", indent, iconStyle.Render(IconArrowRight), handleStyle.Render(agentHandle))
+	// After the header newline, the next text delta starts at the beginning of a line
+	u.atLineStart = true
 }
 
 // ToolCallInfo represents a tool call for display.
@@ -869,9 +872,30 @@ func (u *UI) PrintReasoningEnd() {
 	u.println()
 }
 
-// PrintTextDelta prints streaming text content.
+// PrintTextDelta prints streaming text content with proper indentation.
 func (u *UI) PrintTextDelta(text string) {
-	u.print(text)
+	if u.depth == 0 {
+		// No indentation needed at depth 0
+		u.print(text)
+		// Track if we end on a newline
+		if len(text) > 0 {
+			u.atLineStart = text[len(text)-1] == '\n'
+		}
+		return
+	}
+
+	// For nested output, we need to indent after each newline
+	indent := u.indent()
+	for _, ch := range text {
+		if u.atLineStart && ch != '\n' {
+			u.print(indent)
+			u.atLineStart = false
+		}
+		u.print(string(ch))
+		if ch == '\n' {
+			u.atLineStart = true
+		}
+	}
 }
 
 // PrintTextEnd prints a newline after text streaming is complete.

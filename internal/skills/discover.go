@@ -2,6 +2,8 @@ package skills
 
 import (
 	"sort"
+
+	"github.com/alexcabrera/ayo/internal/paths"
 )
 
 // DiscoveryOptions configures skill discovery behavior.
@@ -25,11 +27,13 @@ type DiscoveryOptions struct {
 	IgnoreBuiltin bool
 	// IgnoreShared skips user shared skills.
 	IgnoreShared bool
+	// IgnorePlugins skips plugin skills (used in tests).
+	IgnorePlugins bool
 }
 
 // DiscoverAll scans all configured directories for skills in priority order.
 // Earlier sources take priority over later sources with the same skill name.
-// Priority: agent-specific > shared dirs (in order) > user shared > built-in
+// Priority: agent-specific > shared dirs (in order) > user shared > built-in > plugins
 // Skills are filtered by include/exclude lists and ignore flags.
 func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 	// Build source list in priority order
@@ -66,13 +70,24 @@ func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 		})
 	}
 
-	// 4. Built-in skills (~/.local/share/ayo/skills) - lowest priority
+	// 4. Built-in skills (~/.local/share/ayo/skills)
 	if opts.BuiltinDir != "" && !opts.IgnoreBuiltin {
 		sources = append(sources, SkillSourceDir{
 			Path:   opts.BuiltinDir,
 			Source: SourceBuiltIn,
 			Label:  "builtin",
 		})
+	}
+
+	// 5. Plugin skills (lowest priority)
+	if !opts.IgnorePlugins {
+		for _, dir := range paths.AllPluginSkillsDirs() {
+			sources = append(sources, SkillSourceDir{
+				Path:   dir,
+				Source: SourcePlugin,
+				Label:  "plugin",
+			})
+		}
 	}
 
 	// Discover from all sources
@@ -130,6 +145,7 @@ func DiscoverForAgent(agentDir string, skillsDirs []string, cfg DiscoveryFilterC
 		ExcludeSkills:  cfg.ExcludeSkills,
 		IgnoreBuiltin:  cfg.IgnoreBuiltin,
 		IgnoreShared:   cfg.IgnoreShared,
+		IgnorePlugins:  cfg.IgnorePlugins,
 	})
 }
 
@@ -139,4 +155,5 @@ type DiscoveryFilterConfig struct {
 	ExcludeSkills []string
 	IgnoreBuiltin bool
 	IgnoreShared  bool
+	IgnorePlugins bool
 }

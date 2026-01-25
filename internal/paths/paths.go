@@ -408,3 +408,101 @@ func FindPromptFile(name string) string {
 func DatabasePath() string {
 	return filepath.Join(DataDir(), "ayo.db")
 }
+
+// PluginsDir returns the directory where plugins are installed.
+// Location: ~/.local/share/ayo/plugins (Unix) or %LOCALAPPDATA%\ayo\plugins (Windows)
+func PluginsDir() string {
+	return filepath.Join(DataDir(), "plugins")
+}
+
+// PluginDir returns the directory for a specific plugin.
+func PluginDir(name string) string {
+	return filepath.Join(PluginsDir(), name)
+}
+
+// PluginsRegistry returns the path to the plugins registry file.
+// Location: ~/.local/share/ayo/packages.json
+func PluginsRegistry() string {
+	return filepath.Join(DataDir(), "packages.json")
+}
+
+// PluginAgentsDir returns the agents directory within a plugin.
+func PluginAgentsDir(pluginName string) string {
+	return filepath.Join(PluginDir(pluginName), "agents")
+}
+
+// PluginSkillsDir returns the skills directory within a plugin.
+func PluginSkillsDir(pluginName string) string {
+	return filepath.Join(PluginDir(pluginName), "skills")
+}
+
+// PluginToolsDir returns the tools directory within a plugin.
+func PluginToolsDir(pluginName string) string {
+	return filepath.Join(PluginDir(pluginName), "tools")
+}
+
+// AllPluginAgentsDirs returns agent directories from all installed plugins.
+// This is used when discovering agents.
+func AllPluginAgentsDirs() []string {
+	pluginsDir := PluginsDir()
+	entries, err := os.ReadDir(pluginsDir)
+	if err != nil {
+		return nil
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			agentsDir := filepath.Join(pluginsDir, entry.Name(), "agents")
+			if info, err := os.Stat(agentsDir); err == nil && info.IsDir() {
+				dirs = append(dirs, agentsDir)
+			}
+		}
+	}
+	return dirs
+}
+
+// AllPluginSkillsDirs returns skill directories from all installed plugins.
+// This is used when discovering skills.
+func AllPluginSkillsDirs() []string {
+	pluginsDir := PluginsDir()
+	entries, err := os.ReadDir(pluginsDir)
+	if err != nil {
+		return nil
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			skillsDir := filepath.Join(pluginsDir, entry.Name(), "skills")
+			if info, err := os.Stat(skillsDir); err == nil && info.IsDir() {
+				dirs = append(dirs, skillsDir)
+			}
+		}
+	}
+	return dirs
+}
+
+// DirectoryConfigFile returns the path to a directory-level config file.
+// This is .ayo.json in the given directory.
+func DirectoryConfigFile(dir string) string {
+	return filepath.Join(dir, ".ayo.json")
+}
+
+// FindDirectoryConfig searches for .ayo.json starting from dir and walking up.
+// Returns empty string if not found.
+func FindDirectoryConfig(dir string) string {
+	for {
+		configPath := DirectoryConfigFile(dir)
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // Reached filesystem root
+		}
+		dir = parent
+	}
+	return ""
+}

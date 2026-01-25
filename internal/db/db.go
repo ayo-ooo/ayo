@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countSessionsByAgentStmt, err = db.PrepareContext(ctx, countSessionsByAgent); err != nil {
 		return nil, fmt.Errorf("error preparing query CountSessionsByAgent: %w", err)
 	}
+	if q.countSessionsBySourceStmt, err = db.PrepareContext(ctx, countSessionsBySource); err != nil {
+		return nil, fmt.Errorf("error preparing query CountSessionsBySource: %w", err)
+	}
 	if q.createEdgeStmt, err = db.PrepareContext(ctx, createEdge); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateEdge: %w", err)
 	}
@@ -80,6 +83,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listSessionsByAgentStmt, err = db.PrepareContext(ctx, listSessionsByAgent); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessionsByAgent: %w", err)
+	}
+	if q.listSessionsBySourceStmt, err = db.PrepareContext(ctx, listSessionsBySource); err != nil {
+		return nil, fmt.Errorf("error preparing query ListSessionsBySource: %w", err)
 	}
 	if q.searchSessionsByTitleStmt, err = db.PrepareContext(ctx, searchSessionsByTitle); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchSessionsByTitle: %w", err)
@@ -156,6 +162,11 @@ func (q *Queries) Close() error {
 	if q.countSessionsByAgentStmt != nil {
 		if cerr := q.countSessionsByAgentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countSessionsByAgentStmt: %w", cerr)
+		}
+	}
+	if q.countSessionsBySourceStmt != nil {
+		if cerr := q.countSessionsBySourceStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countSessionsBySourceStmt: %w", cerr)
 		}
 	}
 	if q.createEdgeStmt != nil {
@@ -236,6 +247,11 @@ func (q *Queries) Close() error {
 	if q.listSessionsByAgentStmt != nil {
 		if cerr := q.listSessionsByAgentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listSessionsByAgentStmt: %w", cerr)
+		}
+	}
+	if q.listSessionsBySourceStmt != nil {
+		if cerr := q.listSessionsBySourceStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listSessionsBySourceStmt: %w", cerr)
 		}
 	}
 	if q.searchSessionsByTitleStmt != nil {
@@ -375,6 +391,7 @@ type Queries struct {
 	countMessagesBySessionStmt  *sql.Stmt
 	countSessionsStmt           *sql.Stmt
 	countSessionsByAgentStmt    *sql.Stmt
+	countSessionsBySourceStmt   *sql.Stmt
 	createEdgeStmt              *sql.Stmt
 	createMessageStmt           *sql.Stmt
 	createSessionStmt           *sql.Stmt
@@ -391,6 +408,7 @@ type Queries struct {
 	listMessagesBySessionStmt   *sql.Stmt
 	listSessionsStmt            *sql.Stmt
 	listSessionsByAgentStmt     *sql.Stmt
+	listSessionsBySourceStmt    *sql.Stmt
 	searchSessionsByTitleStmt   *sql.Stmt
 	updateMessageStmt           *sql.Stmt
 	updateSessionStmt           *sql.Stmt
@@ -420,6 +438,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		countMessagesBySessionStmt:  q.countMessagesBySessionStmt,
 		countSessionsStmt:           q.countSessionsStmt,
 		countSessionsByAgentStmt:    q.countSessionsByAgentStmt,
+		countSessionsBySourceStmt:   q.countSessionsBySourceStmt,
 		createEdgeStmt:              q.createEdgeStmt,
 		createMessageStmt:           q.createMessageStmt,
 		createSessionStmt:           q.createSessionStmt,
@@ -436,6 +455,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listMessagesBySessionStmt:   q.listMessagesBySessionStmt,
 		listSessionsStmt:            q.listSessionsStmt,
 		listSessionsByAgentStmt:     q.listSessionsByAgentStmt,
+		listSessionsBySourceStmt:    q.listSessionsBySourceStmt,
 		searchSessionsByTitleStmt:   q.searchSessionsByTitleStmt,
 		updateMessageStmt:           q.updateMessageStmt,
 		updateSessionStmt:           q.updateSessionStmt,

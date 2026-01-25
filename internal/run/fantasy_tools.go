@@ -15,6 +15,7 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
 // Tool parameter types for Fantasy
@@ -31,6 +32,7 @@ type BashParams struct {
 type AgentCallParams struct {
 	Agent          string `json:"agent" description:"The agent handle to call (e.g., '@ayo'). Must be a builtin agent."`
 	Prompt         string `json:"prompt" description:"The prompt/question to send to the agent"`
+	Model          string `json:"model,omitempty" description:"Model to use for the sub-agent (e.g., 'claude-sonnet-4'). If not specified, uses the sub-agent's default."`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" description:"Optional timeout in seconds (default 120, max 300)"`
 }
 
@@ -129,21 +131,22 @@ type FantasyToolSet struct {
 	allowedList []string
 	baseDir     string
 	memoryQueue *memory.Queue // Optional async memory queue
+	depth       int
 }
 
 // NewFantasyToolSet creates a Fantasy tool set from allowed tool names.
 func NewFantasyToolSet(allowed []string) FantasyToolSet {
 	baseDir, _ := os.Getwd()
-	return NewFantasyToolSetWithOptions(allowed, baseDir, nil)
+	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
 }
 
 // NewFantasyToolSetWithBaseDir creates a Fantasy tool set with explicit base directory.
 func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolSet {
-	return NewFantasyToolSetWithOptions(allowed, baseDir, nil)
+	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
-func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue) FantasyToolSet {
+func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int) FantasyToolSet {
 	if baseDir == "" {
 		baseDir, _ = os.Getwd()
 	}
@@ -154,19 +157,30 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 	}
 
 	var tools []fantasy.AgentTool
+	loadedTools := make(map[string]bool)
+
 	for _, name := range allowed {
 		switch name {
 		case "bash":
 			tools = append(tools, NewBashTool(baseDir))
+			loadedTools[name] = true
 		case "plan":
 			tools = append(tools, NewPlanTool())
+			loadedTools[name] = true
 		case "memory":
 			tools = append(tools, NewMemoryToolWithQueue(memQueue))
+			loadedTools[name] = true
 		// agent_call is added separately when needed
+		default:
+			// Try to load as external tool from plugins
+			if tool := loadExternalTool(name, baseDir, depth); tool != nil {
+				tools = append(tools, tool)
+				loadedTools[name] = true
+			}
 		}
 	}
 
-	return FantasyToolSet{tools: tools, allowedList: allowed, baseDir: baseDir, memoryQueue: memQueue}
+	return FantasyToolSet{tools: tools, allowedList: allowed, baseDir: baseDir, memoryQueue: memQueue, depth: depth}
 }
 
 // Tools returns the Fantasy agent tools.
@@ -203,9 +217,17 @@ func fantasyResolveWorkingDir(baseDir, workingDirArg string) (string, error) {
 	if strings.TrimSpace(workingDirArg) == "" {
 		return absBase, nil
 	}
-	absTarget, err := filepath.Abs(filepath.Join(absBase, workingDirArg))
-	if err != nil {
-		return "", err
+
+	// If workingDirArg is already an absolute path, use it directly
+	// but still validate it's within baseDir
+	var absTarget string
+	if filepath.IsAbs(workingDirArg) {
+		absTarget = workingDirArg
+	} else {
+		absTarget, err = filepath.Abs(filepath.Join(absBase, workingDirArg))
+		if err != nil {
+			return "", err
+		}
 	}
 	rel, err := filepath.Rel(absBase, absTarget)
 	if err != nil {
@@ -382,4 +404,31 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 			return fantasy.NewTextResponse(stdoutBuf.String()), nil
 		},
 	)
+}
+
+// loadExternalTool attempts to load a tool from installed plugins.
+// Returns nil if the tool is not found.
+func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentTool {
+	// Load plugin registry
+	registry, err := plugins.LoadRegistry()
+	if err != nil {
+		return nil
+	}
+
+	// Search all enabled plugins for this tool
+	for _, plugin := range registry.ListEnabled() {
+		for _, tool := range plugin.Tools {
+			if tool == toolName {
+				// Load tool definition
+				def, err := plugins.LoadToolDefinition(plugin.Path, toolName)
+				if err != nil {
+					continue
+				}
+
+				return NewExternalTool(def, plugin.Path, baseDir, depth)
+			}
+		}
+	}
+
+	return nil
 }

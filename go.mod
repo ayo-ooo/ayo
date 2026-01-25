@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	charm.land/fantasy v0.6.0
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
-	github.com/charmbracelet/bubbletea v1.3.6
+	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/catwalk v0.11.5
 	github.com/charmbracelet/fang v0.4.4
 	github.com/charmbracelet/glamour v0.7.0
@@ -15,11 +15,16 @@ require (
 	github.com/charmbracelet/x/input v0.3.7
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/google/uuid v1.6.0
-	github.com/ncruces/go-sqlite3 v0.30.4
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/term v0.38.0
+	golang.org/x/term v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.44.1 // indirect
+)
+
+require (
+	github.com/charmbracelet/huh/spinner v0.0.0-20251215014908-6f7d32faaff3
+	github.com/ncruces/go-sqlite3 v0.30.5
 )
 
 require (
@@ -119,18 +124,17 @@ require (
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/api v0.239.0 // indirect
 	google.golang.org/genai v1.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	modernc.org/sqlite v1.44.1 // indirect
 )

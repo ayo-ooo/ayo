@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/delegates"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
 )
@@ -36,9 +37,13 @@ type Config struct {
 	ExcludeSkills     []string `json:"exclude_skills,omitempty"`     // Explicit exclude list
 	IgnoreBuiltinSkills bool     `json:"ignore_builtin_skills,omitempty"`
 	IgnoreSharedSkills  bool     `json:"ignore_shared_skills,omitempty"`
-	
+
 	// Memory configuration
 	Memory MemoryConfig `json:"memory,omitempty"`
+
+	// Delegation configuration
+	// Maps task types (e.g., "coding", "research") to agent handles (e.g., "@crush")
+	Delegates map[string]string `json:"delegates,omitempty"`
 }
 
 // MemoryConfig configures agent memory behavior.
@@ -65,19 +70,20 @@ type RetrievalConfig struct {
 }
 
 type Agent struct {
-	Handle         string
-	Dir            string
-	Model          string
-	System         string
-	CombinedSystem string
-	Skills         []skills.Metadata
-	SkillsWarnings []string
-	SkillsPrompt   string
-	ToolsPrompt    string
-	Config         Config
-	BuiltIn        bool
-	InputSchema    *schema.Schema // JSON schema for input validation (optional)
-	OutputSchema   *schema.Schema // JSON schema for output formatting (optional)
+	Handle          string
+	Dir             string
+	Model           string
+	System          string
+	CombinedSystem  string
+	Skills          []skills.Metadata
+	SkillsWarnings  []string
+	SkillsPrompt    string
+	ToolsPrompt     string
+	DelegateContext string // XML block with configured delegates
+	Config          Config
+	BuiltIn         bool
+	InputSchema     *schema.Schema // JSON schema for input validation (optional)
+	OutputSchema    *schema.Schema // JSON schema for output formatting (optional)
 }
 
 func NormalizeHandle(handle string) string {
@@ -120,6 +126,19 @@ func ListHandles(cfg config.Config) ([]string, error) {
 		}
 	}
 
+	// Add plugin agents
+	for _, dir := range paths.AllPluginAgentsDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && strings.HasPrefix(entry.Name(), "@") {
+				handleSet[entry.Name()] = struct{}{}
+			}
+		}
+	}
+
 	// Convert to sorted slice
 	handles := make([]string, 0, len(handleSet))
 	for h := range handleSet {
@@ -137,6 +156,7 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 	// 2. ./.local/share/ayo/agents (local project data)
 	// 3. cfg.AgentsDir (user config, typically ~/.config/ayo/agents)
 	// 4. ~/.local/share/ayo/agents (user data / built-in)
+	// 5. Plugin agent directories
 	dirs := paths.AgentsDirs()
 
 	// Add cfg.AgentsDir if not already included
@@ -164,6 +184,9 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 		}
 		dirs = newDirs
 	}
+
+	// Add plugin directories at the end (lower priority than user/builtin)
+	dirs = append(dirs, paths.AllPluginAgentsDirs()...)
 
 	// Build set of data directories where builtins live
 	builtinDirs := paths.DataDirs()
@@ -275,20 +298,24 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 		return agent, fmt.Errorf("load output schema: %w", err)
 	}
 
+	// Build delegate context from all sources
+	delegateContext := buildDelegateContext(cfg, agentConfig.Delegates)
+
 	agent = Agent{
-		Handle:         normalized,
-		Dir:            dir,
-		Model:          resolveModel(cfg, agentConfig),
-		System:         agentSystem,
-		CombinedSystem: combined,
-		Skills:         discovery.Skills,
-		SkillsWarnings: discovery.Warnings,
-		SkillsPrompt:   skillsPrompt,
-		ToolsPrompt:    toolsPrompt,
-		Config:         agentConfig,
-		BuiltIn:        isBuiltIn,
-		InputSchema:    inputSchema,
-		OutputSchema:   outputSchema,
+		Handle:          normalized,
+		Dir:             dir,
+		Model:           resolveModel(cfg, agentConfig),
+		System:          agentSystem,
+		CombinedSystem:  combined,
+		Skills:          discovery.Skills,
+		SkillsWarnings:  discovery.Warnings,
+		SkillsPrompt:    skillsPrompt,
+		ToolsPrompt:     toolsPrompt,
+		DelegateContext: delegateContext,
+		Config:          agentConfig,
+		BuiltIn:         isBuiltIn,
+		InputSchema:     inputSchema,
+		OutputSchema:    outputSchema,
 	}
 	return agent, nil
 }
@@ -309,6 +336,35 @@ func readOptional(path string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// buildDelegateContext builds an XML block with configured delegates.
+// This tells the agent which other agents handle specific task types.
+func buildDelegateContext(cfg config.Config, agentDelegates map[string]string) string {
+	allDelegates := delegates.GetAllDelegates(agentDelegates, cfg)
+	if len(allDelegates) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("<delegate_context>\n")
+	b.WriteString("The following task types have configured delegate agents:\n\n")
+
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(allDelegates))
+	for k := range allDelegates {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, taskType := range keys {
+		agent := allDelegates[taskType]
+		b.WriteString(fmt.Sprintf("- %s: %s\n", taskType, agent))
+	}
+
+	b.WriteString("\nUse agent_call with the appropriate agent for these task types.\n")
+	b.WriteString("</delegate_context>")
+	return b.String()
 }
 
 // buildEnvContext returns environment information for the system prompt.

@@ -13,6 +13,7 @@ type Querier interface {
 	CountMessagesBySession(ctx context.Context, sessionID string) (int64, error)
 	CountSessions(ctx context.Context) (int64, error)
 	CountSessionsByAgent(ctx context.Context, agentHandle string) (int64, error)
+	CountSessionsBySource(ctx context.Context, source string) (int64, error)
 	CreateEdge(ctx context.Context, arg CreateEdgeParams) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
@@ -29,6 +30,7 @@ type Querier interface {
 	ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
 	ListSessions(ctx context.Context, limit int64) ([]Session, error)
 	ListSessionsByAgent(ctx context.Context, arg ListSessionsByAgentParams) ([]Session, error)
+	ListSessionsBySource(ctx context.Context, arg ListSessionsBySourceParams) ([]Session, error)
 	SearchSessionsByTitle(ctx context.Context, arg SearchSessionsByTitleParams) ([]Session, error)
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) (Session, error)
