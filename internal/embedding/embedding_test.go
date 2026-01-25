@@ -75,66 +75,6 @@ func TestCosineDistance(t *testing.T) {
 	}
 }
 
-func TestEuclideanDistance(t *testing.T) {
-	tests := []struct {
-		name string
-		a, b []float32
-		want float32
-	}{
-		{
-			name: "identical",
-			a:    []float32{0, 0, 0},
-			b:    []float32{0, 0, 0},
-			want: 0,
-		},
-		{
-			name: "unit distance",
-			a:    []float32{0, 0, 0},
-			b:    []float32{1, 0, 0},
-			want: 1,
-		},
-		{
-			name: "3-4-5 triangle",
-			a:    []float32{0, 0},
-			b:    []float32{3, 4},
-			want: 5,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := EuclideanDistance(tt.a, tt.b)
-			if math.Abs(float64(got-tt.want)) > 0.0001 {
-				t.Errorf("EuclideanDistance() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestNormalize(t *testing.T) {
-	v := []float32{3, 4, 0}
-	normalized := Normalize(v)
-
-	// Check unit length
-	var norm float32
-	for _, val := range normalized {
-		norm += val * val
-	}
-	norm = float32(math.Sqrt(float64(norm)))
-
-	if math.Abs(float64(norm-1)) > 0.0001 {
-		t.Errorf("Normalize() produced vector with norm %v, want 1", norm)
-	}
-
-	// Check direction preserved
-	expected := []float32{0.6, 0.8, 0}
-	for i, val := range normalized {
-		if math.Abs(float64(val-expected[i])) > 0.0001 {
-			t.Errorf("Normalize()[%d] = %v, want %v", i, val, expected[i])
-		}
-	}
-}
-
 func TestSerializeDeserialize(t *testing.T) {
 	original := []float32{1.5, -2.3, 0, 42.0, -0.001}
 
@@ -160,37 +100,5 @@ func TestDeserializeInvalidData(t *testing.T) {
 	result := DeserializeFloat32([]byte{1, 2, 3})
 	if result != nil {
 		t.Errorf("DeserializeFloat32() = %v, want nil for invalid data", result)
-	}
-}
-
-func TestSearchResults(t *testing.T) {
-	results := SearchResults{
-		{ID: "a", Similarity: 0.5, Distance: 0.5},
-		{ID: "b", Similarity: 0.9, Distance: 0.1},
-		{ID: "c", Similarity: 0.7, Distance: 0.3},
-	}
-
-	// Test TopK
-	top2 := TopK(results, 2)
-	if len(top2) != 2 {
-		t.Errorf("TopK(2) returned %d results, want 2", len(top2))
-	}
-
-	// Test TopK with k > len
-	top10 := TopK(results, 10)
-	if len(top10) != 3 {
-		t.Errorf("TopK(10) returned %d results, want 3", len(top10))
-	}
-
-	// Test ThresholdFilter
-	filtered := ThresholdFilter(results, 0.6)
-	if len(filtered) != 2 {
-		t.Errorf("ThresholdFilter(0.6) returned %d results, want 2", len(filtered))
-	}
-
-	for _, r := range filtered {
-		if r.Similarity < 0.6 {
-			t.Errorf("ThresholdFilter included result with similarity %v", r.Similarity)
-		}
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -438,22 +437,4 @@ func validateSkillName(name string) []string {
 	}
 
 	return errors
-}
-
-// Helper to get all available skill names for completion
-func getAvailableSkillNames(cfg config.Config) []string {
-	// Install builtins first
-	_ = builtin.Install()
-
-	result := skills.DiscoverAll(skills.DiscoveryOptions{
-		UserSharedDir: cfg.SkillsDir,
-		BuiltinDir:    builtin.SkillsInstallDir(),
-	})
-
-	names := make([]string, len(result.Skills))
-	for i, s := range result.Skills {
-		names[i] = s.Name
-	}
-	sort.Strings(names)
-	return names
 }

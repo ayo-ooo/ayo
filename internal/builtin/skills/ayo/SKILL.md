@@ -65,35 +65,31 @@ ayo @agent-name -a file.txt "Analyze this file"
 
 ### Research with @research (via plugin)
 
-For research tasks requiring web search, install and use the `@research` agent:
+Research capabilities are available via plugins. When a search plugin is installed:
 
 ```bash
-# Install the search provider first
-ayo plugins install https://github.com/alexcabrera/ayo-plugins-searxng
+# Use the search tool directly (if installed)
+ayo "search for latest developments in quantum computing"
 
-# Install the research plugin
-ayo plugins install https://github.com/alexcabrera/ayo-plugins-research
-
-# Direct invocation
+# Or use a research delegate agent (if configured)
 ayo @research "What are the latest developments in quantum computing?"
 ```
 
 ### Coding with @crush (via plugin)
 
-For complex coding tasks, install and use the `@crush` agent:
+For complex coding tasks, you can configure a coding delegate:
 
 ```bash
-# Install the crush plugin
-ayo plugins install https://github.com/alexcabrera/ayo-plugins-crush
+# Configure delegation in .ayo.json
+{
+  "delegates": {
+    "coding": "@crush"
+  }
+}
 
-# Direct invocation
-ayo @crush "Refactor the authentication module to use JWT tokens"
-
-# Multi-file changes
-ayo @crush "Add comprehensive error handling to all database operations in internal/db/"
+# Then tasks are automatically delegated
+ayo "Refactor the authentication module to use JWT tokens"
 ```
-
-The crush plugin requires Crush to be installed: `go install github.com/charmbracelet/crush@latest`
 
 ## Agent Management
 

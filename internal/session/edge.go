@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/alexcabrera/ayo/internal/db"
 )
@@ -93,11 +92,4 @@ func edgesFromDB(ds []db.SessionEdge) []Edge {
 		edges[i] = edgeFromDB(d)
 	}
 	return edges
-}
-
-func toNullStringSql(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
 }

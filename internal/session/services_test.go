@@ -419,7 +419,7 @@ func TestEdgeServiceCreate(t *testing.T) {
 	ctx := context.Background()
 
 	parent, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo"})
-	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.research"})
+	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.coding"})
 
 	err := svc.Edges.Create(ctx, parent.ID, child.ID, EdgeTypeAgentCall, "")
 	if err != nil {
@@ -445,7 +445,7 @@ func TestEdgeServiceGetParents(t *testing.T) {
 
 	parent1, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo"})
 	parent2, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@other"})
-	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.research"})
+	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.coding"})
 
 	svc.Edges.Create(ctx, parent1.ID, child.ID, EdgeTypeAgentCall, "")
 	svc.Edges.Create(ctx, parent2.ID, child.ID, EdgeTypeChain, "")
@@ -466,7 +466,7 @@ func TestEdgeServiceDelete(t *testing.T) {
 	ctx := context.Background()
 
 	parent, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo"})
-	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.research"})
+	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.coding"})
 
 	svc.Edges.Create(ctx, parent.ID, child.ID, EdgeTypeAgentCall, "")
 	svc.Edges.Delete(ctx, parent.ID, child.ID)
@@ -483,7 +483,7 @@ func TestEdgeServiceCascadeDelete(t *testing.T) {
 	ctx := context.Background()
 
 	parent, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo"})
-	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.research"})
+	child, _ := svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo.coding"})
 
 	svc.Edges.Create(ctx, parent.ID, child.ID, EdgeTypeAgentCall, "")
 

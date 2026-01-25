@@ -38,17 +38,17 @@ Agents are AIs with custom system prompts and capabilities. Each agent is a dire
 |-------|-------------|
 | `@ayo` | The default agent - a versatile command-line assistant |
 | `@ayo.agents` | Agent management agent for creating and managing agents |
-| `@ayo.research` | Web-enabled research agent for finding information online |
+| `@ayo.coding` | Coding agent that uses Crush for complex source code tasks |
 | `@ayo.skills` | Skill management agent for creating and organizing skills |
 
 ### Running Agents
 
 ```bash
 # Interactive chat (continues until Ctrl+C)
-ayo @ayo.research
+ayo @ayo
 
 # Single prompt
-ayo @ayo.research "what's new in Go 1.22?"
+ayo "what's new in Go 1.22?"
 ```
 
 ### Creating Agents
@@ -402,7 +402,7 @@ Or configure globally in `~/.config/ayo/ayo.json`:
 {
   "delegates": {
     "coding": "@crush",
-    "research": "@ayo.research"
+    "research": "@research"
   }
 }
 ```

@@ -43,7 +43,6 @@ type ChatSession struct {
 	TitleGenerated bool   // Whether title generation has been triggered
 }
 
-const maxToolIterations = 8
 const maxOutputCastRetries = 3
 
 // NewRunnerFromConfig creates a new runner from the given configuration.

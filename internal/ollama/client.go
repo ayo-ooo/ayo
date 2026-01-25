@@ -2,7 +2,6 @@
 package ollama
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -147,76 +146,6 @@ func (c *Client) HasModel(ctx context.Context, name string) bool {
 func normalizeModelName(name string) string {
 	name = strings.TrimSuffix(name, ":latest")
 	return name
-}
-
-// PullRequest is the request body for /api/pull.
-type PullRequest struct {
-	Name   string `json:"name"`
-	Stream bool   `json:"stream"`
-}
-
-// PullResponse is a single response from the pull stream.
-type PullResponse struct {
-	Status    string `json:"status"`
-	Digest    string `json:"digest,omitempty"`
-	Total     int64  `json:"total,omitempty"`
-	Completed int64  `json:"completed,omitempty"`
-}
-
-// PullCallback is called for each progress update during a pull.
-type PullCallback func(status string, completed, total int64)
-
-// Pull downloads a model. If callback is non-nil, it receives progress updates.
-func (c *Client) Pull(ctx context.Context, name string, callback PullCallback) error {
-	reqBody := PullRequest{
-		Name:   name,
-		Stream: callback != nil,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/pull", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// Use a client without timeout for pulling (can take a while)
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("pull model: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("pull model: status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	if callback == nil {
-		// Non-streaming: just read the response
-		_, err = io.ReadAll(resp.Body)
-		return err
-	}
-
-	// Streaming: decode each line
-	decoder := json.NewDecoder(resp.Body)
-	for {
-		var pr PullResponse
-		if err := decoder.Decode(&pr); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("decode pull response: %w", err)
-		}
-		callback(pr.Status, pr.Completed, pr.Total)
-	}
-
-	return nil
 }
 
 // VersionResponse is the response from /api/version.

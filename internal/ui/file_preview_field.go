@@ -120,14 +120,6 @@ func isMarkdownFile(path string) bool {
 	return ext == ".md" || ext == ".markdown"
 }
 
-// abs returns absolute value of an int
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
 // loadContent reads and sets the viewport content, rendering markdown if applicable.
 func (f *FilePreviewField) loadContent() {
 	if f.filePath == nil || *f.filePath == "" {

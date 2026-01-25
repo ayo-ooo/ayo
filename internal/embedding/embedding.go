@@ -59,44 +59,6 @@ func CosineDistance(a, b []float32) float32 {
 	return 1 - CosineSimilarity(a, b)
 }
 
-// EuclideanDistance computes the L2 distance between two vectors.
-func EuclideanDistance(a, b []float32) float32 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-
-	var sum float32
-	for i := range a {
-		diff := a[i] - b[i]
-		sum += diff * diff
-	}
-
-	return float32(math.Sqrt(float64(sum)))
-}
-
-// Normalize normalizes a vector to unit length (L2 normalization).
-func Normalize(v []float32) []float32 {
-	if len(v) == 0 {
-		return v
-	}
-
-	var norm float32
-	for _, val := range v {
-		norm += val * val
-	}
-	norm = float32(math.Sqrt(float64(norm)))
-
-	if norm == 0 {
-		return v
-	}
-
-	result := make([]float32, len(v))
-	for i, val := range v {
-		result[i] = val / norm
-	}
-	return result
-}
-
 // SerializeFloat32 converts a float32 slice to bytes for storage.
 func SerializeFloat32(v []float32) []byte {
 	buf := make([]byte, len(v)*4)
@@ -116,37 +78,4 @@ func DeserializeFloat32(data []byte) []float32 {
 		v[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:]))
 	}
 	return v
-}
-
-// SearchResult represents a similarity search result.
-type SearchResult struct {
-	ID         string
-	Similarity float32
-	Distance   float32
-}
-
-// SearchResults is a sortable slice of search results.
-type SearchResults []SearchResult
-
-func (r SearchResults) Len() int           { return len(r) }
-func (r SearchResults) Less(i, j int) bool { return r[i].Similarity > r[j].Similarity }
-func (r SearchResults) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
-
-// TopK returns the top K results by similarity.
-func TopK(results SearchResults, k int) SearchResults {
-	if len(results) <= k {
-		return results
-	}
-	return results[:k]
-}
-
-// ThresholdFilter filters results by minimum similarity threshold.
-func ThresholdFilter(results SearchResults, threshold float32) SearchResults {
-	filtered := make(SearchResults, 0, len(results))
-	for _, r := range results {
-		if r.Similarity >= threshold {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered
 }

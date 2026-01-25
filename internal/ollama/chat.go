@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -69,9 +68,7 @@ func (c *Client) Chat(ctx context.Context, model string, messages []Message, opt
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Use a longer timeout for chat requests
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("chat request: %w", err)
 	}
@@ -88,65 +85,6 @@ func (c *Client) Chat(ctx context.Context, model string, messages []Message, opt
 	}
 
 	return &result, nil
-}
-
-// StreamCallback is called for each streaming response chunk.
-type StreamCallback func(content string)
-
-// ChatStream sends a chat request and streams the response.
-func (c *Client) ChatStream(ctx context.Context, model string, messages []Message, opts *Options, callback StreamCallback) (*ChatResponse, error) {
-	reqBody := ChatRequest{
-		Model:    model,
-		Messages: messages,
-		Stream:   true,
-		Options:  opts,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/chat", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("chat request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("chat request: status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var finalResponse *ChatResponse
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		var cr ChatResponse
-		if err := json.Unmarshal(scanner.Bytes(), &cr); err != nil {
-			continue
-		}
-
-		if callback != nil && cr.Message.Content != "" {
-			callback(cr.Message.Content)
-		}
-
-		if cr.Done {
-			finalResponse = &cr
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read stream: %w", err)
-	}
-
-	return finalResponse, nil
 }
 
 // ChatJSON sends a chat request expecting a JSON response.
@@ -170,8 +108,7 @@ func (c *Client) ChatJSON(ctx context.Context, model string, messages []Message,
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("chat request: %w", err)
 	}

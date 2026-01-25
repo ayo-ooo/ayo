@@ -111,9 +111,6 @@ func TestQueue_StartStop(t *testing.T) {
 }
 
 func TestQueue_DrainOnStop(t *testing.T) {
-	var mu sync.Mutex
-	processedCount := 0
-
 	// We can't use a real service in unit tests, so we'll test the mechanics
 	// by checking that stop waits for the worker to exit
 
@@ -137,7 +134,4 @@ func TestQueue_DrainOnStop(t *testing.T) {
 	if q.Pending() != 0 {
 		t.Errorf("expected 0 pending after stop, got %d", q.Pending())
 	}
-
-	_ = mu
-	_ = processedCount
 }

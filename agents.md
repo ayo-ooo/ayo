@@ -949,7 +949,7 @@ Guardrails are enabled by default. To disable (dangerous):
 }
 ```
 
-**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting. This includes all built-in agents (`@ayo`, `@ayo.coding`, `@ayo.research`, etc.).
+**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting. This includes all built-in agents (`@ayo`, `@ayo.coding`, `@ayo.agents`, etc.).
 
 ### CLI Flag
 
@@ -1163,7 +1163,7 @@ Project-level configuration file placed in your project root or any parent direc
 {
   "delegates": {
     "coding": "@crush",
-    "research": "@ayo.research"
+    "research": "@research"
   },
   "model": "gpt-4.1",
   "agent": "@ayo"

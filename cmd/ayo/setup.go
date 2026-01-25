@@ -199,14 +199,6 @@ func (s *setupUI) Error(msg string) {
 	fmt.Fprintln(s.out, style.Render("  ✗ "+msg))
 }
 
-func (s *setupUI) Code(code string) {
-	style := lipgloss.NewStyle().
-		Background(lipgloss.Color("236")).
-		Foreground(lipgloss.Color("252")).
-		Padding(0, 1)
-	fmt.Fprintln(s.out, "  "+style.Render(code))
-}
-
 func (s *setupUI) Complete(msg string) {
 	style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
 	fmt.Fprintln(s.out, style.Render("✓ "+msg))

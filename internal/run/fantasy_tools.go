@@ -135,17 +135,6 @@ type FantasyToolSet struct {
 	depth       int
 }
 
-// NewFantasyToolSet creates a Fantasy tool set from allowed tool names.
-func NewFantasyToolSet(allowed []string) FantasyToolSet {
-	baseDir, _ := os.Getwd()
-	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
-}
-
-// NewFantasyToolSetWithBaseDir creates a Fantasy tool set with explicit base directory.
-func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolSet {
-	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
-}
-
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
 func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int) FantasyToolSet {
 	if baseDir == "" {
@@ -292,12 +281,6 @@ type MemoryParams struct {
 	Category  string `json:"category,omitempty" description:"For 'store': the memory category (preference, fact, correction, pattern). Default: fact"`
 	ID        string `json:"id,omitempty" description:"For 'forget': the memory ID (or prefix) to forget"`
 	Limit     int    `json:"limit,omitempty" description:"For 'search' or 'list': maximum number of results. Default: 10"`
-}
-
-// NewMemoryTool creates the memory tool for Fantasy (sync mode, shells out).
-// Deprecated: Use NewMemoryToolWithQueue for async store operations.
-func NewMemoryTool(ayoBinary string) fantasy.AgentTool {
-	return NewMemoryToolWithQueue(nil)
 }
 
 // NewMemoryToolWithQueue creates the memory tool with optional async queue for store operations.

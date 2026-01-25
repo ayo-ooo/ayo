@@ -28,7 +28,7 @@ type Config struct {
 	Embedding      EmbeddingConfig  `json:"embedding,omitempty"`
 
 	// Delegates maps task types to agent handles for global delegation.
-	// Example: {"coding": "@crush", "research": "@ayo.research"}
+	// Example: {"coding": "@crush", "research": "@research"}
 	Delegates map[string]string `json:"delegates,omitempty"`
 
 	// DefaultTools maps tool type aliases to concrete tool names.
