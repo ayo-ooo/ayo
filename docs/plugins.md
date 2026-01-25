@@ -272,7 +272,7 @@ agents/
   "allowed_tools": ["bash", "my-tool"],
   "skills": ["my-skill"],
   "exclude_skills": ["unwanted-skill"],
-  "no_system_wrapper": false
+  "guardrails": true
 }
 ```
 
@@ -283,7 +283,7 @@ agents/
 | `allowed_tools` | Tools the agent can use. |
 | `skills` | Skills to attach (in addition to auto-discovered). |
 | `exclude_skills` | Skills to exclude from auto-discovery. |
-| `no_system_wrapper` | If true, don't wrap with prefix/suffix prompts. |
+| `guardrails` | Safety guardrails (default: true). Set to false to disable (dangerous). |
 
 #### Agent system.md
 

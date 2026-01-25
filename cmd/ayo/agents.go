@@ -180,8 +180,8 @@ func createAgentCmd(cfgPath *string) *cobra.Command {
 		inputSchema  string
 		outputSchema string
 
-		// System prompt options
-		noSystemWrapper bool
+		// Guardrails
+		noGuardrails bool
 
 		// Non-interactive mode
 		nonInteractive bool
@@ -242,7 +242,7 @@ Examples:
     --system "You are an expert code reviewer..." \
     --tools bash,agent_call \
     --skills debugging \
-    --no-system-wrapper
+    --no-guardrails
 
   # Using external files
   ayo agents create @analyzer -n \
@@ -321,7 +321,9 @@ Examples:
 					skills_ = res.Skills
 					ignoreBuiltinSkills = res.IgnoreBuiltinSkills
 					ignoreSharedSkills = res.IgnoreSharedSkills
-					noSystemWrapper = res.NoSystemWrapper
+					if res.Guardrails != nil && !*res.Guardrails {
+						noGuardrails = true
+					}
 					system = res.SystemMessage
 					inputSchema = res.InputSchemaFile
 					outputSchema = res.OutputSchemaFile
@@ -393,7 +395,7 @@ Examples:
 					Model:               model,
 					Description:         description,
 					AllowedTools:        tools,
-					NoSystemWrapper:     noSystemWrapper,
+					Guardrails:          boolPtr(!noGuardrails),
 					Skills:              skills_,
 					ExcludeSkills:       excludeSkills,
 					IgnoreBuiltinSkills: ignoreBuiltinSkills,
@@ -444,13 +446,18 @@ Examples:
 	cmd.Flags().StringVar(&inputSchema, "input-schema", "", "JSON schema file for validating stdin input")
 	cmd.Flags().StringVar(&outputSchema, "output-schema", "", "JSON schema file for structuring stdout output")
 
-	// System prompt options
-	cmd.Flags().BoolVar(&noSystemWrapper, "no-system-wrapper", false, "disable system guardrails (not recommended)")
+	// Guardrails
+	cmd.Flags().BoolVar(&noGuardrails, "no-guardrails", false, "disable safety guardrails (dangerous - use with caution)")
 
 	// Mode flags
 	cmd.Flags().BoolVarP(&nonInteractive, "non-interactive", "n", false, "skip wizard, fail if required fields missing")
 
 	return cmd
+}
+
+// boolPtr returns a pointer to a bool value.
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 // expandPath expands ~ to the user's home directory.

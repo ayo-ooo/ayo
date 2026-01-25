@@ -187,8 +187,8 @@ These skills are only available to this specific agent and take highest priority
 
 ### Agent behaves unsafely
 
-**Cause**: `no_system_wrapper` is enabled
-**Fix**: Remove `no_system_wrapper` or set to false
+**Cause**: Guardrails are disabled
+**Fix**: Set `"guardrails": true` in config.json or remove the field (defaults to true)
 
 ## Updating and Maintaining Agents
 

@@ -922,10 +922,52 @@ Built-in skills are embedded in the binary and installed via `ayo setup`:
 ## System Prompt Assembly
 
 Messages are built in order:
-1. Combined system (prefix + shared + agent + suffix)
-2. Tools prompt (bash instructions)
-3. Skills prompt (available skills XML)
-4. User message
+1. Environment context (platform, date, git status)
+2. Guardrails (if enabled)
+3. User prefix (optional `~/.config/ayo/prompts/system-prefix.md`)
+4. Agent system prompt
+5. User suffix (optional `~/.config/ayo/prompts/system-suffix.md`)
+6. Tools prompt (bash instructions)
+7. Skills prompt (available skills XML)
+8. User message
+
+## Guardrails
+
+Guardrails are safety constraints automatically applied to agent system prompts. They enforce rules like:
+- No malicious code creation
+- No credential exposure
+- Confirmation before destructive actions
+- Scope limitation to current project
+
+### Configuration
+
+Guardrails are enabled by default. To disable (dangerous):
+
+```json
+{
+  "guardrails": false
+}
+```
+
+**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting. This includes all built-in agents (`@ayo`, `@ayo.coding`, `@ayo.research`, etc.).
+
+### CLI Flag
+
+When creating agents via CLI:
+
+```bash
+# Disable guardrails (not recommended)
+ayo agents create @dangerous-agent --no-guardrails -n
+```
+
+### Custom Prompts
+
+Users can add custom prefix/suffix prompts that layer on top of guardrails:
+
+- `~/.config/ayo/prompts/system-prefix.md` - Added after guardrails, before agent prompt
+- `~/.config/ayo/prompts/system-suffix.md` - Added after agent prompt
+
+These are optional user customizations, not replacements for guardrails.
 
 ## Architecture Notes
 

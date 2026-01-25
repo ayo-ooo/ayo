@@ -29,8 +29,11 @@ type Config struct {
 	Description string   `json:"description,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	
-	// System prompt configuration
-	NoSystemWrapper bool `json:"no_system_wrapper,omitempty"` // Skip prefix/suffix wrapping
+	// Guardrails configuration
+	// When true (default), ayo applies safety guardrails to the agent's system prompt.
+	// Set to false to disable guardrails (dangerous - use with caution).
+	// Note: @ayo namespace agents always have guardrails enabled regardless of this setting.
+	Guardrails *bool `json:"guardrails,omitempty"`
 	
 	// Skill configuration
 	Skills            []string `json:"skills,omitempty"`             // Explicit include list
@@ -67,6 +70,35 @@ type RetrievalConfig struct {
 	AutoInject  bool    `json:"auto_inject,omitempty"` // Auto-retrieve at session start
 	Threshold   float32 `json:"threshold,omitempty"`   // Similarity threshold (0-1)
 	MaxMemories int     `json:"max_memories,omitempty"` // Context budget
+}
+
+// GuardrailsPrompt is the hardcoded safety guardrails applied to agents.
+// This is injected at runtime when guardrails are enabled.
+const GuardrailsPrompt = `<guardrails>
+You are operating under ayo's safety guardrails. These rules are non-negotiable:
+
+1. **No malicious code**: Never create, modify, or assist with code designed to harm systems, steal data, or exploit vulnerabilities.
+2. **No credential exposure**: Never log, print, or expose secrets, API keys, passwords, or tokens.
+3. **Respect user intent**: Only perform actions the user has explicitly requested or that are clearly implied by their request.
+4. **Confirm destructive actions**: Before deleting files, dropping databases, or making irreversible changes, confirm with the user unless they've explicitly instructed you to proceed.
+5. **Stay in scope**: Don't access or modify files outside the current project unless explicitly asked.
+6. **Truthful limitations**: If you cannot do something, say so. Don't pretend to have capabilities you lack.
+
+These guardrails protect both the user and the systems you interact with.
+</guardrails>`
+
+// GuardrailsEnabled returns true if guardrails should be applied for this agent.
+// @ayo namespace agents always have guardrails enabled regardless of config.
+func (c Config) GuardrailsEnabled(handle string) bool {
+	// @ayo namespace always has guardrails - cannot be disabled
+	if IsReservedNamespace(handle) {
+		return true
+	}
+	// Default to true if not explicitly set
+	if c.Guardrails == nil {
+		return true
+	}
+	return *c.Guardrails
 }
 
 type Agent struct {
@@ -243,26 +275,32 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 	}
 	agentSystem := strings.TrimSpace(string(systemBytes))
 
-	// Load prefix and suffix using priority-based lookup (unless NoSystemWrapper is set)
+	// Determine if guardrails should be applied
+	guardrailsEnabled := agentConfig.GuardrailsEnabled(normalized)
+
+	// Load optional prefix and suffix for user customization
+	// These are layered on top of guardrails, not a replacement
 	var prefix, suffix string
-	if !agentConfig.NoSystemWrapper {
-		if cfg.SystemPrefix != "" {
-			prefix = strings.TrimSpace(readOptional(cfg.SystemPrefix))
-		} else if prefixPath := paths.FindPromptFile("system-prefix.md"); prefixPath != "" {
-			prefix = strings.TrimSpace(readOptional(prefixPath))
-		}
-		if cfg.SystemSuffix != "" {
-			suffix = strings.TrimSpace(readOptional(cfg.SystemSuffix))
-		} else if suffixPath := paths.FindPromptFile("system-suffix.md"); suffixPath != "" {
-			suffix = strings.TrimSpace(readOptional(suffixPath))
-		}
+	if cfg.SystemPrefix != "" {
+		prefix = strings.TrimSpace(readOptional(cfg.SystemPrefix))
+	} else if prefixPath := paths.FindPromptFile("system-prefix.md"); prefixPath != "" {
+		prefix = strings.TrimSpace(readOptional(prefixPath))
+	}
+	if cfg.SystemSuffix != "" {
+		suffix = strings.TrimSpace(readOptional(cfg.SystemSuffix))
+	} else if suffixPath := paths.FindPromptFile("system-suffix.md"); suffixPath != "" {
+		suffix = strings.TrimSpace(readOptional(suffixPath))
 	}
 
 	// Build environment context block (placed at top of system prompt)
 	envContext := buildEnvContext()
 
-	combinedParts := make([]string, 0, 4)
+	// Assemble system prompt: envContext + guardrails + prefix + agent + suffix
+	combinedParts := make([]string, 0, 5)
 	combinedParts = append(combinedParts, envContext)
+	if guardrailsEnabled {
+		combinedParts = append(combinedParts, GuardrailsPrompt)
+	}
 	if prefix != "" {
 		combinedParts = append(combinedParts, prefix)
 	}

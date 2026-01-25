@@ -43,8 +43,8 @@ func TestLoadCombinesPrefixAgentSuffix(t *testing.T) {
 	if !strings.HasPrefix(ag.CombinedSystem, "<environment>") {
 		t.Fatalf("combined should start with <environment>, got:\n%s", ag.CombinedSystem)
 	}
-	// Should contain the expected content in order
-	for _, expected := range []string{"</environment>", "PREFIX", "AGENT", "SUFFIX"} {
+	// Should contain the expected content in order: env, guardrails, prefix, agent, suffix
+	for _, expected := range []string{"</environment>", "<guardrails>", "PREFIX", "AGENT", "SUFFIX"} {
 		if !strings.Contains(ag.CombinedSystem, expected) {
 			t.Fatalf("combined should contain %q, got:\n%s", expected, ag.CombinedSystem)
 		}
@@ -704,5 +704,119 @@ func TestCompatibilityTierString(t *testing.T) {
 				t.Errorf("String() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGuardrailsEnabled(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name     string
+		cfg      Config
+		handle   string
+		expected bool
+	}{
+		{
+			name:     "default nil is enabled",
+			cfg:      Config{},
+			handle:   "@myagent",
+			expected: true,
+		},
+		{
+			name:     "explicit true is enabled",
+			cfg:      Config{Guardrails: &trueVal},
+			handle:   "@myagent",
+			expected: true,
+		},
+		{
+			name:     "explicit false is disabled",
+			cfg:      Config{Guardrails: &falseVal},
+			handle:   "@myagent",
+			expected: false,
+		},
+		{
+			name:     "@ayo namespace cannot disable guardrails",
+			cfg:      Config{Guardrails: &falseVal},
+			handle:   "@ayo",
+			expected: true,
+		},
+		{
+			name:     "@ayo.subagent namespace cannot disable guardrails",
+			cfg:      Config{Guardrails: &falseVal},
+			handle:   "@ayo.coding",
+			expected: true,
+		},
+		{
+			name:     "non-@ prefix still checks namespace",
+			cfg:      Config{Guardrails: &falseVal},
+			handle:   "ayo.research",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GuardrailsEnabled(tt.handle)
+			if got != tt.expected {
+				t.Errorf("GuardrailsEnabled(%q) = %v, want %v", tt.handle, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoadIncludesGuardrails(t *testing.T) {
+	home := t.TempDir()
+	cfg := config.Config{
+		AgentsDir:    filepath.Join(home, "ayo", "agents"),
+		DefaultModel: "gpt-4.1",
+	}
+
+	agentDir := filepath.Join(cfg.AgentsDir, "@testguard")
+	mustWrite(t, filepath.Join(agentDir, "system.md"), "AGENT SYSTEM")
+	writeAgentConfig(t, agentDir, Config{}) // Default: guardrails enabled
+
+	ag, err := Load(cfg, "@testguard")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	// Should contain guardrails prompt
+	if !strings.Contains(ag.CombinedSystem, "<guardrails>") {
+		t.Errorf("combined should contain <guardrails>, got:\n%s", ag.CombinedSystem)
+	}
+	if !strings.Contains(ag.CombinedSystem, "No malicious code") {
+		t.Errorf("combined should contain guardrails content, got:\n%s", ag.CombinedSystem)
+	}
+	// Agent system should also be present
+	if !strings.Contains(ag.CombinedSystem, "AGENT SYSTEM") {
+		t.Errorf("combined should contain agent system, got:\n%s", ag.CombinedSystem)
+	}
+}
+
+func TestLoadWithGuardrailsDisabled(t *testing.T) {
+	home := t.TempDir()
+	cfg := config.Config{
+		AgentsDir:    filepath.Join(home, "ayo", "agents"),
+		DefaultModel: "gpt-4.1",
+	}
+
+	falseVal := false
+	agentDir := filepath.Join(cfg.AgentsDir, "@noguard")
+	mustWrite(t, filepath.Join(agentDir, "system.md"), "AGENT SYSTEM")
+	writeAgentConfig(t, agentDir, Config{Guardrails: &falseVal})
+
+	ag, err := Load(cfg, "@noguard")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	// Should NOT contain guardrails prompt
+	if strings.Contains(ag.CombinedSystem, "<guardrails>") {
+		t.Errorf("combined should NOT contain <guardrails> when disabled, got:\n%s", ag.CombinedSystem)
+	}
+	// Agent system should still be present
+	if !strings.Contains(ag.CombinedSystem, "AGENT SYSTEM") {
+		t.Errorf("combined should contain agent system, got:\n%s", ag.CombinedSystem)
 	}
 }

@@ -60,7 +60,7 @@ Every agent follows this structure:
   "exclude_skills": ["unwanted-skill"],
   "ignore_builtin_skills": false,
   "ignore_shared_skills": false,
-  "no_system_wrapper": false
+  "guardrails": true
 }
 ```
 
@@ -75,7 +75,7 @@ Every agent follows this structure:
 | `exclude_skills` | array | Skills to explicitly exclude |
 | `ignore_builtin_skills` | bool | Don't load any built-in skills |
 | `ignore_shared_skills` | bool | Don't load user shared skills |
-| `no_system_wrapper` | bool | Disable safety guardrails (not recommended) |
+| `guardrails` | bool | Safety guardrails (default: true). Set to false to disable (dangerous). |
 
 ## Common Operations
 

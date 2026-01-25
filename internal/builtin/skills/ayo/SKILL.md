@@ -521,8 +521,24 @@ Located at `~/.config/ayo/ayo.json`:
   "exclude_skills": ["unwanted-skill"],
   "ignore_builtin_skills": false,
   "ignore_shared_skills": false,
-  "no_system_wrapper": false
+  "guardrails": true
 }
+```
+
+### Guardrails
+
+Guardrails are safety constraints applied to agent system prompts. They are enabled by default.
+
+```json
+{
+  "guardrails": true
+}
+```
+
+- `true` (default): Safety guardrails are applied to the agent's system prompt
+- `false`: Guardrails disabled (dangerous - use with caution)
+
+**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting.
 ```
 
 ## Skill Directory Structure

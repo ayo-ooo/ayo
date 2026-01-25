@@ -29,9 +29,12 @@ type AgentCreateResult struct {
 	IgnoreSharedSkills  bool
 
 	// System
-	SystemMessage   string
-	SystemFile      string
-	NoSystemWrapper bool // If true, skip system prefix/suffix wrapping
+	SystemMessage string
+	SystemFile    string
+	// Guardrails controls whether safety guardrails are applied.
+	// When nil or true, guardrails are enabled (default).
+	// Set to false to disable guardrails (dangerous - use with caution).
+	Guardrails *bool
 
 	// Chaining
 	InputSchemaFile  string
@@ -532,9 +535,9 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 			sections = append(sections, ReviewSection{Label: "System", Value: "(default)"})
 		}
 
-		// System wrapper status
-		if res.NoSystemWrapper {
-			sections = append(sections, ReviewSection{Label: "System Wrapper", Value: "disabled"})
+		// Guardrails status
+		if res.Guardrails != nil && !*res.Guardrails {
+			sections = append(sections, ReviewSection{Label: "Guardrails", Value: "disabled (dangerous)"})
 		}
 
 		// Input schema - expandable (independent of output schema)
@@ -604,8 +607,11 @@ func (f *AgentCreateForm) Run(ctx context.Context) (AgentCreateResult, error) {
 	handleName = strings.TrimPrefix(handleName, "@")
 	res.Handle = "@" + handleName
 
-	// Convert useGuardrails (true = keep guardrails) to NoSystemWrapper (true = disable)
-	res.NoSystemWrapper = !useGuardrails
+	// Convert useGuardrails (true = keep guardrails) to Guardrails pointer
+	if !useGuardrails {
+		f := false
+		res.Guardrails = &f
+	}
 
 	// Merge required skills into the skills list
 	requiredSkills := skills.GetRequiredSkillsForTools(res.AllowedTools)
