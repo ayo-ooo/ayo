@@ -149,6 +149,57 @@ $EDITOR ~/.config/ayo/agents/@my-agent/system.md
 $EDITOR ~/.config/ayo/agents/@my-agent/config.json
 ```
 
+**Programmatic edits:** Use bash to modify agent files:
+
+```bash
+# Append to system prompt
+cat >> ~/.config/ayo/agents/@my-agent/system.md << 'EOF'
+
+## Additional Instructions
+Write output to a markdown file in the current working directory.
+EOF
+
+# Update config.json (add a tool)
+# Read current config, modify, and write back
+```
+
+## Update vs Create Decision
+
+**CRITICAL:** When a user refers to an existing agent and requests changes, **update the existing agent** rather than creating a new one.
+
+### Decision Flow
+
+1. **Check if agent exists**: `ayo agents show @agent-name`
+2. **If exists + user wants changes** → Edit the existing agent's files
+3. **If doesn't exist** → Create new agent
+
+### Signals to Update (not create):
+- User says "I want **it** to..." (refers to previously discussed agent)
+- User says "change the agent to..." or "update it to..."
+- User says "add X to the agent" or "make it also do Y"
+- Context shows an agent was just created or discussed
+
+### Signals to Create:
+- User explicitly says "create a new agent" or "make me an agent"
+- No prior agent context in conversation
+- User wants a completely different agent type
+
+### Example: Update Flow
+
+User just created `@researcher`, then says: "I want it to write output to markdown files"
+
+**Correct approach:**
+```bash
+# Append to the existing system prompt
+cat >> ~/.config/ayo/agents/@researcher/system.md << 'EOF'
+
+## Output Format
+Always write research findings to a markdown file named `<topic>.md` in the current working directory.
+EOF
+```
+
+**Wrong approach:** Creating a new `@researcher2` or `@markdown-researcher` agent.
+
 ## Remove an Agent
 
 ```bash
@@ -242,6 +293,90 @@ rm -rf ~/.config/ayo/agents/@agent-name
   "ignore_builtin_skills": true
 }
 ```
+
+---
+
+# Tool Discovery and Selection
+
+**CRITICAL:** Before creating an agent, always discover what tools are available and proactively select the appropriate ones based on the agent's intended purpose.
+
+## Discovering Available Tools
+
+### Built-in Tools
+
+| Tool | Purpose | When to Include |
+|------|---------|-----------------|
+| `bash` | Execute shell commands | Almost always (default) |
+| `plan` | Track multi-step tasks with phases/todos | Complex workflows, project management |
+| `agent_call` | Delegate to other agents | Orchestrators, managers, routers |
+| `memory` | Store/retrieve persistent facts | Personalization, learning agents |
+| `search` | Web search (if configured) | Research, information gathering |
+
+### Discovering Plugin Tools
+
+```bash
+# List installed plugins and their tools
+ayo plugins list
+
+# Show tools from a specific plugin
+ayo plugins show <plugin-name>
+```
+
+### Checking Default Tool Mappings
+
+Plugins can provide default tool mappings (e.g., `search` → `searxng`). Check what's configured:
+
+```bash
+cat ~/.config/ayo/ayo.json | grep -A5 default_tools
+```
+
+If a default is set (e.g., `"search": "searxng"`), agents can use `search` in their `allowed_tools` and it resolves to the plugin tool automatically.
+
+## Proactive Tool Selection
+
+When a user describes an agent's purpose, **analyze the requirements and suggest appropriate tools**:
+
+| Agent Purpose | Recommended Tools | Reasoning |
+|---------------|-------------------|-----------|
+| Research / information gathering | `bash`, `search` | Needs web search capability |
+| Code development | `bash`, `plan` | Needs execution + task tracking |
+| Orchestration / delegation | `bash`, `agent_call` | Needs to call other agents |
+| Long-running projects | `bash`, `plan`, `memory` | Task tracking + persistence |
+| Simple automation | `bash` | Just command execution |
+| Personalized assistant | `bash`, `memory` | Needs to remember preferences |
+
+### Decision Flow
+
+When creating an agent:
+
+1. **Identify capabilities needed** from the agent's description
+2. **Check available tools** with `ayo plugins list` and `ayo plugins show`
+3. **Check default mappings** in global config
+4. **Include all required tools** in `allowed_tools`
+5. **Inform the user** if a needed tool isn't installed
+
+### Example: Research Agent
+
+User wants: "Create a deep research agent that searches the web"
+
+**Before creating, check:**
+```bash
+# Is search available?
+ayo plugins list
+cat ~/.config/ayo/ayo.json | grep -A5 default_tools
+```
+
+**If search is configured:**
+```bash
+ayo agents create @deep-research -n \
+  -m gpt-4.1 \
+  -d "Deep research agent with web search" \
+  -t bash,search \
+  -f system.md
+```
+
+**If search is NOT available:**
+Inform the user: "A search tool is recommended for research agents. Install a search plugin (e.g., `ayo plugins install <search-plugin-url>`) to enable web search capabilities."
 
 ---
 
@@ -960,6 +1095,8 @@ Located at `~/.config/ayo/ayo.json`:
 |---------|-------|----------|
 | Agent gives generic responses | System prompt too vague | Add specific instructions and examples |
 | Agent doesn't use tools | Tools not in `allowed_tools` | Add required tools to config.json |
+| Agent can't use plugin tool | Tool not in `allowed_tools` | Add tool name (or alias like `search`) to `allowed_tools` |
+| Default tool not working | Missing from agent config | Even if `default_tools` is set globally, agent must list the alias in `allowed_tools` |
 | Agent ignores skills | Skills not configured | Check `ayo agents show @agent` |
 | Agent behaves unsafely | Guardrails disabled | Set `"guardrails": true` |
 | Agent not in list | Invalid config | Check config.json is valid JSON |
