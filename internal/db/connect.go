@@ -11,7 +11,9 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	_ "modernc.org/sqlite"
+	// ncruces/go-sqlite3 provides a pure-Go SQLite driver using WebAssembly.
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
 // Connect opens a SQLite database connection and runs migrations.
@@ -26,7 +28,8 @@ func Connect(ctx context.Context, dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	// ncruces driver uses "sqlite3" as the driver name and requires file: prefix
+	db, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

@@ -13,8 +13,8 @@ import (
 
 func TestBuildMessagesOmitsEmpty(t *testing.T) {
 	r := &Runner{}
-	ag := agent.Agent{CombinedSystem: "", SkillsPrompt: ""}
-	msgs := r.buildMessages(ag, "hi")
+	ag := agent.Agent{CombinedSystem: "", SkillsPrompt: "", Model: ""}
+	msgs := r.buildMessages(context.Background(), ag, "hi")
 	if len(msgs) != 1 {
 		t.Fatalf("expected single user message, got %d", len(msgs))
 	}
@@ -30,8 +30,8 @@ func TestBuildMessagesOmitsEmpty(t *testing.T) {
 
 func TestBuildMessagesOrdersSystemSkillsUser(t *testing.T) {
 	r := &Runner{}
-	ag := agent.Agent{CombinedSystem: "SYS", SkillsPrompt: "SKILLS"}
-	msgs := r.buildMessages(ag, "hi")
+	ag := agent.Agent{CombinedSystem: "SYS", SkillsPrompt: "SKILLS", Model: ""}
+	msgs := r.buildMessages(context.Background(), ag, "hi")
 	if len(msgs) != 3 {
 		t.Fatalf("expected 3 messages, got %d", len(msgs))
 	}
@@ -75,8 +75,8 @@ func TestBuildMessagesWithTextAttachment(t *testing.T) {
 	}
 
 	r := &Runner{}
-	ag := agent.Agent{CombinedSystem: "SYS"}
-	msgs := r.buildMessagesWithAttachments(ag, "summarize", []string{testFile})
+	ag := agent.Agent{CombinedSystem: "SYS", Model: ""}
+	msgs := r.buildMessagesWithAttachments(context.Background(), ag, "summarize", []string{testFile})
 
 	if len(msgs) != 2 {
 		t.Fatalf("expected 2 messages (system + user), got %d", len(msgs))
@@ -119,8 +119,8 @@ func TestBuildMessagesWithBinaryAttachment(t *testing.T) {
 	}
 
 	r := &Runner{}
-	ag := agent.Agent{}
-	msgs := r.buildMessagesWithAttachments(ag, "describe", []string{testFile})
+	ag := agent.Agent{Model: ""}
+	msgs := r.buildMessagesWithAttachments(context.Background(), ag, "describe", []string{testFile})
 
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))
@@ -147,8 +147,8 @@ func TestBuildMessagesWithBinaryAttachment(t *testing.T) {
 
 func TestBuildMessagesWithMissingAttachment(t *testing.T) {
 	r := &Runner{}
-	ag := agent.Agent{}
-	msgs := r.buildMessagesWithAttachments(ag, "prompt", []string{"/nonexistent/file.txt"})
+	ag := agent.Agent{Model: ""}
+	msgs := r.buildMessagesWithAttachments(context.Background(), ag, "prompt", []string{"/nonexistent/file.txt"})
 
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))

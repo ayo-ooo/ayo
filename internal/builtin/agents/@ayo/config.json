@@ -1,5 +1,20 @@
 {
   "description": "The default ayo agent - a versatile command-line assistant",
-  "allowed_tools": ["bash", "agent_call"],
-  "skills": ["coding"]
+  "allowed_tools": ["bash", "memory", "agent_call"],
+  "skills": ["memory", "coding"],
+  "memory": {
+    "enabled": true,
+    "scope": "global",
+    "formation_triggers": {
+      "on_correction": true,
+      "on_preference": true,
+      "on_project_fact": true,
+      "explicit_only": false
+    },
+    "retrieval": {
+      "auto_inject": true,
+      "threshold": 0.5,
+      "max_memories": 10
+    }
+  }
 }

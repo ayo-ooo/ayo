@@ -45,3 +45,23 @@ type SessionEdge struct {
 	TriggerMessageID sql.NullString `json:"trigger_message_id"`
 	CreatedAt        int64          `json:"created_at"`
 }
+
+type Memory struct {
+	ID                 string         `json:"id"`
+	AgentHandle        sql.NullString `json:"agent_handle"`
+	PathScope          sql.NullString `json:"path_scope"`
+	Content            string         `json:"content"`
+	Category           string         `json:"category"`
+	Embedding          []byte         `json:"embedding"`
+	SourceSessionID    sql.NullString `json:"source_session_id"`
+	SourceMessageID    sql.NullString `json:"source_message_id"`
+	CreatedAt          int64          `json:"created_at"`
+	UpdatedAt          int64          `json:"updated_at"`
+	Confidence         sql.NullFloat64 `json:"confidence"`
+	LastAccessedAt     sql.NullInt64  `json:"last_accessed_at"`
+	AccessCount        sql.NullInt64  `json:"access_count"`
+	SupersedesID       sql.NullString `json:"supersedes_id"`
+	SupersededByID     sql.NullString `json:"superseded_by_id"`
+	SupersessionReason sql.NullString `json:"supersession_reason"`
+	Status             sql.NullString `json:"status"`
+}

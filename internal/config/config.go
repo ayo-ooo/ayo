@@ -20,12 +20,32 @@ type Config struct {
 	SystemSuffix   string           `json:"system_suffix,omitempty"`
 	SkillsDir      string           `json:"skills_dir,omitempty"`
 	DefaultModel   string           `json:"default_model,omitempty"`
+	SmallModel     string           `json:"small_model,omitempty"`
+	EmbeddingModel string           `json:"embedding_model,omitempty"`
+	OllamaHost     string           `json:"ollama_host,omitempty"`
 	CatwalkBaseURL string           `json:"catwalk_base_url,omitempty"`
 	Provider       catwalk.Provider `json:"provider,omitempty"`
+	Embedding      EmbeddingConfig  `json:"embedding,omitempty"`
 
 	// Delegates maps task types to agent handles for global delegation.
 	// Example: {"coding": "@crush", "research": "@ayo.research"}
 	Delegates map[string]string `json:"delegates,omitempty"`
+}
+
+// EmbeddingConfig configures the embedding system.
+type EmbeddingConfig struct {
+	// Provider is the embedding provider. Use "local" for offline embeddings (default),
+	// or "openai", "voyage", "ollama" for cloud-based embeddings.
+	Provider string `json:"provider,omitempty"`
+
+	// Model is the embedding model to use (provider-specific).
+	Model string `json:"model,omitempty"`
+
+	// APIKey is the API key for cloud providers (can also use environment variables).
+	APIKey string `json:"api_key,omitempty"`
+
+	// Endpoint overrides the default API endpoint for the provider.
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 func apiKeyEnvForProvider(p catwalk.Provider) string {
@@ -50,11 +70,18 @@ func Default() Config {
 		SystemSuffix:   "", // Uses paths.FindPromptFile("system-suffix.md")
 		SkillsDir:      paths.SkillsDir(),
 		DefaultModel:   "gpt-4.1",
+		SmallModel:     "ollama/ministral-3:3b",
+		EmbeddingModel: "ollama/nomic-embed-text",
+		OllamaHost:     "http://localhost:11434",
 		CatwalkBaseURL: defaultCatwalkURL(),
 		Provider: catwalk.Provider{
 			Name:        "openai",
 			ID:          catwalk.InferenceProviderOpenAI,
 			APIEndpoint: "https://api.openai.com/v1",
+		},
+		Embedding: EmbeddingConfig{
+			Provider: "ollama",
+			Model:    "nomic-embed-text",
 		},
 	}
 }

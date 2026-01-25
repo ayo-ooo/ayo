@@ -14,10 +14,15 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/embedding"
+	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 func newRootCmd() *cobra.Command {
@@ -74,7 +79,77 @@ func newRootCmd() *cobra.Command {
 					defer services.Close()
 				}
 
-				runner, err := run.NewRunnerWithServices(cfg, debug, services)
+				// Create memory services if database available
+				var memSvc *memory.Service
+				var formSvc *memory.FormationService
+				var smallModelSvc *smallmodel.Service
+				var memQueue *memory.Queue
+				if services != nil {
+					// Create Ollama-based embedder and small model service
+					var embedder embedding.Embedder
+					ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
+					if ollamaClient.IsAvailable(cmd.Context()) {
+						embedder = embedding.NewOllamaEmbedder(embedding.OllamaConfig{
+							Host:  cfg.OllamaHost,
+							Model: cfg.Embedding.Model,
+						})
+						smallModelSvc = smallmodel.NewService(smallmodel.Config{
+							Host:  cfg.OllamaHost,
+							Model: cfg.SmallModel,
+						})
+					} else if debug {
+						fmt.Fprintf(os.Stderr, "Warning: Ollama not available at %s, memory features disabled\n", cfg.OllamaHost)
+					}
+					memSvc = memory.NewService(services.Queries(), embedder)
+					if embedder != nil {
+						defer embedder.Close()
+					}
+					formSvc = memory.NewFormationService(memSvc)
+					
+					// Create async memory queue
+					memQueue = memory.NewQueue(memSvc, memory.QueueConfig{
+						BufferSize: 100,
+						OnStatus: func(msg ui.AsyncStatusMsg) {
+							// For now, just print to stderr - will be wired to TUI later
+							switch msg.Status {
+							case ui.AsyncStatusInProgress:
+								fmt.Fprintf(os.Stderr, "  ◇ %s\n", msg.Message)
+							case ui.AsyncStatusCompleted:
+								fmt.Fprintf(os.Stderr, "  ◆ %s\n", msg.Message)
+							case ui.AsyncStatusFailed:
+								fmt.Fprintf(os.Stderr, "  × %s\n", msg.Message)
+							}
+						},
+					})
+					memQueue.Start()
+					defer memQueue.Stop(5 * time.Second)
+					
+					// Register callback for memory formation feedback
+					formSvc.OnFormation(func(result memory.FormationResult) {
+						var msg string
+						switch result.EventType() {
+						case memory.FormationEventCreated:
+							msg = "  ◆ Remembered"
+						case memory.FormationEventSkipped:
+							msg = "  ◇ Already remembered"
+						case memory.FormationEventSuperseded:
+							msg = "  ◆ Memory updated"
+						case memory.FormationEventFailed:
+							msg = "  × Failed to remember"
+						default:
+							return
+						}
+						fmt.Fprintln(os.Stderr, msg)
+					})
+				}
+
+				runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
+					Services:         services,
+					MemoryService:    memSvc,
+					FormationService: formSvc,
+					SmallModel:       smallModelSvc,
+					MemoryQueue:      memQueue,
+				})
 				if err != nil {
 					return err
 				}
@@ -124,6 +199,9 @@ func newRootCmd() *cobra.Command {
 						return err
 					}
 
+					// Wait for any pending memory formations to complete
+					runner.WaitForFormations(2 * time.Second)
+
 					// Output to stdout (for piping)
 					fmt.Println(result.Response)
 
@@ -151,6 +229,8 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
 	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
+	cmd.AddCommand(newMemoryCmd())
+	cmd.AddCommand(newDoctorCmd(&cfgPath))
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 
 	return cmd

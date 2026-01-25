@@ -35,6 +35,11 @@ func (s *Services) Close() error {
 	return s.db.Close()
 }
 
+// Queries returns the underlying database queries for use by other services.
+func (s *Services) Queries() *db.Queries {
+	return s.queries
+}
+
 // Connect opens a database connection, runs migrations, and returns Services.
 func Connect(ctx context.Context, dbPath string) (*Services, error) {
 	database, queries, err := db.ConnectWithQueries(ctx, dbPath)

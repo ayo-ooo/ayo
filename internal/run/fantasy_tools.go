@@ -14,6 +14,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
@@ -129,22 +130,27 @@ type FantasyToolSet struct {
 	tools       []fantasy.AgentTool
 	allowedList []string
 	baseDir     string
+	memoryQueue *memory.Queue // Optional async memory queue
 	depth       int
 }
 
 // NewFantasyToolSet creates a Fantasy tool set from allowed tool names.
 func NewFantasyToolSet(allowed []string) FantasyToolSet {
 	baseDir, _ := os.Getwd()
-	return NewFantasyToolSetWithDepth(allowed, baseDir, 0)
+	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
 }
 
 // NewFantasyToolSetWithBaseDir creates a Fantasy tool set with explicit base directory.
 func NewFantasyToolSetWithBaseDir(allowed []string, baseDir string) FantasyToolSet {
-	return NewFantasyToolSetWithDepth(allowed, baseDir, 0)
+	return NewFantasyToolSetWithOptions(allowed, baseDir, nil, 0)
 }
 
-// NewFantasyToolSetWithDepth creates a Fantasy tool set with explicit base directory and depth.
-func NewFantasyToolSetWithDepth(allowed []string, baseDir string, depth int) FantasyToolSet {
+// NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
+func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int) FantasyToolSet {
+	if baseDir == "" {
+		baseDir, _ = os.Getwd()
+	}
+
 	// Default to bash and plan if no tools specified
 	if len(allowed) == 0 {
 		allowed = []string{"bash", "plan"}
@@ -161,6 +167,9 @@ func NewFantasyToolSetWithDepth(allowed []string, baseDir string, depth int) Fan
 		case "plan":
 			tools = append(tools, NewPlanTool())
 			loadedTools[name] = true
+		case "memory":
+			tools = append(tools, NewMemoryToolWithQueue(memQueue))
+			loadedTools[name] = true
 		// agent_call is added separately when needed
 		default:
 			// Try to load as external tool from plugins
@@ -171,7 +180,7 @@ func NewFantasyToolSetWithDepth(allowed []string, baseDir string, depth int) Fan
 		}
 	}
 
-	return FantasyToolSet{tools: tools, allowedList: allowed, baseDir: baseDir, depth: depth}
+	return FantasyToolSet{tools: tools, allowedList: allowed, baseDir: baseDir, memoryQueue: memQueue, depth: depth}
 }
 
 // Tools returns the Fantasy agent tools.
@@ -272,6 +281,129 @@ func (l *fantasyLimitedBuffer) Write(p []byte) (int, error) {
 
 func (l *fantasyLimitedBuffer) String() string {
 	return l.buf.String()
+}
+
+// MemoryParams defines the parameters for the memory tool.
+type MemoryParams struct {
+	Operation string `json:"operation" description:"The memory operation to perform: 'search', 'store', 'list', 'forget'"`
+	Query     string `json:"query,omitempty" description:"For 'search': the semantic search query"`
+	Content   string `json:"content,omitempty" description:"For 'store': the memory content to store"`
+	Category  string `json:"category,omitempty" description:"For 'store': the memory category (preference, fact, correction, pattern). Default: fact"`
+	ID        string `json:"id,omitempty" description:"For 'forget': the memory ID (or prefix) to forget"`
+	Limit     int    `json:"limit,omitempty" description:"For 'search' or 'list': maximum number of results. Default: 10"`
+}
+
+// NewMemoryTool creates the memory tool for Fantasy (sync mode, shells out).
+// Deprecated: Use NewMemoryToolWithQueue for async store operations.
+func NewMemoryTool(ayoBinary string) fantasy.AgentTool {
+	return NewMemoryToolWithQueue(nil)
+}
+
+// NewMemoryToolWithQueue creates the memory tool with optional async queue for store operations.
+// If queue is nil, all operations shell out synchronously.
+// If queue is provided, store operations are async; search/list/forget remain sync.
+func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
+	// Get the binary path for sync operations
+	ayoBinary := ""
+	if exe, err := os.Executable(); err == nil {
+		ayoBinary = exe
+	} else {
+		ayoBinary = "ayo"
+	}
+
+	return fantasy.NewAgentTool(
+		"memory",
+		"Manage persistent memories that persist across sessions. Use 'search' to find relevant memories, 'store' to save new information, 'list' to see all memories, or 'forget' to remove memories.",
+		func(ctx context.Context, params MemoryParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			// Handle store operation with async queue if available
+			if params.Operation == "store" {
+				if params.Content == "" {
+					return fantasy.NewTextErrorResponse("content is required for store operation"), nil
+				}
+
+				if queue != nil {
+					// Async path: enqueue and return immediately
+					category := memory.CategoryFact // default
+					switch params.Category {
+					case "preference":
+						category = memory.CategoryPreference
+					case "correction":
+						category = memory.CategoryCorrection
+					case "pattern":
+						category = memory.CategoryPattern
+					}
+
+					reqID := queue.Enqueue(params.Content, category, "", "")
+					return fantasy.NewTextResponse(fmt.Sprintf(`{"queued":true,"request_id":"%s","message":"Memory queued for storage"}`, reqID)), nil
+				}
+				// Fall through to sync path if no queue
+			}
+
+			// Sync path: shell out to ayo CLI
+			var args []string
+
+			switch params.Operation {
+			case "search":
+				if params.Query == "" {
+					return fantasy.NewTextErrorResponse("query is required for search operation"), nil
+				}
+				args = []string{"memory", "search", params.Query, "--json"}
+				if params.Limit > 0 {
+					args = append(args, "-n", fmt.Sprintf("%d", params.Limit))
+				}
+
+			case "store":
+				// Only reached if queue is nil
+				args = []string{"memory", "store", params.Content, "--json"}
+				if params.Category != "" {
+					args = append(args, "-c", params.Category)
+				}
+
+			case "list":
+				args = []string{"memory", "list", "--json"}
+				if params.Limit > 0 {
+					args = append(args, "-n", fmt.Sprintf("%d", params.Limit))
+				}
+
+			case "forget":
+				if params.ID == "" {
+					return fantasy.NewTextErrorResponse("id is required for forget operation"), nil
+				}
+				args = []string{"memory", "forget", params.ID, "--json", "-f"}
+
+			default:
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("unknown operation: %s. Valid operations: search, store, list, forget", params.Operation)), nil
+			}
+
+			// Execute the ayo command
+			timeout := 30 * time.Second
+			execCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			cmd := exec.CommandContext(execCtx, ayoBinary, args...)
+
+			stdoutBuf := &fantasyLimitedBuffer{max: fantasyOutputLimitBytes}
+			stderrBuf := &fantasyLimitedBuffer{max: fantasyOutputLimitBytes}
+			cmd.Stdout = stdoutBuf
+			cmd.Stderr = stderrBuf
+
+			runErr := cmd.Run()
+
+			if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+				return fantasy.NewTextErrorResponse("memory operation timed out"), nil
+			}
+
+			if runErr != nil {
+				errMsg := stderrBuf.String()
+				if errMsg == "" {
+					errMsg = runErr.Error()
+				}
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("memory operation failed: %s", errMsg)), nil
+			}
+
+			return fantasy.NewTextResponse(stdoutBuf.String()), nil
+		},
+	)
 }
 
 // loadExternalTool attempts to load a tool from installed plugins.

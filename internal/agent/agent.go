@@ -38,9 +38,35 @@ type Config struct {
 	IgnoreBuiltinSkills bool     `json:"ignore_builtin_skills,omitempty"`
 	IgnoreSharedSkills  bool     `json:"ignore_shared_skills,omitempty"`
 
+	// Memory configuration
+	Memory MemoryConfig `json:"memory,omitempty"`
+
 	// Delegation configuration
 	// Maps task types (e.g., "coding", "research") to agent handles (e.g., "@crush")
 	Delegates map[string]string `json:"delegates,omitempty"`
+}
+
+// MemoryConfig configures agent memory behavior.
+type MemoryConfig struct {
+	Enabled         bool                   `json:"enabled,omitempty"`           // Enable memory for this agent
+	Scope           string                 `json:"scope,omitempty"`             // "agent", "global", or "hybrid"
+	FormationTriggers FormationTriggerConfig `json:"formation_triggers,omitempty"`
+	Retrieval       RetrievalConfig        `json:"retrieval,omitempty"`
+}
+
+// FormationTriggerConfig configures when to form memories.
+type FormationTriggerConfig struct {
+	OnCorrection   bool `json:"on_correction,omitempty"`   // User corrects agent behavior
+	OnPreference   bool `json:"on_preference,omitempty"`   // User expresses preference
+	OnProjectFact  bool `json:"on_project_fact,omitempty"` // Learns something about project
+	ExplicitOnly   bool `json:"explicit_only,omitempty"`   // Only when user says "remember"
+}
+
+// RetrievalConfig configures memory retrieval behavior.
+type RetrievalConfig struct {
+	AutoInject  bool    `json:"auto_inject,omitempty"` // Auto-retrieve at session start
+	Threshold   float32 `json:"threshold,omitempty"`   // Similarity threshold (0-1)
+	MaxMemories int     `json:"max_memories,omitempty"` // Context budget
 }
 
 type Agent struct {

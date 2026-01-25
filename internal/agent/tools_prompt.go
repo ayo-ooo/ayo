@@ -16,16 +16,19 @@ func BuildToolsPrompt(allowedTools []string) string {
 
 	hasBash := false
 	hasAgentCall := false
+	hasMemory := false
 	for _, t := range allowedTools {
 		switch t {
 		case "bash":
 			hasBash = true
 		case "agent_call":
 			hasAgentCall = true
+		case "memory":
+			hasMemory = true
 		}
 	}
 
-	if !hasBash && !hasAgentCall {
+	if !hasBash && !hasAgentCall && !hasMemory {
 		return ""
 	}
 
@@ -116,6 +119,40 @@ func BuildToolsPrompt(allowedTools []string) string {
 			b.WriteString("Optional: `timeout_seconds` (default 120, max 300)\n")
 			b.WriteString("</agent_call>\n\n")
 		}
+	}
+
+	if hasMemory {
+		b.WriteString("<memory>\n")
+		b.WriteString("You have a memory tool for managing persistent memories across sessions.\n\n")
+
+		b.WriteString("**AUTOMATICALLY** store memories when the user:\n")
+		b.WriteString("- Expresses preferences (\"I prefer...\", \"always use...\", \"never...\")\n")
+		b.WriteString("- Corrects you (\"no, I meant...\", \"actually...\", \"that's wrong...\")\n")
+		b.WriteString("- Shares facts about themselves or their project\n")
+		b.WriteString("- Explicitly asks you to remember something\n\n")
+
+		b.WriteString("**AUTOMATICALLY** search memories when:\n")
+		b.WriteString("- The user asks about their preferences\n")
+		b.WriteString("- You need context about the user or project\n")
+		b.WriteString("- Starting a task that might have relevant past context\n\n")
+
+		b.WriteString("Operations:\n")
+		b.WriteString("- `search`: Find relevant memories semantically. Params: query (required), limit (optional)\n")
+		b.WriteString("- `store`: Save new information. Params: content (required), category (optional - auto-detected if omitted)\n")
+		b.WriteString("- `list`: Show all memories. Params: limit (optional)\n")
+		b.WriteString("- `forget`: Remove a memory. Params: id (required)\n\n")
+
+		b.WriteString("Categories (auto-detected if not specified):\n")
+		b.WriteString("- preference: User preferences about tools, styles, workflows\n")
+		b.WriteString("- fact: Facts about the user, project, or environment\n")
+		b.WriteString("- correction: Corrections to agent behavior\n")
+		b.WriteString("- pattern: Observed behavioral patterns\n\n")
+
+		b.WriteString("Best practices:\n")
+		b.WriteString("- Distill memories to their essence (\"User prefers TypeScript\" not \"The user said they prefer TypeScript\")\n")
+		b.WriteString("- Let auto-categorization work - only specify category if you need to override\n")
+		b.WriteString("- Search before storing to avoid duplicates\n")
+		b.WriteString("</memory>\n\n")
 	}
 
 	b.WriteString("</tools>")

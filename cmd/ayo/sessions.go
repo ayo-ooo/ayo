@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,9 +12,13 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/embedding"
+	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
 
@@ -374,8 +379,52 @@ Supports session ID prefix matching and title search.`,
 				return fmt.Errorf("failed to load messages: %w", err)
 			}
 
+			// Create memory services with Ollama if available
+			var embedder embedding.Embedder
+			var smallModelSvc *smallmodel.Service
+			var memQueue *memory.Queue
+			ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
+			if ollamaClient.IsAvailable(cmd.Context()) {
+				embedder = embedding.NewOllamaEmbedder(embedding.OllamaConfig{
+					Host:  cfg.OllamaHost,
+					Model: cfg.Embedding.Model,
+				})
+				defer embedder.Close()
+				smallModelSvc = smallmodel.NewService(smallmodel.Config{
+					Host:  cfg.OllamaHost,
+					Model: cfg.SmallModel,
+				})
+			} else if debug {
+				fmt.Fprintf(os.Stderr, "Warning: Ollama not available at %s, memory features disabled\n", cfg.OllamaHost)
+			}
+			memSvc := memory.NewService(services.Queries(), embedder)
+			formSvc := memory.NewFormationService(memSvc)
+			
+			// Create async memory queue
+			memQueue = memory.NewQueue(memSvc, memory.QueueConfig{
+				BufferSize: 100,
+				OnStatus: func(msg ui.AsyncStatusMsg) {
+					switch msg.Status {
+					case ui.AsyncStatusInProgress:
+						fmt.Fprintf(os.Stderr, "  ◇ %s\n", msg.Message)
+					case ui.AsyncStatusCompleted:
+						fmt.Fprintf(os.Stderr, "  ◆ %s\n", msg.Message)
+					case ui.AsyncStatusFailed:
+						fmt.Fprintf(os.Stderr, "  × %s\n", msg.Message)
+					}
+				},
+			})
+			memQueue.Start()
+			defer memQueue.Stop(5 * time.Second)
+
 			// Create runner with services
-			runner, err := run.NewRunnerWithServices(cfg, debug, services)
+			runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
+				Services:         services,
+				MemoryService:    memSvc,
+				FormationService: formSvc,
+				SmallModel:       smallModelSvc,
+				MemoryQueue:      memQueue,
+			})
 			if err != nil {
 				return err
 			}

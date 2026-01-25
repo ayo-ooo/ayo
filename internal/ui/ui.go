@@ -966,3 +966,48 @@ func (u *UI) PrintSubAgentEnd(agentHandle string, duration string, hasError bool
 		statusStyle.Render(statusText),
 		durationStyle.Render("("+duration+")"))
 }
+
+// MemoryEventType represents the type of memory event.
+type MemoryEventType string
+
+const (
+	MemoryCreated    MemoryEventType = "created"
+	MemorySkipped    MemoryEventType = "skipped"
+	MemorySuperseded MemoryEventType = "superseded"
+	MemoryFailed     MemoryEventType = "failed"
+)
+
+// PrintMemoryEvent prints memory formation feedback.
+func (u *UI) PrintMemoryEvent(event MemoryEventType) {
+	if u.piped {
+		return
+	}
+
+	indent := u.indent()
+	var icon, msg string
+	var color lipgloss.Color
+
+	switch event {
+	case MemoryCreated:
+		icon = "◆"
+		msg = "Remembered"
+		color = lipgloss.Color("70") // Green
+	case MemorySkipped:
+		icon = "◇"
+		msg = "Already remembered"
+		color = lipgloss.Color("242") // Gray
+	case MemorySuperseded:
+		icon = "◆"
+		msg = "Memory updated"
+		color = lipgloss.Color("214") // Orange
+	case MemoryFailed:
+		icon = "×"
+		msg = "Failed to remember"
+		color = lipgloss.Color("196") // Red
+	default:
+		return
+	}
+
+	style := lipgloss.NewStyle().Foreground(color)
+	u.printf("%s%s\n", indent, style.Render(fmt.Sprintf("  %s %s", icon, msg)))
+}
