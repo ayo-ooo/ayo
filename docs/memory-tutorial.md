@@ -69,6 +69,13 @@ Search my memories for preferences
 Store that this project uses PostgreSQL 15
 ```
 
+Memory storage is asynchronous - the agent continues immediately while the memory is stored in the background. You'll see status updates:
+
+```
+◇ Storing memory...
+◆ Memory stored
+```
+
 ## Management
 
 ```bash

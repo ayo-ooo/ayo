@@ -22,6 +22,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
+	"github.com/alexcabrera/ayo/internal/ui"
 )
 
 func newRootCmd() *cobra.Command {
@@ -82,6 +83,7 @@ func newRootCmd() *cobra.Command {
 				var memSvc *memory.Service
 				var formSvc *memory.FormationService
 				var smallModelSvc *smallmodel.Service
+				var memQueue *memory.Queue
 				if services != nil {
 					// Create Ollama-based embedder and small model service
 					var embedder embedding.Embedder
@@ -103,6 +105,24 @@ func newRootCmd() *cobra.Command {
 						defer embedder.Close()
 					}
 					formSvc = memory.NewFormationService(memSvc)
+					
+					// Create async memory queue
+					memQueue = memory.NewQueue(memSvc, memory.QueueConfig{
+						BufferSize: 100,
+						OnStatus: func(msg ui.AsyncStatusMsg) {
+							// For now, just print to stderr - will be wired to TUI later
+							switch msg.Status {
+							case ui.AsyncStatusInProgress:
+								fmt.Fprintf(os.Stderr, "  ◇ %s\n", msg.Message)
+							case ui.AsyncStatusCompleted:
+								fmt.Fprintf(os.Stderr, "  ◆ %s\n", msg.Message)
+							case ui.AsyncStatusFailed:
+								fmt.Fprintf(os.Stderr, "  × %s\n", msg.Message)
+							}
+						},
+					})
+					memQueue.Start()
+					defer memQueue.Stop(5 * time.Second)
 					
 					// Register callback for memory formation feedback
 					formSvc.OnFormation(func(result memory.FormationResult) {
@@ -128,6 +148,7 @@ func newRootCmd() *cobra.Command {
 					MemoryService:    memSvc,
 					FormationService: formSvc,
 					SmallModel:       smallModelSvc,
+					MemoryQueue:      memQueue,
 				})
 				if err != nil {
 					return err

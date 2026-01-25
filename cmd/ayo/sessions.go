@@ -370,6 +370,7 @@ Supports session ID prefix matching and title search.`,
 			// Create memory services with Ollama if available
 			var embedder embedding.Embedder
 			var smallModelSvc *smallmodel.Service
+			var memQueue *memory.Queue
 			ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
 			if ollamaClient.IsAvailable(cmd.Context()) {
 				embedder = embedding.NewOllamaEmbedder(embedding.OllamaConfig{
@@ -386,6 +387,23 @@ Supports session ID prefix matching and title search.`,
 			}
 			memSvc := memory.NewService(services.Queries(), embedder)
 			formSvc := memory.NewFormationService(memSvc)
+			
+			// Create async memory queue
+			memQueue = memory.NewQueue(memSvc, memory.QueueConfig{
+				BufferSize: 100,
+				OnStatus: func(msg ui.AsyncStatusMsg) {
+					switch msg.Status {
+					case ui.AsyncStatusInProgress:
+						fmt.Fprintf(os.Stderr, "  ◇ %s\n", msg.Message)
+					case ui.AsyncStatusCompleted:
+						fmt.Fprintf(os.Stderr, "  ◆ %s\n", msg.Message)
+					case ui.AsyncStatusFailed:
+						fmt.Fprintf(os.Stderr, "  × %s\n", msg.Message)
+					}
+				},
+			})
+			memQueue.Start()
+			defer memQueue.Stop(5 * time.Second)
 
 			// Create runner with services
 			runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
@@ -393,6 +411,7 @@ Supports session ID prefix matching and title search.`,
 				MemoryService:    memSvc,
 				FormationService: formSvc,
 				SmallModel:       smallModelSvc,
+				MemoryQueue:      memQueue,
 			})
 			if err != nil {
 				return err

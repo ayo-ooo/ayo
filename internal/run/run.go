@@ -30,6 +30,8 @@ type Runner struct {
 	memoryService    *memory.Service          // nil = no memory
 	formationService *memory.FormationService // nil = no async formation
 	smallModel       *smallmodel.Service      // nil = no small model for memory extraction
+	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
+	memoryQueue      *memory.Queue            // nil = sync memory operations
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -68,6 +70,8 @@ type RunnerOptions struct {
 	MemoryService    *memory.Service
 	FormationService *memory.FormationService
 	SmallModel       *smallmodel.Service
+	OnAsyncStatus    func(uipkg.AsyncStatusMsg) // Callback for async operation status updates
+	MemoryQueue      *memory.Queue              // Queue for async memory operations
 }
 
 // NewRunner creates a runner with all options.
@@ -80,6 +84,8 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		memoryService:    opts.MemoryService,
 		formationService: opts.FormationService,
 		smallModel:       opts.SmallModel,
+		onAsyncStatus:    opts.OnAsyncStatus,
+		memoryQueue:      opts.MemoryQueue,
 	}, nil
 }
 
@@ -87,6 +93,20 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 func (r *Runner) WaitForFormations(timeout time.Duration) {
 	if r.formationService != nil {
 		r.formationService.Wait(timeout)
+	}
+}
+
+// WaitForMemoryQueue waits for pending memory queue operations to complete.
+func (r *Runner) WaitForMemoryQueue(timeout time.Duration) {
+	if r.memoryQueue != nil {
+		r.memoryQueue.Stop(timeout)
+	}
+}
+
+// StartMemoryQueue starts the memory queue worker if configured.
+func (r *Runner) StartMemoryQueue() {
+	if r.memoryQueue != nil {
+		r.memoryQueue.Start()
 	}
 }
 
@@ -479,8 +499,8 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		return "", nil, fmt.Errorf("create language model: %w", err)
 	}
 
-	// Build tool set
-	tools := NewFantasyToolSetWithBaseDir(ag.Config.AllowedTools, "")
+	// Build tool set with memory queue if available
+	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, "", r.memoryQueue)
 
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
