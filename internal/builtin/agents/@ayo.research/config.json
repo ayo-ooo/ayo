@@ -1,5 +1,0 @@
-{
-  "description": "Research assistant that uses live web sources to answer questions with citations",
-  "allowed_tools": ["bash"],
-  "skills": ["web-search"]
-}

@@ -15,7 +15,7 @@
 
 ## Documentation Guidelines
 
-- Use real agent handles and skill names that exist (e.g., `@ayo`, `@ayo.research`, `debugging`)
+- Use real agent handles and skill names that exist (e.g., `@ayo`, `@ayo.coding`, `debugging`)
 - For commands that create new entities (like `ayo agents create @myagent`), placeholders are acceptable since they will create the entity
 - Directory structure diagrams showing hypothetical user content are acceptable (e.g., `@myagent/` to show where user agents go)
 - Never use placeholder names like `@agent`, `@myagent`, `@source-agent` in commands that query or operate on existing entities
@@ -978,11 +978,15 @@ internal/builtin/agents/{name}/
 
 - `@ayo` - The default agent, a versatile command-line assistant
 - `@ayo.coding` - Coding agent that uses Crush for complex source code tasks
-- `@ayo.research` - Research assistant with web search capabilities
 - `@ayo.agents` - Agent management agent for creating and managing agents
 - `@ayo.skills` - Skill management agent for creating and managing skills
 
 The `ayo` namespace is reserved - users cannot create agents with the `@ayo` handle or `@ayo.` prefix.
+
+### Available via Plugins
+
+- `@research` - Research assistant with web search (install: `ayo plugins install .../ayo-plugins-research`)
+- `@crush` - Coding agent powered by Crush (install: `ayo plugins install .../ayo-plugins-crush`)
 
 ## Plugin System
 
@@ -1023,12 +1027,23 @@ ayo-plugins-<name>/
   "agents": ["@crush"],
   "skills": ["crush-coding"],
   "tools": ["crush"],
+  "delegates": {
+    "coding": "@crush"
+  },
+  "default_tools": {
+    "search": "searxng"
+  },
   "dependencies": {
     "binaries": ["crush"]
   },
   "ayo_version": ">=0.2.0"
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `delegates` | Task types this plugin's agents handle (prompts user to set as global) |
+| `default_tools` | Tool aliases this plugin provides (prompts user to set as default) |
 
 ### External Tools (tool.json)
 
@@ -1049,9 +1064,23 @@ External tools map CLI commands to Fantasy tool definitions:
     }
   ],
   "timeout": 60,
-  "working_dir": "param"
+  "working_dir": "param",
+  "depends_on": ["required-binary"],
+  "spinner_style": "default"
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Tool identifier used in agent configs |
+| `description` | Brief description for the LLM |
+| `command` | Executable to run (binary name or path) |
+| `args` | Default arguments with `{{param}}` placeholders |
+| `parameters` | Input schema for the tool |
+| `timeout` | Timeout in seconds (0 = no timeout) |
+| `working_dir` | `inherit` (default), `plugin`, or `param` |
+| `depends_on` | Required binaries that must be in PATH |
+| `spinner_style` | `default` (dots), `crush` (fancy), or `none` |
 
 ### CLI Commands
 
@@ -1153,6 +1182,58 @@ Plugins can declare delegates in their `manifest.json`. When installed, users ar
 ```
 
 This allows plugins to automatically configure delegation for the task types they handle.
+
+## Tool Aliases
+
+Tool aliases allow agents to use generic tool types (like `search`) that resolve to user-configured concrete tools (like `searxng`). This enables swappable implementations for common tool categories.
+
+### Configuration
+
+Configure default tools in `~/.config/ayo/ayo.json`:
+
+```json
+{
+  "default_tools": {
+    "search": "searxng"
+  }
+}
+```
+
+### How It Works
+
+1. Agent config specifies `allowed_tools: ["search"]`
+2. At runtime, `search` resolves to `searxng` (or whatever is configured)
+3. If no search provider is configured, the tool is not available to the agent
+4. `@ayo` includes `search` by default - just install a search provider to enable
+
+### Behavior with Delegates
+
+When both a tool alias and a delegate are available for the same capability:
+
+- **Research delegate configured**: `@ayo` delegates research tasks to `@research` for thorough, citation-based research
+- **No research delegate, but search available**: `@ayo` uses search tool directly for quick lookups
+- **Neither available**: `@ayo` informs user that web search is not configured
+3. User can swap implementations without modifying agent configs
+
+### Tool Types
+
+| Type | Description |
+|------|-------------|
+| `search` | Web search (e.g., searxng, duckduckgo) |
+
+### Plugin-Provided Tools
+
+Plugins can declare `default_tools` in their `manifest.json`. When installed, users are prompted to set these as defaults:
+
+```json
+{
+  "name": "searxng",
+  "tools": ["searxng"],
+  "default_tools": {
+    "search": "searxng"
+  }
+}
+```
 
 ## Crush Integration (via Plugin)
 

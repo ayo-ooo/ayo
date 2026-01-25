@@ -60,9 +60,23 @@ ayo @agent-name -a file.txt "Analyze this file"
 | Agent | Description |
 |-------|-------------|
 | `@ayo` | Default versatile assistant with bash and agent delegation |
-| `@ayo.research` | Research assistant with web search capabilities |
 | `@ayo.agents` | Agent management for creating/modifying agents |
 | `@ayo.skills` | Skill management for creating/modifying skills |
+
+### Research with @research (via plugin)
+
+For research tasks requiring web search, install and use the `@research` agent:
+
+```bash
+# Install the search provider first
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-searxng
+
+# Install the research plugin
+ayo plugins install https://github.com/alexcabrera/ayo-plugins-research
+
+# Direct invocation
+ayo @research "What are the latest developments in quantum computing?"
+```
 
 ### Coding with @crush (via plugin)
 

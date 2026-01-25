@@ -14,6 +14,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
 )
@@ -408,7 +409,12 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 
 // loadExternalTool attempts to load a tool from installed plugins.
 // Returns nil if the tool is not found.
+// It first checks if the toolName is a tool alias (e.g., "search") and resolves it
+// to the configured default tool (e.g., "searxng").
 func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentTool {
+	// First, check if this is a tool alias that should be resolved
+	resolvedName := resolveToolAlias(toolName)
+
 	// Load plugin registry
 	registry, err := plugins.LoadRegistry()
 	if err != nil {
@@ -418,9 +424,9 @@ func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentT
 	// Search all enabled plugins for this tool
 	for _, plugin := range registry.ListEnabled() {
 		for _, tool := range plugin.Tools {
-			if tool == toolName {
+			if tool == resolvedName {
 				// Load tool definition
-				def, err := plugins.LoadToolDefinition(plugin.Path, toolName)
+				def, err := plugins.LoadToolDefinition(plugin.Path, resolvedName)
 				if err != nil {
 					continue
 				}
@@ -431,4 +437,24 @@ func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentT
 	}
 
 	return nil
+}
+
+// resolveToolAlias checks if the given tool name is an alias and returns the
+// configured concrete tool name. Returns the original name if no alias is configured.
+func resolveToolAlias(toolName string) string {
+	// Load config to check for default_tools mappings
+	cfg, err := config.Load(config.DefaultPath())
+	if err != nil {
+		return toolName
+	}
+
+	if cfg.DefaultTools == nil {
+		return toolName
+	}
+
+	if resolved, ok := cfg.DefaultTools[toolName]; ok && resolved != "" {
+		return resolved
+	}
+
+	return toolName
 }

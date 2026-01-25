@@ -135,6 +135,7 @@ func installPluginCmd(cfgPath *string) *cobra.Command {
 	var force bool
 	var local string
 	var skipDeps bool
+	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "install <git-url>",
@@ -218,9 +219,18 @@ Examples:
 			// Handle delegation setup if plugin declares delegates
 			if len(result.Manifest.Delegates) > 0 {
 				fmt.Println()
-				if err := handleDelegateSetup(result.Manifest.Delegates); err != nil {
+				if err := handleDelegateSetup(result.Manifest.Delegates, yes); err != nil {
 					// Don't fail install, just warn
 					fmt.Printf("  %s Could not configure delegates: %v\n", pluginWarnStyle.Render("!"), err)
+				}
+			}
+
+			// Handle default tool setup if plugin declares default_tools
+			if len(result.Manifest.DefaultTools) > 0 {
+				fmt.Println()
+				if err := handleDefaultToolSetup(result.Manifest.DefaultTools, yes); err != nil {
+					// Don't fail install, just warn
+					fmt.Printf("  %s Could not configure default tools: %v\n", pluginWarnStyle.Render("!"), err)
 				}
 			}
 
@@ -231,6 +241,7 @@ Examples:
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing installation")
 	cmd.Flags().StringVar(&local, "local", "", "Install from local directory")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency checks")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Auto-accept all prompts")
 
 	return cmd
 }
@@ -475,7 +486,8 @@ func removePluginCmd(cfgPath *string) *cobra.Command {
 }
 
 // handleDelegateSetup prompts the user to configure delegates declared by a plugin.
-func handleDelegateSetup(delegates map[string]string) error {
+// If autoYes is true, it automatically accepts all prompts.
+func handleDelegateSetup(delegates map[string]string, autoYes bool) error {
 	for taskType, agentHandle := range delegates {
 		// Check if there's already a delegate configured for this task type
 		currentDelegate, err := config.GetDelegate(taskType)
@@ -493,36 +505,40 @@ func handleDelegateSetup(delegates map[string]string) error {
 			continue
 		}
 
-		// Build the prompt
-		var title, description string
-		if currentDelegate != "" {
-			title = fmt.Sprintf("Set %s as the default %s agent?",
-				pluginNameStyle.Render(agentHandle),
-				taskType,
-			)
-			description = fmt.Sprintf("Current %s delegate: %s", taskType, currentDelegate)
-		} else {
-			title = fmt.Sprintf("Set %s as the default %s agent?",
-				pluginNameStyle.Render(agentHandle),
-				taskType,
-			)
-			description = fmt.Sprintf("This will handle all %s tasks automatically.", taskType)
-		}
-
 		var confirm bool
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title(title).
-					Description(description).
-					Affirmative("Yes").
-					Negative("No").
-					Value(&confirm),
-			),
-		).WithTheme(huh.ThemeCharm())
+		if autoYes {
+			confirm = true
+		} else {
+			// Build the prompt
+			var title, description string
+			if currentDelegate != "" {
+				title = fmt.Sprintf("Set %s as the default %s agent?",
+					pluginNameStyle.Render(agentHandle),
+					taskType,
+				)
+				description = fmt.Sprintf("Current %s delegate: %s", taskType, currentDelegate)
+			} else {
+				title = fmt.Sprintf("Set %s as the default %s agent?",
+					pluginNameStyle.Render(agentHandle),
+					taskType,
+				)
+				description = fmt.Sprintf("This will handle all %s tasks automatically.", taskType)
+			}
 
-		if err := form.Run(); err != nil {
-			return err
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(title).
+						Description(description).
+						Affirmative("Yes").
+						Negative("No").
+						Value(&confirm),
+				),
+			).WithTheme(huh.ThemeCharm())
+
+			if err := form.Run(); err != nil {
+				return err
+			}
 		}
 
 		if confirm {
@@ -550,6 +566,94 @@ func handleDelegateSetup(delegates map[string]string) error {
 			fmt.Printf("%s Skipped %s delegate configuration\n",
 				pluginMutedStyle.Render("-"),
 				taskType,
+			)
+		}
+	}
+
+	return nil
+}
+
+// handleDefaultToolSetup prompts the user to configure default tool mappings declared by a plugin.
+// If autoYes is true, it automatically accepts all prompts.
+func handleDefaultToolSetup(defaultTools map[string]string, autoYes bool) error {
+	for toolType, toolName := range defaultTools {
+		// Check if there's already a default tool configured for this type
+		currentTool, err := config.GetDefaultTool(toolType)
+		if err != nil {
+			return err
+		}
+
+		if currentTool != "" && currentTool == toolName {
+			// Already configured correctly
+			fmt.Printf("%s %s tool already set to %s\n",
+				pluginCheckmark,
+				toolType,
+				pluginNameStyle.Render(toolName),
+			)
+			continue
+		}
+
+		var confirm bool
+		if autoYes {
+			confirm = true
+		} else {
+			// Build the prompt
+			var title, description string
+			if currentTool != "" {
+				title = fmt.Sprintf("Set %s as the default %s tool?",
+					pluginNameStyle.Render(toolName),
+					toolType,
+				)
+				description = fmt.Sprintf("Current %s tool: %s", toolType, currentTool)
+			} else {
+				title = fmt.Sprintf("Set %s as the default %s tool?",
+					pluginNameStyle.Render(toolName),
+					toolType,
+				)
+				description = fmt.Sprintf("Agents can use the %q tool alias to access this.", toolType)
+			}
+
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(title).
+						Description(description).
+						Affirmative("Yes").
+						Negative("No").
+						Value(&confirm),
+				),
+			).WithTheme(huh.ThemeCharm())
+
+			if err := form.Run(); err != nil {
+				return err
+			}
+		}
+
+		if confirm {
+			previous, err := config.SetDefaultTool(toolType, toolName)
+			if err != nil {
+				return err
+			}
+
+			if previous != "" {
+				fmt.Printf("%s %s tool: %s %s %s\n",
+					pluginCheckmark,
+					toolType,
+					pluginMutedStyle.Render(previous),
+					pluginArrow,
+					pluginNameStyle.Render(toolName),
+				)
+			} else {
+				fmt.Printf("%s %s tool set to %s\n",
+					pluginCheckmark,
+					toolType,
+					pluginNameStyle.Render(toolName),
+				)
+			}
+		} else {
+			fmt.Printf("%s Skipped %s tool configuration\n",
+				pluginMutedStyle.Render("-"),
+				toolType,
 			)
 		}
 	}

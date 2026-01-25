@@ -11,6 +11,15 @@ import (
 	"golang.org/x/term"
 )
 
+// ToolSpinner is the interface for spinners used during tool execution.
+// Both Spinner and CrushSpinner implement this interface.
+type ToolSpinner interface {
+	Start()
+	Stop()
+	StopWithMessage(message string)
+	StopWithError(message string)
+}
+
 // SpinnerType identifies different kinds of async operations
 type SpinnerType int
 
@@ -252,4 +261,20 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%.0fs", d.Seconds())
 	}
 	return fmt.Sprintf("%.1fm", d.Minutes())
+}
+
+// NewToolSpinner creates the appropriate spinner for tool execution based on style.
+// Styles:
+//   - "default" or "" = standard dots spinner (SpinnerTool)
+//   - "crush" = fancy scrambling hex animation
+//   - "none" = no spinner (returns nil)
+func NewToolSpinner(label string, style string, depth int) ToolSpinner {
+	switch style {
+	case "crush":
+		return NewCrushSpinnerWithDepth(label, depth)
+	case "none":
+		return nil
+	default: // "default" or empty
+		return NewSpinnerWithTypeAndDepth(label, SpinnerTool, depth)
+	}
 }

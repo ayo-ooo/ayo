@@ -4,8 +4,43 @@ import (
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/plugins"
 )
+
+// isSearchToolAvailable checks if a search tool is configured and available.
+func isSearchToolAvailable() bool {
+	// Check if there's a default_tools.search configured
+	cfg, err := config.Load(config.DefaultPath())
+	if err != nil {
+		return false
+	}
+
+	if cfg.DefaultTools == nil {
+		return false
+	}
+
+	searchTool := cfg.DefaultTools["search"]
+	if searchTool == "" {
+		return false
+	}
+
+	// Check if the tool exists in plugins
+	registry, err := plugins.LoadRegistry()
+	if err != nil {
+		return false
+	}
+
+	for _, plugin := range registry.ListEnabled() {
+		for _, tool := range plugin.Tools {
+			if tool == searchTool {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 // BuildToolsPrompt returns system prompt instructions for tool usage
 func BuildToolsPrompt(allowedTools []string) string {
@@ -17,6 +52,7 @@ func BuildToolsPrompt(allowedTools []string) string {
 	hasBash := false
 	hasAgentCall := false
 	hasMemory := false
+	hasSearch := false
 	for _, t := range allowedTools {
 		switch t {
 		case "bash":
@@ -25,10 +61,15 @@ func BuildToolsPrompt(allowedTools []string) string {
 			hasAgentCall = true
 		case "memory":
 			hasMemory = true
+		case "search":
+			hasSearch = true
 		}
 	}
 
-	if !hasBash && !hasAgentCall && !hasMemory {
+	// Check if search tool is actually available (not just in allowed list)
+	searchAvailable := hasSearch && isSearchToolAvailable()
+
+	if !hasBash && !hasAgentCall && !hasMemory && !searchAvailable {
 		return ""
 	}
 
@@ -153,6 +194,27 @@ func BuildToolsPrompt(allowedTools []string) string {
 		b.WriteString("- Let auto-categorization work - only specify category if you need to override\n")
 		b.WriteString("- Search before storing to avoid duplicates\n")
 		b.WriteString("</memory>\n\n")
+	}
+
+	if searchAvailable {
+		b.WriteString("<search>\n")
+		b.WriteString("You have a search tool for searching the web.\n\n")
+
+		b.WriteString("Use this tool when:\n")
+		b.WriteString("- User asks about current events, news, or recent information\n")
+		b.WriteString("- User needs facts that may have changed since your training\n")
+		b.WriteString("- User explicitly asks to search the web\n")
+		b.WriteString("- You need to verify or look up current information\n\n")
+
+		b.WriteString("Parameters:\n")
+		b.WriteString("- `query` (required): Search terms, use + for spaces (e.g., \"latest+us+news\")\n")
+		b.WriteString("- `categories` (optional): general, news, images, videos, science, it, files, social+media, music, map\n")
+		b.WriteString("- `time_range` (optional): day, week, month, year\n")
+		b.WriteString("- `language` (optional): Language code like 'en', 'de', 'fr'\n\n")
+
+		b.WriteString("The tool returns JSON with results containing titles, URLs, and content snippets.\n")
+		b.WriteString("Summarize findings and cite sources when presenting information.\n")
+		b.WriteString("</search>\n\n")
 	}
 
 	b.WriteString("</tools>")

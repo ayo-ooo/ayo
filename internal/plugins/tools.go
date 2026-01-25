@@ -53,6 +53,12 @@ type ToolDefinition struct {
 
 	// DependsOn lists binaries that must be available.
 	DependsOn []string `json:"depends_on,omitempty"`
+
+	// SpinnerStyle controls the spinner animation during tool execution.
+	// "default" (or empty) = standard tool spinner (dots)
+	// "crush" = fancy scrambling hex/symbol animation (for coding tools)
+	// "none" = no spinner (tool manages its own output)
+	SpinnerStyle string `json:"spinner_style,omitempty"`
 }
 
 // ToolParameter defines a parameter for an external tool.

@@ -95,7 +95,9 @@ Skills extend agent capabilities with domain-specific instructions. They follow 
 |-------|-------------|
 | `ayo` | CLI documentation for programmatic use |
 | `debugging` | Systematic debugging techniques |
-| `web-search` | Web search capabilities |
+| `planning` | Task decomposition and planning |
+| `coding` | Source code creation guidelines |
+| `memory` | Memory tool usage guidelines |
 
 ### Creating Skills
 

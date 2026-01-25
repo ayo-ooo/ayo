@@ -58,6 +58,22 @@
         }
       },
       "additionalProperties": false
+    },
+    "delegates": {
+      "type": "object",
+      "description": "Maps task types to agent handles for global delegation",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [{"coding": "@crush", "research": "@research"}]
+    },
+    "default_tools": {
+      "type": "object",
+      "description": "Maps tool type aliases to concrete tool names. Allows agents to use generic tool types (like 'search') that resolve to user-configured tools (like 'searxng')",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [{"search": "searxng"}]
     }
   },
   "additionalProperties": false

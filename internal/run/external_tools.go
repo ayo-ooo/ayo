@@ -171,10 +171,12 @@ func executeExternalTool(
 	cmd.Stdout = stdoutBuf
 	cmd.Stderr = stderrBuf
 
-	// Show spinner unless quiet mode
-	var spinner *uipkg.CrushSpinner
-	if !def.Quiet {
-		spinner = uipkg.NewCrushSpinnerWithDepth(def.Name, depth)
+	// Show spinner unless quiet mode or spinner_style is "none"
+	var spinner uipkg.ToolSpinner
+	if !def.Quiet && def.SpinnerStyle != "none" {
+		spinner = uipkg.NewToolSpinner(def.Name, def.SpinnerStyle, depth)
+	}
+	if spinner != nil {
 		spinner.Start()
 	}
 

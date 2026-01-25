@@ -52,6 +52,11 @@ type Manifest struct {
 	// Example: {"coding": "@crush"}
 	Delegates map[string]string `json:"delegates,omitempty"`
 
+	// DefaultTools declares tool type aliases this plugin's tools can provide.
+	// On install, user is prompted to set these as default tool mappings.
+	// Example: {"search": "searxng"}
+	DefaultTools map[string]string `json:"default_tools,omitempty"`
+
 	// Dependencies specifies external requirements.
 	Dependencies *Dependencies `json:"dependencies,omitempty"`
 

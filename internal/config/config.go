@@ -30,6 +30,11 @@ type Config struct {
 	// Delegates maps task types to agent handles for global delegation.
 	// Example: {"coding": "@crush", "research": "@ayo.research"}
 	Delegates map[string]string `json:"delegates,omitempty"`
+
+	// DefaultTools maps tool type aliases to concrete tool names.
+	// Example: {"search": "searxng"}
+	// This allows agents to use generic tool types that resolve to user-configured tools.
+	DefaultTools map[string]string `json:"default_tools,omitempty"`
 }
 
 // EmbeddingConfig configures the embedding system.
@@ -169,4 +174,41 @@ func GetDelegate(taskType string) (string, error) {
 	}
 
 	return cfg.Delegates[taskType], nil
+}
+
+// SetDefaultTool sets a default tool mapping in the global config.
+// Returns the previous value if any.
+func SetDefaultTool(toolType, toolName string) (previous string, err error) {
+	cfgPath := DefaultPath()
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		return "", err
+	}
+
+	if cfg.DefaultTools == nil {
+		cfg.DefaultTools = make(map[string]string)
+	}
+
+	previous = cfg.DefaultTools[toolType]
+	cfg.DefaultTools[toolType] = toolName
+
+	if err := Save(cfgPath, cfg); err != nil {
+		return previous, err
+	}
+
+	return previous, nil
+}
+
+// GetDefaultTool returns the current default tool for a tool type from global config.
+func GetDefaultTool(toolType string) (string, error) {
+	cfg, err := Load(DefaultPath())
+	if err != nil {
+		return "", err
+	}
+
+	if cfg.DefaultTools == nil {
+		return "", nil
+	}
+
+	return cfg.DefaultTools[toolType], nil
 }
