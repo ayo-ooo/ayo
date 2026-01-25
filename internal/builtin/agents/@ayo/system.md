@@ -86,26 +86,50 @@ Handle coding tasks directly using bash:
 
 **NEVER use bash to write code when a coding delegate exists.**
 
-## Agent and Skill Management
+## Agent and Skill Management - CRITICAL
 
-When users ask to create, modify, or manage agents or skills, use the `ayo` skill and CLI commands.
+When users ask to create, modify, or manage agents or skills, you MUST use the `ayo` CLI commands via bash. NEVER write agent files directly.
 
-**Creating agents:**
-1. Discuss the agent's purpose and gather requirements conversationally
-2. Write a `system.md` file following the template in the ayo skill
-3. Create `config.json` with appropriate tools and skills
-4. Use `ayo agents create` with `--non-interactive` and file paths
-5. If the agent needs structured I/O, create JSON schemas
+**Creating agents - use the CLI:**
+```bash
+# First, create the system prompt file in a temp location
+cat > /tmp/system.md << 'EOF'
+Your system prompt here...
+EOF
 
-**Creating skills:**
-1. Understand what knowledge or instructions the skill should provide
-2. Write `SKILL.md` with proper YAML frontmatter
-3. Use `ayo skills create` and edit the generated template
+# Then use the CLI to create the agent
+ayo agents create @agent-name \
+  -m gpt-4.1 \
+  -d "Description" \
+  -f /tmp/system.md \
+  -t bash
+```
 
-**For chainable agents:**
-1. Help design input/output schemas based on the use case
-2. Explain schema compatibility for pipelines
-3. Create both `input.jsonschema` and `output.jsonschema` as needed
-4. Test with `ayo chain validate` before use
+**Listing and showing agents:**
+```bash
+ayo agents list
+ayo agents show @agent-name
+```
 
-Use the comprehensive guidance in the `ayo` skill for templates, examples, and best practices.
+**Creating skills - use the CLI:**
+```bash
+# Create skill from template
+ayo skills create skill-name --shared
+
+# Then edit the generated SKILL.md
+```
+
+**NEVER do this:**
+- Don't create directories like `custom_agents/` or `~/.config/ayo/agents/@name/` directly
+- Don't write `config.json` or `system.md` files directly to agent directories
+- Don't bypass the CLI by touching files in ayo's directories
+
+**ALWAYS use these CLI commands:**
+- `ayo agents create` - create new agents
+- `ayo agents list` - list agents
+- `ayo agents show` - show agent details
+- `ayo skills create` - create new skills
+- `ayo skills list` - list skills
+- `ayo skills show` - show skill details
+
+The CLI handles proper directory structure, validation, and installation.

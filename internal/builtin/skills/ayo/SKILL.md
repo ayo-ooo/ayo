@@ -8,7 +8,27 @@ metadata:
 
 # Ayo CLI Skill
 
-This skill provides comprehensive instructions for using the ayo command-line interface to manage agents, skills, and configuration. When users ask to create or manage agents/skills, use this skill and the CLI commands.
+This skill provides comprehensive instructions for using the ayo command-line interface to manage agents, skills, and configuration.
+
+## CRITICAL: Always Use the CLI
+
+When managing agents or skills, you MUST use the `ayo` CLI commands via bash. NEVER write directly to ayo's directories.
+
+**CORRECT - Use CLI commands:**
+```bash
+ayo agents create @myagent -m gpt-4.1 -f /tmp/system.md
+ayo agents list
+ayo skills create myskill --shared
+```
+
+**WRONG - Never do this:**
+```bash
+mkdir -p ~/.config/ayo/agents/@myagent  # WRONG
+cat > ~/.config/ayo/agents/@myagent/config.json  # WRONG
+mkdir custom_agents  # WRONG
+```
+
+The CLI handles proper directory structure, validation, and installation.
 
 ## When to Use
 

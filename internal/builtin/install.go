@@ -12,7 +12,7 @@ import (
 
 // Version is the current version of built-in agents and skills.
 // Bump this when built-in content changes to trigger reinstallation.
-const Version = "17"
+const Version = "18"
 
 // ModifiedAgent represents an installed agent that has local modifications
 type ModifiedAgent struct {
