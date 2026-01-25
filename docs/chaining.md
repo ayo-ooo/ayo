@@ -176,9 +176,9 @@ EOF
 ### Step 2: Create Agent
 
 ```bash
-ayo agents create @analyzer -n \
-  --model gpt-4.1 \
-  --system "Analyze code and return issues as JSON." \
+ayo agents create @analyzer \
+  -m gpt-4.1 \
+  -s "Analyze code and return issues as JSON." \
   --input-schema input.jsonschema \
   --output-schema output.jsonschema
 ```

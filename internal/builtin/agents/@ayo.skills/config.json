@@ -1,5 +1,0 @@
-{
-  "description": "Skill management agent for creating and managing ayo skills",
-  "allowed_tools": ["bash"],
-  "skills": ["ayo"]
-}

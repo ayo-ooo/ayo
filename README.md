@@ -28,16 +28,67 @@ ayo -a main.go "review this code"
 - **Chaining**: Compose agents via Unix pipes
 - **Plugins**: Extend with community packages
 
-## Built-in Agents
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         ayo CLI                             │
+├─────────────────────────────────────────────────────────────┤
+│  @ayo (default agent)                                       │
+│  ├── bash tool      Execute shell commands                  │
+│  ├── agent_call     Delegate to other agents                │
+│  ├── plan           Track multi-step tasks                  │
+│  └── skills         Instruction sets (ayo, debugging, etc.) │
+├─────────────────────────────────────────────────────────────┤
+│  Sessions           Persist conversation history            │
+│  Memory             Store facts/preferences across sessions │
+│  Plugins            Extend with community packages          │
+├─────────────────────────────────────────────────────────────┤
+│  Fantasy            Provider-agnostic LLM abstraction       │
+│  (OpenAI, Anthropic, Google, OpenRouter)                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Design Philosophy
+
+**Conversational-first**: Instead of complex wizards or configuration UIs, ayo relies on natural conversation to accomplish tasks. Ask `@ayo` to create agents, manage skills, or configure your setup.
+
+**Single agent, multiple skills**: Rather than many specialized agents, `@ayo` is a versatile assistant that uses skills to gain domain expertise. Skills are instruction sets that teach the agent how to handle specific tasks.
+
+**Unix philosophy**: Agents can chain via pipes, producing and consuming JSON for structured workflows.
+
+### Directory Structure
+
+```
+~/.config/ayo/                    # User configuration
+├── ayo.json                      # Main config file
+├── agents/                       # User-defined agents
+│   └── @myagent/
+│       ├── config.json
+│       ├── system.md
+│       └── skills/
+└── skills/                       # User-defined shared skills
+    └── my-skill/
+        └── SKILL.md
+
+~/.local/share/ayo/               # Data and built-ins
+├── ayo.db                        # Sessions and memories (SQLite)
+├── agents/                       # Built-in agents (@ayo)
+├── skills/                       # Built-in skills
+└── plugins/                      # Installed plugins
+```
+
+## Built-in Agent
 
 | Agent | Description |
 |-------|-------------|
 | `@ayo` | Default versatile assistant |
-| `@ayo.agents` | Agent management |
-| `@ayo.skills` | Skill management |
+
+`@ayo` handles all tasks including agent/skill creation and management. Just ask:
 
 ```bash
-ayo agents list
+ayo "help me create an agent for code review"
+ayo "create a skill for debugging Go code"
 ```
 
 ## Documentation
@@ -60,14 +111,19 @@ ayo agents list
 
 ### Create an Agent
 
-```bash
-# Interactive wizard
-ayo agents create @myagent
+Ask `@ayo` to help design your agent:
 
-# Non-interactive
-ayo agents create @helper -n \
-  --model gpt-4.1 \
-  --system "You are concise and helpful."
+```bash
+ayo "help me create an agent for code review"
+```
+
+Or use the CLI directly:
+
+```bash
+ayo agents create @reviewer \
+  -m gpt-4.1 \
+  -d "Reviews code for best practices" \
+  -f ~/prompts/reviewer.md
 ```
 
 ### Install a Plugin
@@ -99,8 +155,36 @@ ayo "refactor the auth module"
 ### Chain Agents
 
 ```bash
-# Pipe output between agents
+# Pipe output between agents with structured I/O
 ayo @analyzer '{"code":"..."}' | ayo @reporter
+```
+
+## CLI Overview
+
+```
+ayo                              Start interactive chat
+ayo "prompt"                     Run single prompt with @ayo
+ayo @agent "prompt"              Run prompt with specific agent
+
+ayo agents list                  List all agents
+ayo agents create @name          Create new agent
+ayo agents show @name            Show agent details
+
+ayo skills list                  List all skills
+ayo skills create name           Create new skill
+
+ayo sessions list                List conversation sessions
+ayo sessions continue            Resume a session
+
+ayo memory list                  List memories
+ayo memory search "query"        Search memories semantically
+
+ayo plugins install <url>        Install plugin from git
+ayo plugins list                 List installed plugins
+
+ayo chain ls                     List chainable agents
+ayo doctor                       Check system health
+ayo setup                        Install/update built-ins
 ```
 
 ## Configuration
@@ -124,7 +208,8 @@ export OPENAI_API_KEY="sk-..."
 ## System Health
 
 ```bash
-ayo doctor
+ayo doctor      # Check dependencies and configuration
+ayo doctor -v   # Verbose output with model list
 ```
 
 ## License

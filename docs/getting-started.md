@@ -32,7 +32,7 @@ This will:
 1. Install built-in agents to `~/.local/share/ayo/agents/`
 2. Install built-in skills to `~/.local/share/ayo/skills/`
 3. Create config directory at `~/.config/ayo/`
-4. Start an interactive chat with the default `@ayo` agent
+4. Start an interactive chat with `@ayo`
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ ollama serve
 
 # Pull required models
 ollama pull nomic-embed-text
-ollama pull ministral-3:3b
+ollama pull ministral:3b
 ```
 
 Check everything is working:
@@ -83,12 +83,6 @@ Start a conversation with the default agent:
 
 ```bash
 ayo
-```
-
-Or specify an agent:
-
-```bash
-ayo @ayo
 ```
 
 Exit with `Ctrl+C` (twice if mid-response).
@@ -110,17 +104,74 @@ ayo -a main.go "review this code"
 ayo -a file1.txt -a file2.txt "compare these files"
 ```
 
-## Built-in Agents
+## The @ayo Agent
 
-| Agent | Description |
-|-------|-------------|
-| `@ayo` | Default versatile assistant |
-| `@ayo.agents` | Agent management (creating/modifying agents) |
-| `@ayo.skills` | Skill management (creating/modifying skills) |
+`@ayo` is the default and only built-in agent. It's a versatile assistant that can:
+
+- Execute shell commands via the `bash` tool
+- Delegate to other agents via `agent_call`
+- Track multi-step tasks with the `plan` tool
+- Create and manage other agents and skills
+- Use any attached skills for specialized tasks
 
 ```bash
 # List all available agents
 ayo agents list
+
+# Ask @ayo to help with anything
+ayo "help me create an agent for code review"
+ayo "what skills are available?"
+ayo "debug this test failure"
+```
+
+## Architecture Overview
+
+```
+~/.config/ayo/           # User configuration
+├── ayo.json             # Main config (model, provider)
+├── agents/              # Your custom agents
+└── skills/              # Your custom skills
+
+~/.local/share/ayo/      # Data and built-ins
+├── ayo.db               # Sessions and memories
+├── agents/              # Built-in agents (@ayo)
+├── skills/              # Built-in skills
+└── plugins/             # Installed plugins
+```
+
+## Common Workflows
+
+### Create a Custom Agent
+
+```bash
+# Ask @ayo to help design it
+ayo "help me create an agent for debugging Go code"
+
+# Or use the CLI directly
+ayo agents create @debugger \
+  -m gpt-4.1 \
+  -d "Debugging specialist" \
+  -f ~/prompts/debugger.md
+```
+
+### Install a Plugin
+
+```bash
+# Add research capabilities
+ayo plugins install https://github.com/user/ayo-plugins-research
+
+# Use the new agent
+ayo @research "latest developments in AI"
+```
+
+### Resume a Conversation
+
+```bash
+# List recent sessions
+ayo sessions list
+
+# Continue a session
+ayo sessions continue
 ```
 
 ## Next Steps
@@ -129,6 +180,7 @@ ayo agents list
 - [Learn about skills](skills.md)
 - [Set up memory](memory.md)
 - [Install plugins](plugins.md) for additional capabilities
+- [CLI Reference](cli-reference.md) for all commands
 
 ## Troubleshooting
 
@@ -136,7 +188,7 @@ ayo agents list
 
 ```bash
 ayo doctor
-ayo doctor -v  # Verbose output
+ayo doctor -v  # Verbose output with model list
 ```
 
 ### Common Issues
@@ -150,7 +202,7 @@ ayo doctor -v  # Verbose output
 
 **"Ollama not running"**
 - Start with `ollama serve`
-- Memory features require Ollama
+- Memory features require Ollama (optional)
 
 **Agent not found**
 - Run `ayo setup` to reinstall built-ins

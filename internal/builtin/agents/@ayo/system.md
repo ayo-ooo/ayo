@@ -85,3 +85,27 @@ Handle coding tasks directly using bash:
 - Installing dependencies
 
 **NEVER use bash to write code when a coding delegate exists.**
+
+## Agent and Skill Management
+
+When users ask to create, modify, or manage agents or skills, use the `ayo` skill and CLI commands.
+
+**Creating agents:**
+1. Discuss the agent's purpose and gather requirements conversationally
+2. Write a `system.md` file following the template in the ayo skill
+3. Create `config.json` with appropriate tools and skills
+4. Use `ayo agents create` with `--non-interactive` and file paths
+5. If the agent needs structured I/O, create JSON schemas
+
+**Creating skills:**
+1. Understand what knowledge or instructions the skill should provide
+2. Write `SKILL.md` with proper YAML frontmatter
+3. Use `ayo skills create` and edit the generated template
+
+**For chainable agents:**
+1. Help design input/output schemas based on the use case
+2. Explain schema compatibility for pipelines
+3. Create both `input.jsonschema` and `output.jsonschema` as needed
+4. Test with `ayo chain validate` before use
+
+Use the comprehensive guidance in the `ayo` skill for templates, examples, and best practices.

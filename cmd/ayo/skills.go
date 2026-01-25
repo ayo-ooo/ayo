@@ -20,6 +20,15 @@ func newSkillsCmd(cfgPath *string) *cobra.Command {
 		Use:     "skills",
 		Short:   "Manage skills",
 		Aliases: []string{"skill"},
+		Long: `Manage skills that extend agent capabilities.
+
+Skills are instruction sets that teach agents specialized tasks.
+They follow the agentskills spec (https://agentskills.org).
+
+Discovery priority (first found wins):
+  1. Agent-specific skills (in agent's skills/ directory)
+  2. User shared skills (~/.config/ayo/skills/)
+  3. Built-in skills (~/.local/share/ayo/skills/)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default to list
 			return listSkillsCmd(cfgPath).RunE(cmd, args)

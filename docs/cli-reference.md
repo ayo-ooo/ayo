@@ -64,7 +64,7 @@ ayo agents show <handle>
 Create a new agent.
 
 ```bash
-ayo agents create [@handle] [--flags]
+ayo agents create @handle [--flags]
 ```
 
 | Flag | Short | Description |
@@ -81,19 +81,32 @@ ayo agents create [@handle] [--flags]
 | `--input-schema` | | JSON schema for stdin input |
 | `--output-schema` | | JSON schema for stdout output |
 | `--no-guardrails` | | Disable safety guardrails |
-| `--non-interactive` | `-n` | Skip wizard |
 
 **Examples:**
 
 ```bash
-# Interactive wizard
-ayo agents create @myagent
+# Show help (no arguments)
+ayo agents create
 
-# Non-interactive
-ayo agents create @helper -n -m gpt-4.1 -d "Helper agent"
+# Minimal agent
+ayo agents create @helper -m gpt-4.1
 
 # With system file
-ayo agents create @reviewer -n -m gpt-4.1 -f system.md
+ayo agents create @reviewer -m gpt-4.1 -f system.md
+
+# Full options
+ayo agents create @debugger \
+  -m gpt-4.1 \
+  -d "Debugging specialist" \
+  -f system.md \
+  -t bash,agent_call \
+  --skills debugging
+```
+
+**Conversational alternative:**
+
+```bash
+ayo "help me create an agent for code review"
 ```
 
 ### ayo agents update

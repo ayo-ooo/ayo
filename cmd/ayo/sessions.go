@@ -27,6 +27,12 @@ func newSessionsCmd(cfgPath *string) *cobra.Command {
 		Use:     "sessions",
 		Aliases: []string{"session"},
 		Short:   "Manage conversation sessions",
+		Long: `Manage conversation sessions stored in the local database.
+
+Sessions persist conversation history, allowing you to resume previous
+conversations and review past interactions.
+
+Storage: ~/.local/share/ayo/ayo.db`,
 	}
 
 	cmd.AddCommand(newSessionsListCmd())

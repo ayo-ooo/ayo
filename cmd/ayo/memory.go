@@ -27,6 +27,16 @@ func newMemoryCmd() *cobra.Command {
 		Use:     "memory",
 		Aliases: []string{"memories"},
 		Short:   "Manage agent memories",
+		Long: `Manage persistent facts, preferences, and patterns learned across sessions.
+
+Memories help agents provide personalized responses by remembering user
+preferences, project facts, and behavioral patterns.
+
+Categories:
+  preference   User preferences (tools, styles, communication)
+  fact         Facts about user or project
+  correction   User corrections to agent behavior
+  pattern      Observed behavioral patterns`,
 	}
 
 	cmd.AddCommand(newMemoryListCmd())

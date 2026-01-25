@@ -1,19 +1,19 @@
 ---
 name: ayo
-description: Manage ayo agents, skills, and configuration using the ayo CLI. Use when the user wants to create, list, or modify agents and skills.
+description: Manage ayo agents, skills, and configuration using the ayo CLI. Use when the user wants to create, list, modify, or understand agents and skills.
 metadata:
   author: ayo
-  version: "1.0"
+  version: "2.0"
 ---
 
 # Ayo CLI Skill
 
-This skill provides instructions for using the ayo command-line interface to manage agents, skills, and configuration.
+This skill provides comprehensive instructions for using the ayo command-line interface to manage agents, skills, and configuration. When users ask to create or manage agents/skills, use this skill and the CLI commands.
 
 ## When to Use
 
 Activate this skill when:
-- User wants to create a new agent
+- User wants to create, edit, or delete agents
 - User wants to list or inspect existing agents
 - User wants to create or manage skills
 - User wants to continue or manage conversation sessions
@@ -55,45 +55,11 @@ ayo @agent-name "Your prompt here"
 ayo @agent-name -a file.txt "Analyze this file"
 ```
 
-### Built-in Agents
+---
 
-| Agent | Description |
-|-------|-------------|
-| `@ayo` | Default versatile assistant with bash and agent delegation |
-| `@ayo.agents` | Agent management for creating/modifying agents |
-| `@ayo.skills` | Skill management for creating/modifying skills |
+# Agent Management
 
-### Research with @research (via plugin)
-
-Research capabilities are available via plugins. When a search plugin is installed:
-
-```bash
-# Use the search tool directly (if installed)
-ayo "search for latest developments in quantum computing"
-
-# Or use a research delegate agent (if configured)
-ayo @research "What are the latest developments in quantum computing?"
-```
-
-### Coding with @crush (via plugin)
-
-For complex coding tasks, you can configure a coding delegate:
-
-```bash
-# Configure delegation in .ayo.json
-{
-  "delegates": {
-    "coding": "@crush"
-  }
-}
-
-# Then tasks are automatically delegated
-ayo "Refactor the authentication module to use JWT tokens"
-```
-
-## Agent Management
-
-### List Agents
+## List Agents
 
 ```bash
 ayo agents list
@@ -101,7 +67,7 @@ ayo agents list
 
 Shows all available agents grouped by source (user-defined vs built-in).
 
-### Show Agent Details
+## Show Agent Details
 
 ```bash
 ayo agents show @agent-name
@@ -109,60 +75,39 @@ ayo agents show @agent-name
 
 Displays agent configuration including model, tools, skills, and location.
 
-### Create Agent
+## Create Agent
 
-Interactive wizard:
-```bash
-ayo agents create @my-agent
-```
-
-Non-interactive (skip wizard):
+Non-interactive (recommended for scripted creation):
 ```bash
 ayo agents create @my-agent \
   --non-interactive \
   --model gpt-4.1 \
   --description "My agent description" \
-  --system "You are a helpful assistant..." \
-  --tools bash,agent_call \
+  --system-file system.md \
+  --tools bash \
   --skills debugging
 ```
 
-#### Create Agent Flags
+### Create Agent Flags
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--model` | `-m` | Model to use (required in non-interactive mode) |
 | `--description` | `-d` | Brief description of the agent |
-| `--system` | `-s` | System prompt text |
+| `--system` | `-s` | System prompt text (inline) |
 | `--system-file` | `-f` | Path to system prompt file (.md or .txt) |
-| `--tools` | `-t` | Allowed tools: bash, agent_call (comma-separated) |
+| `--tools` | `-t` | Allowed tools: bash, agent_call, plan (comma-separated) |
 | `--skills` | | Skills to include (comma-separated) |
 | `--exclude-skills` | | Skills to exclude |
 | `--ignore-builtin-skills` | | Don't load built-in skills |
 | `--ignore-shared-skills` | | Don't load user shared skills |
-| `--input-schema` | | JSON schema for validating stdin input |
-| `--output-schema` | | JSON schema for structuring stdout output |
-| `--no-system-wrapper` | | Disable system guardrails (not recommended) |
+| `--input-schema` | | Path to JSON schema for validating stdin input |
+| `--output-schema` | | Path to JSON schema for structuring stdout output |
+| `--no-guardrails` | | Disable system guardrails (not recommended) |
 | `--non-interactive` | `-n` | Skip wizard, fail if required fields missing |
 | `--dev` | | Create in local ./.config/ayo/ directory |
 
-#### Using System Prompt Files
-
-Create a markdown file with the system prompt:
-```bash
-cat > system.md << 'EOF'
-You are an expert code reviewer.
-
-## Your Role
-- Review code for bugs and best practices
-- Suggest improvements
-- Be constructive and helpful
-EOF
-
-ayo agents create @reviewer -n -m gpt-4.1 -f system.md
-```
-
-### Update Built-in Agents
+## Update Built-in Agents
 
 ```bash
 # Check for modifications first
@@ -172,23 +117,645 @@ ayo agents update
 ayo agents update --force
 ```
 
-## Skill Management
+## Edit an Agent
 
-### List Skills
+User agents are stored in `~/.config/ayo/agents/@{name}/`. Edit files directly:
+
+```bash
+# Edit system prompt
+$EDITOR ~/.config/ayo/agents/@my-agent/system.md
+
+# Edit configuration
+$EDITOR ~/.config/ayo/agents/@my-agent/config.json
+```
+
+## Remove an Agent
+
+```bash
+rm -rf ~/.config/ayo/agents/@agent-name
+```
+
+---
+
+# Creating Effective Agents
+
+## Agent Directory Structure
+
+```
+@agent-name/
+├── config.json         # Required: Agent configuration
+├── system.md           # Required: System prompt
+├── input.jsonschema    # Optional: Input validation schema (for chaining)
+├── output.jsonschema   # Optional: Output format schema (for chaining)
+└── skills/             # Optional: Agent-specific skills
+    └── my-skill/
+        └── SKILL.md
+```
+
+### Agent Installation Locations
+
+| Location | Path | When to Use |
+|----------|------|-------------|
+| User agents | `~/.config/ayo/agents/` | Personal agents available everywhere |
+| Dev mode | `./.config/ayo/agents/` | Project-specific or testing agents |
+
+## config.json Reference
+
+```json
+{
+  "model": "gpt-4.1",
+  "description": "What this agent does",
+  "allowed_tools": ["bash", "agent_call", "plan"],
+  "skills": ["skill-a", "skill-b"],
+  "exclude_skills": ["unwanted-skill"],
+  "ignore_builtin_skills": false,
+  "ignore_shared_skills": false,
+  "guardrails": true
+}
+```
+
+### Field Reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `model` | string | (global default) | LLM model to use |
+| `description` | string | | Brief description shown in `ayo agents list` |
+| `allowed_tools` | array | `["bash"]` | Tools: `bash`, `agent_call`, `plan` |
+| `skills` | array | `[]` | Skills to load for this agent |
+| `exclude_skills` | array | `[]` | Skills to explicitly exclude |
+| `ignore_builtin_skills` | bool | `false` | Don't load any built-in skills |
+| `ignore_shared_skills` | bool | `false` | Don't load user shared skills |
+| `guardrails` | bool | `true` | Safety guardrails (set false to disable - dangerous) |
+
+### Configuration Patterns
+
+**Minimal agent** (just bash):
+```json
+{
+  "description": "Simple automation agent",
+  "allowed_tools": ["bash"]
+}
+```
+
+**Agent with delegation** (can call other agents):
+```json
+{
+  "description": "Orchestrator agent",
+  "allowed_tools": ["bash", "agent_call"]
+}
+```
+
+**Agent with planning** (tracks multi-step tasks):
+```json
+{
+  "description": "Project planner",
+  "allowed_tools": ["bash", "plan"]
+}
+```
+
+**Skill-focused agent** (specific expertise):
+```json
+{
+  "description": "Debugging specialist",
+  "allowed_tools": ["bash"],
+  "skills": ["debugging"],
+  "ignore_builtin_skills": true
+}
+```
+
+---
+
+# System Prompt Design
+
+A well-crafted system prompt is the most important part of an agent. Follow this template:
+
+## System Prompt Template
+
+Create a `system.md` file with this structure:
+
+```markdown
+# {Role Title}
+
+You are {specific role description}. {Additional context about the role and expertise}.
+
+## Your Responsibilities
+
+- {Primary task or capability}
+- {Secondary task or capability}
+- {Additional tasks as needed}
+
+## Guidelines
+
+- {Important behavioral guideline}
+- {Quality standard or constraint}
+- {Communication style preference}
+
+## Workflow
+
+When given a task:
+1. {First step in your process}
+2. {Second step}
+3. {Continue as needed}
+
+## Output Format
+
+{Describe how responses should be structured - format, length, style}
+
+## Examples
+
+### Example 1: {Scenario name}
+
+**User request:** {example input}
+
+**Your response:** {example of ideal response}
+
+### Example 2: {Another scenario}
+
+**User request:** {example input}
+
+**Your response:** {example of ideal response}
+```
+
+## System Prompt Best Practices
+
+1. **Define identity clearly**: Start with "You are..." to establish role and expertise
+2. **Set explicit boundaries**: What the agent should and shouldn't do
+3. **Be specific about tasks**: Vague instructions lead to vague results
+4. **Include examples**: Show input/output pairs for complex behaviors
+5. **Define output format**: How should responses be structured?
+6. **Keep it focused**: One agent = one clear purpose
+
+## Example System Prompts
+
+### Code Reviewer Agent
+
+```markdown
+# Code Reviewer
+
+You are an expert code reviewer specializing in identifying bugs, security issues, and opportunities for improvement.
+
+## Your Responsibilities
+
+- Review code for bugs, logic errors, and edge cases
+- Identify security vulnerabilities
+- Suggest performance improvements
+- Ensure code follows best practices
+- Be constructive and educational
+
+## Guidelines
+
+- Always explain WHY something is an issue, not just what
+- Prioritize issues by severity (critical > high > medium > low)
+- Suggest specific fixes, not just problems
+- Acknowledge good patterns when you see them
+
+## Output Format
+
+For each issue found:
+1. **Location**: File and line number
+2. **Severity**: Critical/High/Medium/Low
+3. **Issue**: What's wrong
+4. **Why**: Why it matters
+5. **Fix**: Suggested solution
+
+## Example
+
+**Input:** Review `auth.go` lines 45-60
+
+**Output:**
+### Critical: SQL Injection Vulnerability
+**Location:** auth.go:52
+**Issue:** User input concatenated directly into SQL query
+**Why:** Allows attackers to execute arbitrary SQL commands
+**Fix:** Use parameterized queries:
+\`\`\`go
+db.Query("SELECT * FROM users WHERE id = ?", userID)
+\`\`\`
+```
+
+### Research Agent
+
+```markdown
+# Research Assistant
+
+You are a thorough research assistant who gathers, synthesizes, and presents information clearly.
+
+## Your Responsibilities
+
+- Research topics using available tools
+- Synthesize information from multiple sources
+- Present findings in a structured format
+- Cite sources when possible
+- Distinguish between facts and speculation
+
+## Guidelines
+
+- Be thorough but focused on the user's question
+- Present multiple perspectives when relevant
+- Acknowledge uncertainty or gaps in information
+- Keep summaries concise but complete
+
+## Output Format
+
+1. **Summary**: 2-3 sentence overview
+2. **Key Findings**: Bullet points of main discoveries
+3. **Details**: Elaboration on important points
+4. **Sources**: Where information came from (if applicable)
+```
+
+### Task Automation Agent
+
+```markdown
+# Task Automator
+
+You are an automation specialist who executes system tasks efficiently and safely.
+
+## Your Responsibilities
+
+- Execute file system operations
+- Run build and test commands
+- Manage dependencies
+- Automate repetitive tasks
+
+## Guidelines
+
+- Always verify before destructive operations
+- Use dry-run flags when available
+- Report what was done, not what you're about to do
+- Handle errors gracefully
+
+## Workflow
+
+1. Understand the task requirements
+2. Plan the sequence of commands
+3. Execute commands one at a time
+4. Verify success before proceeding
+5. Report results concisely
+
+## Output Format
+
+After completing a task:
+- What was done (past tense)
+- Any notable outcomes or warnings
+- Next steps if applicable
+```
+
+---
+
+# Agent Chaining with Structured I/O
+
+Agents with input/output schemas can be chained via Unix pipes. This enables powerful multi-step workflows.
+
+## When to Use Schemas
+
+| Use Case | Input Schema | Output Schema |
+|----------|--------------|---------------|
+| Agent receives structured data | Yes | Optional |
+| Agent produces structured data | Optional | Yes |
+| Agent is part of a pipeline | Yes | Yes |
+| General conversational agent | No | No |
+
+## Schema Basics
+
+Schemas use JSON Schema format. Key concepts:
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `type` | Data type | `"string"`, `"object"`, `"array"`, `"integer"`, `"boolean"` |
+| `properties` | Object fields | `{"name": {"type": "string"}}` |
+| `required` | Mandatory fields | `["name", "email"]` |
+| `items` | Array element schema | `{"type": "string"}` |
+| `description` | Human-readable docs | `"User's email address"` |
+| `enum` | Allowed values | `["low", "medium", "high"]` |
+
+## Input Schema (input.jsonschema)
+
+Defines what the agent accepts as input. When an input schema exists:
+- Agent only accepts JSON matching this schema
+- Input is validated before processing
+- User sees helpful error if input doesn't match
+
+### Input Schema Template
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "required_field": {
+      "type": "string",
+      "description": "Description of this field"
+    },
+    "optional_field": {
+      "type": "integer",
+      "description": "Optional configuration"
+    },
+    "array_field": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of items"
+    },
+    "nested_object": {
+      "type": "object",
+      "properties": {
+        "sub_field": { "type": "boolean" }
+      }
+    }
+  },
+  "required": ["required_field"]
+}
+```
+
+### Input Schema Examples
+
+**File analyzer input:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of file paths to analyze"
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "verbose": {
+          "type": "boolean",
+          "description": "Include detailed output"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "markdown", "text"],
+          "description": "Output format"
+        }
+      }
+    }
+  },
+  "required": ["files"]
+}
+```
+
+**Code review input:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Source code to review"
+    },
+    "language": {
+      "type": "string",
+      "description": "Programming language"
+    },
+    "context": {
+      "type": "string",
+      "description": "Additional context about the code"
+    }
+  },
+  "required": ["code"]
+}
+```
+
+## Output Schema (output.jsonschema)
+
+Defines the structure of the agent's output. When an output schema exists:
+- Agent's final response is formatted as JSON matching this schema
+- Enables piping to downstream agents
+- Provides consistent, parseable output
+
+### Output Schema Template
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "partial"],
+      "description": "Overall result status"
+    },
+    "data": {
+      "type": "object",
+      "description": "Main output data"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable summary"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["status"]
+}
+```
+
+### Output Schema Examples
+
+**Code review findings:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["bug", "security", "performance", "style"]
+          },
+          "message": { "type": "string" },
+          "suggestion": { "type": "string" }
+        },
+        "required": ["file", "severity", "message"]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_issues": { "type": "integer" },
+        "by_severity": {
+          "type": "object",
+          "properties": {
+            "critical": { "type": "integer" },
+            "high": { "type": "integer" },
+            "medium": { "type": "integer" },
+            "low": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Analysis result:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "complexity": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "maintainability_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "lines_of_code": { "type": "integer" },
+        "functions": { "type": "integer" },
+        "dependencies": { "type": "integer" }
+      }
+    }
+  }
+}
+```
+
+## Schema Compatibility
+
+When piping agents, schemas are checked:
+
+| Compatibility | Description |
+|---------------|-------------|
+| **Exact** | Output schema identical to input schema |
+| **Structural** | Output has all required input fields (superset OK) |
+| **Freeform** | Target has no input schema (accepts anything) |
+
+## Chain Commands
+
+```bash
+# List chainable agents (have schemas)
+ayo chain ls
+
+# Inspect agent schemas
+ayo chain inspect @agent-name
+
+# Find agents that can receive output
+ayo chain from @source-agent
+
+# Find agents that can feed into this one
+ayo chain to @target-agent
+
+# Validate input against schema
+ayo chain validate @agent-name '{"key": "value"}'
+
+# Generate example input
+ayo chain example @agent-name
+```
+
+## Creating a Chainable Agent Workflow
+
+```bash
+# 1. Create input schema
+cat > input.jsonschema << 'EOF'
+{
+  "type": "object",
+  "properties": {
+    "code": { "type": "string", "description": "Code to analyze" },
+    "language": { "type": "string", "description": "Programming language" }
+  },
+  "required": ["code"]
+}
+EOF
+
+# 2. Create output schema
+cat > output.jsonschema << 'EOF'
+{
+  "type": "object",
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": { "type": "integer" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+EOF
+
+# 3. Create system prompt
+cat > system.md << 'EOF'
+# Code Analyzer
+
+You analyze code and return issues as structured JSON matching your output schema.
+
+When given code:
+1. Analyze for bugs, issues, and improvements
+2. Return findings in the specified JSON format
+3. Include line numbers when possible
+EOF
+
+# 4. Create the agent
+ayo agents create @analyzer -n \
+  -m gpt-4.1 \
+  -d "Analyzes code and returns structured findings" \
+  -f system.md \
+  --input-schema input.jsonschema \
+  --output-schema output.jsonschema
+
+# 5. Test
+ayo chain validate @analyzer '{"code": "print(x)", "language": "python"}'
+ayo @analyzer '{"code": "print(x)", "language": "python"}'
+```
+
+---
+
+# Skill Management
+
+## List Skills
 
 ```bash
 ayo skills list
 ```
 
-Shows all available skills grouped by source.
+Filter by source:
+```bash
+ayo skills list --source=built-in
+ayo skills list --source=shared
+ayo skills list --source=local
+```
 
-### Show Skill Details
+## Show Skill Details
 
 ```bash
 ayo skills show skill-name
 ```
 
-### Create Skill
+## Create Skill
 
 ```bash
 # Create in current directory
@@ -201,86 +768,68 @@ ayo skills create my-skill --shared
 ayo skills create my-skill --dev
 ```
 
-This creates a skill directory with a template `SKILL.md` file.
-
-### Validate Skill
+## Validate Skill
 
 ```bash
 ayo skills validate ./path/to/skill
 ```
 
-Checks that a skill directory has valid structure and metadata.
+## Skill Directory Structure
 
-### Update Built-in Skills
-
-```bash
-ayo skills update
-ayo skills update --force
+```
+skill-name/
+├── SKILL.md           # Required: skill definition with YAML frontmatter
+├── scripts/           # Optional: executable scripts
+├── references/        # Optional: additional documentation
+└── assets/            # Optional: templates, data files
 ```
 
-## Plugin Management
+## SKILL.md Format
 
-Plugins extend ayo with additional agents, skills, and tools from git repositories.
+```markdown
+---
+name: skill-name
+description: >
+  What this skill does and when to use it.
+  This appears in skill listings and helps agents
+  understand when to apply this skill.
+metadata:
+  author: your-name
+  version: "1.0"
+---
 
-### Install a Plugin
+# Skill Title
 
-```bash
-# From GitHub (shorthand)
-ayo plugins install owner/name
-
-# From GitHub (full URL)
-ayo plugins install https://github.com/owner/ayo-plugins-name
-
-# From local directory (for development)
-ayo plugins install --local ./my-plugin
-
-# Force reinstall
-ayo plugins install owner/name --force
+Instructions for the agent when this skill is active...
 ```
 
-### List Installed Plugins
+### Required Fields
 
-```bash
-ayo plugins list
-```
+| Field | Requirements |
+|-------|-------------|
+| `name` | 1-64 chars, lowercase, hyphens allowed, must match directory name |
+| `description` | 1-1024 chars, explains what the skill does and when to use it |
 
-### Show Plugin Details
+### Optional Fields
 
-```bash
-ayo plugins show <name>
-```
+| Field | Purpose |
+|-------|---------|
+| `compatibility` | Environment requirements (max 500 chars) |
+| `metadata` | Key-value pairs (author, version, etc.) |
+| `allowed-tools` | Pre-approved tools (experimental) |
 
-### Update Plugins
+## Skill Discovery Priority
 
-```bash
-# Update all plugins
-ayo plugins update
+1. **Agent-specific** (in agent's `skills/` directory)
+2. **Project-local** (current working directory)
+3. **User shared** (`~/.config/ayo/skills/`)
+4. **Built-in** (`~/.local/share/ayo/skills/`)
 
-# Update specific plugin
-ayo plugins update <name>
+---
 
-# Check for updates without applying
-ayo plugins update --dry-run
-```
+# Session Management
 
-### Remove a Plugin
-
-```bash
-ayo plugins remove <name>
-ayo plugins remove <name> --yes  # Skip confirmation
-```
-
-### Popular Plugins
-
-| Plugin | Command | Provides |
-|--------|---------|----------|
-| crush | `ayo plugins install alexcabrera/crush` | @crush agent for coding tasks |
-
-## Session Management
-
-Sessions persist conversation history, allowing you to continue previous conversations.
-
-### List Sessions
+Sessions persist conversation history.
 
 ```bash
 # List recent sessions
@@ -289,194 +838,72 @@ ayo sessions list
 # Filter by agent
 ayo sessions list --agent @ayo
 
-# Filter by source (ayo, crush, crush-via-ayo)
-ayo sessions list --source crush-via-ayo
-
-# Limit results
-ayo sessions list --limit 50
-```
-
-### Show Session Details
-
-```bash
-# Show session info and messages
+# Show session details
 ayo sessions show abc123
-```
 
-Accepts full session ID or prefix.
-
-### Continue a Session
-
-```bash
-# Interactive picker for recent sessions
+# Continue a session (interactive picker)
 ayo sessions continue
 
-# Continue specific session by ID prefix
+# Continue specific session
 ayo sessions continue abc123
 
-# Search by title
-ayo sessions continue "debugging issue"
-```
-
-Alias: `ayo sessions resume`
-
-### Delete a Session
-
-```bash
-# With confirmation prompt
+# Delete a session
 ayo sessions delete abc123
-
-# Force delete without confirmation
-ayo sessions delete abc123 --force
 ```
 
-## Memory Management
+---
 
-Memories are persistent facts, preferences, and patterns learned about users across sessions.
+# Memory Management
 
-### List Memories
+Memories are persistent facts and preferences learned across sessions.
 
 ```bash
-# List all memories
+# List memories
 ayo memory list
-
-# Filter by agent
 ayo memory list --agent @ayo
 
-# Filter by category
-ayo memory list --category preference
-
-# Limit results
-ayo memory list --limit 20
-```
-
-### Search Memories
-
-```bash
 # Semantic search
 ayo memory search "coding preferences"
 
-# With threshold and limit
-ayo memory search "project setup" --threshold 0.7 --limit 5
-
-# Filter by agent
-ayo memory search "tools" --agent @ayo
-```
-
-### Show Memory Details
-
-```bash
+# Show memory details
 ayo memory show abc123
-```
 
-Displays full content, category, confidence, access count, and supersession chain.
-
-### Forget a Memory
-
-```bash
-# With confirmation prompt
+# Forget a memory
 ayo memory forget abc123
 
-# Force without confirmation
-ayo memory forget abc123 --force
-```
-
-### Memory Statistics
-
-```bash
+# Show statistics
 ayo memory stats
-```
 
-### Clear All Memories
-
-```bash
-# Clear all (with confirmation)
+# Clear all memories
 ayo memory clear
-
-# Clear for specific agent
-ayo memory clear --agent @ayo
-
-# Force without confirmation
-ayo memory clear --force
 ```
 
-## Agent Chaining
+---
 
-Agents with input/output schemas can be chained via Unix pipes.
+# Plugin Management
 
-### List Chainable Agents
+Plugins extend ayo with additional agents, skills, and tools.
 
 ```bash
-ayo chain ls
-ayo chain ls --json
+# Install from GitHub
+ayo plugins install owner/name
+ayo plugins install https://github.com/owner/ayo-plugins-name
+
+# List installed plugins
+ayo plugins list
+
+# Update plugins
+ayo plugins update
+
+# Remove a plugin
+ayo plugins remove <name>
 ```
 
-### Inspect Agent Schemas
+---
 
-```bash
-ayo chain inspect @agent-name
-ayo chain inspect @agent-name --json
-```
+# Configuration
 
-### Find Compatible Agents
-
-```bash
-# Agents that can receive this agent's output
-ayo chain from @source-agent
-
-# Agents whose output this agent can receive
-ayo chain to @target-agent
-```
-
-### Validate Input
-
-```bash
-# Validate JSON against agent's input schema
-ayo chain validate @agent-name '{"key": "value"}'
-
-# Or via stdin
-echo '{"key": "value"}' | ayo chain validate @agent-name
-```
-
-### Generate Example Input
-
-```bash
-ayo chain example @agent-name
-```
-
-### Chaining Example
-
-```bash
-# Pipe output from one agent to another
-ayo @code-reviewer '{"files": ["main.go"]}' | ayo @issue-reporter
-```
-
-## Setup and Configuration
-
-### Initial Setup
-
-```bash
-# Standard setup
-ayo setup
-
-# Force reinstall, overwriting modifications
-ayo setup --force
-
-# Development mode (use local directories)
-ayo setup --dev
-```
-
-### Directory Structure
-
-**Production:**
-- User config: `~/.config/ayo/`
-- Built-in data: `~/.local/share/ayo/`
-
-**Development (--dev):**
-- User config: `./.config/ayo/`
-- Built-in data: `./.local/share/ayo/`
-
-### Configuration File
+## Configuration File
 
 Located at `~/.config/ayo/ayo.json`:
 
@@ -493,136 +920,40 @@ Located at `~/.config/ayo/ayo.json`:
 }
 ```
 
-## Agent Directory Structure
+## Directory Structure
 
-```
-@agent-name/
-├── config.json      # Agent configuration
-├── system.md        # System prompt
-├── input.jsonschema # Optional: input validation schema
-├── output.jsonschema # Optional: output format schema
-└── skills/          # Optional: agent-specific skills
-    └── my-skill/
-        └── SKILL.md
-```
+**Production:**
+- User config: `~/.config/ayo/`
+- Built-in data: `~/.local/share/ayo/`
 
-### config.json Fields
+**Development (--dev):**
+- User config: `./.config/ayo/`
+- Built-in data: `./.local/share/ayo/`
 
-```json
-{
-  "model": "gpt-4.1",
-  "description": "Agent description",
-  "allowed_tools": ["bash", "agent_call"],
-  "skills": ["skill-a", "skill-b"],
-  "exclude_skills": ["unwanted-skill"],
-  "ignore_builtin_skills": false,
-  "ignore_shared_skills": false,
-  "guardrails": true
-}
-```
-
-### Guardrails
-
-Guardrails are safety constraints applied to agent system prompts. They are enabled by default.
-
-```json
-{
-  "guardrails": true
-}
-```
-
-- `true` (default): Safety guardrails are applied to the agent's system prompt
-- `false`: Guardrails disabled (dangerous - use with caution)
-
-**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting.
-```
-
-## Skill Directory Structure
-
-```
-skill-name/
-├── SKILL.md         # Required: skill definition with YAML frontmatter
-├── scripts/         # Optional: executable scripts
-├── references/      # Optional: additional documentation
-└── assets/          # Optional: templates, data files
-```
-
-### SKILL.md Format
-
-```markdown
----
-name: skill-name
-description: What this skill does and when to use it.
-license: MIT
-metadata:
-  author: your-name
-  version: "1.0"
 ---
 
-# Skill Title
+# Troubleshooting
 
-Instructions for the agent...
-```
+## Agent Issues
 
-## Available Tools
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Agent gives generic responses | System prompt too vague | Add specific instructions and examples |
+| Agent doesn't use tools | Tools not in `allowed_tools` | Add required tools to config.json |
+| Agent ignores skills | Skills not configured | Check `ayo agents show @agent` |
+| Agent behaves unsafely | Guardrails disabled | Set `"guardrails": true` |
+| Agent not in list | Invalid config | Check config.json is valid JSON |
 
-| Tool | Description |
-|------|-------------|
-| `bash` | Execute shell commands |
-| `agent_call` | Delegate tasks to other agents |
+## Skill Issues
 
-## Common Workflows
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Skill not appearing | Name mismatch | Directory name must match `name` field |
+| Skill not applied | Not in agent config | Add to `skills` array in config.json |
+| Validation fails | Invalid frontmatter | Check YAML syntax in SKILL.md |
 
-### Create a Specialized Agent
+## General
 
-```bash
-# 1. Create system prompt
-cat > ~/prompts/debugger.md << 'EOF'
-You are an expert debugger. When given an error:
-1. Analyze the error message
-2. Search for relevant code
-3. Identify the root cause
-4. Suggest a fix with code examples
-EOF
-
-# 2. Create the agent
-ayo agents create @debugger -n \
-  -m gpt-4.1 \
-  -d "Debugging assistant" \
-  -f ~/prompts/debugger.md \
-  -t bash \
-  --skills debugging
-
-# 3. Use it
-ayo @debugger "Why is this test failing?"
-```
-
-### Create a Chainable Agent
-
-```bash
-# Create input schema
-cat > input.json << 'EOF'
-{
-  "type": "object",
-  "properties": {
-    "code": {"type": "string"},
-    "language": {"type": "string"}
-  },
-  "required": ["code"]
-}
-EOF
-
-# Create agent with schema
-ayo agents create @analyzer -n \
-  -m gpt-4.1 \
-  -s "Analyze the provided code and return JSON with findings." \
-  --input-schema input.json
-```
-
-## Error Handling
-
-If a command fails:
-1. Check `--help` for correct usage
-2. Verify the agent/skill exists with `list` command
-3. Check configuration file syntax
-4. Run with `--debug` for verbose output
+- Check `--help` for correct usage
+- Run with `--debug` for verbose output
+- Verify paths and file permissions

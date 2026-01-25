@@ -15,7 +15,7 @@
 
 ## Documentation Guidelines
 
-- Use real agent handles and skill names that exist (e.g., `@ayo`, `@ayo.coding`, `debugging`)
+- Use real agent handles and skill names that exist (e.g., `@ayo`, `debugging`)
 - For commands that create new entities (like `ayo agents create @myagent`), placeholders are acceptable since they will create the entity
 - Directory structure diagrams showing hypothetical user content are acceptable (e.g., `@myagent/` to show where user agents go)
 - Never use placeholder names like `@agent`, `@myagent`, `@source-agent` in commands that query or operate on existing entities
@@ -472,17 +472,109 @@ util.CmdHandler(ModelSelectedMsg{Model: selected})
 
 A task is NOT complete until both steps pass successfully.
 
-A Go-based command line tool for managing local AI agents.
+## Project Overview
+
+A Go-based command line tool for managing local AI agents. The design philosophy is **conversational-first**: instead of complex wizards or configuration UIs, ayo relies on natural conversation with `@ayo` to accomplish tasks like creating agents and skills.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              ayo CLI                                        │
+│  cmd/ayo/                                                                   │
+│  ├── root.go         Entry point, argument parsing                          │
+│  ├── agents.go       ayo agents subcommands                                 │
+│  ├── skills.go       ayo skills subcommands                                 │
+│  ├── sessions.go     ayo sessions subcommands                               │
+│  ├── memory.go       ayo memory subcommands                                 │
+│  ├── plugins.go      ayo plugins subcommands                                │
+│  ├── chain.go        ayo chain subcommands                                  │
+│  ├── setup.go        ayo setup command                                      │
+│  └── doctor.go       ayo doctor command                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           Core Packages                                     │
+│  internal/                                                                  │
+│  ├── agent/          Agent loading, config, validation                      │
+│  ├── skills/         Skill discovery, loading, validation                   │
+│  ├── run/            Agent execution, tool handling, streaming              │
+│  ├── session/        Session persistence, history                           │
+│  ├── memory/         Memory storage, search, embeddings                     │
+│  ├── builtin/        Embedded agents/skills, installation                   │
+│  ├── config/         Config loading, provider setup                         │
+│  ├── delegates/      Task delegation routing                                │
+│  ├── pipe/           Agent chaining, schema validation                      │
+│  ├── plugins/        Plugin registry, installation                          │
+│  ├── ui/             Spinners, styles, rendering                            │
+│  ├── db/             SQLite database, queries                               │
+│  ├── embedding/      Vector embeddings for memory search                    │
+│  ├── smallmodel/     Ollama integration for local models                    │
+│  └── paths/          Platform-specific path resolution                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           External Dependencies                             │
+│  Fantasy (charm.land/fantasy)     Provider-agnostic LLM abstraction         │
+│  Bubble Tea, Lipgloss, Glamour    Terminal UI                               │
+│  Huh                              Interactive forms                         │
+│  Cobra, Fang                      CLI framework                             │
+│  SQLite (sqlc)                    Persistence                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Agent** | AI assistant with custom system prompt and tool access |
+| **Skill** | Instruction set attached to agents at runtime |
+| **Tool** | Capability (bash, agent_call, plan) an agent can use |
+| **Session** | Persisted conversation history |
+| **Memory** | Facts/preferences learned across sessions |
+| **Plugin** | External package providing agents, skills, or tools |
+
+### Data Flow
+
+```
+User Input
+    │
+    ▼
+┌─────────────────┐
+│  Agent Loading  │  Load config.json, system.md, skills
+│  (internal/agent)│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ System Prompt   │  Assemble: env + guardrails + prefix + agent + suffix
+│   Assembly      │           + tools + skills
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Fantasy       │  Provider-agnostic LLM calls (streaming, tools)
+│   Agent         │  Handles tool execution loop
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Tool Handler  │  Execute bash, delegate to agents, update plan
+│   (internal/run)│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   UI Rendering  │  Spinners, markdown, styled output
+│   (internal/ui) │
+└─────────────────┘
+```
 
 ## Features
 
-- Define, manage, and run AI agents
-- Built-in agents shipped with the binary
+- Single built-in agent (`@ayo`) handles all tasks including agent/skill management
 - Interactive chat sessions within the terminal
 - Non-interactive single-prompt mode
 - Bash tool as default for task execution
 - System prompts assembled from prefix, shared, agent, tools, skills, and suffix
-- Configurable models via Catwalk
+- Configurable models via Catwalk/Fantasy
+- Persistent sessions and semantic memory search
 
 ## Configuration
 
@@ -576,25 +668,26 @@ ayo setup                   # Reinstall built-ins, create user dirs
 ayo setup --force           # Overwrite modifications without prompting
 
 # Chat
-ayo                         # Start interactive chat with default @ayo agent
-ayo "tell me a joke"        # Run single prompt with default @ayo agent
-ayo @ayo                   # Start interactive chat session with agent
-ayo @ayo "tell me a joke"  # Run single prompt (non-interactive)
+ayo                         # Start interactive chat with @ayo
+ayo "tell me a joke"        # Run single prompt with @ayo
+ayo @myagent                # Start interactive chat with specific agent
+ayo @myagent "do task"      # Run single prompt with specific agent
 
-# Agents management
-ayo agents list             # List available agents
-ayo agents show @ayo      # Show agent details
-ayo agents create <handle>  # Create new agent
-ayo agents dir              # Show agents directories
-ayo agents update           # Update built-in agents
-ayo agents update --force   # Update without checking for modifications
+# Agent management (conversational approach - recommended)
+ayo "help me create an agent for code review"
+ayo "show me my agents"
+
+# Agent management (CLI approach)
+ayo agents list                        # List available agents
+ayo agents show @ayo                   # Show agent details
+ayo agents create @myagent -m gpt-4.1  # Create new agent
+ayo agents update                      # Update built-in agents
 
 # Skills management
 ayo skills list             # List available skills
 ayo skills show <name>      # Show skill details
 ayo skills create <name>    # Create new skill
 ayo skills validate <path>  # Validate skill directory
-ayo skills dir              # Show skills directories
 ayo skills update           # Update built-in skills
 
 # Sessions management
@@ -949,7 +1042,7 @@ Guardrails are enabled by default. To disable (dangerous):
 }
 ```
 
-**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting. This includes all built-in agents (`@ayo`, `@ayo.coding`, `@ayo.agents`, etc.).
+**Note:** Agents in the `@ayo` namespace always have guardrails enabled regardless of this setting.
 
 ### CLI Flag
 
@@ -1019,11 +1112,13 @@ internal/builtin/agents/{name}/
 ### Current Built-in Agents
 
 - `@ayo` - The default agent, a versatile command-line assistant
-- `@ayo.coding` - Coding agent that uses Crush for complex source code tasks
-- `@ayo.agents` - Agent management agent for creating and managing agents
-- `@ayo.skills` - Skill management agent for creating and managing skills
 
 The `ayo` namespace is reserved - users cannot create agents with the `@ayo` handle or `@ayo.` prefix.
+
+To create or manage agents, ask `@ayo` directly:
+```bash
+ayo "help me create an agent for code review"
+```
 
 ### Available via Plugins
 

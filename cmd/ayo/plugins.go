@@ -48,6 +48,12 @@ func newPluginsCmd(cfgPath *string) *cobra.Command {
 		Use:     "plugins",
 		Short:   "Manage plugins",
 		Aliases: []string{"plugin"},
+		Long: `Manage plugins that extend ayo with additional agents, skills, and tools.
+
+Plugins are distributed via git repositories with the naming convention:
+  ayo-plugins-<name>
+
+Storage: ~/.local/share/ayo/plugins/`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return listPluginsCmd(cfgPath).RunE(cmd, args)
 		},

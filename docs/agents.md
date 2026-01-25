@@ -2,13 +2,35 @@
 
 Agents are AI assistants with custom system prompts and tool access. Each agent is a directory containing configuration and instructions.
 
-## Built-in Agents
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Agent                                │
+├─────────────────────────────────────────────────────────────┤
+│  config.json       Model, tools, skills configuration       │
+│  system.md         System prompt (behavior instructions)    │
+│  skills/           Agent-specific skills (optional)         │
+│  *.jsonschema      Structured I/O for chaining (optional)   │
+├─────────────────────────────────────────────────────────────┤
+│  Tools             bash, agent_call, plan                   │
+│  Skills            Instruction sets loaded at runtime       │
+│  Guardrails        Safety constraints (enabled by default)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Built-in Agent
 
 | Agent | Description |
 |-------|-------------|
 | `@ayo` | Default versatile assistant with bash and tool access |
-| `@ayo.agents` | Agent management (creating/modifying agents) |
-| `@ayo.skills` | Skill management (creating/modifying skills) |
+
+`@ayo` is designed to handle all tasks including agent and skill management. To create or manage agents, just ask:
+
+```bash
+ayo "help me create an agent for code review"
+ayo "show me what agents I have"
+```
 
 ### Agents via Plugins
 
@@ -29,14 +51,14 @@ ayo plugins install https://github.com/user/ayo-plugins-research
 ### Interactive Chat
 
 ```bash
-# Default agent
+# Default agent (@ayo)
 ayo
 
 # Specific agent
-ayo @ayo
+ayo @myagent
 
 # With file attachment
-ayo @ayo -a main.go
+ayo -a main.go
 ```
 
 Exit with `Ctrl+C` (twice if mid-response).
@@ -48,7 +70,7 @@ Exit with `Ctrl+C` (twice if mid-response).
 ayo "what's new in Go 1.22?"
 
 # With specific agent
-ayo @ayo "explain this error"
+ayo @myagent "explain this error"
 
 # With file attachments
 ayo -a error.log "what caused this?"
@@ -56,28 +78,30 @@ ayo -a error.log "what caused this?"
 
 ## Creating Agents
 
-### Interactive Wizard
+### Conversational Approach (Recommended)
+
+Ask `@ayo` to help design and create your agent:
 
 ```bash
-ayo agents create @myagent
+ayo "help me create an agent for code review"
 ```
 
-The wizard guides you through:
-1. Model selection
-2. Description
-3. System prompt (via editor)
-4. Tools selection
-5. Skills selection
+This provides a guided experience where `@ayo` will:
+1. Ask about the agent's purpose
+2. Help design the system prompt
+3. Suggest appropriate tools and skills
+4. Create the agent files
 
-### Non-Interactive
+### CLI Approach
+
+For scripted or quick creation:
 
 ```bash
-ayo agents create @myagent \
-  --non-interactive \
-  --model gpt-4.1 \
-  --description "My custom agent" \
-  --system "You are a helpful assistant..." \
-  --tools bash,agent_call \
+ayo agents create @reviewer \
+  -m gpt-4.1 \
+  -d "Reviews code for best practices" \
+  -f ~/prompts/reviewer.md \
+  -t bash \
   --skills debugging
 ```
 
@@ -86,6 +110,8 @@ ayo agents create @myagent \
 ```bash
 # Create system prompt
 cat > system.md << 'EOF'
+# Code Reviewer
+
 You are an expert code reviewer.
 
 ## Guidelines
@@ -95,7 +121,7 @@ You are an expert code reviewer.
 EOF
 
 # Create agent with file
-ayo agents create @reviewer -n -m gpt-4.1 -f system.md
+ayo agents create @reviewer -m gpt-4.1 -f system.md
 ```
 
 ### Create Flags
@@ -104,7 +130,7 @@ ayo agents create @reviewer -n -m gpt-4.1 -f system.md
 |------|-------|-------------|
 | `--model` | `-m` | Model to use |
 | `--description` | `-d` | Brief description |
-| `--system` | `-s` | System prompt text |
+| `--system` | `-s` | System prompt text (inline) |
 | `--system-file` | `-f` | Path to system prompt file |
 | `--tools` | `-t` | Allowed tools (comma-separated) |
 | `--skills` | | Skills to include |
@@ -114,7 +140,6 @@ ayo agents create @reviewer -n -m gpt-4.1 -f system.md
 | `--input-schema` | | JSON schema for stdin input |
 | `--output-schema` | | JSON schema for stdout output |
 | `--no-guardrails` | | Disable safety guardrails |
-| `--non-interactive` | `-n` | Skip wizard |
 
 ## Agent Structure
 
@@ -129,6 +154,15 @@ ayo agents create @reviewer -n -m gpt-4.1 -f system.md
 └── output.jsonschema   # Output schema for chaining (optional)
 ```
 
+### Locations
+
+| Location | Path | Purpose |
+|----------|------|---------|
+| User agents | `~/.config/ayo/agents/` | Your custom agents |
+| Built-in | `~/.local/share/ayo/agents/` | Shipped with ayo |
+
+User agents take precedence over built-in agents with the same name.
+
 ### config.json
 
 ```json
@@ -136,8 +170,8 @@ ayo agents create @reviewer -n -m gpt-4.1 -f system.md
   "description": "What this agent does",
   "model": "gpt-4.1",
   "allowed_tools": ["bash", "agent_call"],
-  "skills": ["debugging", "coding"],
-  "exclude_skills": ["unwanted-skill"],
+  "skills": ["debugging"],
+  "exclude_skills": [],
   "ignore_builtin_skills": false,
   "ignore_shared_skills": false,
   "guardrails": true,
@@ -149,24 +183,26 @@ ayo agents create @reviewer -n -m gpt-4.1 -f system.md
 
 ### Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `description` | string | Brief agent description |
-| `model` | string | LLM model (uses default if omitted) |
-| `allowed_tools` | string[] | Tools the agent can use |
-| `skills` | string[] | Skills to attach |
-| `exclude_skills` | string[] | Skills to exclude |
-| `ignore_builtin_skills` | bool | Skip built-in skills |
-| `ignore_shared_skills` | bool | Skip user shared skills |
-| `guardrails` | bool | Safety guardrails (default: true) |
-| `delegates` | object | Task type to agent mappings |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `description` | string | | Brief agent description |
+| `model` | string | (global) | LLM model to use |
+| `allowed_tools` | string[] | `["bash"]` | Tools the agent can use |
+| `skills` | string[] | `[]` | Skills to attach |
+| `exclude_skills` | string[] | `[]` | Skills to exclude |
+| `ignore_builtin_skills` | bool | `false` | Skip built-in skills |
+| `ignore_shared_skills` | bool | `false` | Skip user shared skills |
+| `guardrails` | bool | `true` | Safety guardrails |
+| `delegates` | object | | Task type to agent mappings |
 
 ### system.md
 
 The system prompt defines the agent's behavior:
 
 ```markdown
-You are an expert debugger.
+# Expert Debugger
+
+You are an expert debugger specializing in finding and fixing bugs.
 
 ## Your Role
 
@@ -180,6 +216,14 @@ You are an expert debugger.
 1. Be systematic and thorough
 2. Explain your reasoning
 3. Provide actionable solutions
+
+## Output Format
+
+For each bug found:
+1. Location (file and line)
+2. Issue description
+3. Root cause analysis
+4. Suggested fix
 ```
 
 ## Managing Agents
@@ -195,10 +239,26 @@ Shows agents grouped by source (user-defined vs built-in).
 ### Show Details
 
 ```bash
-ayo agents show @ayo
+ayo agents show @myagent
 ```
 
 Displays configuration, tools, skills, and location.
+
+### Edit an Agent
+
+```bash
+# Edit system prompt
+$EDITOR ~/.config/ayo/agents/@myagent/system.md
+
+# Edit configuration
+$EDITOR ~/.config/ayo/agents/@myagent/config.json
+```
+
+### Delete an Agent
+
+```bash
+rm -rf ~/.config/ayo/agents/@myagent
+```
 
 ### Update Built-ins
 
@@ -234,20 +294,24 @@ Guardrails are **enabled by default**. To disable (not recommended):
 
 ```bash
 # Create agent without guardrails (dangerous)
-ayo agents create @dangerous -n --no-guardrails
+ayo agents create @dangerous --no-guardrails
 ```
 
 ## System Prompt Assembly
 
 When an agent runs, the system prompt is assembled from multiple sources:
 
-1. **Environment context** - Platform, date, git status
-2. **Guardrails** - If enabled
-3. **User prefix** - Optional `~/.config/ayo/prompts/system-prefix.md`
-4. **Agent prompt** - From `system.md`
-5. **User suffix** - Optional `~/.config/ayo/prompts/system-suffix.md`
-6. **Tools prompt** - Tool instructions
-7. **Skills prompt** - Available skills
+```
+┌─────────────────────────────────────┐
+│  1. Environment context             │  Platform, date, git status
+│  2. Guardrails                      │  Safety constraints (if enabled)
+│  3. User prefix                     │  ~/.config/ayo/prompts/prefix.md
+│  4. Agent system prompt             │  system.md
+│  5. User suffix                     │  ~/.config/ayo/prompts/suffix.md
+│  6. Tools prompt                    │  Tool instructions
+│  7. Skills prompt                   │  Attached skill instructions
+└─────────────────────────────────────┘
+```
 
 ## Reserved Namespaces
 
@@ -256,6 +320,14 @@ The `@ayo` namespace is reserved for built-in agents:
 - All `@ayo` agents have guardrails enforced
 - Attempting to create `@ayo.custom` will fail
 
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Execute shell commands |
+| `agent_call` | Delegate tasks to other agents |
+| `plan` | Track multi-step tasks with phases and todos |
+
 ## Delegation
 
 Agents can delegate specific task types to other agents. See [Delegation](delegation.md) for details.
@@ -263,7 +335,8 @@ Agents can delegate specific task types to other agents. See [Delegation](delega
 ```json
 {
   "delegates": {
-    "coding": "@crush"
+    "coding": "@crush",
+    "research": "@research"
   }
 }
 ```
