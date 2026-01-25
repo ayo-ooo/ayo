@@ -75,15 +75,23 @@ ayo plugins install https://github.com/user/repo --yes
 
 ### Dependency Checking
 
-During installation, ayo checks for required dependencies:
+During installation, ayo checks for required dependencies and offers to install them:
 
 ```
-✓ Checking dependencies...
-  ✗ Missing binary: crush
+✓ Installed crush v1.0.0
+  → Agents: @crush
+  → Skills: crush-coding
+  → Tools: crush
+
+! Missing dependencies:
+  ✗ crush
     Install with: go install github.com/charmbracelet/crush@latest
 
-Installation cancelled - missing dependencies
+? Install crush now? [Y/n]
 ```
+
+If a dependency has an `install_cmd` defined, you'll be prompted to install it automatically.
+Otherwise, the install hint and/or URL will be displayed so you can install manually.
 
 ## Managing Plugins
 
@@ -179,7 +187,15 @@ Every plugin requires a `manifest.json` at the repository root:
     "coding": "@my-agent"
   },
   "dependencies": {
-    "binaries": ["some-cli-tool"]
+    "binaries": [
+      "simple-dep",
+      {
+        "name": "crush",
+        "install_hint": "Install with: go install github.com/charmbracelet/crush@latest",
+        "install_cmd": "go install github.com/charmbracelet/crush@latest",
+        "install_url": "https://github.com/charmbracelet/crush"
+      }
+    ]
   },
   "ayo_version": ">=0.2.0"
 }
@@ -204,8 +220,36 @@ Every plugin requires a `manifest.json` at the repository root:
 | `skills` | List of skill names provided (must exist in `skills/`). |
 | `tools` | List of tool names provided (must exist in `tools/`). |
 | `delegates` | Task types this plugin handles (see [Delegates](#declaring-delegates)). |
-| `dependencies` | External requirements (binaries, other plugins). |
+| `dependencies` | External requirements (see [Dependencies](#dependencies)). |
 | `ayo_version` | Minimum ayo version required (semver constraint). |
+
+#### Dependencies
+
+The `dependencies` field specifies external requirements. Binary dependencies can be simple strings or objects with installation instructions:
+
+```json
+{
+  "dependencies": {
+    "binaries": [
+      "simple-binary",
+      {
+        "name": "complex-binary",
+        "install_hint": "Human-readable installation instructions",
+        "install_cmd": "go install github.com/example/tool@latest",
+        "install_url": "https://example.com/install"
+      }
+    ],
+    "plugins": ["other-ayo-plugin"]
+  }
+}
+```
+
+| Binary Field | Description |
+|--------------|-------------|
+| `name` | Required. The binary name to look for in PATH. |
+| `install_hint` | Human-readable message shown when dependency is missing. |
+| `install_cmd` | Command to run to install the dependency. If provided, user is prompted to run it. |
+| `install_url` | URL with installation instructions. |
 
 ### Adding Agents
 

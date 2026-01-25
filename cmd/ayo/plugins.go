@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -206,9 +207,12 @@ Examples:
 				fmt.Printf("  %s Tools: %s\n", pluginArrow, strings.Join(result.Plugin.Tools, ", "))
 			}
 
-			// Show warnings
-			for _, warn := range result.Warnings {
-				fmt.Printf("  %s %s\n", pluginWarnStyle.Render("!"), warn)
+			// Handle missing dependencies
+			if len(result.MissingDeps) > 0 {
+				fmt.Println()
+				if err := handleMissingDependencies(result.MissingDeps); err != nil {
+					fmt.Printf("  %s Dependency setup error: %v\n", pluginWarnStyle.Render("!"), err)
+				}
 			}
 
 			// Handle delegation setup if plugin declares delegates
@@ -551,4 +555,92 @@ func handleDelegateSetup(delegates map[string]string) error {
 	}
 
 	return nil
+}
+
+// handleMissingDependencies prompts the user about missing binary dependencies
+// and optionally offers to install them.
+func handleMissingDependencies(missing []plugins.BinaryDep) error {
+	fmt.Printf("%s Missing dependencies:\n", pluginWarnStyle.Render("!"))
+
+	for _, dep := range missing {
+		fmt.Printf("  %s %s\n", pluginCross, pluginNameStyle.Render(dep.Name))
+
+		// Show installation instructions if available
+		if dep.InstallHint != "" {
+			fmt.Printf("    %s\n", pluginMutedStyle.Render(dep.InstallHint))
+		}
+		if dep.InstallURL != "" {
+			fmt.Printf("    %s %s\n", pluginArrow, pluginMutedStyle.Render(dep.InstallURL))
+		}
+
+		// If install command is available, offer to run it
+		if dep.InstallCmd != "" {
+			var install bool
+			form := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(fmt.Sprintf("Install %s now?", dep.Name)).
+						Description(fmt.Sprintf("Run: %s", dep.InstallCmd)).
+						Affirmative("Yes").
+						Negative("No").
+						Value(&install),
+				),
+			).WithTheme(huh.ThemeCharm())
+
+			if err := form.Run(); err != nil {
+				return err
+			}
+
+			if install {
+				if err := runInstallCommand(dep.Name, dep.InstallCmd); err != nil {
+					fmt.Printf("  %s Failed to install %s: %v\n",
+						pluginCross,
+						dep.Name,
+						err,
+					)
+				} else {
+					fmt.Printf("  %s Installed %s\n", pluginCheckmark, pluginNameStyle.Render(dep.Name))
+				}
+			} else {
+				fmt.Printf("  %s Skipped %s installation\n", pluginMutedStyle.Render("-"), dep.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+// runInstallCommand executes an installation command and displays progress.
+func runInstallCommand(name, command string) error {
+	// Parse the command
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return fmt.Errorf("empty install command")
+	}
+
+	// Look for the executable
+	execPath, err := exec.LookPath(parts[0])
+	if err != nil {
+		return fmt.Errorf("%s not found in PATH", parts[0])
+	}
+
+	// Run with spinner
+	var runErr error
+	spinErr := spinner.New().
+		Title(fmt.Sprintf("Installing %s...", name)).
+		Type(spinner.Dots).
+		Style(lipgloss.NewStyle().Foreground(pluginPurple)).
+		ActionWithErr(func(ctx context.Context) error {
+			cmd := exec.CommandContext(ctx, execPath, parts[1:]...)
+			cmd.Stdout = nil
+			cmd.Stderr = nil
+			runErr = cmd.Run()
+			return runErr
+		}).
+		Run()
+
+	if spinErr != nil {
+		return spinErr
+	}
+	return runErr
 }

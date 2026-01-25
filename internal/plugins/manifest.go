@@ -63,10 +63,108 @@ type Manifest struct {
 // Dependencies specifies external requirements for a plugin.
 type Dependencies struct {
 	// Binaries lists executable names that must be in PATH.
-	Binaries []string `json:"binaries,omitempty"`
+	// Can be simple strings (just the binary name) or BinaryDep objects
+	// with installation instructions.
+	Binaries []BinaryDep `json:"-"` // Custom unmarshaling
 
 	// Plugins lists other ayo plugins that must be installed.
 	Plugins []string `json:"plugins,omitempty"`
+}
+
+// BinaryDep describes a binary dependency with optional installation instructions.
+type BinaryDep struct {
+	// Name is the executable name to look for in PATH.
+	Name string `json:"name"`
+
+	// InstallHint is a human-readable message explaining how to install.
+	// Example: "Install with: brew install foo"
+	InstallHint string `json:"install_hint,omitempty"`
+
+	// InstallURL is a URL with installation instructions.
+	InstallURL string `json:"install_url,omitempty"`
+
+	// InstallCmd is a command that can be run to install the binary.
+	// Example: "go install github.com/foo/bar@latest"
+	InstallCmd string `json:"install_cmd,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Dependencies.
+// It supports both simple string arrays and mixed string/object arrays:
+//
+//	"binaries": ["foo", "bar"]
+//	"binaries": [{"name": "foo", "install_hint": "brew install foo"}, "bar"]
+func (d *Dependencies) UnmarshalJSON(data []byte) error {
+	// Use an alias to avoid infinite recursion
+	type Alias Dependencies
+	aux := &struct {
+		Binaries []json.RawMessage `json:"binaries,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(d),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Parse binaries - each can be a string or an object
+	for _, raw := range aux.Binaries {
+		// Try as string first
+		var name string
+		if err := json.Unmarshal(raw, &name); err == nil {
+			d.Binaries = append(d.Binaries, BinaryDep{Name: name})
+			continue
+		}
+
+		// Try as object
+		var dep BinaryDep
+		if err := json.Unmarshal(raw, &dep); err != nil {
+			return fmt.Errorf("invalid binary dependency: must be string or object: %w", err)
+		}
+		if dep.Name == "" {
+			return errors.New("invalid binary dependency: name is required")
+		}
+		d.Binaries = append(d.Binaries, dep)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling for Dependencies.
+// It serializes simple dependencies (name only) as strings for cleaner output.
+func (d Dependencies) MarshalJSON() ([]byte, error) {
+	type Alias struct {
+		Binaries []any    `json:"binaries,omitempty"`
+		Plugins  []string `json:"plugins,omitempty"`
+	}
+
+	aux := Alias{
+		Plugins: d.Plugins,
+	}
+
+	for _, dep := range d.Binaries {
+		if dep.InstallHint == "" && dep.InstallURL == "" && dep.InstallCmd == "" {
+			// Simple dependency - just the name
+			aux.Binaries = append(aux.Binaries, dep.Name)
+		} else {
+			// Full dependency object
+			aux.Binaries = append(aux.Binaries, dep)
+		}
+	}
+
+	return json.Marshal(aux)
+}
+
+// GetBinaryNames returns just the binary names for backwards compatibility.
+func (d *Dependencies) GetBinaryNames() []string {
+	if d == nil {
+		return nil
+	}
+	names := make([]string, len(d.Binaries))
+	for i, b := range d.Binaries {
+		names[i] = b.Name
+	}
+	return names
 }
 
 // ManifestFile is the expected filename for plugin manifests.

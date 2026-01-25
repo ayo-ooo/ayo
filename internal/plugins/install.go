@@ -33,9 +33,9 @@ type InstallOptions struct {
 
 // InstallResult contains information about a successful installation.
 type InstallResult struct {
-	Plugin   *InstalledPlugin
-	Manifest *Manifest
-	Warnings []string
+	Plugin      *InstalledPlugin
+	Manifest    *Manifest
+	MissingDeps []BinaryDep // Dependencies that are missing (with install hints)
 }
 
 // Install installs a plugin from a git repository.
@@ -98,13 +98,9 @@ func Install(pluginRef string, opts *InstallOptions) (*InstallResult, error) {
 	}
 
 	// Check dependencies
-	var warnings []string
+	var missingDeps []BinaryDep
 	if !opts.SkipDependencyCheck && manifest.Dependencies != nil {
-		for _, binary := range manifest.Dependencies.Binaries {
-			if _, err := exec.LookPath(binary); err != nil {
-				warnings = append(warnings, fmt.Sprintf("required binary not found: %s", binary))
-			}
-		}
+		missingDeps = CheckMissingDependencies(manifest)
 	}
 
 	// Create installed plugin record
@@ -128,9 +124,9 @@ func Install(pluginRef string, opts *InstallOptions) (*InstallResult, error) {
 	}
 
 	return &InstallResult{
-		Plugin:   plugin,
-		Manifest: manifest,
-		Warnings: warnings,
+		Plugin:      plugin,
+		Manifest:    manifest,
+		MissingDeps: missingDeps,
 	}, nil
 }
 
@@ -215,13 +211,9 @@ func InstallFromLocal(localPath string, opts *InstallOptions) (*InstallResult, e
 	}
 
 	// Check dependencies
-	var warnings []string
+	var missingDeps []BinaryDep
 	if !opts.SkipDependencyCheck && manifest.Dependencies != nil {
-		for _, binary := range manifest.Dependencies.Binaries {
-			if _, err := exec.LookPath(binary); err != nil {
-				warnings = append(warnings, fmt.Sprintf("required binary not found: %s", binary))
-			}
-		}
+		missingDeps = CheckMissingDependencies(manifest)
 	}
 
 	// Get git commit if it's a git repo
@@ -251,9 +243,9 @@ func InstallFromLocal(localPath string, opts *InstallOptions) (*InstallResult, e
 	}
 
 	return &InstallResult{
-		Plugin:   plugin,
-		Manifest: manifest,
-		Warnings: warnings,
+		Plugin:      plugin,
+		Manifest:    manifest,
+		MissingDeps: missingDeps,
 	}, nil
 }
 
@@ -296,15 +288,27 @@ func copyDir(src, dst string) error {
 }
 
 // CheckDependencies checks if all required dependencies are available.
+// Returns the names of missing binaries (for backwards compatibility).
 func CheckDependencies(manifest *Manifest) []string {
-	var missing []string
+	deps := CheckMissingDependencies(manifest)
+	names := make([]string, len(deps))
+	for i, d := range deps {
+		names[i] = d.Name
+	}
+	return names
+}
+
+// CheckMissingDependencies checks for missing dependencies and returns
+// the full BinaryDep objects with installation hints.
+func CheckMissingDependencies(manifest *Manifest) []BinaryDep {
+	var missing []BinaryDep
 
 	if manifest.Dependencies == nil {
 		return missing
 	}
 
 	for _, binary := range manifest.Dependencies.Binaries {
-		if _, err := exec.LookPath(binary); err != nil {
+		if _, err := exec.LookPath(binary.Name); err != nil {
 			missing = append(missing, binary)
 		}
 	}
