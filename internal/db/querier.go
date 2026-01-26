@@ -10,31 +10,49 @@ import (
 )
 
 type Querier interface {
+	ClearAllMemories(ctx context.Context, updatedAt int64) error
+	ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByAgentParams) error
+	CountMemories(ctx context.Context, status sql.NullString) (int64, error)
+	CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByAgentParams) (int64, error)
 	CountMessagesBySession(ctx context.Context, sessionID string) (int64, error)
 	CountSessions(ctx context.Context) (int64, error)
 	CountSessionsByAgent(ctx context.Context, agentHandle string) (int64, error)
 	CountSessionsBySource(ctx context.Context, source string) (int64, error)
 	CreateEdge(ctx context.Context, arg CreateEdgeParams) error
+	CreateMemory(ctx context.Context, arg CreateMemoryParams) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteEdge(ctx context.Context, arg DeleteEdgeParams) error
 	DeleteEdgesBySession(ctx context.Context, sessionID string) error
+	DeleteMemory(ctx context.Context, id string) error
 	DeleteMessage(ctx context.Context, id string) error
 	DeleteMessagesBySession(ctx context.Context, sessionID string) error
 	DeleteSession(ctx context.Context, id string) error
+	ForgetMemory(ctx context.Context, arg ForgetMemoryParams) error
+	GetAllActiveMemoriesWithEmbeddings(ctx context.Context) ([]GetAllActiveMemoriesWithEmbeddingsRow, error)
 	GetChildEdges(ctx context.Context, parentID string) ([]SessionEdge, error)
+	GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSearchParams) ([]GetMemoriesForSearchRow, error)
+	GetMemory(ctx context.Context, id string) (Memory, error)
+	GetMemoryHistory(ctx context.Context, id string) ([]GetMemoryHistoryRow, error)
 	GetMessage(ctx context.Context, id string) (Message, error)
 	GetParentEdges(ctx context.Context, childID string) ([]SessionEdge, error)
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetSessionByPrefix(ctx context.Context, prefix sql.NullString) ([]Session, error)
+	ListMemories(ctx context.Context, arg ListMemoriesParams) ([]Memory, error)
+	ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAgentParams) ([]Memory, error)
+	ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemoriesByAgentAndPathParams) ([]Memory, error)
+	ListMemoriesByCategory(ctx context.Context, arg ListMemoriesByCategoryParams) ([]Memory, error)
+	ListMemoriesByPath(ctx context.Context, arg ListMemoriesByPathParams) ([]Memory, error)
 	ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
 	ListSessions(ctx context.Context, limit int64) ([]Session, error)
 	ListSessionsByAgent(ctx context.Context, arg ListSessionsByAgentParams) ([]Session, error)
 	ListSessionsBySource(ctx context.Context, arg ListSessionsBySourceParams) ([]Session, error)
 	SearchSessionsByTitle(ctx context.Context, arg SearchSessionsByTitleParams) ([]Session, error)
+	SupersedeMemory(ctx context.Context, arg SupersedeMemoryParams) error
+	UpdateMemory(ctx context.Context, arg UpdateMemoryParams) error
+	UpdateMemoryAccess(ctx context.Context, arg UpdateMemoryAccessParams) error
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) (Session, error)
-	UpdateSessionPlan(ctx context.Context, arg UpdateSessionPlanParams) (Session, error)
 	UpdateSessionTitle(ctx context.Context, arg UpdateSessionTitleParams) error
 }
 

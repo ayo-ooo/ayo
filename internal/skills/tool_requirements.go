@@ -17,11 +17,6 @@ var toolRequirements = []ToolSkillRequirement{
 		RequiredSkills: []string{"agent-discovery"},
 		Reason:         "agent_call requires knowledge of available agents for delegation",
 	},
-	{
-		ToolName:       "plan",
-		RequiredSkills: []string{"planning"},
-		Reason:         "plan tool requires the planning skill for effective task decomposition",
-	},
 }
 
 // GetToolSkillRequirements returns all registered tool-skill requirements.

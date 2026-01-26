@@ -10,6 +10,63 @@ import (
 	"database/sql"
 )
 
+const clearAllMemories = `-- name: ClearAllMemories :exec
+UPDATE memories SET
+    status = 'forgotten',
+    updated_at = ?
+`
+
+func (q *Queries) ClearAllMemories(ctx context.Context, updatedAt int64) error {
+	_, err := q.exec(ctx, q.clearAllMemoriesStmt, clearAllMemories, updatedAt)
+	return err
+}
+
+const clearMemoriesByAgent = `-- name: ClearMemoriesByAgent :exec
+UPDATE memories SET
+    status = 'forgotten',
+    updated_at = ?
+WHERE agent_handle = ?
+`
+
+type ClearMemoriesByAgentParams struct {
+	UpdatedAt   int64          `json:"updated_at"`
+	AgentHandle sql.NullString `json:"agent_handle"`
+}
+
+func (q *Queries) ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByAgentParams) error {
+	_, err := q.exec(ctx, q.clearMemoriesByAgentStmt, clearMemoriesByAgent, arg.UpdatedAt, arg.AgentHandle)
+	return err
+}
+
+const countMemories = `-- name: CountMemories :one
+SELECT COUNT(*) FROM memories WHERE status = COALESCE(?1, 'active')
+`
+
+func (q *Queries) CountMemories(ctx context.Context, status sql.NullString) (int64, error) {
+	row := q.queryRow(ctx, q.countMemoriesStmt, countMemories, status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countMemoriesByAgent = `-- name: CountMemoriesByAgent :one
+SELECT COUNT(*) FROM memories 
+WHERE agent_handle = ?
+  AND status = COALESCE(?2, 'active')
+`
+
+type CountMemoriesByAgentParams struct {
+	AgentHandle sql.NullString `json:"agent_handle"`
+	Status      sql.NullString `json:"status"`
+}
+
+func (q *Queries) CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByAgentParams) (int64, error) {
+	row := q.queryRow(ctx, q.countMemoriesByAgentStmt, countMemoriesByAgent, arg.AgentHandle, arg.Status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMemory = `-- name: CreateMemory :exec
 INSERT INTO memories (
     id, agent_handle, path_scope, content, category, embedding,
@@ -19,18 +76,18 @@ INSERT INTO memories (
 `
 
 type CreateMemoryParams struct {
-	ID              string         `json:"id"`
-	AgentHandle     sql.NullString `json:"agent_handle"`
-	PathScope       sql.NullString `json:"path_scope"`
-	Content         string         `json:"content"`
-	Category        string         `json:"category"`
-	Embedding       []byte         `json:"embedding"`
-	SourceSessionID sql.NullString `json:"source_session_id"`
-	SourceMessageID sql.NullString `json:"source_message_id"`
-	CreatedAt       int64          `json:"created_at"`
-	UpdatedAt       int64          `json:"updated_at"`
+	ID              string          `json:"id"`
+	AgentHandle     sql.NullString  `json:"agent_handle"`
+	PathScope       sql.NullString  `json:"path_scope"`
+	Content         string          `json:"content"`
+	Category        string          `json:"category"`
+	Embedding       []byte          `json:"embedding"`
+	SourceSessionID sql.NullString  `json:"source_session_id"`
+	SourceMessageID sql.NullString  `json:"source_message_id"`
+	CreatedAt       int64           `json:"created_at"`
+	UpdatedAt       int64           `json:"updated_at"`
 	Confidence      sql.NullFloat64 `json:"confidence"`
-	Status          sql.NullString `json:"status"`
+	Status          sql.NullString  `json:"status"`
 }
 
 func (q *Queries) CreateMemory(ctx context.Context, arg CreateMemoryParams) error {
@@ -49,6 +106,149 @@ func (q *Queries) CreateMemory(ctx context.Context, arg CreateMemoryParams) erro
 		arg.Status,
 	)
 	return err
+}
+
+const deleteMemory = `-- name: DeleteMemory :exec
+DELETE FROM memories WHERE id = ?
+`
+
+func (q *Queries) DeleteMemory(ctx context.Context, id string) error {
+	_, err := q.exec(ctx, q.deleteMemoryStmt, deleteMemory, id)
+	return err
+}
+
+const forgetMemory = `-- name: ForgetMemory :exec
+UPDATE memories SET
+    status = 'forgotten',
+    updated_at = ?
+WHERE id = ?
+`
+
+type ForgetMemoryParams struct {
+	UpdatedAt int64  `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) ForgetMemory(ctx context.Context, arg ForgetMemoryParams) error {
+	_, err := q.exec(ctx, q.forgetMemoryStmt, forgetMemory, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const getAllActiveMemoriesWithEmbeddings = `-- name: GetAllActiveMemoriesWithEmbeddings :many
+SELECT id, agent_handle, path_scope, content, category, embedding, confidence,
+       last_accessed_at, access_count, created_at
+FROM memories
+WHERE status = 'active'
+  AND embedding IS NOT NULL
+`
+
+type GetAllActiveMemoriesWithEmbeddingsRow struct {
+	ID             string          `json:"id"`
+	AgentHandle    sql.NullString  `json:"agent_handle"`
+	PathScope      sql.NullString  `json:"path_scope"`
+	Content        string          `json:"content"`
+	Category       string          `json:"category"`
+	Embedding      []byte          `json:"embedding"`
+	Confidence     sql.NullFloat64 `json:"confidence"`
+	LastAccessedAt sql.NullInt64   `json:"last_accessed_at"`
+	AccessCount    sql.NullInt64   `json:"access_count"`
+	CreatedAt      int64           `json:"created_at"`
+}
+
+func (q *Queries) GetAllActiveMemoriesWithEmbeddings(ctx context.Context) ([]GetAllActiveMemoriesWithEmbeddingsRow, error) {
+	rows, err := q.query(ctx, q.getAllActiveMemoriesWithEmbeddingsStmt, getAllActiveMemoriesWithEmbeddings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllActiveMemoriesWithEmbeddingsRow{}
+	for rows.Next() {
+		var i GetAllActiveMemoriesWithEmbeddingsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMemoriesForSearch = `-- name: GetMemoriesForSearch :many
+SELECT id, agent_handle, path_scope, content, category, embedding, confidence,
+       last_accessed_at, access_count, created_at
+FROM memories
+WHERE status = 'active'
+  AND embedding IS NOT NULL
+  AND (agent_handle = ?1 OR agent_handle IS NULL OR ?1 IS NULL)
+  AND (path_scope = ?2 OR path_scope IS NULL OR ?2 IS NULL)
+`
+
+type GetMemoriesForSearchParams struct {
+	AgentHandle sql.NullString `json:"agent_handle"`
+	PathScope   sql.NullString `json:"path_scope"`
+}
+
+type GetMemoriesForSearchRow struct {
+	ID             string          `json:"id"`
+	AgentHandle    sql.NullString  `json:"agent_handle"`
+	PathScope      sql.NullString  `json:"path_scope"`
+	Content        string          `json:"content"`
+	Category       string          `json:"category"`
+	Embedding      []byte          `json:"embedding"`
+	Confidence     sql.NullFloat64 `json:"confidence"`
+	LastAccessedAt sql.NullInt64   `json:"last_accessed_at"`
+	AccessCount    sql.NullInt64   `json:"access_count"`
+	CreatedAt      int64           `json:"created_at"`
+}
+
+func (q *Queries) GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSearchParams) ([]GetMemoriesForSearchRow, error) {
+	rows, err := q.query(ctx, q.getMemoriesForSearchStmt, getMemoriesForSearch, arg.AgentHandle, arg.PathScope)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMemoriesForSearchRow{}
+	for rows.Next() {
+		var i GetMemoriesForSearchRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getMemory = `-- name: GetMemory :one
@@ -78,6 +278,393 @@ func (q *Queries) GetMemory(ctx context.Context, id string) (Memory, error) {
 		&i.Status,
 	)
 	return i, err
+}
+
+const getMemoryHistory = `-- name: GetMemoryHistory :many
+WITH RECURSIVE chain AS (
+    SELECT m.id, m.content, m.category, m.status, m.supersedes_id, m.superseded_by_id, 
+           m.supersession_reason, m.created_at, 0 as depth
+    FROM memories m WHERE m.id = ?
+    
+    UNION ALL
+    
+    SELECT m.id, m.content, m.category, m.status, m.supersedes_id, m.superseded_by_id,
+           m.supersession_reason, m.created_at, c.depth + 1
+    FROM memories m
+    JOIN chain c ON m.id = c.supersedes_id
+    WHERE c.depth < 100
+)
+SELECT id, content, category, status, supersedes_id, superseded_by_id, supersession_reason, created_at, depth FROM chain ORDER BY depth
+`
+
+type GetMemoryHistoryRow struct {
+	ID                 string         `json:"id"`
+	Content            string         `json:"content"`
+	Category           string         `json:"category"`
+	Status             sql.NullString `json:"status"`
+	SupersedesID       sql.NullString `json:"supersedes_id"`
+	SupersededByID     sql.NullString `json:"superseded_by_id"`
+	SupersessionReason sql.NullString `json:"supersession_reason"`
+	CreatedAt          int64          `json:"created_at"`
+	Depth              int64          `json:"depth"`
+}
+
+func (q *Queries) GetMemoryHistory(ctx context.Context, id string) ([]GetMemoryHistoryRow, error) {
+	rows, err := q.query(ctx, q.getMemoryHistoryStmt, getMemoryHistory, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMemoryHistoryRow{}
+	for rows.Next() {
+		var i GetMemoryHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Content,
+			&i.Category,
+			&i.Status,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.CreatedAt,
+			&i.Depth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemories = `-- name: ListMemories :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+WHERE status = COALESCE(?1, 'active')
+ORDER BY created_at DESC
+LIMIT ?3 OFFSET ?2
+`
+
+type ListMemoriesParams struct {
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemories(ctx context.Context, arg ListMemoriesParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesStmt, listMemories, arg.Status, arg.Off, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemoriesByAgent = `-- name: ListMemoriesByAgent :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+WHERE agent_handle = ?1
+  AND status = COALESCE(?2, 'active')
+ORDER BY created_at DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListMemoriesByAgentParams struct {
+	Agent  sql.NullString `json:"agent"`
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAgentParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesByAgentStmt, listMemoriesByAgent,
+		arg.Agent,
+		arg.Status,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemoriesByAgentAndPath = `-- name: ListMemoriesByAgentAndPath :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+WHERE (agent_handle = ?1 OR agent_handle IS NULL)
+  AND (path_scope = ?2 OR path_scope IS NULL)
+  AND status = COALESCE(?3, 'active')
+ORDER BY 
+    CASE WHEN agent_handle IS NOT NULL THEN 0 ELSE 1 END,
+    CASE WHEN path_scope IS NOT NULL THEN 0 ELSE 1 END,
+    created_at DESC
+LIMIT ?5 OFFSET ?4
+`
+
+type ListMemoriesByAgentAndPathParams struct {
+	Agent  sql.NullString `json:"agent"`
+	Path   sql.NullString `json:"path"`
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemoriesByAgentAndPathParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesByAgentAndPathStmt, listMemoriesByAgentAndPath,
+		arg.Agent,
+		arg.Path,
+		arg.Status,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemoriesByCategory = `-- name: ListMemoriesByCategory :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+WHERE category = ?1
+  AND status = COALESCE(?2, 'active')
+ORDER BY created_at DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListMemoriesByCategoryParams struct {
+	Cat    string         `json:"cat"`
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemoriesByCategory(ctx context.Context, arg ListMemoriesByCategoryParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesByCategoryStmt, listMemoriesByCategory,
+		arg.Cat,
+		arg.Status,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemoriesByPath = `-- name: ListMemoriesByPath :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+WHERE (path_scope = ?1 OR path_scope IS NULL)
+  AND status = COALESCE(?2, 'active')
+ORDER BY 
+    CASE WHEN path_scope IS NOT NULL THEN 0 ELSE 1 END,
+    created_at DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListMemoriesByPathParams struct {
+	Path   sql.NullString `json:"path"`
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemoriesByPath(ctx context.Context, arg ListMemoriesByPathParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesByPathStmt, listMemoriesByPath,
+		arg.Path,
+		arg.Status,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supersedeMemory = `-- name: SupersedeMemory :exec
+UPDATE memories SET
+    status = 'superseded',
+    superseded_by_id = ?,
+    updated_at = ?
+WHERE id = ?
+`
+
+type SupersedeMemoryParams struct {
+	SupersededByID sql.NullString `json:"superseded_by_id"`
+	UpdatedAt      int64          `json:"updated_at"`
+	ID             string         `json:"id"`
+}
+
+func (q *Queries) SupersedeMemory(ctx context.Context, arg SupersedeMemoryParams) error {
+	_, err := q.exec(ctx, q.supersedeMemoryStmt, supersedeMemory, arg.SupersededByID, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const updateMemory = `-- name: UpdateMemory :exec
@@ -125,293 +712,5 @@ type UpdateMemoryAccessParams struct {
 
 func (q *Queries) UpdateMemoryAccess(ctx context.Context, arg UpdateMemoryAccessParams) error {
 	_, err := q.exec(ctx, q.updateMemoryAccessStmt, updateMemoryAccess, arg.LastAccessedAt, arg.ID)
-	return err
-}
-
-const supersedeMemory = `-- name: SupersedeMemory :exec
-UPDATE memories SET
-    status = 'superseded',
-    superseded_by_id = ?,
-    updated_at = ?
-WHERE id = ?
-`
-
-type SupersedeMemoryParams struct {
-	SupersededByID sql.NullString `json:"superseded_by_id"`
-	UpdatedAt      int64          `json:"updated_at"`
-	ID             string         `json:"id"`
-}
-
-func (q *Queries) SupersedeMemory(ctx context.Context, arg SupersedeMemoryParams) error {
-	_, err := q.exec(ctx, q.supersedeMemoryStmt, supersedeMemory,
-		arg.SupersededByID,
-		arg.UpdatedAt,
-		arg.ID,
-	)
-	return err
-}
-
-const forgetMemory = `-- name: ForgetMemory :exec
-UPDATE memories SET
-    status = 'forgotten',
-    updated_at = ?
-WHERE id = ?
-`
-
-type ForgetMemoryParams struct {
-	UpdatedAt int64  `json:"updated_at"`
-	ID        string `json:"id"`
-}
-
-func (q *Queries) ForgetMemory(ctx context.Context, arg ForgetMemoryParams) error {
-	_, err := q.exec(ctx, q.forgetMemoryStmt, forgetMemory, arg.UpdatedAt, arg.ID)
-	return err
-}
-
-const deleteMemory = `-- name: DeleteMemory :exec
-DELETE FROM memories WHERE id = ?
-`
-
-func (q *Queries) DeleteMemory(ctx context.Context, id string) error {
-	_, err := q.exec(ctx, q.deleteMemoryStmt, deleteMemory, id)
-	return err
-}
-
-const listMemories = `-- name: ListMemories :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
-WHERE status = COALESCE(?, 'active')
-ORDER BY created_at DESC
-LIMIT ? OFFSET ?
-`
-
-type ListMemoriesParams struct {
-	Status sql.NullString `json:"status"`
-	Limit  int64          `json:"limit"`
-	Offset int64          `json:"offset"`
-}
-
-func (q *Queries) ListMemories(ctx context.Context, arg ListMemoriesParams) ([]Memory, error) {
-	rows, err := q.query(ctx, q.listMemoriesStmt, listMemories, arg.Status, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Memory{}
-	for rows.Next() {
-		var i Memory
-		if err := rows.Scan(
-			&i.ID,
-			&i.AgentHandle,
-			&i.PathScope,
-			&i.Content,
-			&i.Category,
-			&i.Embedding,
-			&i.SourceSessionID,
-			&i.SourceMessageID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Confidence,
-			&i.LastAccessedAt,
-			&i.AccessCount,
-			&i.SupersedesID,
-			&i.SupersededByID,
-			&i.SupersessionReason,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMemoriesByAgent = `-- name: ListMemoriesByAgent :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
-WHERE agent_handle = ?
-  AND status = COALESCE(?, 'active')
-ORDER BY created_at DESC
-LIMIT ? OFFSET ?
-`
-
-type ListMemoriesByAgentParams struct {
-	AgentHandle sql.NullString `json:"agent_handle"`
-	Status      sql.NullString `json:"status"`
-	Limit       int64          `json:"limit"`
-	Offset      int64          `json:"offset"`
-}
-
-func (q *Queries) ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAgentParams) ([]Memory, error) {
-	rows, err := q.query(ctx, q.listMemoriesByAgentStmt, listMemoriesByAgent,
-		arg.AgentHandle,
-		arg.Status,
-		arg.Limit,
-		arg.Offset,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Memory{}
-	for rows.Next() {
-		var i Memory
-		if err := rows.Scan(
-			&i.ID,
-			&i.AgentHandle,
-			&i.PathScope,
-			&i.Content,
-			&i.Category,
-			&i.Embedding,
-			&i.SourceSessionID,
-			&i.SourceMessageID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Confidence,
-			&i.LastAccessedAt,
-			&i.AccessCount,
-			&i.SupersedesID,
-			&i.SupersededByID,
-			&i.SupersessionReason,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getMemoriesForSearch = `-- name: GetMemoriesForSearch :many
-SELECT id, agent_handle, path_scope, content, category, embedding, confidence,
-       last_accessed_at, access_count, created_at
-FROM memories
-WHERE status = 'active'
-  AND embedding IS NOT NULL
-  AND (agent_handle = ? OR agent_handle IS NULL OR ? IS NULL)
-  AND (path_scope = ? OR path_scope IS NULL OR ? IS NULL)
-`
-
-type GetMemoriesForSearchParams struct {
-	AgentHandle sql.NullString `json:"agent_handle"`
-	PathScope   sql.NullString `json:"path_scope"`
-}
-
-type GetMemoriesForSearchRow struct {
-	ID             string          `json:"id"`
-	AgentHandle    sql.NullString  `json:"agent_handle"`
-	PathScope      sql.NullString  `json:"path_scope"`
-	Content        string          `json:"content"`
-	Category       string          `json:"category"`
-	Embedding      []byte          `json:"embedding"`
-	Confidence     sql.NullFloat64 `json:"confidence"`
-	LastAccessedAt sql.NullInt64   `json:"last_accessed_at"`
-	AccessCount    sql.NullInt64   `json:"access_count"`
-	CreatedAt      int64           `json:"created_at"`
-}
-
-func (q *Queries) GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSearchParams) ([]GetMemoriesForSearchRow, error) {
-	rows, err := q.query(ctx, q.getMemoriesForSearchStmt, getMemoriesForSearch,
-		arg.AgentHandle,
-		arg.AgentHandle,
-		arg.PathScope,
-		arg.PathScope,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetMemoriesForSearchRow{}
-	for rows.Next() {
-		var i GetMemoriesForSearchRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.AgentHandle,
-			&i.PathScope,
-			&i.Content,
-			&i.Category,
-			&i.Embedding,
-			&i.Confidence,
-			&i.LastAccessedAt,
-			&i.AccessCount,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const countMemories = `-- name: CountMemories :one
-SELECT COUNT(*) FROM memories WHERE status = COALESCE(?, 'active')
-`
-
-func (q *Queries) CountMemories(ctx context.Context, status sql.NullString) (int64, error) {
-	row := q.queryRow(ctx, q.countMemoriesStmt, countMemories, status)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countMemoriesByAgent = `-- name: CountMemoriesByAgent :one
-SELECT COUNT(*) FROM memories 
-WHERE agent_handle = ?
-  AND status = COALESCE(?, 'active')
-`
-
-type CountMemoriesByAgentParams struct {
-	AgentHandle sql.NullString `json:"agent_handle"`
-	Status      sql.NullString `json:"status"`
-}
-
-func (q *Queries) CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByAgentParams) (int64, error) {
-	row := q.queryRow(ctx, q.countMemoriesByAgentStmt, countMemoriesByAgent, arg.AgentHandle, arg.Status)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const clearMemoriesByAgent = `-- name: ClearMemoriesByAgent :exec
-UPDATE memories SET
-    status = 'forgotten',
-    updated_at = ?
-WHERE agent_handle = ?
-`
-
-type ClearMemoriesByAgentParams struct {
-	UpdatedAt   int64          `json:"updated_at"`
-	AgentHandle sql.NullString `json:"agent_handle"`
-}
-
-func (q *Queries) ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByAgentParams) error {
-	_, err := q.exec(ctx, q.clearMemoriesByAgentStmt, clearMemoriesByAgent, arg.UpdatedAt, arg.AgentHandle)
-	return err
-}
-
-const clearAllMemories = `-- name: ClearAllMemories :exec
-UPDATE memories SET
-    status = 'forgotten',
-    updated_at = ?
-`
-
-func (q *Queries) ClearAllMemories(ctx context.Context, updatedAt int64) error {
-	_, err := q.exec(ctx, q.clearAllMemoriesStmt, clearAllMemories, updatedAt)
 	return err
 }

@@ -24,6 +24,18 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.clearAllMemoriesStmt, err = db.PrepareContext(ctx, clearAllMemories); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearAllMemories: %w", err)
+	}
+	if q.clearMemoriesByAgentStmt, err = db.PrepareContext(ctx, clearMemoriesByAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearMemoriesByAgent: %w", err)
+	}
+	if q.countMemoriesStmt, err = db.PrepareContext(ctx, countMemories); err != nil {
+		return nil, fmt.Errorf("error preparing query CountMemories: %w", err)
+	}
+	if q.countMemoriesByAgentStmt, err = db.PrepareContext(ctx, countMemoriesByAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query CountMemoriesByAgent: %w", err)
+	}
 	if q.countMessagesBySessionStmt, err = db.PrepareContext(ctx, countMessagesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query CountMessagesBySession: %w", err)
 	}
@@ -39,6 +51,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createEdgeStmt, err = db.PrepareContext(ctx, createEdge); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateEdge: %w", err)
 	}
+	if q.createMemoryStmt, err = db.PrepareContext(ctx, createMemory); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateMemory: %w", err)
+	}
 	if q.createMessageStmt, err = db.PrepareContext(ctx, createMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateMessage: %w", err)
 	}
@@ -51,6 +66,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteEdgesBySessionStmt, err = db.PrepareContext(ctx, deleteEdgesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteEdgesBySession: %w", err)
 	}
+	if q.deleteMemoryStmt, err = db.PrepareContext(ctx, deleteMemory); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteMemory: %w", err)
+	}
 	if q.deleteMessageStmt, err = db.PrepareContext(ctx, deleteMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteMessage: %w", err)
 	}
@@ -60,8 +78,23 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteSessionStmt, err = db.PrepareContext(ctx, deleteSession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteSession: %w", err)
 	}
+	if q.forgetMemoryStmt, err = db.PrepareContext(ctx, forgetMemory); err != nil {
+		return nil, fmt.Errorf("error preparing query ForgetMemory: %w", err)
+	}
+	if q.getAllActiveMemoriesWithEmbeddingsStmt, err = db.PrepareContext(ctx, getAllActiveMemoriesWithEmbeddings); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllActiveMemoriesWithEmbeddings: %w", err)
+	}
 	if q.getChildEdgesStmt, err = db.PrepareContext(ctx, getChildEdges); err != nil {
 		return nil, fmt.Errorf("error preparing query GetChildEdges: %w", err)
+	}
+	if q.getMemoriesForSearchStmt, err = db.PrepareContext(ctx, getMemoriesForSearch); err != nil {
+		return nil, fmt.Errorf("error preparing query GetMemoriesForSearch: %w", err)
+	}
+	if q.getMemoryStmt, err = db.PrepareContext(ctx, getMemory); err != nil {
+		return nil, fmt.Errorf("error preparing query GetMemory: %w", err)
+	}
+	if q.getMemoryHistoryStmt, err = db.PrepareContext(ctx, getMemoryHistory); err != nil {
+		return nil, fmt.Errorf("error preparing query GetMemoryHistory: %w", err)
 	}
 	if q.getMessageStmt, err = db.PrepareContext(ctx, getMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query GetMessage: %w", err)
@@ -74,6 +107,21 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getSessionByPrefixStmt, err = db.PrepareContext(ctx, getSessionByPrefix); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSessionByPrefix: %w", err)
+	}
+	if q.listMemoriesStmt, err = db.PrepareContext(ctx, listMemories); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemories: %w", err)
+	}
+	if q.listMemoriesByAgentStmt, err = db.PrepareContext(ctx, listMemoriesByAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemoriesByAgent: %w", err)
+	}
+	if q.listMemoriesByAgentAndPathStmt, err = db.PrepareContext(ctx, listMemoriesByAgentAndPath); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemoriesByAgentAndPath: %w", err)
+	}
+	if q.listMemoriesByCategoryStmt, err = db.PrepareContext(ctx, listMemoriesByCategory); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemoriesByCategory: %w", err)
+	}
+	if q.listMemoriesByPathStmt, err = db.PrepareContext(ctx, listMemoriesByPath); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemoriesByPath: %w", err)
 	}
 	if q.listMessagesBySessionStmt, err = db.PrepareContext(ctx, listMessagesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query ListMessagesBySession: %w", err)
@@ -90,23 +138,8 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.searchSessionsByTitleStmt, err = db.PrepareContext(ctx, searchSessionsByTitle); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchSessionsByTitle: %w", err)
 	}
-	if q.updateMessageStmt, err = db.PrepareContext(ctx, updateMessage); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateMessage: %w", err)
-	}
-	if q.updateSessionStmt, err = db.PrepareContext(ctx, updateSession); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateSession: %w", err)
-	}
-	if q.updateSessionPlanStmt, err = db.PrepareContext(ctx, updateSessionPlan); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateSessionPlan: %w", err)
-	}
-	if q.updateSessionTitleStmt, err = db.PrepareContext(ctx, updateSessionTitle); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateSessionTitle: %w", err)
-	}
-	if q.createMemoryStmt, err = db.PrepareContext(ctx, createMemory); err != nil {
-		return nil, fmt.Errorf("error preparing query CreateMemory: %w", err)
-	}
-	if q.getMemoryStmt, err = db.PrepareContext(ctx, getMemory); err != nil {
-		return nil, fmt.Errorf("error preparing query GetMemory: %w", err)
+	if q.supersedeMemoryStmt, err = db.PrepareContext(ctx, supersedeMemory); err != nil {
+		return nil, fmt.Errorf("error preparing query SupersedeMemory: %w", err)
 	}
 	if q.updateMemoryStmt, err = db.PrepareContext(ctx, updateMemory); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateMemory: %w", err)
@@ -114,41 +147,40 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateMemoryAccessStmt, err = db.PrepareContext(ctx, updateMemoryAccess); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateMemoryAccess: %w", err)
 	}
-	if q.supersedeMemoryStmt, err = db.PrepareContext(ctx, supersedeMemory); err != nil {
-		return nil, fmt.Errorf("error preparing query SupersedeMemory: %w", err)
+	if q.updateMessageStmt, err = db.PrepareContext(ctx, updateMessage); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateMessage: %w", err)
 	}
-	if q.forgetMemoryStmt, err = db.PrepareContext(ctx, forgetMemory); err != nil {
-		return nil, fmt.Errorf("error preparing query ForgetMemory: %w", err)
+	if q.updateSessionStmt, err = db.PrepareContext(ctx, updateSession); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSession: %w", err)
 	}
-	if q.deleteMemoryStmt, err = db.PrepareContext(ctx, deleteMemory); err != nil {
-		return nil, fmt.Errorf("error preparing query DeleteMemory: %w", err)
-	}
-	if q.listMemoriesStmt, err = db.PrepareContext(ctx, listMemories); err != nil {
-		return nil, fmt.Errorf("error preparing query ListMemories: %w", err)
-	}
-	if q.listMemoriesByAgentStmt, err = db.PrepareContext(ctx, listMemoriesByAgent); err != nil {
-		return nil, fmt.Errorf("error preparing query ListMemoriesByAgent: %w", err)
-	}
-	if q.getMemoriesForSearchStmt, err = db.PrepareContext(ctx, getMemoriesForSearch); err != nil {
-		return nil, fmt.Errorf("error preparing query GetMemoriesForSearch: %w", err)
-	}
-	if q.countMemoriesStmt, err = db.PrepareContext(ctx, countMemories); err != nil {
-		return nil, fmt.Errorf("error preparing query CountMemories: %w", err)
-	}
-	if q.countMemoriesByAgentStmt, err = db.PrepareContext(ctx, countMemoriesByAgent); err != nil {
-		return nil, fmt.Errorf("error preparing query CountMemoriesByAgent: %w", err)
-	}
-	if q.clearMemoriesByAgentStmt, err = db.PrepareContext(ctx, clearMemoriesByAgent); err != nil {
-		return nil, fmt.Errorf("error preparing query ClearMemoriesByAgent: %w", err)
-	}
-	if q.clearAllMemoriesStmt, err = db.PrepareContext(ctx, clearAllMemories); err != nil {
-		return nil, fmt.Errorf("error preparing query ClearAllMemories: %w", err)
+	if q.updateSessionTitleStmt, err = db.PrepareContext(ctx, updateSessionTitle); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionTitle: %w", err)
 	}
 	return &q, nil
 }
 
 func (q *Queries) Close() error {
 	var err error
+	if q.clearAllMemoriesStmt != nil {
+		if cerr := q.clearAllMemoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearAllMemoriesStmt: %w", cerr)
+		}
+	}
+	if q.clearMemoriesByAgentStmt != nil {
+		if cerr := q.clearMemoriesByAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearMemoriesByAgentStmt: %w", cerr)
+		}
+	}
+	if q.countMemoriesStmt != nil {
+		if cerr := q.countMemoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countMemoriesStmt: %w", cerr)
+		}
+	}
+	if q.countMemoriesByAgentStmt != nil {
+		if cerr := q.countMemoriesByAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countMemoriesByAgentStmt: %w", cerr)
+		}
+	}
 	if q.countMessagesBySessionStmt != nil {
 		if cerr := q.countMessagesBySessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countMessagesBySessionStmt: %w", cerr)
@@ -174,6 +206,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createEdgeStmt: %w", cerr)
 		}
 	}
+	if q.createMemoryStmt != nil {
+		if cerr := q.createMemoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createMemoryStmt: %w", cerr)
+		}
+	}
 	if q.createMessageStmt != nil {
 		if cerr := q.createMessageStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createMessageStmt: %w", cerr)
@@ -194,6 +231,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteEdgesBySessionStmt: %w", cerr)
 		}
 	}
+	if q.deleteMemoryStmt != nil {
+		if cerr := q.deleteMemoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteMemoryStmt: %w", cerr)
+		}
+	}
 	if q.deleteMessageStmt != nil {
 		if cerr := q.deleteMessageStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteMessageStmt: %w", cerr)
@@ -209,9 +251,34 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteSessionStmt: %w", cerr)
 		}
 	}
+	if q.forgetMemoryStmt != nil {
+		if cerr := q.forgetMemoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing forgetMemoryStmt: %w", cerr)
+		}
+	}
+	if q.getAllActiveMemoriesWithEmbeddingsStmt != nil {
+		if cerr := q.getAllActiveMemoriesWithEmbeddingsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllActiveMemoriesWithEmbeddingsStmt: %w", cerr)
+		}
+	}
 	if q.getChildEdgesStmt != nil {
 		if cerr := q.getChildEdgesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getChildEdgesStmt: %w", cerr)
+		}
+	}
+	if q.getMemoriesForSearchStmt != nil {
+		if cerr := q.getMemoriesForSearchStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getMemoriesForSearchStmt: %w", cerr)
+		}
+	}
+	if q.getMemoryStmt != nil {
+		if cerr := q.getMemoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getMemoryStmt: %w", cerr)
+		}
+	}
+	if q.getMemoryHistoryStmt != nil {
+		if cerr := q.getMemoryHistoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getMemoryHistoryStmt: %w", cerr)
 		}
 	}
 	if q.getMessageStmt != nil {
@@ -232,6 +299,31 @@ func (q *Queries) Close() error {
 	if q.getSessionByPrefixStmt != nil {
 		if cerr := q.getSessionByPrefixStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getSessionByPrefixStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesStmt != nil {
+		if cerr := q.listMemoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesByAgentStmt != nil {
+		if cerr := q.listMemoriesByAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesByAgentStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesByAgentAndPathStmt != nil {
+		if cerr := q.listMemoriesByAgentAndPathStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesByAgentAndPathStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesByCategoryStmt != nil {
+		if cerr := q.listMemoriesByCategoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesByCategoryStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesByPathStmt != nil {
+		if cerr := q.listMemoriesByPathStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesByPathStmt: %w", cerr)
 		}
 	}
 	if q.listMessagesBySessionStmt != nil {
@@ -259,34 +351,9 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing searchSessionsByTitleStmt: %w", cerr)
 		}
 	}
-	if q.updateMessageStmt != nil {
-		if cerr := q.updateMessageStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateMessageStmt: %w", cerr)
-		}
-	}
-	if q.updateSessionStmt != nil {
-		if cerr := q.updateSessionStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateSessionStmt: %w", cerr)
-		}
-	}
-	if q.updateSessionPlanStmt != nil {
-		if cerr := q.updateSessionPlanStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateSessionPlanStmt: %w", cerr)
-		}
-	}
-	if q.updateSessionTitleStmt != nil {
-		if cerr := q.updateSessionTitleStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateSessionTitleStmt: %w", cerr)
-		}
-	}
-	if q.createMemoryStmt != nil {
-		if cerr := q.createMemoryStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createMemoryStmt: %w", cerr)
-		}
-	}
-	if q.getMemoryStmt != nil {
-		if cerr := q.getMemoryStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getMemoryStmt: %w", cerr)
+	if q.supersedeMemoryStmt != nil {
+		if cerr := q.supersedeMemoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing supersedeMemoryStmt: %w", cerr)
 		}
 	}
 	if q.updateMemoryStmt != nil {
@@ -299,54 +366,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateMemoryAccessStmt: %w", cerr)
 		}
 	}
-	if q.supersedeMemoryStmt != nil {
-		if cerr := q.supersedeMemoryStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing supersedeMemoryStmt: %w", cerr)
+	if q.updateMessageStmt != nil {
+		if cerr := q.updateMessageStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateMessageStmt: %w", cerr)
 		}
 	}
-	if q.forgetMemoryStmt != nil {
-		if cerr := q.forgetMemoryStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing forgetMemoryStmt: %w", cerr)
+	if q.updateSessionStmt != nil {
+		if cerr := q.updateSessionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionStmt: %w", cerr)
 		}
 	}
-	if q.deleteMemoryStmt != nil {
-		if cerr := q.deleteMemoryStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing deleteMemoryStmt: %w", cerr)
-		}
-	}
-	if q.listMemoriesStmt != nil {
-		if cerr := q.listMemoriesStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing listMemoriesStmt: %w", cerr)
-		}
-	}
-	if q.listMemoriesByAgentStmt != nil {
-		if cerr := q.listMemoriesByAgentStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing listMemoriesByAgentStmt: %w", cerr)
-		}
-	}
-	if q.getMemoriesForSearchStmt != nil {
-		if cerr := q.getMemoriesForSearchStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getMemoriesForSearchStmt: %w", cerr)
-		}
-	}
-	if q.countMemoriesStmt != nil {
-		if cerr := q.countMemoriesStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countMemoriesStmt: %w", cerr)
-		}
-	}
-	if q.countMemoriesByAgentStmt != nil {
-		if cerr := q.countMemoriesByAgentStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countMemoriesByAgentStmt: %w", cerr)
-		}
-	}
-	if q.clearMemoriesByAgentStmt != nil {
-		if cerr := q.clearMemoriesByAgentStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing clearMemoriesByAgentStmt: %w", cerr)
-		}
-	}
-	if q.clearAllMemoriesStmt != nil {
-		if cerr := q.clearAllMemoriesStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing clearAllMemoriesStmt: %w", cerr)
+	if q.updateSessionTitleStmt != nil {
+		if cerr := q.updateSessionTitleStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionTitleStmt: %w", cerr)
 		}
 	}
 	return err
@@ -386,95 +418,101 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                          DBTX
-	tx                          *sql.Tx
-	countMessagesBySessionStmt  *sql.Stmt
-	countSessionsStmt           *sql.Stmt
-	countSessionsByAgentStmt    *sql.Stmt
-	countSessionsBySourceStmt   *sql.Stmt
-	createEdgeStmt              *sql.Stmt
-	createMessageStmt           *sql.Stmt
-	createSessionStmt           *sql.Stmt
-	deleteEdgeStmt              *sql.Stmt
-	deleteEdgesBySessionStmt    *sql.Stmt
-	deleteMessageStmt           *sql.Stmt
-	deleteMessagesBySessionStmt *sql.Stmt
-	deleteSessionStmt           *sql.Stmt
-	getChildEdgesStmt           *sql.Stmt
-	getMessageStmt              *sql.Stmt
-	getParentEdgesStmt          *sql.Stmt
-	getSessionStmt              *sql.Stmt
-	getSessionByPrefixStmt      *sql.Stmt
-	listMessagesBySessionStmt   *sql.Stmt
-	listSessionsStmt            *sql.Stmt
-	listSessionsByAgentStmt     *sql.Stmt
-	listSessionsBySourceStmt    *sql.Stmt
-	searchSessionsByTitleStmt   *sql.Stmt
-	updateMessageStmt           *sql.Stmt
-	updateSessionStmt           *sql.Stmt
-	updateSessionPlanStmt       *sql.Stmt
-	updateSessionTitleStmt      *sql.Stmt
-	// Memory statements
-	createMemoryStmt         *sql.Stmt
-	getMemoryStmt            *sql.Stmt
-	updateMemoryStmt         *sql.Stmt
-	updateMemoryAccessStmt   *sql.Stmt
-	supersedeMemoryStmt      *sql.Stmt
-	forgetMemoryStmt         *sql.Stmt
-	deleteMemoryStmt         *sql.Stmt
-	listMemoriesStmt         *sql.Stmt
-	listMemoriesByAgentStmt  *sql.Stmt
-	getMemoriesForSearchStmt *sql.Stmt
-	countMemoriesStmt        *sql.Stmt
-	countMemoriesByAgentStmt *sql.Stmt
-	clearMemoriesByAgentStmt *sql.Stmt
-	clearAllMemoriesStmt     *sql.Stmt
+	db                                     DBTX
+	tx                                     *sql.Tx
+	clearAllMemoriesStmt                   *sql.Stmt
+	clearMemoriesByAgentStmt               *sql.Stmt
+	countMemoriesStmt                      *sql.Stmt
+	countMemoriesByAgentStmt               *sql.Stmt
+	countMessagesBySessionStmt             *sql.Stmt
+	countSessionsStmt                      *sql.Stmt
+	countSessionsByAgentStmt               *sql.Stmt
+	countSessionsBySourceStmt              *sql.Stmt
+	createEdgeStmt                         *sql.Stmt
+	createMemoryStmt                       *sql.Stmt
+	createMessageStmt                      *sql.Stmt
+	createSessionStmt                      *sql.Stmt
+	deleteEdgeStmt                         *sql.Stmt
+	deleteEdgesBySessionStmt               *sql.Stmt
+	deleteMemoryStmt                       *sql.Stmt
+	deleteMessageStmt                      *sql.Stmt
+	deleteMessagesBySessionStmt            *sql.Stmt
+	deleteSessionStmt                      *sql.Stmt
+	forgetMemoryStmt                       *sql.Stmt
+	getAllActiveMemoriesWithEmbeddingsStmt *sql.Stmt
+	getChildEdgesStmt                      *sql.Stmt
+	getMemoriesForSearchStmt               *sql.Stmt
+	getMemoryStmt                          *sql.Stmt
+	getMemoryHistoryStmt                   *sql.Stmt
+	getMessageStmt                         *sql.Stmt
+	getParentEdgesStmt                     *sql.Stmt
+	getSessionStmt                         *sql.Stmt
+	getSessionByPrefixStmt                 *sql.Stmt
+	listMemoriesStmt                       *sql.Stmt
+	listMemoriesByAgentStmt                *sql.Stmt
+	listMemoriesByAgentAndPathStmt         *sql.Stmt
+	listMemoriesByCategoryStmt             *sql.Stmt
+	listMemoriesByPathStmt                 *sql.Stmt
+	listMessagesBySessionStmt              *sql.Stmt
+	listSessionsStmt                       *sql.Stmt
+	listSessionsByAgentStmt                *sql.Stmt
+	listSessionsBySourceStmt               *sql.Stmt
+	searchSessionsByTitleStmt              *sql.Stmt
+	supersedeMemoryStmt                    *sql.Stmt
+	updateMemoryStmt                       *sql.Stmt
+	updateMemoryAccessStmt                 *sql.Stmt
+	updateMessageStmt                      *sql.Stmt
+	updateSessionStmt                      *sql.Stmt
+	updateSessionTitleStmt                 *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                          tx,
-		tx:                          tx,
-		countMessagesBySessionStmt:  q.countMessagesBySessionStmt,
-		countSessionsStmt:           q.countSessionsStmt,
-		countSessionsByAgentStmt:    q.countSessionsByAgentStmt,
-		countSessionsBySourceStmt:   q.countSessionsBySourceStmt,
-		createEdgeStmt:              q.createEdgeStmt,
-		createMessageStmt:           q.createMessageStmt,
-		createSessionStmt:           q.createSessionStmt,
-		deleteEdgeStmt:              q.deleteEdgeStmt,
-		deleteEdgesBySessionStmt:    q.deleteEdgesBySessionStmt,
-		deleteMessageStmt:           q.deleteMessageStmt,
-		deleteMessagesBySessionStmt: q.deleteMessagesBySessionStmt,
-		deleteSessionStmt:           q.deleteSessionStmt,
-		getChildEdgesStmt:           q.getChildEdgesStmt,
-		getMessageStmt:              q.getMessageStmt,
-		getParentEdgesStmt:          q.getParentEdgesStmt,
-		getSessionStmt:              q.getSessionStmt,
-		getSessionByPrefixStmt:      q.getSessionByPrefixStmt,
-		listMessagesBySessionStmt:   q.listMessagesBySessionStmt,
-		listSessionsStmt:            q.listSessionsStmt,
-		listSessionsByAgentStmt:     q.listSessionsByAgentStmt,
-		listSessionsBySourceStmt:    q.listSessionsBySourceStmt,
-		searchSessionsByTitleStmt:   q.searchSessionsByTitleStmt,
-		updateMessageStmt:           q.updateMessageStmt,
-		updateSessionStmt:           q.updateSessionStmt,
-		updateSessionPlanStmt:       q.updateSessionPlanStmt,
-		updateSessionTitleStmt:      q.updateSessionTitleStmt,
-		// Memory statements
-		createMemoryStmt:         q.createMemoryStmt,
-		getMemoryStmt:            q.getMemoryStmt,
-		updateMemoryStmt:         q.updateMemoryStmt,
-		updateMemoryAccessStmt:   q.updateMemoryAccessStmt,
-		supersedeMemoryStmt:      q.supersedeMemoryStmt,
-		forgetMemoryStmt:         q.forgetMemoryStmt,
-		deleteMemoryStmt:         q.deleteMemoryStmt,
-		listMemoriesStmt:         q.listMemoriesStmt,
-		listMemoriesByAgentStmt:  q.listMemoriesByAgentStmt,
-		getMemoriesForSearchStmt: q.getMemoriesForSearchStmt,
-		countMemoriesStmt:        q.countMemoriesStmt,
-		countMemoriesByAgentStmt: q.countMemoriesByAgentStmt,
-		clearMemoriesByAgentStmt: q.clearMemoriesByAgentStmt,
-		clearAllMemoriesStmt:     q.clearAllMemoriesStmt,
+		db:                                     tx,
+		tx:                                     tx,
+		clearAllMemoriesStmt:                   q.clearAllMemoriesStmt,
+		clearMemoriesByAgentStmt:               q.clearMemoriesByAgentStmt,
+		countMemoriesStmt:                      q.countMemoriesStmt,
+		countMemoriesByAgentStmt:               q.countMemoriesByAgentStmt,
+		countMessagesBySessionStmt:             q.countMessagesBySessionStmt,
+		countSessionsStmt:                      q.countSessionsStmt,
+		countSessionsByAgentStmt:               q.countSessionsByAgentStmt,
+		countSessionsBySourceStmt:              q.countSessionsBySourceStmt,
+		createEdgeStmt:                         q.createEdgeStmt,
+		createMemoryStmt:                       q.createMemoryStmt,
+		createMessageStmt:                      q.createMessageStmt,
+		createSessionStmt:                      q.createSessionStmt,
+		deleteEdgeStmt:                         q.deleteEdgeStmt,
+		deleteEdgesBySessionStmt:               q.deleteEdgesBySessionStmt,
+		deleteMemoryStmt:                       q.deleteMemoryStmt,
+		deleteMessageStmt:                      q.deleteMessageStmt,
+		deleteMessagesBySessionStmt:            q.deleteMessagesBySessionStmt,
+		deleteSessionStmt:                      q.deleteSessionStmt,
+		forgetMemoryStmt:                       q.forgetMemoryStmt,
+		getAllActiveMemoriesWithEmbeddingsStmt: q.getAllActiveMemoriesWithEmbeddingsStmt,
+		getChildEdgesStmt:                      q.getChildEdgesStmt,
+		getMemoriesForSearchStmt:               q.getMemoriesForSearchStmt,
+		getMemoryStmt:                          q.getMemoryStmt,
+		getMemoryHistoryStmt:                   q.getMemoryHistoryStmt,
+		getMessageStmt:                         q.getMessageStmt,
+		getParentEdgesStmt:                     q.getParentEdgesStmt,
+		getSessionStmt:                         q.getSessionStmt,
+		getSessionByPrefixStmt:                 q.getSessionByPrefixStmt,
+		listMemoriesStmt:                       q.listMemoriesStmt,
+		listMemoriesByAgentStmt:                q.listMemoriesByAgentStmt,
+		listMemoriesByAgentAndPathStmt:         q.listMemoriesByAgentAndPathStmt,
+		listMemoriesByCategoryStmt:             q.listMemoriesByCategoryStmt,
+		listMemoriesByPathStmt:                 q.listMemoriesByPathStmt,
+		listMessagesBySessionStmt:              q.listMessagesBySessionStmt,
+		listSessionsStmt:                       q.listSessionsStmt,
+		listSessionsByAgentStmt:                q.listSessionsByAgentStmt,
+		listSessionsBySourceStmt:               q.listSessionsBySourceStmt,
+		searchSessionsByTitleStmt:              q.searchSessionsByTitleStmt,
+		supersedeMemoryStmt:                    q.supersedeMemoryStmt,
+		updateMemoryStmt:                       q.updateMemoryStmt,
+		updateMemoryAccessStmt:                 q.updateMemoryAccessStmt,
+		updateMessageStmt:                      q.updateMessageStmt,
+		updateSessionStmt:                      q.updateSessionStmt,
+		updateSessionTitleStmt:                 q.updateSessionTitleStmt,
 	}
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/alexcabrera/ayo/internal/pipe"
-	"github.com/alexcabrera/ayo/internal/session"
 )
 
 type SelectAgentResult struct {
@@ -600,9 +599,9 @@ func (u *UI) PrintToolCallStart(tc ToolCallInfo) {
 func (u *UI) PrintToolCallResult(tc ToolCallInfo) {
 	indent := u.indent()
 
-	// Handle plan tool specially
-	if tc.Name == "plan" {
-		u.printPlanResult(tc)
+	// Handle task tool specially
+	if tc.Name == "task" {
+		u.printTaskResult(tc)
 		return
 	}
 
@@ -658,18 +657,24 @@ func (u *UI) PrintToolCallResult(tc ToolCallInfo) {
 	u.println() // Blank line after each tool call
 }
 
-// planResponseMetadata mirrors run.PlanResponseMetadata to avoid circular imports.
-type planResponseMetadata struct {
-	IsNew         bool         `json:"is_new"`
-	Plan          session.Plan `json:"plan"`
-	JustCompleted []string     `json:"just_completed,omitempty"`
-	JustStarted   string       `json:"just_started,omitempty"`
-	Completed     int          `json:"completed"`
-	Total         int          `json:"total"`
+// taskResponseMetadata mirrors run.TaskResponseMetadata to avoid circular imports.
+type taskResponseMetadata struct {
+	IsNew         bool       `json:"is_new"`
+	Tasks         []taskItem `json:"tasks"`
+	JustCompleted []string   `json:"just_completed,omitempty"`
+	JustStarted   string     `json:"just_started,omitempty"`
+	Completed     int        `json:"completed"`
+	Total         int        `json:"total"`
 }
 
-// printPlanResult handles plan tool output display.
-func (u *UI) printPlanResult(tc ToolCallInfo) {
+type taskItem struct {
+	Content    string `json:"content"`
+	Status     string `json:"status"`
+	ActiveForm string `json:"active_form"`
+}
+
+// printTaskResult handles task tool output display.
+func (u *UI) printTaskResult(tc ToolCallInfo) {
 	indent := u.indent()
 
 	if tc.Error != "" {
@@ -689,10 +694,10 @@ func (u *UI) printPlanResult(tc ToolCallInfo) {
 	durationStyle := lipgloss.NewStyle().Foreground(colorMuted)
 
 	// Try to parse metadata for rich display
-	var meta planResponseMetadata
+	var meta taskResponseMetadata
 	if tc.Metadata != "" {
 		if err := json.Unmarshal([]byte(tc.Metadata), &meta); err == nil {
-			u.printPlanWithMetadata(tc.Duration, meta)
+			u.printTaskWithMetadata(tc.Duration, meta)
 			return
 		}
 	}
@@ -712,22 +717,22 @@ func (u *UI) printPlanResult(tc ToolCallInfo) {
 		u.printf("%s  %s %s %s %s\n",
 			indent,
 			statusStyle.Render(IconSuccess),
-			statusStyle.Render("plan updated"),
+			statusStyle.Render("task updated"),
 			durationStyle.Render("("+tc.Duration+")"),
 			summaryStyle.Render("· "+summary))
 	} else {
 		u.printf("%s  %s %s %s\n",
 			indent,
 			statusStyle.Render(IconSuccess),
-			statusStyle.Render("plan updated"),
+			statusStyle.Render("task updated"),
 			durationStyle.Render("("+tc.Duration+")"))
 	}
 
 	u.println()
 }
 
-// printPlanWithMetadata renders a rich plan display using metadata.
-func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
+// printTaskWithMetadata renders a rich task display using metadata.
+func (u *UI) printTaskWithMetadata(duration string, meta taskResponseMetadata) {
 	indent := u.indent()
 	statusStyle := lipgloss.NewStyle().Foreground(colorSuccess)
 	durationStyle := lipgloss.NewStyle().Foreground(colorMuted)
@@ -740,19 +745,19 @@ func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
 	}
 
 	if meta.IsNew {
-		// New plan: show full plan structure
+		// New task list: show full list
 		headerText := fmt.Sprintf("created %d items", meta.Total)
 		u.printf("%s  %s %s %s %s\n",
 			indent,
 			statusStyle.Render(IconSuccess),
-			statusStyle.Render("plan"),
+			statusStyle.Render("task"),
 			durationStyle.Render("("+duration+")"),
 			summaryStyle.Render("· "+headerText))
 
-		// Show the full plan indented
-		planStr := FormatPlan(meta.Plan, width-4)
-		if planStr != "" {
-			for _, line := range strings.Split(planStr, "\n") {
+		// Show the full task list indented
+		taskStr := u.formatTaskList(meta.Tasks, width-4)
+		if taskStr != "" {
+			for _, line := range strings.Split(taskStr, "\n") {
 				u.printf("%s  %s\n", indent, line)
 			}
 		}
@@ -766,14 +771,14 @@ func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
 			maxLen := width - 40
 			actionText := meta.JustStarted
 			if maxLen > 0 && len(actionText) > maxLen {
-				actionText = actionText[:maxLen-1] + "…"
+				actionText = actionText[:maxLen-1] + "..."
 			}
 
 			actionStyle := lipgloss.NewStyle().Foreground(colorText)
 			u.printf("%s  %s %s %s %s %s\n",
 				indent,
 				statusStyle.Render(IconSuccess),
-				statusStyle.Render("plan"),
+				statusStyle.Render("task"),
 				durationStyle.Render("("+duration+")"),
 				summaryStyle.Render("· "+progressText),
 				actionStyle.Render("▸ "+actionText))
@@ -782,14 +787,14 @@ func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
 			completedText := meta.JustCompleted[len(meta.JustCompleted)-1]
 			maxLen := width - 40
 			if maxLen > 0 && len(completedText) > maxLen {
-				completedText = completedText[:maxLen-1] + "…"
+				completedText = completedText[:maxLen-1] + "..."
 			}
 
 			completedStyle := lipgloss.NewStyle().Foreground(colorTextDim)
 			u.printf("%s  %s %s %s %s %s\n",
 				indent,
 				statusStyle.Render(IconSuccess),
-				statusStyle.Render("plan"),
+				statusStyle.Render("task"),
 				durationStyle.Render("("+duration+")"),
 				summaryStyle.Render("· "+progressText),
 				completedStyle.Render("✓ "+completedText))
@@ -797,13 +802,55 @@ func (u *UI) printPlanWithMetadata(duration string, meta planResponseMetadata) {
 			u.printf("%s  %s %s %s %s\n",
 				indent,
 				statusStyle.Render(IconSuccess),
-				statusStyle.Render("plan"),
+				statusStyle.Render("task"),
 				durationStyle.Render("("+duration+")"),
 				summaryStyle.Render("· "+progressText))
 		}
 	}
 
 	u.println()
+}
+
+// formatTaskList formats a list of task items for display.
+func (u *UI) formatTaskList(tasks []taskItem, width int) string {
+	if len(tasks) == 0 {
+		return ""
+	}
+
+	var lines []string
+
+	for _, task := range tasks {
+		var icon string
+		var textStyle lipgloss.Style
+
+		switch task.Status {
+		case "completed":
+			icon = lipgloss.NewStyle().Foreground(colorSuccess).Render(IconSuccess)
+			textStyle = lipgloss.NewStyle().Foreground(colorTextDim).Strikethrough(true)
+		case "in_progress":
+			icon = lipgloss.NewStyle().Foreground(colorPrimary).Render("▸")
+			textStyle = lipgloss.NewStyle().Foreground(colorText)
+		default:
+			icon = lipgloss.NewStyle().Foreground(colorMuted).Render("○")
+			textStyle = lipgloss.NewStyle().Foreground(colorTextDim)
+		}
+
+		// Use active_form for in-progress, content otherwise
+		text := task.Content
+		if task.Status == "in_progress" && task.ActiveForm != "" {
+			text = task.ActiveForm
+		}
+
+		// Truncate if needed
+		maxTextWidth := width - 4
+		if maxTextWidth > 0 && len(text) > maxTextWidth {
+			text = text[:maxTextWidth-1] + "..."
+		}
+
+		lines = append(lines, fmt.Sprintf("%s %s", icon, textStyle.Render(text)))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (u *UI) printCommandOutput(output string, isError bool) {

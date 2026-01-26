@@ -409,6 +409,26 @@ func DatabasePath() string {
 	return filepath.Join(DataDir(), "ayo.db")
 }
 
+// ToolsDataDir returns the base directory for tool-specific data storage.
+// Location: ~/.local/share/ayo/tools (Unix) or %LOCALAPPDATA%\ayo\tools (Windows)
+// Each stateful tool gets its own subdirectory for isolated storage.
+func ToolsDataDir() string {
+	return filepath.Join(DataDir(), "tools")
+}
+
+// ToolDataDir returns the data directory for a specific tool.
+// Location: ~/.local/share/ayo/tools/{toolName}
+// Tools can store their own SQLite databases and other data here.
+func ToolDataDir(toolName string) string {
+	return filepath.Join(ToolsDataDir(), toolName)
+}
+
+// ToolDatabasePath returns the path to a tool's SQLite database.
+// Location: ~/.local/share/ayo/tools/{toolName}/{toolName}.db
+func ToolDatabasePath(toolName string) string {
+	return filepath.Join(ToolDataDir(toolName), toolName+".db")
+}
+
 // PluginsDir returns the directory where plugins are installed.
 // Location: ~/.local/share/ayo/plugins (Unix) or %LOCALAPPDATA%\ayo\plugins (Windows)
 func PluginsDir() string {

@@ -17,6 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
+	"github.com/alexcabrera/ayo/internal/tools"
 )
 
 // Tool parameter types for Fantasy
@@ -128,11 +129,12 @@ func (r fantasyBashResult) String() string {
 
 // FantasyToolSet wraps Fantasy tools for use with the runner.
 type FantasyToolSet struct {
-	tools       []fantasy.AgentTool
-	allowedList []string
-	baseDir     string
-	memoryQueue *memory.Queue // Optional async memory queue
-	depth       int
+	tools         []fantasy.AgentTool
+	allowedList   []string
+	baseDir       string
+	memoryQueue   *memory.Queue // Optional async memory queue
+	depth         int
+	statefulTools []tools.StatefulTool // Tools that need cleanup
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
@@ -141,36 +143,59 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 		baseDir, _ = os.Getwd()
 	}
 
-	// Default to bash and plan if no tools specified
+	// Default to bash and planning category if no tools specified
 	if len(allowed) == 0 {
-		allowed = []string{"bash", "plan"}
+		allowed = []string{"bash", "planning"}
 	}
 
-	var tools []fantasy.AgentTool
+	// Load config for category resolution
+	cfg, _ := config.Load(config.DefaultPath())
+
+	var fantasyTools []fantasy.AgentTool
 	loadedTools := make(map[string]bool)
 
+	// Track stateful tools that need cleanup
+	var statefulTools []tools.StatefulTool
+
 	for _, name := range allowed {
-		switch name {
+		// Resolve category to concrete tool name
+		resolvedName := tools.ResolveToolName(name, &cfg)
+
+		// Skip if already loaded (handles aliases pointing to same tool)
+		if loadedTools[resolvedName] {
+			continue
+		}
+
+		switch resolvedName {
 		case "bash":
-			tools = append(tools, NewBashTool(baseDir))
-			loadedTools[name] = true
-		case "plan":
-			tools = append(tools, NewPlanTool())
-			loadedTools[name] = true
+			fantasyTools = append(fantasyTools, NewBashTool(baseDir))
+			loadedTools[resolvedName] = true
+		case "todo":
+			todoTool := NewTodoTool()
+			fantasyTools = append(fantasyTools, todoTool)
+			statefulTools = append(statefulTools, todoTool)
+			loadedTools[resolvedName] = true
 		case "memory":
-			tools = append(tools, NewMemoryToolWithQueue(memQueue))
-			loadedTools[name] = true
+			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(memQueue))
+			loadedTools[resolvedName] = true
 		// agent_call is added separately when needed
 		default:
 			// Try to load as external tool from plugins
-			if tool := loadExternalTool(name, baseDir, depth); tool != nil {
-				tools = append(tools, tool)
-				loadedTools[name] = true
+			if tool := loadExternalTool(resolvedName, baseDir, depth); tool != nil {
+				fantasyTools = append(fantasyTools, tool)
+				loadedTools[resolvedName] = true
 			}
 		}
 	}
 
-	return FantasyToolSet{tools: tools, allowedList: allowed, baseDir: baseDir, memoryQueue: memQueue, depth: depth}
+	return FantasyToolSet{
+		tools:        fantasyTools,
+		allowedList:  allowed,
+		baseDir:      baseDir,
+		memoryQueue:  memQueue,
+		depth:        depth,
+		statefulTools: statefulTools,
+	}
 }
 
 // Tools returns the Fantasy agent tools.
@@ -186,6 +211,17 @@ func (ts FantasyToolSet) HasTool(name string) bool {
 		}
 	}
 	return false
+}
+
+// Close releases resources held by stateful tools.
+func (ts *FantasyToolSet) Close() error {
+	var lastErr error
+	for _, tool := range ts.statefulTools {
+		if err := tool.Close(); err != nil {
+			lastErr = err
+		}
+	}
+	return lastErr
 }
 
 // AddAgentCallTool adds the agent_call tool with the given executor.

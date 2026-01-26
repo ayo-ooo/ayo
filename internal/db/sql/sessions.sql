@@ -62,10 +62,3 @@ SELECT * FROM sessions WHERE source = @source ORDER BY updated_at DESC LIMIT @li
 
 -- name: CountSessionsBySource :one
 SELECT COUNT(*) FROM sessions WHERE source = @source;
-
--- name: UpdateSessionPlan :one
-UPDATE sessions SET
-    plan = @plan,
-    updated_at = strftime('%s', 'now')
-WHERE id = @id
-RETURNING *;

@@ -175,7 +175,7 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 
 					// Count active memories
 					memories, _ := queries.ListMemories(ctx, db.ListMemoriesParams{
-						Limit: 1000,
+						Lim: 1000,
 					})
 					check("Active Memories:", true, fmt.Sprintf("%d", len(memories)))
 				}

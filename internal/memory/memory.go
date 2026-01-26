@@ -158,8 +158,8 @@ func (s *Service) GetByPrefix(ctx context.Context, prefix string) (Memory, error
 	// Try prefix match
 	memories, err := s.queries.ListMemories(ctx, db.ListMemoriesParams{
 		Status: sql.NullString{String: string(StatusActive), Valid: true},
-		Limit:  100,
-		Offset: 0,
+		Lim:    100,
+		Off:    0,
 	})
 	if err != nil {
 		return Memory{}, err
@@ -342,16 +342,16 @@ func (s *Service) List(ctx context.Context, agentHandle string, limit, offset in
 
 	if agentHandle != "" {
 		dbMems, err = s.queries.ListMemoriesByAgent(ctx, db.ListMemoriesByAgentParams{
-			AgentHandle: toNullString(agentHandle),
-			Status:      sql.NullString{}, // defaults to 'active'
-			Limit:       limit,
-			Offset:      offset,
+			Agent:  toNullString(agentHandle),
+			Status: sql.NullString{}, // defaults to 'active'
+			Lim:    limit,
+			Off:    offset,
 		})
 	} else {
 		dbMems, err = s.queries.ListMemories(ctx, db.ListMemoriesParams{
 			Status: sql.NullString{}, // defaults to 'active'
-			Limit:  limit,
-			Offset: offset,
+			Lim:    limit,
+			Off:    offset,
 		})
 	}
 

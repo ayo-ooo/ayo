@@ -8,6 +8,26 @@ import (
 	"database/sql"
 )
 
+type Memory struct {
+	ID                 string          `json:"id"`
+	AgentHandle        sql.NullString  `json:"agent_handle"`
+	PathScope          sql.NullString  `json:"path_scope"`
+	Content            string          `json:"content"`
+	Category           string          `json:"category"`
+	Embedding          []byte          `json:"embedding"`
+	SourceSessionID    sql.NullString  `json:"source_session_id"`
+	SourceMessageID    sql.NullString  `json:"source_message_id"`
+	CreatedAt          int64           `json:"created_at"`
+	UpdatedAt          int64           `json:"updated_at"`
+	Confidence         sql.NullFloat64 `json:"confidence"`
+	LastAccessedAt     sql.NullInt64   `json:"last_accessed_at"`
+	AccessCount        sql.NullInt64   `json:"access_count"`
+	SupersedesID       sql.NullString  `json:"supersedes_id"`
+	SupersededByID     sql.NullString  `json:"superseded_by_id"`
+	SupersessionReason sql.NullString  `json:"supersession_reason"`
+	Status             sql.NullString  `json:"status"`
+}
+
 type Message struct {
 	ID         string         `json:"id"`
 	SessionID  string         `json:"session_id"`
@@ -24,6 +44,7 @@ type Session struct {
 	ID               string         `json:"id"`
 	AgentHandle      string         `json:"agent_handle"`
 	Title            string         `json:"title"`
+	Source           string         `json:"source"`
 	InputSchema      sql.NullString `json:"input_schema"`
 	OutputSchema     sql.NullString `json:"output_schema"`
 	StructuredInput  sql.NullString `json:"structured_input"`
@@ -34,8 +55,6 @@ type Session struct {
 	CreatedAt        int64          `json:"created_at"`
 	UpdatedAt        int64          `json:"updated_at"`
 	FinishedAt       sql.NullInt64  `json:"finished_at"`
-	Plan             sql.NullString `json:"plan"`
-	Source           string         `json:"source"`
 }
 
 type SessionEdge struct {
@@ -44,24 +63,4 @@ type SessionEdge struct {
 	EdgeType         string         `json:"edge_type"`
 	TriggerMessageID sql.NullString `json:"trigger_message_id"`
 	CreatedAt        int64          `json:"created_at"`
-}
-
-type Memory struct {
-	ID                 string         `json:"id"`
-	AgentHandle        sql.NullString `json:"agent_handle"`
-	PathScope          sql.NullString `json:"path_scope"`
-	Content            string         `json:"content"`
-	Category           string         `json:"category"`
-	Embedding          []byte         `json:"embedding"`
-	SourceSessionID    sql.NullString `json:"source_session_id"`
-	SourceMessageID    sql.NullString `json:"source_message_id"`
-	CreatedAt          int64          `json:"created_at"`
-	UpdatedAt          int64          `json:"updated_at"`
-	Confidence         sql.NullFloat64 `json:"confidence"`
-	LastAccessedAt     sql.NullInt64  `json:"last_accessed_at"`
-	AccessCount        sql.NullInt64  `json:"access_count"`
-	SupersedesID       sql.NullString `json:"supersedes_id"`
-	SupersededByID     sql.NullString `json:"superseded_by_id"`
-	SupersessionReason sql.NullString `json:"supersession_reason"`
-	Status             sql.NullString `json:"status"`
 }

@@ -525,7 +525,7 @@ A Go-based command line tool for managing local AI agents. The design philosophy
 |---------|-------------|
 | **Agent** | AI assistant with custom system prompt and tool access |
 | **Skill** | Instruction set attached to agents at runtime |
-| **Tool** | Capability (bash, agent_call, plan) an agent can use |
+| **Tool** | Capability (bash, agent_call, task) an agent can use |
 | **Session** | Persisted conversation history |
 | **Memory** | Facts/preferences learned across sessions |
 | **Plugin** | External package providing agents, skills, or tools |
@@ -555,7 +555,7 @@ User Input
          │
          ▼
 ┌─────────────────┐
-│   Tool Handler  │  Execute bash, delegate to agents, update plan
+│   Tool Handler  │  Execute bash, delegate to agents, update tasks
 │   (internal/run)│
 └────────┬────────┘
          │
@@ -623,6 +623,7 @@ Ayo uses two directories:
     └── suffix.md
 
 ~/.local/share/ayo/               # Built-in data (auto-installed on first run)
+├── ayo.db                        # Main database (sessions, messages, memories)
 ├── agents/                       # Built-in agents
 │   └── @ayo/
 │       ├── config.json
@@ -631,6 +632,10 @@ Ayo uses two directories:
 ├── skills/                       # Built-in shared skills
 │   └── debugging/
 │       └── SKILL.md
+├── tools/                        # Stateful tool data (per-tool databases)
+│   └── task/
+│       └── task.db               # Task tool's session data
+├── plugins/                      # Installed plugins
 └── .builtin-version              # Version marker
 ```
 
@@ -848,6 +853,40 @@ Purple styled "Chat with @agentname" header with exit hint.
 
 ## Tool System
 
+### Tool Categories
+
+Ayo supports **tool categories** - semantic slots that can be filled by different tool implementations. This allows users to swap planning tools, shell interpreters, or other tools without modifying agent configurations.
+
+**Defined categories:**
+
+| Category | Default | Description |
+|----------|---------|-------------|
+| `planning` | `task` | Task tracking during execution |
+| `shell` | `bash` | Command execution |
+| `search` | (none) | Web search (requires plugin) |
+
+**Resolution order:**
+1. Check `default_tools` in config for user override
+2. Use built-in default if category has one
+3. Fall back to literal tool name
+
+**Configuration:**
+```json
+// ~/.config/ayo/ayo.json
+{
+  "default_tools": {
+    "search": "searxng"     // Set default for category with no built-in
+  }
+}
+```
+
+**Agent config:**
+```json
+{
+  "allowed_tools": ["bash", "planning"]  // "planning" resolves to configured tool
+}
+```
+
 ### Bash Tool
 
 The `bash` tool is the default and primary tool. Agents use it to accomplish any task unless a more specific skill is available.
@@ -860,25 +899,11 @@ Optional parameters:
 - `timeout_seconds`: Command timeout (default 30s)
 - `working_dir`: Working directory scoped to project root
 
-### Plan Tool
+### Task Tool (Default Planning)
 
-The `plan` tool enables agents to track multi-step tasks with status updates. Plans are stored per-session as JSON in the database.
+The `task` tool is the **default** for the `planning` category. It provides a flat task list similar to Crush's task tool.
 
-**Required skill:** The `planning` skill is automatically attached when the plan tool is enabled.
-
-**Hierarchical structure:**
-Plans support three levels of hierarchy:
-
-1. **Phases** (optional): High-level stages of work
-   - If used, must have at least 2 phases
-   - Each phase must contain at least 1 task
-
-2. **Tasks** (required): Units of work
-   - Can exist at top level or within phases
-   - Each task needs `content` and `active_form`
-
-3. **Todos** (optional): Atomic sub-items within tasks
-   - Use for granular step tracking within a task
+**Storage:** Task data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/task/task.db`, separate from the main session database.
 
 **Parameters:**
 ```json
@@ -887,32 +912,7 @@ Plans support three levels of hierarchy:
     {
       "content": "What needs to be done (imperative form)",
       "active_form": "Present continuous form (e.g., 'Running tests')",
-      "status": "pending | in_progress | completed",
-      "todos": [
-        {
-          "content": "Atomic sub-item",
-          "active_form": "Doing sub-item",
-          "status": "pending | in_progress | completed"
-        }
-      ]
-    }
-  ]
-}
-```
-
-Or with phases:
-```json
-{
-  "phases": [
-    {
-      "name": "Phase 1: Setup",
-      "status": "completed",
-      "tasks": [...]
-    },
-    {
-      "name": "Phase 2: Implementation",
-      "status": "in_progress",
-      "tasks": [...]
+      "status": "pending | in_progress | completed"
     }
   ]
 }
@@ -920,17 +920,15 @@ Or with phases:
 
 **Task states:**
 - `pending`: Not yet started
-- `in_progress`: Currently working on (limit to ONE item at a time across all levels)
+- `in_progress`: Currently working on (limit to ONE task at a time)
 - `completed`: Finished successfully
 
 **Rules:**
-- Each task/todo requires both `content` (imperative) and `active_form` (present continuous)
-- Exactly ONE item should be `in_progress` at any time
-- Mark items complete IMMEDIATELY after finishing
-- Remove irrelevant items from the list entirely
-- Cannot have both phases and top-level tasks (mutually exclusive)
-
-**Storage:** Plans are stored as a JSON column on the sessions table and persist across session resumption.
+- Each task requires both `content` (imperative) and `active_form` (present continuous)
+- Exactly ONE task should be `in_progress` at any time
+- Mark tasks complete IMMEDIATELY after finishing
+- Remove irrelevant tasks from the list entirely
+- The full task list is provided on each call (replacement, not incremental)
 
 ### Skills
 
@@ -1009,7 +1007,6 @@ Built-in skills are embedded in the binary and installed via `ayo setup`:
 
 **Current built-in skills:**
 - `debugging` - Systematic debugging techniques
-- `planning` - Task decomposition into phases, tasks, and todos (required by plan tool)
 - `project-summary` - Project analysis and documentation (for @ayo)
 
 ## System Prompt Assembly

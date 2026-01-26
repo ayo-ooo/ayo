@@ -43,47 +43,47 @@ DELETE FROM memories WHERE id = ?;
 SELECT * FROM memories
 WHERE status = COALESCE(sqlc.narg(status), 'active')
 ORDER BY created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListMemoriesByAgent :many
 SELECT * FROM memories
-WHERE agent_handle = ?
+WHERE agent_handle = sqlc.arg(agent)
   AND status = COALESCE(sqlc.narg(status), 'active')
 ORDER BY created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListMemoriesByPath :many
 SELECT * FROM memories
-WHERE (path_scope = ? OR path_scope IS NULL)
+WHERE (path_scope = sqlc.arg(path) OR path_scope IS NULL)
   AND status = COALESCE(sqlc.narg(status), 'active')
 ORDER BY 
-    CASE WHEN path_scope = ? THEN 0 ELSE 1 END,
+    CASE WHEN path_scope IS NOT NULL THEN 0 ELSE 1 END,
     created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListMemoriesByAgentAndPath :many
 SELECT * FROM memories
-WHERE (agent_handle = ? OR agent_handle IS NULL)
-  AND (path_scope = ? OR path_scope IS NULL)
+WHERE (agent_handle = sqlc.arg(agent) OR agent_handle IS NULL)
+  AND (path_scope = sqlc.arg(path) OR path_scope IS NULL)
   AND status = COALESCE(sqlc.narg(status), 'active')
 ORDER BY 
-    CASE WHEN agent_handle = ? THEN 0 ELSE 1 END,
-    CASE WHEN path_scope = ? THEN 0 ELSE 1 END,
+    CASE WHEN agent_handle IS NOT NULL THEN 0 ELSE 1 END,
+    CASE WHEN path_scope IS NOT NULL THEN 0 ELSE 1 END,
     created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListMemoriesByCategory :many
 SELECT * FROM memories
-WHERE category = ?
+WHERE category = sqlc.arg(cat)
   AND status = COALESCE(sqlc.narg(status), 'active')
 ORDER BY created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: GetMemoryHistory :many
 WITH RECURSIVE chain AS (
-    SELECT id, content, category, status, supersedes_id, superseded_by_id, 
-           supersession_reason, created_at, 0 as depth
-    FROM memories WHERE id = ?
+    SELECT m.id, m.content, m.category, m.status, m.supersedes_id, m.superseded_by_id, 
+           m.supersession_reason, m.created_at, 0 as depth
+    FROM memories m WHERE m.id = ?
     
     UNION ALL
     
