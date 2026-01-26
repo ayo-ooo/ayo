@@ -1,11 +1,18 @@
 # Ayo Documentation
 
-Welcome to the ayo documentation. Ayo is a command-line tool for running AI agents that can execute tasks, use tools, and chain together via Unix pipes.
+Welcome to the ayo documentation. 
+
+> **ayo** - Agents You Orchestrate
+
+Ayo is a command-line tool for running AI agents that can execute tasks, use tools, and chain together via Unix pipes. It is the **execution engine** for agent workflows—designed to be invoked by external orchestrators like Django, cron, GitHub Actions, or any system that can run shell commands.
+
+**Start here**: [Philosophy & Architecture](philosophy.md) for the full vision.
 
 ## Quick Links
 
 | Guide | Description |
 |-------|-------------|
+| [Philosophy & Architecture](philosophy.md) | Vision, design principles, and system overview |
 | [Getting Started](getting-started.md) | Installation and first steps |
 | [Agents](agents.md) | Creating and managing AI agents |
 | [Skills](skills.md) | Extending agents with domain-specific instructions |
@@ -17,6 +24,12 @@ Welcome to the ayo documentation. Ayo is a command-line tool for running AI agen
 | [Configuration](configuration.md) | Config files, directories, and environment |
 | [Plugins](plugins.md) | Extending ayo with community packages |
 | [CLI Reference](cli-reference.md) | Complete command reference |
+
+## Design Documents
+
+| Document | Description |
+|----------|-------------|
+| [Flows](design/flows.md) | Composable agent pipelines (planned) |
 
 ## Concepts
 
