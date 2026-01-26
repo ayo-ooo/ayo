@@ -8,6 +8,26 @@ import (
 	"database/sql"
 )
 
+type FlowRun struct {
+	ID              string         `json:"id"`
+	FlowName        string         `json:"flow_name"`
+	FlowPath        string         `json:"flow_path"`
+	FlowSource      string         `json:"flow_source"`
+	Status          string         `json:"status"`
+	ExitCode        sql.NullInt64  `json:"exit_code"`
+	ErrorMessage    sql.NullString `json:"error_message"`
+	InputJson       sql.NullString `json:"input_json"`
+	OutputJson      sql.NullString `json:"output_json"`
+	StderrLog       sql.NullString `json:"stderr_log"`
+	StartedAt       int64          `json:"started_at"`
+	FinishedAt      sql.NullInt64  `json:"finished_at"`
+	DurationMs      sql.NullInt64  `json:"duration_ms"`
+	ParentRunID     sql.NullString `json:"parent_run_id"`
+	SessionID       sql.NullString `json:"session_id"`
+	InputValidated  int64          `json:"input_validated"`
+	OutputValidated int64          `json:"output_validated"`
+}
+
 type Memory struct {
 	ID                 string          `json:"id"`
 	AgentHandle        sql.NullString  `json:"agent_handle"`

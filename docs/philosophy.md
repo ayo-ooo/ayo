@@ -17,7 +17,7 @@ Ayo is a CLI tool for defining, managing, and running AI agents. It is the **exe
 5. [Tool System](#tool-system)
 6. [Session & Memory](#session--memory)
 7. [Chaining & Structured I/O](#chaining--structured-io)
-8. [Flows (Planned)](#flows-planned)
+8. [Flows](#flows)
 9. [Plugin System](#plugin-system)
 10. [Configuration](#configuration)
 11. [CLI Reference](#cli-reference)
@@ -222,12 +222,8 @@ The final system prompt is assembled from multiple sources:
 | Handle | Purpose |
 |--------|---------|
 | `@ayo` | Default agent, versatile CLI assistant |
-| `@ayo.coding` | Coding agent (delegates to Crush) |
-| `@ayo.research` | Web research assistant |
-| `@ayo.agents` | Agent management helper |
-| `@ayo.skills` | Skill management helper |
 
-The `@ayo` namespace is reserved—users cannot create `@ayo` or `@ayo.*` agents.
+The `@ayo` namespace is reserved—users cannot create `@ayo` or `@ayo.*` agents. Additional specialized agents can be added via plugins.
 
 ---
 
@@ -280,7 +276,7 @@ First match wins. Agent config can filter with `skills`, `exclude_skills`, `igno
 | `coding` | Code creation with delegate awareness |
 | `debugging` | Systematic debugging techniques |
 | `memory` | Memory tool usage guidelines |
-| `planning` | Task decomposition (required by plan tool) |
+| `flows` | Composable agent pipelines |
 | `plugins` | Plugin management |
 | `agent-discovery` | Finding appropriate agents |
 
@@ -297,8 +293,8 @@ A tool is a capability the agent can invoke during execution. Tools are defined 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `bash` | Execute shell commands | `command`, `description`, `timeout_seconds`, `working_dir` |
-| `memory` | Store/search/list/forget memories | `action`, `content`, `query`, `id` |
-| `plan` | Track multi-step task progress | `tasks` or `phases` with hierarchical structure |
+| `memory` | Store/search/list/forget memories | `operation`, `content`, `query`, `id` |
+| `todo` | Track multi-step task progress | `todos` (flat list with `content`, `active_form`, `status`) |
 | `agent_call` | Delegate to sub-agents | `agent`, `prompt` |
 | `search` | Web search (via plugin) | `query` |
 
@@ -307,7 +303,7 @@ A tool is a capability the agent can invoke during execution. Tools are defined 
 1. Agent's `allowed_tools` list specifies tool names or categories
 2. `config.default_tools` maps categories to concrete tools
 3. Plugin tools are discovered from installed plugins
-4. Stateful tools (plan) have per-session SQLite storage
+4. Stateful tools (todo) have per-session SQLite storage
 
 ### Bash Tool
 
@@ -393,7 +389,7 @@ CREATE TABLE session_edges (
 Memories are persistent facts, preferences, and patterns that help agents provide contextual responses across sessions.
 
 **How it works**:
-1. Agents use a small local LLM (ministral-3b via Ollama) to detect memorable information
+1. Agents use a small local LLM (ministral-3:3b via Ollama) to detect memorable information
 2. Memories are stored with vector embeddings (nomic-embed-text) for semantic search
 3. Relevant memories are automatically retrieved and injected into system prompts
 4. Agents can use the `memory` tool to search, store, list, or forget memories
@@ -480,9 +476,9 @@ ayo chain example @agent              # Generate example input
 
 ---
 
-## Flows (Planned)
+## Flows
 
-### Vision
+### Overview
 
 Flows are **shell scripts that compose agents into pipelines**. They are invoked by external orchestrators (Django, cron, GitHub Actions) and return structured output.
 
@@ -752,7 +748,6 @@ ayo                             # Interactive chat with @ayo
 ayo agents list                 # List available agents
 ayo agents show @handle         # Show agent details
 ayo agents create @handle       # Create new agent
-ayo agents dir                  # Show agents directories
 ayo agents update               # Update built-in agents
 ```
 
@@ -763,7 +758,6 @@ ayo skills list                 # List available skills
 ayo skills show <name>          # Show skill details
 ayo skills create <name>        # Create new skill
 ayo skills validate <path>      # Validate skill directory
-ayo skills dir                  # Show skills directories
 ```
 
 ### Session Commands

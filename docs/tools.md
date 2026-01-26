@@ -7,9 +7,41 @@ Tools give agents the ability to take actions. Each agent specifies which tools 
 | Tool | Description |
 |------|-------------|
 | `bash` | Execute shell commands (default) |
-| `plan` | Track multi-step tasks with status updates |
+| `todo` | Track multi-step tasks with status updates |
 | `memory` | Search, store, and manage memories |
 | `agent_call` | Delegate tasks to other agents |
+
+## Tool Categories
+
+Ayo supports **tool categories** - semantic slots that can be filled by different tool implementations. This allows users to swap tools without modifying agent configurations.
+
+| Category | Default | Description |
+|----------|---------|-------------|
+| `planning` | `todo` | Task tracking during execution |
+| `shell` | `bash` | Command execution |
+| `search` | (none) | Web search (requires plugin) |
+
+**Resolution order:**
+1. Check `default_tools` in config for user override
+2. Use built-in default if category has one
+3. Fall back to literal tool name
+
+**Configuration:**
+```json
+// ~/.config/ayo/ayo.json
+{
+  "default_tools": {
+    "search": "searxng"     // Set default for category with no built-in
+  }
+}
+```
+
+**Agent config:**
+```json
+{
+  "allowed_tools": ["bash", "planning"]  // "planning" resolves to "todo"
+}
+```
 
 ## Bash Tool
 
@@ -48,91 +80,65 @@ When the agent runs a command:
 - Dangerous commands trigger guardrail warnings
 - Long-running commands timeout after 30s (configurable)
 
-## Plan Tool
+## Todo Tool
 
-The `plan` tool enables agents to track multi-step tasks with status updates.
+The `todo` tool enables agents to track multi-step tasks with status updates. It's the default implementation for the `planning` category.
 
 ### Agent Configuration
 
 ```json
 {
-  "allowed_tools": ["bash", "plan"]
+  "allowed_tools": ["bash", "todo"]
 }
 ```
 
-**Note:** The `planning` skill is automatically attached when the plan tool is enabled.
-
-### Hierarchical Structure
-
-Plans support three levels:
-
-1. **Phases** (optional) - High-level stages
-2. **Tasks** (required) - Units of work
-3. **Todos** (optional) - Atomic sub-items within tasks
-
-### Task-Only Plan
+Or use the category:
 
 ```json
 {
-  "tasks": [
+  "allowed_tools": ["bash", "planning"]
+}
+```
+
+### Parameters
+
+```json
+{
+  "todos": [
+    {
+      "content": "What needs to be done (imperative form)",
+      "active_form": "Present continuous form (e.g., 'Running tests')",
+      "status": "pending | in_progress | completed"
+    }
+  ]
+}
+```
+
+### Example
+
+```json
+{
+  "todos": [
     {
       "content": "Implement user authentication",
       "active_form": "Implementing user authentication",
-      "status": "in_progress",
-      "todos": [
-        {
-          "content": "Add login endpoint",
-          "active_form": "Adding login endpoint",
-          "status": "completed"
-        },
-        {
-          "content": "Add logout endpoint",
-          "active_form": "Adding logout endpoint",
-          "status": "pending"
-        }
-      ]
+      "status": "completed"
     },
     {
-      "content": "Write tests",
-      "active_form": "Writing tests",
+      "content": "Write tests for auth module",
+      "active_form": "Writing tests for auth module",
+      "status": "in_progress"
+    },
+    {
+      "content": "Add documentation",
+      "active_form": "Adding documentation",
       "status": "pending"
     }
   ]
 }
 ```
 
-### Plan with Phases
-
-```json
-{
-  "phases": [
-    {
-      "name": "Phase 1: Setup",
-      "status": "completed",
-      "tasks": [
-        {
-          "content": "Initialize project",
-          "active_form": "Initializing project",
-          "status": "completed"
-        }
-      ]
-    },
-    {
-      "name": "Phase 2: Implementation",
-      "status": "in_progress",
-      "tasks": [
-        {
-          "content": "Build core features",
-          "active_form": "Building core features",
-          "status": "in_progress"
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Task States
+### Todo States
 
 | State | Description |
 |-------|-------------|
@@ -142,10 +148,14 @@ Plans support three levels:
 
 ### Rules
 
-- Each task needs both `content` (imperative) and `active_form` (present continuous)
-- Exactly ONE item should be `in_progress` at any time
-- Cannot mix phases and top-level tasks
-- Plans persist across session resumption
+- Each todo needs both `content` (imperative) and `active_form` (present continuous)
+- Exactly ONE todo should be `in_progress` at any time
+- The full todo list is provided on each call (replacement, not incremental)
+- Todos persist within the session
+
+### Storage
+
+Todo data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/todo/todo.db`, keyed by session ID.
 
 ## Memory Tool
 
@@ -208,9 +218,9 @@ The `agent_call` tool enables delegation to other agents.
 }
 ```
 
-## Search Tool (Alias)
+## Search Tool (Category)
 
-The `search` tool is a **tool alias** that resolves to a configured concrete tool.
+The `search` category resolves to a configured concrete tool.
 
 ### Agent Configuration
 
@@ -280,11 +290,11 @@ When tools execute, the UI shows:
 
 ```
 ◐ Running test suite...
-┌──────────────────────────────────────────┐
-│ === RUN   TestExample                    │
-│ --- PASS: TestExample (0.00s)            │
-│ PASS                                     │
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ === RUN   TestExample                            │
+│ --- PASS: TestExample (0.00s)                    │
+│ PASS                                             │
+└──────────────────────────────────────────────────┘
 ✓ Running test suite (1.2s)
 ```
 
@@ -295,7 +305,7 @@ Default timeouts:
 | Tool | Default Timeout |
 |------|-----------------|
 | `bash` | 30 seconds |
-| `plan` | N/A (instant) |
+| `todo` | N/A (instant) |
 | `memory` | 30 seconds |
 | `agent_call` | No timeout |
 

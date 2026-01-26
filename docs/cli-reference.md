@@ -274,7 +274,10 @@ ayo memory store <content> [--flags]
 
 | Flag | Description |
 |------|-------------|
-| `--category` | Category: preference, fact, correction, pattern |
+| `-c`, `--category` | Category: preference, fact, correction, pattern (auto-detected if not specified) |
+| `-a`, `--agent` | Agent handle for scoping the memory |
+| `-p`, `--path` | Path scope for this memory |
+| `--json` | Output in JSON format |
 
 ### ayo memory forget
 
@@ -467,35 +470,6 @@ Checks:
 - Database connection
 - Ollama service and models
 - Default model configuration
-
----
-
-## ayo completion
-
-Generate shell completion scripts.
-
-```bash
-ayo completion <shell>
-```
-
-Supported shells: `bash`, `zsh`, `fish`, `powershell`
-
-### Setup
-
-**Bash:**
-```bash
-ayo completion bash > /etc/bash_completion.d/ayo
-```
-
-**Zsh:**
-```bash
-ayo completion zsh > "${fpath[1]}/_ayo"
-```
-
-**Fish:**
-```bash
-ayo completion fish > ~/.config/fish/completions/ayo.fish
-```
 
 ---
 

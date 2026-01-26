@@ -17,6 +17,7 @@ Ayo is a command-line tool for running AI agents that can execute tasks, use too
 | [Agents](agents.md) | Creating and managing AI agents |
 | [Skills](skills.md) | Extending agents with domain-specific instructions |
 | [Tools](tools.md) | Tool system (bash, plan, external tools) |
+| [Flows](flows.md) | Composable agent pipelines |
 | [Memory](memory.md) | Persistent facts and preferences across sessions |
 | [Sessions](sessions.md) | Conversation persistence and resumption |
 | [Chaining](chaining.md) | Composing agents via Unix pipes |
@@ -29,7 +30,9 @@ Ayo is a command-line tool for running AI agents that can execute tasks, use too
 
 | Document | Description |
 |----------|-------------|
-| [Flows](design/flows.md) | Composable agent pipelines (planned) |
+| [Flows](design/flows.md) | Composable agent pipelines (specification) |
+| [Flows Implementation](design/flows-implementation.md) | Phased implementation plan with milestones |
+| [Flows Stories & Tasks](design/flows-stories.md) | Granular stories, tasks, and atomic work units |
 
 ## Concepts
 

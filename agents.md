@@ -633,28 +633,27 @@ Ayo uses two directories:
 │   └── debugging/
 │       └── SKILL.md
 ├── tools/                        # Stateful tool data (per-tool databases)
-│   └── task/
-│       └── task.db               # Task tool's session data
+│   └── todo/
+│       └── todo.db               # Todo tool's session data
 ├── plugins/                      # Installed plugins
 └── .builtin-version              # Version marker
 ```
 
 **Dev mode (running from source checkout):**
 ```
-~/Code/ayo-skills/                # Your checkout
-├── .ayo/                         # Built-in data (project-local)
+~/Code/ayo/                       # Your checkout
+├── .local/share/ayo/             # Built-in data (project-local)
 │   ├── agents/
 │   ├── skills/
 │   └── .builtin-version
-└── ...
-
-~/.config/ayo/                    # User config (shared across all instances)
-├── agents/
-├── skills/
+├── .config/ayo/                  # Project-local config
+│   ├── agents/
+│   ├── skills/
+│   └── ayo.json
 └── ...
 ```
 
-This allows multiple dev branches to have isolated built-ins while sharing user-defined agents and skills.
+This allows multiple dev branches to have isolated built-ins and configuration.
 
 ## Loading Priority
 
@@ -716,6 +715,15 @@ ayo memory clear            # Clear all memories (with confirmation)
 # System diagnostics
 ayo doctor                  # Check system health and dependencies
 ayo doctor -v               # Verbose output with model list
+
+# Flows management
+ayo flows list              # List available flows
+ayo flows show <name>       # Show flow details
+ayo flows run <name> [input] # Execute a flow
+ayo flows new <name>        # Create new flow
+ayo flows validate <path>   # Validate flow file
+ayo flows history           # Show flow run history
+ayo flows replay <run-id>   # Replay a flow run
 ```
 
 ### Default Agent
@@ -829,6 +837,53 @@ Both models are installed during `ayo setup`.
 - `list`: Show all memories
 - `forget`: Remove a memory
 
+### Flows
+
+Flows are composable agent pipelines - shell scripts with structured frontmatter that orchestrate agent calls. They are the unit of work that external systems (cron, CI, webhooks) invoke.
+
+**Flow file format:**
+```bash
+#!/usr/bin/env bash
+# ayo:flow
+# name: my-flow
+# description: What this flow does
+
+set -euo pipefail
+INPUT="${1:-$(cat)}"
+echo "$INPUT" | ayo @ayo "Process this and return JSON"
+```
+
+**Directory structure:**
+- Project flows: `.ayo/flows/`
+- User flows: `~/.config/ayo/flows/`
+- Built-in flows: `~/.local/share/ayo/flows/`
+
+**CLI commands:**
+```bash
+ayo flows list                    # List all flows
+ayo flows show <name>             # Show flow details
+ayo flows run <name> [input]      # Run a flow
+ayo flows run <name> -i file.json # Run with input file
+ayo flows new <name>              # Create new flow
+ayo flows new <name> --with-schemas # With input/output schemas
+ayo flows validate <path>         # Validate flow file
+ayo flows history                 # Show run history
+ayo flows history --flow=myflow   # Filter by flow
+ayo flows replay <run-id>         # Replay a previous run
+```
+
+**Structured I/O:** Flows can define JSON schemas for type-safe input/output by placing `input.jsonschema` and `output.jsonschema` alongside the flow script.
+
+**Exit codes:**
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error |
+| 2 | Input validation failed |
+| 124 | Timeout |
+
+**History retention:** Configured via `flows.history_retention_days` (default 30) and `flows.history_max_runs` (default 1000) in `ayo.json`.
+
 ## UI Behavior
 
 Both interactive and non-interactive modes share the same UI components:
@@ -861,7 +916,7 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 
 | Category | Default | Description |
 |----------|---------|-------------|
-| `planning` | `task` | Task tracking during execution |
+| `planning` | `todo` | Task tracking during execution |
 | `shell` | `bash` | Command execution |
 | `search` | (none) | Web search (requires plugin) |
 
@@ -899,16 +954,16 @@ Optional parameters:
 - `timeout_seconds`: Command timeout (default 30s)
 - `working_dir`: Working directory scoped to project root
 
-### Task Tool (Default Planning)
+### Todo Tool (Default Planning)
 
-The `task` tool is the **default** for the `planning` category. It provides a flat task list similar to Crush's task tool.
+The `todo` tool is the **default** for the `planning` category. It provides a flat todo list for tracking multi-step tasks.
 
-**Storage:** Task data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/task/task.db`, separate from the main session database.
+**Storage:** Todo data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/todo/todo.db`, keyed by session ID.
 
 **Parameters:**
 ```json
 {
-  "tasks": [
+  "todos": [
     {
       "content": "What needs to be done (imperative form)",
       "active_form": "Present continuous form (e.g., 'Running tests')",
@@ -918,17 +973,17 @@ The `task` tool is the **default** for the `planning` category. It provides a fl
 }
 ```
 
-**Task states:**
+**Todo states:**
 - `pending`: Not yet started
-- `in_progress`: Currently working on (limit to ONE task at a time)
+- `in_progress`: Currently working on (limit to ONE todo at a time)
 - `completed`: Finished successfully
 
 **Rules:**
-- Each task requires both `content` (imperative) and `active_form` (present continuous)
-- Exactly ONE task should be `in_progress` at any time
-- Mark tasks complete IMMEDIATELY after finishing
-- Remove irrelevant tasks from the list entirely
-- The full task list is provided on each call (replacement, not incremental)
+- Each todo requires both `content` (imperative) and `active_form` (present continuous)
+- Exactly ONE todo should be `in_progress` at any time
+- Mark todos complete IMMEDIATELY after finishing
+- Remove irrelevant todos from the list entirely
+- The full todo list is provided on each call (replacement, not incremental)
 
 ### Skills
 
@@ -1457,8 +1512,8 @@ Example agent structure:
 ### Piping Agents
 
 ```bash
-# Chain two agents (code reviewer -> issue reporter)
-ayo @ayo.example.chain.code-reviewer '{"repo":".", "files":["main.go"]}' | ayo @ayo.example.chain.issue-reporter
+# Chain two agents: first agent's output pipes to second agent's input
+ayo @code-reviewer '{"repo":".", "files":["main.go"]}' | ayo @issue-reporter
 ```
 
 **Pipeline behavior:**
@@ -1483,20 +1538,20 @@ If schemas are incompatible, validation fails with a clear error.
 ayo chain ls
 
 # Show agent's schemas
-ayo chain inspect @ayo.debug.structured-io
+ayo chain inspect @myagent
 
 # Find agents that can receive this agent's output
-ayo chain from @ayo.example.chain.code-reviewer
+ayo chain from @code-reviewer
 
 # Find agents whose output this agent can receive
-ayo chain to @ayo.example.chain.issue-reporter
+ayo chain to @issue-reporter
 
 # Validate JSON against agent's input schema
-ayo chain validate @ayo.debug.structured-io '{"environment": "staging", "service": "api"}'
-echo '{"environment": "staging", "service": "api"}' | ayo chain validate @ayo.debug.structured-io
+ayo chain validate @myagent '{"environment": "staging", "service": "api"}'
+echo '{"environment": "staging", "service": "api"}' | ayo chain validate @myagent
 
 # Generate example input for an agent
-ayo chain example @ayo.debug.structured-io
+ayo chain example @myagent
 ```
 
 ### Chain Context
@@ -1505,15 +1560,20 @@ When agents are chained, context is passed via environment variable:
 - `AYO_CHAIN_CONTEXT` contains JSON with `depth`, `source`, and `source_description`
 - Freeform agents receive a preamble describing the chain context
 
-### Example Chain Agents
+### Example: Creating Chainable Agents
 
-Built-in example agents demonstrating chaining:
+To create agents that can chain together:
 
 ```bash
-# Code reviewer outputs structured findings
-ayo @ayo.example.chain.code-reviewer '{"repo":".", "files":["main.go"]}'
+# Create an agent with input/output schemas
+ayo agents create @code-reviewer
 
-# Issue reporter consumes code reviewer output
-ayo @ayo.example.chain.code-reviewer '{"repo":".", "files":["main.go"]}' \
-  | ayo @ayo.example.chain.issue-reporter
+# Add input.jsonschema to define expected input
+# Add output.jsonschema to define structured output
+```
+
+Then you can chain them:
+
+```bash
+ayo @code-reviewer '{"repo":".", "files":["main.go"]}' | ayo @issue-reporter
 ```

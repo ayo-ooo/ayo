@@ -526,3 +526,68 @@ func FindDirectoryConfig(dir string) string {
 	}
 	return ""
 }
+
+// UserFlowsDir returns the directory for user-created flows.
+// Location: ~/.config/ayo/flows (Unix) or %LOCALAPPDATA%\ayo\flows (Windows)
+func UserFlowsDir() string {
+	return filepath.Join(ConfigDir(), "flows")
+}
+
+// BuiltinFlowsDir returns the directory for built-in flows.
+// Location: ~/.local/share/ayo/flows (Unix) or %LOCALAPPDATA%\ayo\flows (Windows)
+func BuiltinFlowsDir() string {
+	return filepath.Join(DataDir(), "flows")
+}
+
+// ProjectFlowsDir returns the project-specific flows directory (.ayo/flows).
+// Returns empty string if no project .ayo directory exists.
+func ProjectFlowsDir() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	// Check for .ayo/flows in current directory or parent directories
+	dir := wd
+	for {
+		flowsDir := filepath.Join(dir, ".ayo", "flows")
+		if info, err := os.Stat(flowsDir); err == nil && info.IsDir() {
+			return flowsDir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // Reached filesystem root
+		}
+		dir = parent
+	}
+	return ""
+}
+
+// FlowsDirs returns all flows directories in lookup priority order.
+// Order: project (.ayo/flows), user config, builtin.
+// Only includes directories that exist.
+func FlowsDirs() []string {
+	var dirs []string
+	seen := make(map[string]bool)
+
+	add := func(dir string) {
+		if dir != "" && !seen[dir] {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				seen[dir] = true
+				dirs = append(dirs, dir)
+			}
+		}
+	}
+
+	// Project flows first (.ayo/flows)
+	add(ProjectFlowsDir())
+
+	// User flows (~/.config/ayo/flows)
+	add(UserFlowsDir())
+
+	// Built-in flows (~/.local/share/ayo/flows)
+	add(BuiltinFlowsDir())
+
+	return dirs
+}

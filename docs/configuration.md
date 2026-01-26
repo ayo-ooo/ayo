@@ -153,13 +153,15 @@ Ayo searches from the current directory up to find `.ayo.json`.
 When running from a source checkout, ayo uses project-local directories:
 
 ```
-./ayo-main/                       # Source checkout
+./ayo/                            # Source checkout
 ├── .config/ayo/                  # Project-local user config
+│   ├── ayo.json
 │   ├── agents/
 │   └── skills/
 └── .local/share/ayo/             # Project-local built-in data
     ├── agents/
-    └── skills/
+    ├── skills/
+    └── .builtin-version
 ```
 
 This allows:
@@ -167,7 +169,7 @@ This allows:
 - Multiple dev branches with isolated data
 - Development plugins in local directories
 
-Enable with the `--dev` flag on setup commands, or detected automatically when running from a git checkout that contains the ayo source.
+Dev mode is detected automatically when running from a git checkout that contains the ayo source (determined by finding a go.mod with the ayo module).
 
 ## Custom Prompts
 

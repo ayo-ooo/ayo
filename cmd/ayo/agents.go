@@ -359,7 +359,7 @@ Examples:
 	cmd.Flags().StringVarP(&systemFile, "system-file", "f", "", "path to system prompt file (.md or .txt)")
 
 	// Tool flags
-	cmd.Flags().StringSliceVarP(&tools, "tools", "t", nil, "allowed tools: bash, agent_call, plan (comma-separated)")
+	cmd.Flags().StringSliceVarP(&tools, "tools", "t", nil, "allowed tools: bash, agent_call, todo (comma-separated)")
 
 	// Skill flags
 	cmd.Flags().StringSliceVar(&skills_, "skills", nil, "skills to include (comma-separated, see 'ayo skills list')")

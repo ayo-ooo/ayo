@@ -66,7 +66,7 @@ ollama serve
 
 # Pull required models
 ollama pull nomic-embed-text
-ollama pull ministral:3b
+ollama pull ministral-3:3b
 ```
 
 Check everything is working:
@@ -110,7 +110,7 @@ ayo -a file1.txt -a file2.txt "compare these files"
 
 - Execute shell commands via the `bash` tool
 - Delegate to other agents via `agent_call`
-- Track multi-step tasks with the `plan` tool
+- Track multi-step tasks with the `todo` tool
 - Create and manage other agents and skills
 - Use any attached skills for specialized tasks
 

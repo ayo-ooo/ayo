@@ -8,11 +8,11 @@ Skills are reusable instruction sets that teach agents specialized tasks. They f
 |-------|-------------|
 | `ayo` | CLI documentation for programmatic use |
 | `debugging` | Systematic debugging techniques |
-| `planning` | Task decomposition and planning |
 | `coding` | Source code creation guidelines |
 | `memory` | Memory tool usage guidelines |
 | `plugins` | Plugin management guidance |
 | `agent-discovery` | Discovering and inspecting agents |
+| `flows` | Composable agent pipelines and automation |
 
 ## Skill Discovery
 

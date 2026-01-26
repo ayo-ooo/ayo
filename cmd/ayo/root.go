@@ -247,6 +247,7 @@ Subcommands:
 	cmd.AddCommand(newSetupCmd(&cfgPath))
 	cmd.AddCommand(newAgentsCmd(&cfgPath))
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
+	cmd.AddCommand(newFlowsCmd(&cfgPath))
 	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())

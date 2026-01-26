@@ -27,6 +27,9 @@ type Config struct {
 	Provider       catwalk.Provider `json:"provider,omitempty"`
 	Embedding      EmbeddingConfig  `json:"embedding,omitempty"`
 
+	// Flows configuration
+	Flows FlowsConfig `json:"flows,omitempty"`
+
 	// Delegates maps task types to agent handles for global delegation.
 	// Example: {"coding": "@crush", "research": "@research"}
 	Delegates map[string]string `json:"delegates,omitempty"`
@@ -35,6 +38,17 @@ type Config struct {
 	// Example: {"search": "searxng"}
 	// This allows agents to use generic tool types that resolve to user-configured tools.
 	DefaultTools map[string]string `json:"default_tools,omitempty"`
+}
+
+// FlowsConfig configures the flows system.
+type FlowsConfig struct {
+	// HistoryRetentionDays is the maximum age of flow run history in days.
+	// Runs older than this are pruned. Default: 30.
+	HistoryRetentionDays int `json:"history_retention_days,omitempty"`
+
+	// HistoryMaxRuns is the maximum number of flow runs to keep.
+	// Excess runs are pruned (oldest first). Default: 1000.
+	HistoryMaxRuns int `json:"history_max_runs,omitempty"`
 }
 
 // EmbeddingConfig configures the embedding system.
@@ -87,6 +101,10 @@ func Default() Config {
 		Embedding: EmbeddingConfig{
 			Provider: "ollama",
 			Model:    "nomic-embed-text",
+		},
+		Flows: FlowsConfig{
+			HistoryRetentionDays: 30,
+			HistoryMaxRuns:       1000,
 		},
 	}
 }

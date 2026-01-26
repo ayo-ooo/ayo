@@ -22,7 +22,7 @@ ayo -a main.go "review this code"
 
 - **Agents**: AI assistants with custom prompts and tool access
 - **Skills**: Reusable instruction sets following the [agentskills spec](https://agentskills.org)
-- **Tools**: Execute shell commands, delegate tasks, manage plans
+- **Tools**: Execute shell commands, delegate tasks, track todos
 - **Memory**: Persistent facts and preferences across sessions
 - **Sessions**: Resume previous conversations
 - **Chaining**: Compose agents via Unix pipes
@@ -37,7 +37,7 @@ ayo -a main.go "review this code"
 │  @ayo (default agent)                                       │
 │  ├── bash tool      Execute shell commands                  │
 │  ├── agent_call     Delegate to other agents                │
-│  ├── plan           Track multi-step tasks                  │
+│  ├── todo           Track multi-step tasks                  │
 │  └── skills         Instruction sets (ayo, debugging, etc.) │
 ├─────────────────────────────────────────────────────────────┤
 │  Sessions           Persist conversation history            │
@@ -98,7 +98,7 @@ ayo "create a skill for debugging Go code"
 | [Getting Started](docs/getting-started.md) | Installation and first steps |
 | [Agents](docs/agents.md) | Creating and managing agents |
 | [Skills](docs/skills.md) | Extending agents with instructions |
-| [Tools](docs/tools.md) | Tool system (bash, plan, etc.) |
+| [Tools](docs/tools.md) | Tool system (bash, todo, etc.) |
 | [Memory](docs/memory.md) | Persistent facts and preferences |
 | [Sessions](docs/sessions.md) | Conversation persistence |
 | [Chaining](docs/chaining.md) | Composing agents via pipes |

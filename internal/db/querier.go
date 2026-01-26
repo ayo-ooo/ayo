@@ -12,6 +12,10 @@ import (
 type Querier interface {
 	ClearAllMemories(ctx context.Context, updatedAt int64) error
 	ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByAgentParams) error
+	CompleteFlowRun(ctx context.Context, arg CompleteFlowRunParams) (FlowRun, error)
+	CountFlowRuns(ctx context.Context) (int64, error)
+	CountFlowRunsByName(ctx context.Context, flowName string) (int64, error)
+	CountFlowRunsByStatus(ctx context.Context, status string) (int64, error)
 	CountMemories(ctx context.Context, status sql.NullString) (int64, error)
 	CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByAgentParams) (int64, error)
 	CountMessagesBySession(ctx context.Context, sessionID string) (int64, error)
@@ -19,11 +23,13 @@ type Querier interface {
 	CountSessionsByAgent(ctx context.Context, agentHandle string) (int64, error)
 	CountSessionsBySource(ctx context.Context, source string) (int64, error)
 	CreateEdge(ctx context.Context, arg CreateEdgeParams) error
+	CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (FlowRun, error)
 	CreateMemory(ctx context.Context, arg CreateMemoryParams) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteEdge(ctx context.Context, arg DeleteEdgeParams) error
 	DeleteEdgesBySession(ctx context.Context, sessionID string) error
+	DeleteFlowRun(ctx context.Context, id string) error
 	DeleteMemory(ctx context.Context, id string) error
 	DeleteMessage(ctx context.Context, id string) error
 	DeleteMessagesBySession(ctx context.Context, sessionID string) error
@@ -31,6 +37,9 @@ type Querier interface {
 	ForgetMemory(ctx context.Context, arg ForgetMemoryParams) error
 	GetAllActiveMemoriesWithEmbeddings(ctx context.Context) ([]GetAllActiveMemoriesWithEmbeddingsRow, error)
 	GetChildEdges(ctx context.Context, parentID string) ([]SessionEdge, error)
+	GetFlowRun(ctx context.Context, id string) (FlowRun, error)
+	GetFlowRunByPrefix(ctx context.Context, prefix sql.NullString) ([]FlowRun, error)
+	GetLastFlowRun(ctx context.Context, flowName string) (FlowRun, error)
 	GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSearchParams) ([]GetMemoriesForSearchRow, error)
 	GetMemory(ctx context.Context, id string) (Memory, error)
 	GetMemoryHistory(ctx context.Context, id string) ([]GetMemoryHistoryRow, error)
@@ -38,6 +47,10 @@ type Querier interface {
 	GetParentEdges(ctx context.Context, childID string) ([]SessionEdge, error)
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetSessionByPrefix(ctx context.Context, prefix sql.NullString) ([]Session, error)
+	ListFlowRuns(ctx context.Context, limit int64) ([]FlowRun, error)
+	ListFlowRunsByName(ctx context.Context, arg ListFlowRunsByNameParams) ([]FlowRun, error)
+	ListFlowRunsBySession(ctx context.Context, sessionID sql.NullString) ([]FlowRun, error)
+	ListFlowRunsByStatus(ctx context.Context, arg ListFlowRunsByStatusParams) ([]FlowRun, error)
 	ListMemories(ctx context.Context, arg ListMemoriesParams) ([]Memory, error)
 	ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAgentParams) ([]Memory, error)
 	ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemoriesByAgentAndPathParams) ([]Memory, error)
@@ -47,6 +60,8 @@ type Querier interface {
 	ListSessions(ctx context.Context, limit int64) ([]Session, error)
 	ListSessionsByAgent(ctx context.Context, arg ListSessionsByAgentParams) ([]Session, error)
 	ListSessionsBySource(ctx context.Context, arg ListSessionsBySourceParams) ([]Session, error)
+	PruneFlowRunsByAge(ctx context.Context, cutoffTimestamp int64) error
+	PruneFlowRunsByCount(ctx context.Context, keepCount int64) error
 	SearchSessionsByTitle(ctx context.Context, arg SearchSessionsByTitleParams) ([]Session, error)
 	SupersedeMemory(ctx context.Context, arg SupersedeMemoryParams) error
 	UpdateMemory(ctx context.Context, arg UpdateMemoryParams) error

@@ -1,6 +1,6 @@
 # Flows Design Specification
 
-> **Status**: Draft  
+> **Status**: Implemented  
 > **Last Updated**: January 2025
 
 ## Overview
@@ -522,22 +522,46 @@ jobs:
 
 ---
 
-## Open Questions
+## Resolved Decisions
 
-1. **Run history**: Should ayo store run history, or leave that entirely to orchestrators?
-   - Leaning: Leave to orchestrators (separation of concerns)
+These questions were resolved during implementation:
 
-2. **Streaming output**: How should flows handle streaming agent output?
-   - Option A: Buffer until complete (current design)
-   - Option B: Stream stderr, buffer stdout
-   - Leaning: Option B for real-time feedback
+| Question | Decision | Rationale |
+|----------|----------|----------|
+| **Run history** | Store in ayo SQLite database (`flow_runs` table) | Enables debugging, replay, analytics without requiring orchestrator persistence |
+| **Streaming output** | Stream stderr, buffer stdout | Human-in-the-loop interactions require real-time feedback; stdout reserved for JSON |
+| **Flow-to-flow calls** | Naturally supported | Flows are shell scripts; `ayo flows run` works inside flows |
+| **Built-in examples** | Documentation only | Examples provided in skill documentation, not embedded in binary |
+| **History retention** | 30 days OR 1000 runs (configurable) | Balance between useful history and storage management |
+| **Run ID format** | ULID | Sortable, unique, URL-safe identifiers |
+| **Exit codes** | 0=success, 1=error, 2=validation, 124=timeout | Match common Unix conventions |
+| **History CLI** | `ayo flows history` + `ayo flows replay` | Simple commands for viewing and replaying runs |
+| **Auto-prune** | On each new run | Automatic cleanup without manual intervention |
 
-3. **Flow-to-flow calls**: Should flows be able to invoke other flows?
-   - If yes: `ayo flows run other-flow` works inside a flow
-   - Leaning: Yes, it just works (flows are shell scripts)
+### Implementation Details
 
-4. **Built-in flows**: Should ayo ship with example flows?
-   - Leaning: Yes, in `~/.local/share/ayo/flows/examples/`
+**Database schema** (`internal/db/migrations/002_flows.sql`):
+- `flow_runs` table with run ID, flow identification, status, I/O, timing, and relationships
+- Indexes on flow_name, status, started_at for efficient queries
+- Foreign keys to parent_run_id and session_id for traceability
+
+**Configuration** (`~/.config/ayo/ayo.json`):
+```json
+{
+  "flows": {
+    "history_retention_days": 30,
+    "history_max_runs": 1000
+  }
+}
+```
+
+**Environment variables** available during execution:
+- `AYO_FLOW_NAME` - Flow name
+- `AYO_FLOW_RUN_ID` - Unique run ID
+- `AYO_FLOW_DIR` - Flow directory
+- `AYO_FLOW_INPUT_FILE` - Temp file for large inputs (>1KB)
+
+See [flows-implementation.md](flows-implementation.md) for the full implementation plan.
 
 ---
 

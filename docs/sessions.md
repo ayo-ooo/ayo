@@ -143,9 +143,9 @@ Each message in a session includes:
 | `content` | Message text |
 | `created_at` | Timestamp |
 
-## Plans in Sessions
+## Todos in Sessions
 
-When an agent uses the `plan` tool, the plan is stored on the session:
+When an agent uses the `todo` tool, the todos are stored on the session:
 
 ```bash
 # View session to see plan
@@ -155,7 +155,7 @@ ayo sessions show abc123
 ayo sessions continue abc123
 ```
 
-The plan persists across:
+The todo list persists across:
 - Session continuation
 - Agent interruption (Ctrl+C)
 - Tool failures

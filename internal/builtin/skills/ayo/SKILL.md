@@ -53,6 +53,7 @@ ayo [command] [@agent] [prompt] [--flags]
 | `ayo @agent "prompt"` | Run a prompt with the specified agent |
 | `ayo agents` | Manage agents (list, create, show, update) |
 | `ayo skills` | Manage skills (list, create, show, validate, update) |
+| `ayo flows` | Manage flows (list, run, history, replay) |
 | `ayo plugins` | Manage plugins (install, list, update, remove) |
 | `ayo sessions` | Manage conversation sessions |
 | `ayo memory` | Manage agent memories |
@@ -116,7 +117,7 @@ ayo agents create @my-agent \
 | `--description` | `-d` | Brief description of the agent |
 | `--system` | `-s` | System prompt text (inline) |
 | `--system-file` | `-f` | Path to system prompt file (.md or .txt) |
-| `--tools` | `-t` | Allowed tools: bash, agent_call, plan (comma-separated) |
+| `--tools` | `-t` | Allowed tools: bash, agent_call, todo (comma-separated) |
 | `--skills` | | Skills to include (comma-separated) |
 | `--exclude-skills` | | Skills to exclude |
 | `--ignore-builtin-skills` | | Don't load built-in skills |
@@ -124,8 +125,6 @@ ayo agents create @my-agent \
 | `--input-schema` | | Path to JSON schema for validating stdin input |
 | `--output-schema` | | Path to JSON schema for structuring stdout output |
 | `--no-guardrails` | | Disable system guardrails (not recommended) |
-| `--non-interactive` | `-n` | Skip wizard, fail if required fields missing |
-| `--dev` | | Create in local ./.config/ayo/ directory |
 
 ## Update Built-in Agents
 
@@ -236,7 +235,7 @@ rm -rf ~/.config/ayo/agents/@agent-name
 {
   "model": "gpt-4.1",
   "description": "What this agent does",
-  "allowed_tools": ["bash", "agent_call", "plan"],
+  "allowed_tools": ["bash", "agent_call", "todo"],
   "skills": ["skill-a", "skill-b"],
   "exclude_skills": ["unwanted-skill"],
   "ignore_builtin_skills": false,
@@ -276,11 +275,11 @@ rm -rf ~/.config/ayo/agents/@agent-name
 }
 ```
 
-**Agent with planning** (tracks multi-step tasks):
+**Agent with todo tracking** (tracks multi-step tasks):
 ```json
 {
   "description": "Project planner",
-  "allowed_tools": ["bash", "plan"]
+  "allowed_tools": ["bash", "todo"]
 }
 ```
 
@@ -1053,6 +1052,209 @@ ayo plugins update
 # Remove a plugin
 ayo plugins remove <name>
 ```
+
+---
+
+# Flow Management
+
+Flows are composable agent pipelines - shell scripts with structured frontmatter that orchestrate agent calls.
+
+## List Flows
+
+```bash
+# List all flows
+ayo flows list
+
+# Filter by source
+ayo flows list --source=project
+ayo flows list --source=user
+ayo flows list --source=built-in
+
+# JSON output
+ayo flows list --json
+```
+
+## Show Flow Details
+
+```bash
+# Show flow details
+ayo flows show my-flow
+
+# Show full script content
+ayo flows show my-flow --script
+
+# JSON output
+ayo flows show my-flow --json
+```
+
+## Run a Flow
+
+```bash
+# Run with inline JSON input
+ayo flows run my-flow '{"key": "value"}'
+
+# Run with input from stdin
+echo '{"key": "value"}' | ayo flows run my-flow
+
+# Run with input from file
+ayo flows run my-flow -i input.json
+
+# Custom timeout (seconds)
+ayo flows run my-flow -t 600 '{"key": "value"}'
+
+# Validate input only (don't execute)
+ayo flows run my-flow --validate '{"key": "value"}'
+
+# Skip history recording
+ayo flows run my-flow --no-history '{"key": "value"}'
+```
+
+### Run Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--input` | `-i` | Input file path |
+| `--timeout` | `-t` | Timeout in seconds (default 300) |
+| `--validate` | | Validate input only, don't run |
+| `--no-history` | | Don't record run in history |
+
+## Create a Flow
+
+```bash
+# Create in user flows directory
+ayo flows new my-flow
+
+# Create in project directory (.ayo/flows/)
+ayo flows new my-flow --project
+
+# Create with input/output schemas
+ayo flows new my-flow --with-schemas
+
+# Overwrite existing
+ayo flows new my-flow --force
+```
+
+## Validate a Flow
+
+```bash
+# Validate flow file
+ayo flows validate /path/to/flow.sh
+
+# Validate flow directory (with schemas)
+ayo flows validate /path/to/flow-dir/
+```
+
+## Flow History
+
+```bash
+# List recent runs
+ayo flows history
+
+# Filter by flow name
+ayo flows history --flow=my-flow
+
+# Filter by status
+ayo flows history --status=failed
+ayo flows history --status=success
+ayo flows history --status=timeout
+
+# Limit results
+ayo flows history --limit=20
+
+# JSON output
+ayo flows history --json
+
+# Show specific run details
+ayo flows history show <run-id>
+ayo flows history show <run-id> --json
+```
+
+## Replay a Flow
+
+```bash
+# Replay a previous run with original input
+ayo flows replay <run-id>
+
+# Custom timeout
+ayo flows replay <run-id> -t 600
+
+# Skip history recording
+ayo flows replay <run-id> --no-history
+```
+
+## Flow File Format
+
+Flows are shell scripts with frontmatter:
+
+```bash
+#!/usr/bin/env bash
+# ayo:flow
+# name: my-flow
+# description: What this flow does
+# version: 1.0.0
+# author: username
+
+set -euo pipefail
+
+INPUT="${1:-$(cat)}"
+
+# Process through agents
+echo "$INPUT" | ayo @ayo "Process this and return JSON"
+```
+
+### Required Frontmatter
+
+| Field | Description |
+|-------|-------------|
+| `# ayo:flow` | Marker identifying this as a flow |
+| `# name:` | Flow name (lowercase, hyphens allowed) |
+| `# description:` | What the flow does |
+
+### Optional Frontmatter
+
+| Field | Description |
+|-------|-------------|
+| `# version:` | Semantic version |
+| `# author:` | Author name |
+
+## Flow Directories
+
+| Location | Path | Priority |
+|----------|------|----------|
+| Project | `.ayo/flows/` | 1 (highest) |
+| User | `~/.config/ayo/flows/` | 2 |
+| Built-in | `~/.local/share/ayo/flows/` | 3 |
+
+## Structured I/O
+
+Flows can define JSON schemas for type-safe input/output:
+
+```
+my-flow/
+├── flow.sh              # The flow script
+├── input.jsonschema     # Input validation schema
+└── output.jsonschema    # Output validation schema
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error |
+| 2 | Input validation failed |
+| 124 | Timeout |
+
+## Environment Variables
+
+During execution, flows have access to:
+
+| Variable | Description |
+|----------|-------------|
+| `AYO_FLOW_NAME` | Name of the flow |
+| `AYO_FLOW_RUN_ID` | Unique run ID (ULID) |
+| `AYO_FLOW_DIR` | Directory containing the flow |
+| `AYO_FLOW_INPUT_FILE` | Path to input file (for large inputs) |
 
 ---
 
