@@ -1,0 +1,1117 @@
+# Interactive Chat TUI - Complete Design Context
+
+## Document Purpose
+
+This document provides a complete, comprehensive history and explanation of the interactive chat TUI being built for ayo. It captures all design decisions, human heuristics, library usage patterns, and architectural rationale. This context is essential for any future developer or AI assistant continuing this work.
+
+---
+
+## Table of Contents
+
+1. [Problem Statement](#problem-statement)
+2. [Design Goals](#design-goals)
+3. [Architecture Overview](#architecture-overview)
+4. [Library Stack](#library-stack)
+5. [Component Deep Dive](#component-deep-dive)
+6. [Message Flow](#message-flow)
+7. [Design Decisions](#design-decisions)
+8. [Human Heuristics](#human-heuristics)
+9. [File Reference](#file-reference)
+10. [Patterns from Crush](#patterns-from-crush)
+11. [What Was Built](#what-was-built)
+12. [What Remains](#what-remains)
+
+---
+
+## Problem Statement
+
+The original ayo interactive chat mode had critical usability issues:
+
+1. **Backspace doesn't work properly across multiple lines** - When the cursor is at the start of a line and backspace is pressed, it doesn't merge with the previous line correctly
+2. **No word-wrap in the input field** - Long lines extend beyond the visible area instead of wrapping
+3. **Broken Unicode handling** - Text truncation was byte-based instead of rune-based, corrupting multi-byte characters
+4. **No cursor movement or word deletion support** - Users couldn't navigate within their input effectively
+5. **Tool calls displayed as flat text** - No visual hierarchy for nested tool calls or agent delegations
+6. **No visibility into agent state** - Users couldn't see current tasks, memories, or planning
+
+The goal evolved from fixing input issues to a comprehensive TUI redesign with:
+- Full-screen alt-screen interface
+- Tree-based output rendering with collapsible tool calls
+- Expandable status bar with planning and memory panels
+- Plugin renderer system for custom tool displays
+
+---
+
+## Design Goals
+
+### Primary Goals
+
+1. **Responsive Layout** - Work well on terminals from 80 to 200+ columns
+2. **Real-time Streaming** - Show LLM output as it streams, not after completion
+3. **Visual Hierarchy** - Clearly distinguish user input, agent response, tool calls, reasoning
+4. **State Visibility** - Show current tasks, memories, and agent activity
+5. **Keyboard-First** - Full functionality without mouse (mouse optional enhancement)
+6. **Extensible Rendering** - Plugins can provide custom tool visualizations
+
+### Secondary Goals
+
+1. **Performance** - Handle long conversations without lag
+2. **Accessibility** - Work with screen readers, respect terminal themes
+3. **Scrollback** - Dump conversation to main screen on exit for reference
+4. **Session Continuity** - Resume previous conversations
+
+### Non-Goals
+
+1. **Mouse-only interaction** - Keyboard must be sufficient
+2. **Rich media embedding** - Terminal is text-focused
+3. **Multiple chat tabs** - Single conversation focus
+
+---
+
+## Architecture Overview
+
+### High-Level Flow
+
+```
+User Input
+    │
+    ▼
+┌─────────────────────┐
+│  chat.Model         │  Bubble Tea main model
+│  (internal/ui/chat) │  Handles input, state, rendering
+└─────────┬───────────┘
+          │ sendFn callback
+          ▼
+┌─────────────────────┐
+│  run.Runner         │  Agent execution engine
+│  (internal/run)     │  Manages sessions, tools, streaming
+└─────────┬───────────┘
+          │ StreamHandler callbacks
+          ▼
+┌─────────────────────┐
+│  TUIStreamHandler   │  Bridges agent events to TUI
+│  (internal/ui/chat) │  Sends tea.Msg + publishes to brokers
+└─────────┬───────────┘
+          │ tea.Msg (TextDeltaMsg, ToolCallStartMsg, etc.)
+          ▼
+┌─────────────────────┐
+│  chat.Model.Update  │  Handles messages, updates state
+│                     │  Re-renders viewport
+└─────────────────────┘
+```
+
+### Component Hierarchy
+
+```
+tea.Program
+└── chat.Model (main TUI model)
+    ├── viewport.Model (scrollable message display)
+    │   └── Rendered messages, tool calls, reasoning blocks
+    ├── textarea.Model (user input)
+    ├── panels.Sidebar (side panel container)
+    │   ├── panels.PlanningPanel (todo list)
+    │   └── panels.MemoryPanel (relevant memories)
+    └── StatusBar (footer with hints, progress)
+```
+
+### Data Flow for Streaming
+
+```
+1. User types message, presses Enter
+2. chat.Model.sendMessage() adds user message to display
+3. Calls sendFn(ctx, message) which calls runner.Chat()
+4. Runner executes agent with Fantasy, calls StreamHandler callbacks
+5. TUIStreamHandler.OnTextDelta() sends TextDeltaMsg to program
+6. chat.Model.Update() receives TextDeltaMsg
+7. chat.Model appends to streamBuffer, calls updateViewportContent()
+8. viewport.SetContent() updates display
+9. User sees text appear character by character
+```
+
+---
+
+## Library Stack
+
+All libraries are from the Charm ecosystem (required per AGENTS.md).
+
+### Bubble Tea (`github.com/charmbracelet/bubbletea`)
+
+**Purpose:** The Elm Architecture for terminal UIs
+
+**Usage in ayo:**
+- `tea.Program` - Main program runner with alt-screen mode
+- `tea.Model` interface - Implemented by `chat.Model`
+- `tea.Msg` types - Custom messages for all events
+- `tea.Cmd` - Async operations (sending messages, timers)
+
+**Key Patterns:**
+```go
+// Model implements tea.Model
+func (m Model) Init() tea.Cmd { return tea.Batch(textarea.Blink, m.tickSpinner()) }
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { /* handle messages */ }
+func (m Model) View() string { return /* render */ }
+
+// Run with alt-screen
+p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+p.Run()
+```
+
+### Bubbles (`github.com/charmbracelet/bubbles`)
+
+**Purpose:** Pre-built TUI components
+
+**Components Used:**
+- `viewport.Model` - Scrollable content area for messages
+- `textarea.Model` - Multi-line text input
+- `key.Binding` - Keybinding definitions and matching
+
+**Viewport Usage:**
+```go
+vp := viewport.New(width, height)
+vp.SetContent(renderedMessages)
+vp.MouseWheelEnabled = true
+vp.MouseWheelDelta = 3
+
+// Scrolling
+vp.ScrollDown(n)
+vp.PageUp()
+vp.GotoBottom()
+```
+
+**Textarea Usage:**
+```go
+ta := textarea.New()
+ta.Placeholder = "Type a message..."
+ta.CharLimit = 0        // No limit
+ta.SetHeight(3)
+ta.ShowLineNumbers = false
+ta.KeyMap.InsertNewline.SetEnabled(false)  // Custom newline handling
+```
+
+### Lip Gloss (`github.com/charmbracelet/lipgloss`)
+
+**Purpose:** Terminal styling (colors, borders, layout)
+
+**Usage Patterns:**
+```go
+// Define styles
+style := lipgloss.NewStyle().
+    Foreground(lipgloss.Color("#a78bfa")).
+    Bold(true).
+    Padding(0, 1)
+
+// Render styled text
+output := style.Render("Hello")
+
+// Layout
+lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
+lipgloss.JoinHorizontal(lipgloss.Top, main, sidebar)
+
+// Measure
+width := lipgloss.Width(text)
+height := lipgloss.Height(text)
+```
+
+**Color Palette (from styles.go):**
+- Primary: `#a78bfa` (purple)
+- Secondary: `#6b7280` (gray)
+- Success: `#22c55e` (green)
+- Error: `#ef4444` (red)
+- Warning: `#f59e0b` (amber)
+- Info: `#3b82f6` (blue)
+
+### Lip Gloss Tree (`github.com/charmbracelet/lipgloss/tree`)
+
+**Purpose:** Render tree structures with connectors
+
+**Usage Pattern (from Crush):**
+```go
+import "github.com/charmbracelet/lipgloss/tree"
+
+// Create tree with root
+t := tree.Root("Parent").
+    Child("Child 1").
+    Child(
+        tree.New().Root("Child 2").
+            Child("Grandchild 1").
+            Child("Grandchild 2"),
+    )
+
+// Custom enumerator for branch style
+t.Enumerator(func(children tree.Children, index int) string {
+    if index == children.Length()-1 {
+        return "╰──"  // Last child
+    }
+    return "├──"      // Other children
+})
+
+fmt.Println(t.String())
+```
+
+### Glamour (`github.com/charmbracelet/glamour`)
+
+**Purpose:** Render Markdown in terminal with syntax highlighting
+
+**Usage:**
+```go
+r, _ := glamour.NewTermRenderer(
+    glamour.WithAutoStyle(),
+    glamour.WithWordWrap(80),
+)
+rendered, _ := r.Render(markdown)
+```
+
+**Custom Style (from styles.go):**
+- Uses "dracula" base theme
+- Customizes heading colors, code block backgrounds
+- Wraps at configurable width
+
+### Fantasy (`charm.land/fantasy`)
+
+**Purpose:** Provider-agnostic LLM abstraction
+
+**Key Types:**
+- `fantasy.Agent` - Manages conversation with tool execution loop
+- `fantasy.ToolCallContent` - Tool call from LLM
+- `fantasy.ToolResultContent` - Tool execution result
+- `fantasy.AgentStreamCall` - Streaming callbacks
+
+**Callback Pattern:**
+```go
+result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
+    Prompt: prompt,
+    Messages: history,
+    OnTextDelta: func(id, text string) error {
+        // Handle streaming text
+        return nil
+    },
+    OnToolCall: func(tc fantasy.ToolCallContent) error {
+        // Tool execution starting
+        return nil
+    },
+    OnToolResult: func(result fantasy.ToolResultContent) error {
+        // Tool execution complete
+        return nil
+    },
+})
+```
+
+---
+
+## Component Deep Dive
+
+### chat.Model (internal/ui/chat/chat.go)
+
+The main Bubble Tea model for the chat interface.
+
+**State:**
+```go
+type Model struct {
+    // Configuration
+    agentHandle string
+    sessionID   string
+    sendFn      SendMessageFunc
+    ctx         context.Context
+    cancelFn    context.CancelFunc
+
+    // Components
+    viewport viewport.Model
+    textarea textarea.Model
+    sidebar  *panels.Sidebar
+    keyMap   KeyMap
+
+    // State
+    state        State  // StateInput, StateWaiting, StateStreaming
+    messages     []message
+    streamBuffer strings.Builder
+    ready        bool
+    width, height int
+    err          error
+
+    // Tool/reasoning state
+    currentToolCall   *ToolCallStartMsg
+    reasoningBuffer   strings.Builder
+    thinkingStartTime time.Time
+
+    // Animation
+    spinnerFrame int
+}
+```
+
+**State Machine:**
+```
+StateInput ──[Enter]──> StateWaiting ──[TextDelta]──> StateStreaming
+     ▲                       │                              │
+     │                       │ [Error]                      │ [TextEnd]
+     │                       ▼                              │
+     └───────────────────────────────────────────────────────┘
+```
+
+**Key Methods:**
+- `New()` - Initialize with agent, session, send function
+- `Update()` - Handle all tea.Msg types
+- `View()` - Render header, viewport, input, footer
+- `handleResize()` - Adjust layout for terminal size
+- `updateViewportContent()` - Rebuild viewport from messages
+
+### TUIStreamHandler (internal/ui/chat/tui_handler.go)
+
+Bridges Fantasy agent callbacks to Bubble Tea messages.
+
+**Structure:**
+```go
+type TUIStreamHandler struct {
+    program *tea.Program
+
+    // Brokers for different event types
+    messageBroker   *pubsub.Broker[pubsub.MessageEvent]
+    toolBroker      *pubsub.Broker[pubsub.ToolEvent]
+    memoryBroker    *pubsub.Broker[pubsub.MemoryEvent]
+    textBroker      *pubsub.Broker[pubsub.TextDeltaEvent]
+    reasoningBroker *pubsub.Broker[pubsub.ReasoningEvent]
+}
+```
+
+**Callback Implementations:**
+```go
+func (h *TUIStreamHandler) OnTextDelta(id, text string) error {
+    h.program.Send(TextDeltaMsg{Delta: text})
+    h.textBroker.Publish(pubsub.Event[pubsub.TextDeltaEvent]{...})
+    return nil
+}
+
+func (h *TUIStreamHandler) OnToolCall(tc fantasy.ToolCallContent) error {
+    h.program.Send(ToolCallStartMsg{Name: tc.ToolName, ...})
+    h.toolBroker.Publish(pubsub.Event[pubsub.ToolEvent]{...})
+    return nil
+}
+
+func (h *TUIStreamHandler) OnToolResult(result fantasy.ToolResultContent, duration time.Duration) error {
+    h.program.Send(ToolCallResultMsg{...})
+    
+    // Special handling for todo tool - update planning panel
+    if result.ToolName == "todo" && result.ClientMetadata != "" {
+        // Parse metadata, send TodosUpdateMsg
+    }
+    
+    h.toolBroker.Publish(...)
+    return nil
+}
+```
+
+### Sidebar (internal/ui/chat/panels/sidebar.go)
+
+Container for planning and memory panels with responsive positioning.
+
+**Layout Logic:**
+```go
+const MinWidthForSidebar = 120
+
+func (s *Sidebar) SetSize(termWidth, termHeight int) {
+    if termWidth >= MinWidthForSidebar {
+        s.position = PositionRight
+        s.width = min(termWidth/3, 50)  // 1/3 of screen, max 50
+    } else {
+        s.position = PositionBottom
+        s.height = termHeight / 3  // 1/3 of screen
+    }
+}
+```
+
+**Toggle Logic:**
+```go
+func (s *Sidebar) TogglePlanning() {
+    if s.visible && s.activePanel == "planning" {
+        s.visible = false  // Close if already showing planning
+    } else {
+        s.visible = true
+        s.activePanel = "planning"
+        s.planning.Show()
+        s.memory.Hide()
+    }
+}
+```
+
+### PlanningPanel (internal/ui/chat/panels/planning.go)
+
+Displays the current todo list with status icons.
+
+**Todo Item Rendering:**
+```go
+func (p *PlanningPanel) renderTodoItem(todo TodoItem) string {
+    var icon string
+    switch todo.Status {
+    case "completed":
+        icon = "✓"  // Green
+    case "in_progress":
+        icon = "▸"  // Blue, shows ActiveForm
+    default:
+        icon = "○"  // Gray
+    }
+    return fmt.Sprintf("%s %s", icon, text)
+}
+```
+
+### Renderer System (internal/ui/chat/messages/)
+
+Extensible tool call rendering with registry pattern.
+
+**Architecture:**
+```go
+// Interface
+type renderer interface {
+    Render(t *toolCallCmp) string
+}
+
+// Registry
+var registry = renderRegistry{}
+
+func init() {
+    registry.register("bash", func() renderer { return bashRenderer{} })
+    registry.register("todo", func() renderer { return todosRenderer{} })
+    registry.register("agent", func() renderer { return agentRenderer{} })
+}
+
+// Lookup with fallback
+func (rr renderRegistry) lookup(name string) renderer {
+    if f, ok := rr[name]; ok {
+        return f()
+    }
+    return genericRenderer{}
+}
+```
+
+**Template Renderer for Plugins:**
+```go
+type templateRenderer struct {
+    name        string
+    inlineTempl *template.Template
+    panelTempl  *template.Template
+    config      templateConfig
+}
+
+// Loaded from plugin/tools/<name>/render/
+// - render.json (config)
+// - inline.tmpl (main view)
+// - panel.tmpl (sidebar view)
+```
+
+---
+
+## Message Flow
+
+### Complete Flow: User Sends Message
+
+```
+1. User presses Enter in StateInput
+   └─> chat.sendMessage()
+       ├─> Append user message to m.messages
+       ├─> Clear textarea
+       ├─> Set state = StateWaiting
+       └─> Return tea.Cmd that calls sendFn(ctx, text)
+
+2. sendFn callback executes (in goroutine)
+   └─> runner.Chat(ctx, agent, message)
+       ├─> Add to session history
+       ├─> Create Fantasy agent with tools
+       └─> agent.Stream() with callbacks
+
+3. Fantasy streams response
+   └─> OnTextDelta("id", "Hello")
+       └─> TUIStreamHandler.OnTextDelta()
+           ├─> program.Send(TextDeltaMsg{Delta: "Hello"})
+           └─> textBroker.Publish(...)
+
+4. Bubble Tea receives message
+   └─> chat.Update(TextDeltaMsg{Delta: "Hello"})
+       ├─> Set state = StateStreaming (if first delta)
+       ├─> m.streamBuffer.WriteString("Hello")
+       ├─> m.updateViewportContent()
+       └─> Return m, nil
+
+5. Bubble Tea calls View()
+   └─> chat.View()
+       └─> Renders viewport with streaming content visible
+```
+
+### Tool Call Flow
+
+```
+1. LLM decides to call tool
+   └─> OnToolCall(tc)
+       └─> program.Send(ToolCallStartMsg{Name: "bash", ...})
+
+2. chat.Update receives ToolCallStartMsg
+   └─> m.currentToolCall = &msg
+   └─> updateViewportContent() shows "◐ Bash running..."
+
+3. Tool executes (bash, agent_call, etc.)
+   └─> (time passes, spinner animates via tickMsg)
+
+4. Tool completes
+   └─> OnToolResult(result, duration)
+       └─> program.Send(ToolCallResultMsg{Output: "...", Duration: "1.2s"})
+
+5. chat.Update receives ToolCallResultMsg
+   └─> Append tool message to m.messages
+   └─> m.currentToolCall = nil
+   └─> updateViewportContent() shows "● Bash (1.2s)" with output
+```
+
+### Panel Update Flow
+
+```
+1. Todo tool executes and returns metadata
+   └─> OnToolResult detects ToolName == "todo"
+       └─> Parse ClientMetadata JSON
+       └─> Convert to []panels.TodoItem
+       └─> program.Send(panels.TodosUpdateMsg{Todos: todos})
+
+2. chat.Update receives TodosUpdateMsg
+   └─> m.sidebar.SetTodos(msg.Todos)
+
+3. PlanningPanel.SetTodos()
+   └─> p.todos = todos
+   └─> p.updateContent()
+       └─> Rebuild viewport content with todo list
+
+4. Next View() call
+   └─> sidebar.RenderWithContent(mainContent, width, height)
+       └─> Shows updated todo list in panel
+```
+
+---
+
+## Design Decisions
+
+### Decision 1: StreamHandler Interface
+
+**Context:** Runner.Chat() had hardcoded callbacks that printed directly to stdout.
+
+**Decision:** Extract callbacks into StreamHandler interface.
+
+**Rationale:**
+- Allows TUI mode to receive events as tea.Msg
+- Allows CLI mode to print directly (backward compatible)
+- Allows testing with NullStreamHandler
+- Follows Strategy pattern - swap implementations
+
+**Implementation:**
+```go
+type StreamHandler interface {
+    OnTextDelta(id, text string) error
+    OnTextEnd(id string) error
+    OnReasoningStart(id string) error
+    OnReasoningDelta(id, text string) error
+    OnReasoningEnd(id string, duration time.Duration) error
+    OnToolCall(tc fantasy.ToolCallContent) error
+    OnToolResult(result fantasy.ToolResultContent, duration time.Duration) error
+    OnAgentStart(handle, prompt string) error
+    OnAgentEnd(handle string, duration time.Duration, err error) error
+    OnMemoryEvent(event string, count int) error
+    OnError(err error) error
+}
+```
+
+### Decision 2: PubSub Brokers
+
+**Context:** Multiple components might need to react to the same event.
+
+**Decision:** TUIStreamHandler publishes to typed brokers in addition to sending tea.Msg.
+
+**Rationale:**
+- tea.Msg goes to main Update() - synchronous
+- Brokers allow async subscribers - future extensibility
+- Different buffer sizes per event type (text needs more)
+- Context-based auto-unsubscribe prevents leaks
+
+**Implementation:**
+```go
+type Broker[T any] struct {
+    subscribers []chan Event[T]
+    mu          sync.RWMutex
+    bufferSize  int
+}
+
+func (b *Broker[T]) Subscribe(ctx context.Context) <-chan Event[T] {
+    ch := make(chan Event[T], b.bufferSize)
+    // Auto-unsubscribe when context done
+    go func() {
+        <-ctx.Done()
+        b.unsubscribe(ch)
+    }()
+    return ch
+}
+```
+
+### Decision 3: Responsive Sidebar Position
+
+**Context:** Not all terminals are wide enough for a side panel.
+
+**Decision:** Right sidebar for width >= 120, bottom panel for narrower.
+
+**Rationale:**
+- 120 columns is common for development terminals
+- Side-by-side reading is easier for wide screens
+- Stacked layout preserves readability on narrow screens
+- Panel takes 1/3 of available space (max 50 for right, min 8 for bottom)
+
+### Decision 4: Auto-Collapse on Agent Completion
+
+**Context:** Nested tool calls create deep trees that clutter the display.
+
+**Decision:** When an agent completes, collapse its children automatically.
+
+**Rationale:**
+- Keeps focus on current activity
+- Historical context available via expand
+- Reduces cognitive load
+- Matches mental model of "done = collapsed"
+
+### Decision 5: Template-Based Plugin Renderers
+
+**Context:** Different tools have different output structures.
+
+**Decision:** Plugins can provide `render/` directory with templates.
+
+**Rationale:**
+- Declarative over imperative
+- No code compilation needed
+- Templates are simpler than Go code
+- Fallback to generic renderer if no template
+
+**Directory Structure:**
+```
+plugin/tools/<tool-name>/render/
+├── render.json     # Config (name, max_lines, styles)
+├── inline.tmpl     # Main viewport display
+└── panel.tmpl      # Sidebar panel display (optional)
+```
+
+### Decision 6: Separate Message Types
+
+**Context:** Many different events need to flow through Update().
+
+**Decision:** Create specific Msg types for each event category.
+
+**Rationale:**
+- Type safety - compiler catches misuse
+- Self-documenting - message name explains purpose
+- Switch statement pattern - clear handling
+- Matches Bubble Tea conventions
+
+**Message Types:**
+```go
+type TextDeltaMsg struct { Delta string }
+type TextEndMsg struct{}
+type ToolCallStartMsg struct { Name, Description, Command string }
+type ToolCallResultMsg struct { Name, Output, Error, Duration string }
+type ReasoningStartMsg struct{}
+type ReasoningDeltaMsg struct { Delta string }
+type ReasoningEndMsg struct { Duration string }
+type SubAgentStartMsg struct { Handle, Prompt string }
+type SubAgentEndMsg struct { Handle, Duration string; Error bool }
+type MemoryEventMsg struct { Type string }
+type ErrorMsg struct { Error error }
+```
+
+---
+
+## Human Heuristics
+
+These are UX principles guiding the design.
+
+### 1. Show Progress, Not Spinners Alone
+
+**Principle:** Users should always know what's happening.
+
+**Implementation:**
+- Tool calls show description: "Running tests..."
+- Todo list shows current task with active form: "Running tests"
+- Spinner with context, not just dots
+
+### 2. Minimize Cognitive Load
+
+**Principle:** Don't show more than needed at once.
+
+**Implementation:**
+- Auto-collapse completed agent calls
+- Truncate long outputs with "show more"
+- Status bar shows summary, panel has details
+- Keyboard hints change based on context
+
+### 3. Keyboard First, Mouse Optional
+
+**Principle:** Expert users shouldn't need mouse.
+
+**Implementation:**
+- All actions have keyboard shortcuts
+- Tab navigates between sections
+- Arrow keys scroll/navigate
+- Mouse enhances but isn't required
+
+### 4. Respect Terminal Themes
+
+**Principle:** Don't assume dark or light mode.
+
+**Implementation:**
+- Use adaptive colors where possible
+- Unicode symbols without inherent colors (per AGENTS.md)
+- Test on both dark and light terminals
+
+### 5. Scrollback Persistence
+
+**Principle:** Conversation shouldn't disappear on exit.
+
+**Implementation:**
+- Dump conversation to main screen on exit
+- User can scroll up in terminal history
+- Session persisted to database for resumption
+
+### 6. Error Visibility Without Disruption
+
+**Principle:** Errors should be visible but not modal.
+
+**Implementation:**
+- Error tag in tool output: `[ERROR] message`
+- Red icon in tree view
+- Status bar shows error count
+- Don't interrupt streaming for non-fatal errors
+
+### 7. Progressive Disclosure
+
+**Principle:** Show summary, allow drill-down.
+
+**Implementation:**
+- Tool call shows header first
+- Expand to see full output
+- Panel shows count, click for details
+- Reasoning collapsed by default (can expand)
+
+---
+
+## File Reference
+
+### Core Chat TUI
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/chat/chat.go` | Main Bubble Tea model |
+| `internal/ui/chat/messages.go` | tea.Msg type definitions |
+| `internal/ui/chat/statusbar.go` | Footer status bar component |
+| `internal/ui/chat/tui_handler.go` | StreamHandler → tea.Msg bridge |
+
+### Panels
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/chat/panels/planning.go` | Todo list panel |
+| `internal/ui/chat/panels/memory.go` | Memory list panel |
+| `internal/ui/chat/panels/sidebar.go` | Panel container with layout |
+
+### Tool Rendering
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/chat/messages/toolcall.go` | ToolCallCmp interface and struct |
+| `internal/ui/chat/messages/renderer.go` | Base renderer, utilities |
+| `internal/ui/chat/messages/renderers.go` | Built-in renderers (bash, todo, agent) |
+| `internal/ui/chat/messages/template_renderer.go` | Plugin template renderer |
+
+### Layout Infrastructure
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/chat/layout/layout.go` | Focusable, Sizeable interfaces |
+
+### Event System
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/pubsub/pubsub.go` | Generic event broker |
+| `internal/ui/pubsub/events.go` | Typed event payloads |
+
+### Styling
+
+| File | Purpose |
+|------|---------|
+| `internal/ui/styles.go` | Colors, icons, glamour config |
+| `internal/ui/styles/styles.go` | Theme system |
+
+### Runner Integration
+
+| File | Purpose |
+|------|---------|
+| `internal/run/handler.go` | StreamHandler interface |
+| `internal/run/print_handler.go` | CLI mode handler |
+| `internal/run/run.go` | Runner with handler integration |
+
+### Command
+
+| File | Purpose |
+|------|---------|
+| `cmd/ayo/chat.go` | Interactive chat command |
+
+---
+
+## Patterns from Crush
+
+The Crush codebase (`.read-only/crush/`) is the primary reference for TUI patterns.
+
+### Pattern 1: Page-Based Navigation
+
+**Crush:** Uses `pages map[PageID]Model` with lazy loading.
+
+**Ayo:** Simpler single-page model (chat only), but could extend.
+
+### Pattern 2: Dialog Overlay
+
+**Crush:** `DialogCmp` renders on top of main content.
+
+```go
+type OpenDialogMsg struct { Model DialogModel }
+type CloseDialogMsg struct{}
+```
+
+**Ayo:** Not yet implemented, but pattern available for confirmations.
+
+### Pattern 3: Virtualized List
+
+**Crush:** Uses custom `list.List` for performance with many messages.
+
+**Ayo:** Uses viewport with re-rendered content. Consider virtualization for long sessions.
+
+### Pattern 4: Tree Rendering
+
+**Crush:** Uses `lipgloss/tree` for nested tool calls.
+
+```go
+childTools := tree.Root(header)
+for _, nestedTool := range r.agent.nestedTools {
+    childTools.Child(nestedTool.Render(width))
+}
+return childTools.Enumerator(roundedEnumerator).String()
+```
+
+**Ayo:** Defined in PLAN.txt Group B, not yet implemented.
+
+### Pattern 5: Cached Rendering
+
+**Crush:** Caches rendered strings with width to avoid re-renders.
+
+```go
+type cachedMessageItem struct {
+    rendered string
+    width    int
+}
+
+func (c *cachedMessageItem) getCachedRender(width int) (string, int, bool) {
+    if c.width == width {
+        return c.rendered, c.height, true
+    }
+    return "", 0, false
+}
+```
+
+**Ayo:** Not yet implemented, consider for performance.
+
+### Pattern 6: Focus Management
+
+**Crush:** Focusable interface with explicit Focus/Blur commands.
+
+```go
+type Focusable interface {
+    Focus() tea.Cmd
+    Blur() tea.Cmd
+    IsFocused() bool
+}
+```
+
+**Ayo:** Implemented in `layout/layout.go`, used by panels.
+
+### Pattern 7: Custom Enumerator
+
+**Crush:** Rounded tree connectors.
+
+```go
+func roundedEnumerator(lPadding, width int) tree.Enumerator {
+    return func(children tree.Children, index int) string {
+        line := strings.Repeat("─", width)
+        if children.Length()-1 == index {
+            return "╰" + line
+        }
+        return "├" + line
+    }
+}
+```
+
+**Ayo:** To be implemented in `messages/renderer.go`.
+
+---
+
+## What Was Built
+
+### Phase 1: Core Streaming Infrastructure ✅
+
+- **StreamHandler interface** with all callbacks
+- **PrintStreamHandler** for backward-compatible CLI output
+- **TUIStreamHandler** sending tea.Msg to program
+- **Runner integration** with SetStreamHandler()
+- **cmd/ayo/chat.go** wiring
+
+### Phase 2: Expandable Side Panels ✅
+
+- **PlanningPanel** with todo list display
+- **MemoryPanel** with memory list display
+- **Sidebar** container with responsive layout
+- **Keybindings** ctrl+p, ctrl+m, esc
+- **Todo wiring** from tool result metadata
+
+### Phase 3: Plugin Renderer System ✅
+
+- **templateRenderer** for custom tool rendering
+- **LoadPluginRenderers()** scanning plugin directories
+- **Template functions** (style, truncate, icon, etc.)
+- **Registry integration** with fallback
+
+---
+
+## What Remains
+
+See PLAN.txt for atomic task breakdown. Summary:
+
+### Group A: Memory Panel Wiring (7 tasks)
+
+The MemoryPanel exists but nothing populates it. Need to:
+- Retrieve memories at session start
+- Send MemoriesUpdateMsg to TUI
+- Handle real-time memory creation
+
+### Group B: Tree-Based Tool Rendering (10 tasks)
+
+Currently tool calls are flat text. Need to:
+- Use lipgloss/tree for nested display
+- Implement collapsible/expandable nodes
+- Show agent delegations as nested trees
+- Add keyboard navigation
+
+### Group C: Input Field Improvements (6 tasks)
+
+Original pain points still exist:
+- Ensure proper word-wrap width
+- Fix backspace across lines
+- Dynamic input height
+
+### Group D: StatusBar Integration (7 tasks)
+
+StatusBar component exists but isn't used:
+- Integrate into View()
+- Wire todo/memory updates
+- Context-aware hints
+
+### Group E: Polish & Testing (14 tasks)
+
+Final refinements:
+- Animation, syntax highlighting
+- Resize handling
+- Mouse support
+- Unit tests
+
+---
+
+## Appendix: Key Type Definitions
+
+### From internal/ui/chat/chat.go
+
+```go
+type State int
+const (
+    StateInput State = iota
+    StateWaiting
+    StateStreaming
+)
+
+type Result int
+const (
+    ResultQuit Result = iota
+    ResultError
+)
+
+type message struct {
+    Role    string // "user", "assistant", "tool"
+    Content string
+}
+
+type KeyMap struct {
+    Send, Newline, Editor, History key.Binding
+    Quit, Interrupt key.Binding
+    ScrollUp, ScrollDown, PageUp, PageDown key.Binding
+}
+```
+
+### From internal/ui/chat/messages/toolcall.go
+
+```go
+type ToolCall struct {
+    ID       string
+    Name     string
+    Input    string
+    Finished bool
+}
+
+type ToolResult struct {
+    ToolCallID string
+    Name       string
+    Content    string
+    IsError    bool
+    Metadata   string
+    MIMEType   string
+    Data       string
+}
+```
+
+### From internal/ui/chat/panels/planning.go
+
+```go
+type TodoItem struct {
+    Content    string
+    ActiveForm string
+    Status     string // "pending", "in_progress", "completed"
+}
+```
+
+### From internal/ui/chat/panels/memory.go
+
+```go
+type MemoryItem struct {
+    ID       string
+    Content  string
+    Category string // "preference", "fact", "correction", "pattern"
+    Scope    string // "global", agent handle, or path
+}
+```
+
+### From internal/ui/pubsub/pubsub.go
+
+```go
+type EventType int
+const (
+    CreatedEvent EventType = iota
+    UpdatedEvent
+    DeletedEvent
+    StartedEvent
+    CompletedEvent
+    FailedEvent
+    CancelledEvent
+)
+
+type Event[T any] struct {
+    Type    EventType
+    Payload T
+}
+```
+
+---
+
+*Last Updated: Session implementing Phase 1-3 of TUI redesign*
+*Branch: feature/chat-altscreen-pinned*

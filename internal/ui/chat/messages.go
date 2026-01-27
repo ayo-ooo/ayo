@@ -6,17 +6,22 @@ import tea "github.com/charmbracelet/bubbletea"
 
 // ToolCallStartMsg indicates a tool is starting execution.
 type ToolCallStartMsg struct {
+	ID          string // Unique tool call ID
 	Name        string
 	Description string
 	Command     string // For bash tools
+	Input       string // JSON input parameters
+	ParentID    string // For nested tool calls (B.08)
 }
 
 // ToolCallResultMsg indicates a tool has completed.
 type ToolCallResultMsg struct {
+	ID       string // Tool call ID
 	Name     string
 	Output   string
 	Error    string
 	Duration string
+	Metadata string // JSON metadata
 }
 
 // ReasoningStartMsg indicates reasoning/thinking has started.
@@ -66,24 +71,28 @@ type MemoryEventMsg struct {
 // Cmd helpers for sending messages to the TUI from callbacks.
 
 // SendToolCallStart creates a command to signal tool start.
-func SendToolCallStart(name, description, command string) tea.Cmd {
+func SendToolCallStart(id, name, description, command, input string) tea.Cmd {
 	return func() tea.Msg {
 		return ToolCallStartMsg{
+			ID:          id,
 			Name:        name,
 			Description: description,
 			Command:     command,
+			Input:       input,
 		}
 	}
 }
 
 // SendToolCallResult creates a command to signal tool completion.
-func SendToolCallResult(name, output, errStr, duration string) tea.Cmd {
+func SendToolCallResult(id, name, output, errStr, duration, metadata string) tea.Cmd {
 	return func() tea.Msg {
 		return ToolCallResultMsg{
+			ID:       id,
 			Name:     name,
 			Output:   output,
 			Error:    errStr,
 			Duration: duration,
+			Metadata: metadata,
 		}
 	}
 }

@@ -16,8 +16,8 @@ func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent,
 	sessionID := runner.GetSessionID(ag.Handle)
 
 	// Create a send function that wraps runner.Chat
-	// Note: runner.Chat streams to stdout which goes to alt-screen, and returns empty string.
-	// We need to retrieve the actual response from session messages after the call.
+	// The runner's StreamHandler (set below) will send streaming events to the TUI.
+	// This function just triggers the chat and returns the final response.
 	sendFn := func(ctx context.Context, message string) (string, error) {
 		_, err := runner.Chat(ctx, ag, message)
 		if err != nil {
@@ -45,19 +45,44 @@ func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent,
 		return "", nil
 	}
 
-	// Run the alt-screen chat TUI
-	result, scrollback, err := chat.Run(ctx, ag, sessionID, sendFn)
+	// Create the tea.Program and model, then set up the TUIStreamHandler
+	program, _ := chat.RunWithProgram(ctx, ag, sessionID, sendFn)
+
+	// Create a TUIStreamHandler with memory service for initial memory loading
+	handlerOpts := []chat.TUIStreamHandlerOption{}
+	if memSvc := runner.MemoryService(); memSvc != nil {
+		handlerOpts = append(handlerOpts, chat.WithMemoryService(memSvc))
+	}
+	handler := chat.NewTUIStreamHandler(program, handlerOpts...)
+
+	// Set the handler on the runner so streaming events go to the TUI
+	runner.SetStreamHandler(handler)
+
+	// Send initial memories to the TUI if memory is enabled for this agent
+	if ag.Config.Memory.Enabled && ag.Config.Memory.Retrieval.AutoInject {
+		// Use a general query to get relevant memories for the session start
+		// The agent handle helps scope the search
+		_ = handler.SendInitialMemories(
+			ctx,
+			"session context", // Generic query for initial memories
+			ag.Handle,
+			ag.Config.Memory.Retrieval.Threshold,
+			ag.Config.Memory.Retrieval.MaxMemories,
+		)
+	}
+
+	// Run the TUI
+	finalModel, err := program.Run()
 	if err != nil {
 		return err
 	}
 
+	m := finalModel.(chat.Model)
+	scrollback := m.ScrollbackContent()
+
 	// Dump scrollback to terminal after exiting alt-screen
 	if scrollback != "" {
 		fmt.Print(scrollback)
-	}
-
-	if result == chat.ResultError {
-		return fmt.Errorf("chat ended with error")
 	}
 
 	return nil

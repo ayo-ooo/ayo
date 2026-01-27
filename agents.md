@@ -4,6 +4,7 @@
 **CRITICAL:** Do not modify anything under ./.read-only (vendored, read-only). Explore only.
 **CRITICAL:** Do not modify anything under `./.local/share/ayo/` (installed built-ins). This directory contains files copied from source by `./install.sh`. To modify built-in agents, skills, or prompts, edit the source files in `internal/builtin/` and run `./install.sh` to reinstall.
 **CRITICAL:** Always use `./install.sh` to build the application. This script automatically installs to `.local/bin/` unless on a clean `main` branch in sync with origin. If you cannot use the script, you MUST set `GOBIN=$(pwd)/.local/bin` manually. NEVER install to the standard GOBIN location unless on an unmodified `main` branch that is in sync with `origin/main`.
+**CRITICAL:** If a `PLAN.txt` file exists in the project root, you MUST update it after completing each task to mark completed items and add notes for future agents. This ensures continuity across sessions.
 **CRITICAL:** Never use emojis or unicode glyphs that have inherent colors. This ensures the UI respects user terminal theme preferences. The following is a non-exhaustive list:
 	- **Geometric shapes:** `◆ ◇ ● ○ ◐ ◑ ◒ ◓ ◉ ◎ ■ □ ▪ ▫ ▲ △ ▼ ▽ ▶ ▷ ◀ ◁ ▸ ▹`
 	- **Box drawing:** `─ │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ ═ ║ ╭ ╮ ╯ ╰`
@@ -470,7 +471,86 @@ util.CmdHandler(ModelSelectedMsg{Model: selected})
 2. **Rebuild the binary**: `go install ./cmd/ayo`
    - This ensures the `ayo` command reflects all changes
 
-A task is NOT complete until both steps pass successfully.
+3. **Update PLAN.txt** (if it exists in project root):
+   - Mark completed tasks with `[DONE]` prefix
+   - Add any implementation notes or caveats discovered
+   - Note any deviations from the original plan
+   - This ensures future agents can continue the work seamlessly
+
+A task is NOT complete until all steps pass successfully.
+
+## PLAN.txt Workflow
+
+When a `PLAN.txt` file exists in the project root, follow this workflow:
+
+1. **At session start**: Read `PLAN.txt` and `PLAN_CONTEXT.txt` (if exists) to understand the full context
+2. **Before each task**: Check if the task has dependencies that must be completed first
+3. **After each task**:
+   - Add `[DONE]` marker to the task line
+   - Add notes in a sub-bullet if there are important implementation details
+   - If a task required different approach than planned, document why
+4. **After completing a group**: Add a completion summary at the end of that group's section
+
+**Example update format:**
+```markdown
+A.01: Add MemoryService field to TUIStreamHandler [DONE]
+- Added optional parameter to NewTUIStreamHandler
+- Used functional options pattern for backward compatibility
+```
+
+## Context Window Management (CRITICAL)
+
+**You MUST monitor your available context window after EACH task.**
+
+### When to Trigger Handoff
+
+If your remaining context drops below **50,000 tokens**, you MUST:
+
+1. **Immediately stop new work** - Do not start the next task
+2. **Update PLAN.txt** with:
+   - All completed tasks marked `[DONE]`
+   - Current task status (in-progress, blocked, etc.)
+   - Any important context discovered during implementation
+   - The exact next task to resume from
+3. **Create a handoff summary** at the end of PLAN.txt:
+   ```markdown
+   ## Handoff Notes (Session N)
+   
+   **Stopped at**: Task X.XX
+   **Reason**: Context window exhausted
+   **Next action**: [Specific task to resume]
+   **Critical context**:
+   - [Key implementation detail 1]
+   - [Key implementation detail 2]
+   - [Any blockers or warnings]
+   ```
+4. **Use the summarization tool** with this exact prompt:
+   ```
+   Continue implementing the Interactive Chat TUI Redesign for ayo.
+   
+   IMMEDIATELY read these files to restore context:
+   1. ./PLAN.txt - Contains task list and completion status
+   2. ./PLAN_CONTEXT.txt - Contains full design context and rationale
+   3. ./AGENTS.md - Contains project rules and patterns
+   
+   Resume from the task marked as next in the Handoff Notes section.
+   Do not ask questions - read the files and continue working.
+   ```
+
+### Proactive Context Monitoring
+
+- Check context after EVERY task completion
+- If below 75,000 tokens, prepare for potential handoff (ensure PLAN.txt is current)
+- If below 50,000 tokens, trigger handoff immediately
+- NEVER let context exhaustion cause work loss - always save state first
+
+### This Work May Take Hours
+
+This implementation spans 58 tasks across multiple groups. You are expected to:
+- Work continuously without stopping for user input
+- Handle context limitations via summarization handoffs
+- Complete ALL tasks including final license addition
+- Only stop when the entire plan is complete OR you hit an actual blocking error
 
 ## Project Overview
 

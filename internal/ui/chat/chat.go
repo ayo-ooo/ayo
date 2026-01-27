@@ -18,6 +18,8 @@ import (
 	"github.com/charmbracelet/x/editor"
 
 	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
+	"github.com/alexcabrera/ayo/internal/ui/chat/panels"
 )
 
 // Result indicates the outcome of the chat session.
@@ -57,9 +59,11 @@ type Model struct {
 	cancelFn    context.CancelFunc
 
 	// Components
-	viewport viewport.Model
-	textarea textarea.Model
-	keyMap   KeyMap
+	viewport  viewport.Model
+	textarea  textarea.Model
+	sidebar   *panels.Sidebar
+	statusBar *StatusBar
+	keyMap    KeyMap
 
 	// State
 	state        State
@@ -72,6 +76,7 @@ type Model struct {
 
 	// Tool/reasoning state
 	currentToolCall   *ToolCallStartMsg
+	toolCallTree      *messages.ToolCallTree // B.07: Tree-based tool rendering
 	reasoningBuffer   strings.Builder
 	thinkingStartTime time.Time
 
@@ -162,14 +167,17 @@ func New(ag agent.Agent, sessionID string, sendFn SendMessageFunc) Model {
 	ta.KeyMap.InsertNewline.SetEnabled(false) // We handle newlines ourselves
 
 	return Model{
-		agentHandle: ag.Handle,
-		skillCount:  len(ag.Skills),
-		sessionID:   sessionID,
-		sendFn:      sendFn,
-		textarea:    ta,
-		keyMap:      DefaultKeyMap(),
-		state:       StateInput,
-		messages:    []message{},
+		agentHandle:  ag.Handle,
+		skillCount:   len(ag.Skills),
+		sessionID:    sessionID,
+		sendFn:       sendFn,
+		textarea:     ta,
+		sidebar:      panels.NewSidebar(),
+		statusBar:    NewStatusBar(),
+		toolCallTree: messages.NewToolCallTree(),
+		keyMap:       DefaultKeyMap(),
+		state:        StateInput,
+		messages:     []message{},
 	}
 }
 
@@ -211,10 +219,24 @@ type OpenEditorMsg struct {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// Track sidebar visibility before update
+	sidebarWasVisible := m.sidebar.IsVisible()
+
+	// Handle sidebar messages first
+	if cmd := m.sidebar.Update(msg); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	// Update hints if sidebar visibility changed
+	if m.sidebar.IsVisible() != sidebarWasVisible {
+		m.updateStatusBarHints()
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.sidebar.SetSize(msg.Width, msg.Height)
 		return m.handleResize(), nil
 
 	case tea.KeyMsg:
@@ -248,6 +270,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ToolCallResultMsg:
 		return m.handleToolCallResult(msg)
 
+	case SubAgentStartMsg:
+		return m.handleSubAgentStart(msg)
+
+	case SubAgentEndMsg:
+		return m.handleSubAgentEnd(msg)
+
 	case ReasoningStartMsg:
 		m.thinkingStartTime = time.Now()
 		m.reasoningBuffer.Reset()
@@ -268,19 +296,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetValue(msg.Text)
 		m.textarea.CursorEnd()
 		return m, nil
+
+	case panels.TodosUpdateMsg:
+		m.sidebar.SetTodos(msg.Todos)
+		// Update status bar with task progress
+		var completed, total int
+		var current string
+		for _, todo := range msg.Todos {
+			total++
+			if todo.Status == "completed" {
+				completed++
+			} else if todo.Status == "in_progress" {
+				current = todo.ActiveForm
+			}
+		}
+		m.statusBar.SetTaskProgress(current, completed, total)
+		return m, nil
+
+	case panels.MemoriesUpdateMsg:
+		m.sidebar.SetMemories(msg.Memories)
+		m.statusBar.SetMemoryCount(len(msg.Memories))
+		return m, nil
 	}
 
-	// Update textarea if in input state
-	if m.state == StateInput {
+	// Update textarea if in input state and sidebar not focused
+	if m.state == StateInput && !m.sidebar.IsFocused() {
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
 		cmds = append(cmds, cmd)
+
+		// Update textarea height dynamically based on content
+		m.updateTextareaHeight()
 	}
 
-	// Update viewport for scroll events
-	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	// Update viewport for scroll events (if sidebar not focused)
+	if !m.sidebar.IsFocused() {
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	return m, tea.Batch(cmds...)
 }
@@ -288,9 +342,67 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Spinner frames
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+// setState updates the state and refreshes status bar hints.
+func (m *Model) setState(state State) {
+	m.state = state
+	m.updateStatusBarHints()
+}
+
+// updateStatusBarHints refreshes the status bar hints based on current state.
+func (m *Model) updateStatusBarHints() {
+	var hints string
+	switch m.state {
+	case StateInput:
+		// Show line indicator for multiline input
+		content := m.textarea.Value()
+		lineCount := strings.Count(content, "\n") + 1
+		if lineCount > 1 {
+			row := m.textarea.Line()
+			hints = fmt.Sprintf("line %d/%d · ", row+1, lineCount)
+		}
+		hints += "enter send · shift+enter newline · ctrl+e editor · ctrl+c quit"
+		if m.sidebar.IsVisible() {
+			hints += " · ctrl+p plan · ctrl+m memory"
+		}
+	case StateWaiting, StateStreaming:
+		hints = "ctrl+c interrupt"
+	}
+	m.statusBar.SetHints(hints)
+}
+
+// updateTextareaHeight adjusts textarea height based on content.
+// Min height: 3, Max height: 10.
+func (m *Model) updateTextareaHeight() {
+	const minHeight = 3
+	const maxHeight = 10
+
+	// Count lines in textarea content
+	content := m.textarea.Value()
+	lineCount := strings.Count(content, "\n") + 1
+
+	// Add 1 for the prompt line
+	desiredHeight := lineCount + 1
+	if desiredHeight < minHeight {
+		desiredHeight = minHeight
+	}
+	if desiredHeight > maxHeight {
+		desiredHeight = maxHeight
+	}
+
+	currentHeight := m.textarea.Height()
+	if currentHeight != desiredHeight {
+		m.textarea.SetHeight(desiredHeight)
+		// Recalculate viewport height
+		m.handleResize()
+	}
+
+	// Update hints to show line indicator for multiline
+	m.updateStatusBarHints()
+}
+
 // handleTextDelta handles streaming text.
 func (m Model) handleTextDelta(msg TextDeltaMsg) (tea.Model, tea.Cmd) {
-	m.state = StateStreaming
+	m.setState(StateStreaming)
 	m.streamBuffer.WriteString(msg.Delta)
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
@@ -306,7 +418,7 @@ func (m Model) handleTextEnd() (tea.Model, tea.Cmd) {
 		})
 		m.streamBuffer.Reset()
 	}
-	m.state = StateInput
+	m.setState(StateInput)
 	m.updateViewportContent()
 	return m, nil
 }
@@ -314,6 +426,28 @@ func (m Model) handleTextEnd() (tea.Model, tea.Cmd) {
 // handleToolCallStart handles the start of a tool call.
 func (m Model) handleToolCallStart(msg ToolCallStartMsg) (tea.Model, tea.Cmd) {
 	m.currentToolCall = &msg
+
+	// Create ToolCallCmp and add to tree (B.07)
+	tc := messages.ToolCall{
+		ID:    msg.ID,
+		Name:  msg.Name,
+		Input: msg.Input,
+	}
+
+	if msg.ParentID != "" {
+		// B.08: Nested tool call - find parent and add as nested
+		if parent := m.toolCallTree.Get(msg.ParentID); parent != nil {
+			nestedCmp := messages.NewToolCallCmp("", tc, messages.WithToolCallNested(true))
+			nestedCmp.SetSize(m.viewport.Width-4, 0)
+			parent.SetNestedToolCalls(append(parent.GetNestedToolCalls(), nestedCmp))
+		}
+	} else {
+		// Top-level tool call
+		cmp := messages.NewToolCallCmp("", tc)
+		cmp.SetSize(m.viewport.Width, 0)
+		m.toolCallTree.Add(cmp)
+	}
+
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 	return m, nil
@@ -321,7 +455,22 @@ func (m Model) handleToolCallStart(msg ToolCallStartMsg) (tea.Model, tea.Cmd) {
 
 // handleToolCallResult handles the completion of a tool call.
 func (m Model) handleToolCallResult(msg ToolCallResultMsg) (tea.Model, tea.Cmd) {
-	// Add tool result to messages for display
+	// Update ToolCallCmp in tree (B.07)
+	if cmp := m.toolCallTree.Get(msg.ID); cmp != nil {
+		result := messages.ToolResult{
+			ToolCallID: msg.ID,
+			Name:       msg.Name,
+			Content:    msg.Output,
+			IsError:    msg.Error != "",
+			Metadata:   msg.Metadata,
+		}
+		if msg.Error != "" {
+			result.Content = msg.Error
+		}
+		cmp.SetToolResult(result)
+	}
+
+	// Add tool result to messages for display (legacy format)
 	toolContent := fmt.Sprintf("**%s** %s\n```\n%s\n```",
 		msg.Name,
 		msg.Duration,
@@ -339,8 +488,28 @@ func (m Model) handleToolCallResult(msg ToolCallResultMsg) (tea.Model, tea.Cmd) 
 		Content: toolContent,
 	})
 	m.currentToolCall = nil
+
+	// B.10: Auto-collapse completed tool calls with nested children
+	m.toolCallTree.AutoCollapse()
+
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
+	return m, nil
+}
+
+// handleSubAgentStart handles the start of a sub-agent invocation (B.08).
+func (m Model) handleSubAgentStart(msg SubAgentStartMsg) (tea.Model, tea.Cmd) {
+	// Sub-agent calls are treated as agent tool calls
+	// They will be added via ToolCallStartMsg with the appropriate ParentID
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
+	return m, nil
+}
+
+// handleSubAgentEnd handles the completion of a sub-agent (B.08).
+func (m Model) handleSubAgentEnd(msg SubAgentEndMsg) (tea.Model, tea.Cmd) {
+	// Sub-agent completion is handled via ToolCallResultMsg
+	m.updateViewportContent()
 	return m, nil
 }
 
@@ -361,19 +530,25 @@ func (m Model) handleResize() Model {
 	footerHeight := lipgloss.Height(m.footerView())
 	inputHeight := m.textarea.Height() + 2 // +2 for borders/padding
 
-	viewportHeight := m.height - headerHeight - footerHeight - inputHeight
+	// Calculate content area accounting for sidebar
+	contentWidth := m.sidebar.ContentWidth(m.width)
+	contentHeight := m.sidebar.ContentHeight(m.height)
+
+	viewportHeight := contentHeight - headerHeight - footerHeight - inputHeight
 
 	if !m.ready {
-		m.viewport = viewport.New(m.width, viewportHeight)
+		m.viewport = viewport.New(contentWidth, viewportHeight)
 		m.viewport.MouseWheelEnabled = true
 		m.viewport.MouseWheelDelta = 3
 		m.ready = true
 	} else {
-		m.viewport.Width = m.width
+		m.viewport.Width = contentWidth
 		m.viewport.Height = viewportHeight
 	}
 
-	m.textarea.SetWidth(m.width - 4) // -4 for padding
+	m.textarea.SetWidth(contentWidth - 4) // -4 for padding
+	m.statusBar.SetWidth(contentWidth)    // Set status bar width
+	m.toolCallTree.SetWidth(contentWidth) // B.07: Set tree width
 	m.updateViewportContent()
 
 	return m
@@ -391,7 +566,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cancelFn != nil {
 			m.cancelFn()
 		}
-		m.state = StateInput
+		m.setState(StateInput)
 		return m, nil
 
 	case key.Matches(msg, m.keyMap.Send) && m.state == StateInput:
@@ -435,7 +610,7 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 	// Create cancellable context for this request
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.cancelFn = cancel
-	m.state = StateWaiting
+	m.setState(StateWaiting)
 
 	// Send message asynchronously
 	return m, func() tea.Msg {
@@ -446,7 +621,7 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 
 // handleAgentResponse processes the agent's response.
 func (m Model) handleAgentResponse(msg AgentResponseMsg) (tea.Model, tea.Cmd) {
-	m.state = StateInput
+	m.setState(StateInput)
 	m.cancelFn = nil
 
 	if msg.Err != nil {
@@ -465,7 +640,7 @@ func (m Model) handleAgentResponse(msg AgentResponseMsg) (tea.Model, tea.Cmd) {
 
 // handleStreamDelta appends streaming content.
 func (m Model) handleStreamDelta(msg StreamDeltaMsg) (tea.Model, tea.Cmd) {
-	m.state = StateStreaming
+	m.setState(StateStreaming)
 	m.streamBuffer.WriteString(msg.Delta)
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
@@ -481,7 +656,7 @@ func (m Model) handleStreamEnd() (tea.Model, tea.Cmd) {
 		})
 		m.streamBuffer.Reset()
 	}
-	m.state = StateInput
+	m.setState(StateInput)
 	m.updateViewportContent()
 	return m, nil
 }
@@ -682,13 +857,21 @@ func (m Model) View() string {
 		return "\n  Loading..."
 	}
 
-	return lipgloss.JoinVertical(
+	// Render main content
+	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.headerView(),
 		m.viewport.View(),
 		m.inputView(),
 		m.footerView(),
 	)
+
+	// Combine with sidebar if visible
+	if m.sidebar.IsVisible() {
+		return m.sidebar.RenderWithContent(mainContent, m.width, m.height)
+	}
+
+	return mainContent
 }
 
 // headerView renders the header bar.
@@ -735,20 +918,9 @@ func (m Model) inputView() string {
 	return inputStyle.Width(m.width - 4).Render(m.textarea.View())
 }
 
-// footerView renders the footer with help.
+// footerView renders the footer with status bar.
 func (m Model) footerView() string {
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6b7280"))
-
-	var help string
-	switch m.state {
-	case StateInput:
-		help = "enter send · shift+enter newline · ctrl+e editor · ctrl+c quit"
-	case StateWaiting, StateStreaming:
-		help = "ctrl+c interrupt"
-	}
-
-	return helpStyle.Render("  " + help)
+	return m.statusBar.Render()
 }
 
 // renderScrollback generates content for terminal scrollback after exit.
@@ -803,4 +975,19 @@ func Run(ctx context.Context, ag agent.Agent, sessionID string, sendFn SendMessa
 
 	m := finalModel.(Model)
 	return ResultQuit, m.ScrollbackContent(), nil
+}
+
+// RunWithProgram starts the chat TUI and returns the program for external stream handlers.
+// This allows setting up a TUIStreamHandler before running the program.
+func RunWithProgram(ctx context.Context, ag agent.Agent, sessionID string, sendFn SendMessageFunc) (*tea.Program, Model) {
+	model := New(ag, sessionID, sendFn)
+	model.ctx = ctx
+
+	p := tea.NewProgram(
+		model,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+
+	return p, model
 }

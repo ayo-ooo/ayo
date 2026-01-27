@@ -33,6 +33,7 @@ type Runner struct {
 	smallModel       *smallmodel.Service      // nil = no small model for memory extraction
 	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
 	memoryQueue      *memory.Queue            // nil = sync memory operations
+	streamHandler    StreamHandler            // nil = use default UI handler
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -72,6 +73,7 @@ type RunnerOptions struct {
 	SmallModel       *smallmodel.Service
 	OnAsyncStatus    func(uipkg.AsyncStatusMsg) // Callback for async operation status updates
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
+	StreamHandler    StreamHandler              // Custom stream handler for TUI mode
 }
 
 // NewRunner creates a runner with all options.
@@ -86,7 +88,19 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		smallModel:       opts.SmallModel,
 		onAsyncStatus:    opts.OnAsyncStatus,
 		memoryQueue:      opts.MemoryQueue,
+		streamHandler:    opts.StreamHandler,
 	}, nil
+}
+
+// SetStreamHandler sets a custom stream handler for TUI mode.
+// This allows the TUI to receive streaming events instead of the default UI.
+func (r *Runner) SetStreamHandler(h StreamHandler) {
+	r.streamHandler = h
+}
+
+// MemoryService returns the memory service, or nil if not configured.
+func (r *Runner) MemoryService() *memory.Service {
+	return r.memoryService
 }
 
 // WaitForFormations waits for any pending memory formations to complete.
@@ -525,18 +539,16 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		fantasy.WithTools(tools.Tools()...),
 	)
 
-	ui := uipkg.NewWithDepth(r.debug, r.depth)
+	// Use custom stream handler if provided, otherwise use default print handler
+	var handler StreamHandler
+	if r.streamHandler != nil {
+		handler = r.streamHandler
+	} else {
+		handler = NewPrintStreamHandlerWithSpinner(r.debug, r.depth, ag.Handle)
+	}
+
 	var content strings.Builder
-	var reasoningStarted bool
-	var textStarted bool
-
-	// Start spinner - shows "thinking..." until activity starts
-	spinner := uipkg.NewSpinnerWithDepth("thinking...", r.depth)
-	spinner.Start()
-	spinnerActive := true
-
-	// Track current tool call
-	var currentTool uipkg.ToolCallInfo
+	var reasoningStartTime time.Time
 	var toolStartTime time.Time
 
 	// Stream the response with all callbacks
@@ -546,99 +558,47 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 
 		// Reasoning streams (for models like Claude that expose thinking)
 		OnReasoningDelta: func(id, text string) error {
-			if spinnerActive {
-				spinner.Stop()
-				spinnerActive = false
+			if reasoningStartTime.IsZero() {
+				reasoningStartTime = time.Now()
+				handler.OnReasoningStart(id)
 			}
-			if !reasoningStarted {
-				reasoningStarted = true
-				ui.PrintReasoningStart()
-			}
-			ui.PrintReasoningDelta(text)
-			return nil
+			return handler.OnReasoningDelta(id, text)
 		},
 
 		OnReasoningEnd: func(id string, reasoning fantasy.ReasoningContent) error {
-			if reasoningStarted {
-				ui.PrintReasoningEnd()
-				reasoningStarted = false
-			}
-			return nil
+			duration := time.Since(reasoningStartTime)
+			reasoningStartTime = time.Time{}
+			return handler.OnReasoningEnd(id, duration)
 		},
 
 		// Tool call complete - show the command we're about to run
 		OnToolCall: func(tc fantasy.ToolCallContent) error {
-			if spinnerActive {
-				spinner.Stop()
-				spinnerActive = false
-			}
 			toolStartTime = time.Now()
-			currentTool = uipkg.ToolCallInfo{
-				Name:  tc.ToolName,
-				Input: tc.Input,
-			}
-			// Extract command and description for bash
-			if tc.ToolName == "bash" {
-				var params struct {
-					Command     string `json:"command"`
-					Description string `json:"description"`
-				}
-				if err := json.Unmarshal([]byte(tc.Input), &params); err == nil {
-					currentTool.Command = params.Command
-					currentTool.Description = params.Description
-				}
-			}
-			ui.PrintToolCallStart(currentTool)
-			return nil
+			return handler.OnToolCall(tc)
 		},
 
 		// Tool result - show the output
 		OnToolResult: func(result fantasy.ToolResultContent) error {
-			currentTool.Duration = formatElapsed(time.Since(toolStartTime))
-			currentTool.Output = formatToolResultContent(result)
-			currentTool.Metadata = result.ClientMetadata
-			if result.Result.GetType() == fantasy.ToolResultContentTypeError {
-				currentTool.Error = currentTool.Output
-			}
-			// Skip normal display for agent_call - sub-agent already shows its result
-			if currentTool.Name != "agent_call" {
-				ui.PrintToolCallResult(currentTool)
-			}
-			currentTool = uipkg.ToolCallInfo{}
-			return nil
+			duration := time.Since(toolStartTime)
+			toolStartTime = time.Time{}
+			return handler.OnToolResult(result, duration)
 		},
 
 		// Text response streams
 		OnTextDelta: func(id, text string) error {
-			if spinnerActive {
-				spinner.Stop()
-				spinnerActive = false
-			}
-			if !textStarted {
-				textStarted = true
-				ui.PrintAgentResponseHeader(ag.Handle)
-			}
 			content.WriteString(text)
-			ui.PrintTextDelta(text)
-			return nil
+			return handler.OnTextDelta(id, text)
 		},
 	})
 
-	// Ensure spinner is stopped
-	if spinnerActive {
-		if err != nil {
-			spinner.StopWithError("Failed")
-		} else {
-			spinner.Stop()
-		}
+	// Notify handler of text completion
+	if content.Len() > 0 {
+		handler.OnTextEnd("")
 	}
 
-	// End text streaming with a newline
-	if textStarted {
-		ui.PrintTextEnd()
-	}
-
+	// Handle errors
 	if err != nil {
+		handler.OnError(err)
 		return "", nil, err
 	}
 
@@ -657,6 +617,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 
 	// Cast to structured output if agent has output schema
 	if ag.HasOutputSchema() {
+		ui := uipkg.NewWithDepth(r.debug, r.depth)
 		structuredOutput, err := r.castToStructuredOutput(ctx, model, ag, finalContent, ui)
 		if err != nil {
 			return "", nil, fmt.Errorf("structured output: %w", err)
@@ -686,6 +647,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	})
 
 	// When piped with no output schema, return raw content
+	ui := uipkg.NewWithDepth(r.debug, r.depth)
 	if ui.IsPiped() {
 		return strings.TrimSpace(finalContent), msgs, nil
 	}
