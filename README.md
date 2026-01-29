@@ -157,7 +157,7 @@ ayo @analyzer '{"code":"..."}' | ayo @reporter
 ### Chat
 
 ```bash
-ayo                              # Interactive chat with @ayo
+ayo @ayo                         # Interactive chat with @ayo
 ayo "prompt"                     # Single prompt with @ayo
 ayo @agent "prompt"              # Single prompt with specific agent
 ayo -a file.txt "analyze this"  # Attach file to prompt
