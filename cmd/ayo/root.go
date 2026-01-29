@@ -43,17 +43,7 @@ Examples:
   ayo "tell me a joke"          Run single prompt with @ayo
   ayo @myagent                  Start interactive chat with @myagent
   ayo @myagent "do something"   Run single prompt with @myagent
-  ayo -a file.txt "analyze"     Attach file to prompt
-
-Subcommands:
-  agents      Manage agents (list, create, show)
-  skills      Manage skills (list, create, validate)
-  sessions    Manage conversation sessions
-  memory      Manage persistent memories
-  plugins     Manage plugins
-  chain       Explore agent chaining
-  setup       Install built-in agents and skills
-  doctor      Check system health`,
+  ayo -a file.txt "analyze"     Attach file to prompt`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,

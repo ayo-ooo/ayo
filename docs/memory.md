@@ -85,10 +85,10 @@ Categories are auto-detected when storing via CLI or agent.
 ayo memory list
 
 # Filter by category
-ayo memory list --category preference
+ayo memory list -c preference
 
 # Filter by agent
-ayo memory list --agent @ayo
+ayo memory list -a @ayo
 
 # JSON output
 ayo memory list --json
@@ -101,10 +101,10 @@ ayo memory list --json
 ayo memory search "coding preferences"
 
 # With threshold and limit
-ayo memory search "tools" --threshold 0.7 --limit 5
+ayo memory search "tools" -t 0.7 -n 5
 
 # Filter by agent
-ayo memory search "setup" --agent @ayo
+ayo memory search "setup" -a @ayo
 ```
 
 ### Show
@@ -126,7 +126,10 @@ Shows: content, category, confidence, access count, timestamps.
 ayo memory store "I prefer tabs over spaces"
 
 # Explicit category
-ayo memory store "Project deadline is March 15" --category fact
+ayo memory store "Project deadline is March 15" -c fact
+
+# Scoped to agent
+ayo memory store "Always use verbose output" -a @debugger
 ```
 
 ### Forget
@@ -136,7 +139,7 @@ ayo memory store "Project deadline is March 15" --category fact
 ayo memory forget b7f3
 
 # Skip confirmation
-ayo memory forget b7f3 --force
+ayo memory forget b7f3 -f
 ```
 
 ### Stats
@@ -154,10 +157,10 @@ Shows counts by category and agent.
 ayo memory clear
 
 # For specific agent
-ayo memory clear --agent @ayo
+ayo memory clear -a @ayo
 
 # Skip confirmation
-ayo memory clear --force
+ayo memory clear -f
 ```
 
 ## Automatic Formation
