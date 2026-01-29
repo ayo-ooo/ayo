@@ -91,6 +91,7 @@ ayo "create a skill for debugging Go code"
 | [Agents](docs/agents.md) | Creating and managing agents |
 | [Skills](docs/skills.md) | Extending agents with instructions |
 | [Tools](docs/tools.md) | Tool system (bash, todo, etc.) |
+| [Flows](docs/flows.md) | Composable agent pipelines |
 | [Memory](docs/memory.md) | Persistent facts and preferences |
 | [Sessions](docs/sessions.md) | Conversation persistence |
 | [Chaining](docs/chaining.md) | Composing agents via pipes |
@@ -153,30 +154,93 @@ ayo @analyzer '{"code":"..."}' | ayo @reporter
 
 ## CLI Overview
 
+### Chat
+
+```bash
+ayo                              # Interactive chat with @ayo
+ayo "prompt"                     # Single prompt with @ayo
+ayo @agent "prompt"              # Single prompt with specific agent
+ayo -a file.txt "analyze this"  # Attach file to prompt
 ```
-ayo                              Start interactive chat
-ayo "prompt"                     Run single prompt with @ayo
-ayo @agent "prompt"              Run prompt with specific agent
 
-ayo agents list                  List all agents
-ayo agents create @name          Create new agent
-ayo agents show @name            Show agent details
+### Agents
 
-ayo skills list                  List all skills
-ayo skills create name           Create new skill
+```bash
+ayo agents list                  # List all agents
+ayo agents show @name            # Show agent details
+ayo agents create @name          # Create new agent
+ayo agents update                # Update built-in agents
+```
 
-ayo sessions list                List conversation sessions
-ayo sessions continue            Resume a session
+### Skills
 
-ayo memory list                  List memories
-ayo memory search "query"        Search memories semantically
+```bash
+ayo skills list                  # List all skills
+ayo skills show <name>           # Show skill details
+ayo skills create <name>         # Create new skill
+ayo skills update                # Update built-in skills
+```
 
-ayo plugins install <url>        Install plugin from git
-ayo plugins list                 List installed plugins
+### Sessions
 
-ayo chain ls                     List chainable agents
-ayo doctor                       Check system health
-ayo setup                        Install/update built-ins
+```bash
+ayo sessions list                # List conversation sessions
+ayo sessions show <id>           # Show session details
+ayo sessions continue            # Resume a session (interactive picker)
+ayo sessions continue -l         # Resume most recent session
+ayo sessions delete <id>         # Delete a session
+```
+
+### Memory
+
+```bash
+ayo memory list                  # List all memories
+ayo memory search "query"        # Search memories semantically
+ayo memory show <id>             # Show memory details
+ayo memory store "content"       # Store a new memory
+ayo memory forget <id>           # Forget a memory
+ayo memory stats                 # Show memory statistics
+```
+
+### Flows
+
+```bash
+ayo flows list                   # List all flows
+ayo flows show <name>            # Show flow details
+ayo flows run <name> [input]     # Execute a flow
+ayo flows new <name>             # Create new flow
+ayo flows history                # Show run history
+ayo flows replay <run-id>        # Replay a previous run
+```
+
+### Plugins
+
+```bash
+ayo plugins install <url>        # Install plugin from git
+ayo plugins list                 # List installed plugins
+ayo plugins show <name>          # Show plugin details
+ayo plugins update               # Update all plugins
+ayo plugins remove <name>        # Remove a plugin
+```
+
+### Chaining
+
+```bash
+ayo chain ls                     # List chainable agents
+ayo chain inspect @agent         # Show agent schemas
+ayo chain from @agent            # Find compatible downstream agents
+ayo chain to @agent              # Find compatible upstream agents
+ayo chain validate @agent <json> # Validate input against schema
+ayo chain example @agent         # Generate example input
+```
+
+### System
+
+```bash
+ayo setup                        # Install/update built-ins
+ayo setup -f                     # Force reinstall
+ayo doctor                       # Check system health
+ayo doctor -v                    # Verbose with model list
 ```
 
 ## Configuration
