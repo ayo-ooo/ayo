@@ -83,19 +83,24 @@ func defaultCatwalkURL() string {
 
 // Default returns a Config populated with default values.
 func Default() Config {
+	// Get the best default models based on available credentials
+	defaultModel := GetDefaultModelForConfiguredProvider()
+	smallModel := GetDefaultSmallModelForConfiguredProvider()
+
 	return Config{
 		AgentsDir:      paths.AgentsDir(),
 		SystemPrefix:   "", // Uses paths.FindPromptFile("system-prefix.md")
 		SystemSuffix:   "", // Uses paths.FindPromptFile("system-suffix.md")
 		SkillsDir:      paths.SkillsDir(),
-		DefaultModel:   "gpt-4.1",
-		SmallModel:     "ollama/ministral-3:3b",
-		EmbeddingModel: "ollama/nomic-embed-text",
+		DefaultModel:   defaultModel,
+		SmallModel:     smallModel,
+		EmbeddingModel: "ollama/nomic-embed-text", // Ollama-only for embeddings (local)
 		OllamaHost:     "http://localhost:11434",
 		CatwalkBaseURL: defaultCatwalkURL(),
 		Provider: catwalk.Provider{
 			Name:        "openai",
 			ID:          catwalk.InferenceProviderOpenAI,
+			Type:        catwalk.TypeOpenAI,
 			APIEndpoint: "https://api.openai.com/v1",
 		},
 		Embedding: EmbeddingConfig{

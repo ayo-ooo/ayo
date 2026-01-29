@@ -111,8 +111,8 @@ func TestLoadMissingConfig(t *testing.T) {
 		t.Fatalf("load missing config should not error: %v", err)
 	}
 
-	// Should have default values
-	if cfg.DefaultModel != "gpt-4.1" {
-		t.Errorf("expected default model 'gpt-4.1', got %q", cfg.DefaultModel)
+	// Should have a default model (dynamically determined based on credentials)
+	if cfg.DefaultModel == "" {
+		t.Error("expected non-empty default model")
 	}
 }

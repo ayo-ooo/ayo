@@ -21,7 +21,10 @@ func NewFantasyProvider(p catwalk.Provider) (fantasy.Provider, error) {
 
 	switch p.Type {
 	case catwalk.TypeOpenAI:
-		opts := []openai.Option{openai.WithAPIKey(apiKey)}
+		opts := []openai.Option{
+			openai.WithAPIKey(apiKey),
+			openai.WithUseResponsesAPI(),
+		}
 		if p.APIEndpoint != "" {
 			opts = append(opts, openai.WithBaseURL(p.APIEndpoint))
 		}

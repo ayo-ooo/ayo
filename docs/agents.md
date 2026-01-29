@@ -326,7 +326,9 @@ The `@ayo` namespace is reserved for built-in agents:
 |------|-------------|
 | `bash` | Execute shell commands |
 | `agent_call` | Delegate tasks to other agents |
-| `plan` | Track multi-step tasks with phases and todos |
+| `memory` | Store and search persistent memories |
+| `todo` | Track multi-step tasks with a todo list |
+| `search` | Web search (requires configured provider) |
 
 ## Delegation
 

@@ -15,6 +15,7 @@ ayo [command] [@agent] [prompt] [--flags]
 | `--attachment` | `-a` | File attachments (repeatable) |
 | `--config` | | Path to config file |
 | `--debug` | | Show debug output including raw tool payloads |
+| `--model` | `-m` | Model to use (overrides config default) |
 | `--help` | `-h` | Help for ayo |
 | `--version` | `-v` | Show version |
 
@@ -128,12 +129,8 @@ Manage skills.
 List all available skills.
 
 ```bash
-ayo skills list [--source=<source>]
+ayo skills list
 ```
-
-| Flag | Description |
-|------|-------------|
-| `--source` | Filter by source: `built-in`, `user`, `plugin` |
 
 ### ayo skills show
 
@@ -188,8 +185,8 @@ ayo sessions list [--flags]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--agent` | `-a` | Filter by agent handle |
-| `--source` | | Filter by source |
-| `--limit` | `-l` | Maximum results |
+| `--source` | `-s` | Filter by source (ayo, crush, crush-via-ayo) |
+| `--limit` | `-n` | Maximum results (default 20) |
 
 ### ayo sessions show
 
@@ -207,19 +204,26 @@ Continue a previous session.
 ayo sessions continue [session-id]
 ```
 
-Without ID, shows interactive picker.
+Without ID:
+- Shows interactive picker by default
+- Use `--latest` for headless automation
 
-| Flag | Description |
-|------|-------------|
-| `--debug` | Show debug output |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--latest` | `-l` | Continue most recent session without prompting |
+| `--debug` | | Show debug output |
 
 ### ayo sessions delete
 
 Delete a session.
 
 ```bash
-ayo sessions delete <session-id> [--force]
+ayo sessions delete <session-id> [--flags]
 ```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Delete without confirmation |
 
 ---
 
@@ -239,7 +243,7 @@ ayo memory list [--flags]
 |------|-------|-------------|
 | `--agent` | `-a` | Filter by agent |
 | `--category` | `-c` | Filter by category |
-| `--limit` | `-l` | Maximum results |
+| `--limit` | `-n` | Maximum results (default 50) |
 | `--json` | | JSON output |
 
 ### ayo memory search
@@ -250,11 +254,12 @@ Search memories semantically.
 ayo memory search <query> [--flags]
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--agent` | Filter by agent |
-| `--threshold` | Similarity threshold (0-1) |
-| `--limit` | Maximum results |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--agent` | `-a` | Filter by agent |
+| `--threshold` | `-t` | Similarity threshold (0-1, default 0.3) |
+| `--limit` | `-n` | Maximum results (default 10) |
+| `--json` | | JSON output |
 
 ### ayo memory show
 
@@ -377,6 +382,86 @@ ayo plugins remove <name> [--yes]
 
 ---
 
+## ayo flows
+
+Manage flows - composable agent pipelines.
+
+### ayo flows list
+
+List all available flows.
+
+```bash
+ayo flows list
+```
+
+### ayo flows show
+
+Show flow details.
+
+```bash
+ayo flows show <name>
+```
+
+### ayo flows new
+
+Create a new flow.
+
+```bash
+ayo flows new <name> [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project` | Create in project directory (.ayo/flows/) |
+| `--with-schemas` | Create with input/output schemas |
+| `--force` | Overwrite if exists |
+
+### ayo flows run
+
+Execute a flow.
+
+```bash
+ayo flows run <name> [input] [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--input` | `-i` | Input file path |
+| `--timeout` | `-t` | Timeout in seconds (default 300) |
+| `--validate` | | Validate input only, don't run |
+| `--no-history` | | Don't record run in history |
+
+**Input sources:**
+- Argument: `ayo flows run myflow '{"key": "value"}'`
+- Stdin: `echo '{"key": "value"}' | ayo flows run myflow`
+- File: `ayo flows run myflow -i data.json`
+
+### ayo flows validate
+
+Validate a flow file or directory.
+
+```bash
+ayo flows validate <path>
+```
+
+### ayo flows history
+
+Show flow run history.
+
+```bash
+ayo flows history [--flow=<name>]
+```
+
+### ayo flows replay
+
+Replay a flow run with its original input.
+
+```bash
+ayo flows replay <run-id>
+```
+
+---
+
 ## ayo chain
 
 Explore and validate agent chaining.
@@ -441,9 +526,9 @@ Complete ayo setup.
 ayo setup [--flags]
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--force` | Overwrite modifications |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Overwrite modifications without prompting |
 
 This command:
 - Installs built-in agents and skills

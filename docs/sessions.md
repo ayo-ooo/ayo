@@ -22,10 +22,13 @@ Sessions are stored in `~/.local/share/ayo/ayo.db`.
 ayo sessions list
 
 # Filter by agent
-ayo sessions list --agent @ayo
+ayo sessions list -a @ayo
+
+# Filter by source
+ayo sessions list -s crush
 
 # Limit results
-ayo sessions list --limit 20
+ayo sessions list -n 20
 ```
 
 Output:
@@ -81,6 +84,9 @@ I'll search for recent news about Minnesota...
 # Interactive picker for recent sessions
 ayo sessions continue
 
+# Continue the most recent session (headless)
+ayo sessions continue -l
+
 # Continue specific session by ID prefix
 ayo sessions continue 4443df27
 
@@ -100,7 +106,7 @@ When continued:
 ayo sessions delete 4443df27
 
 # Skip confirmation
-ayo sessions delete 4443df27 --force
+ayo sessions delete 4443df27 -f
 ```
 
 ## Session Sources

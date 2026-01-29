@@ -298,6 +298,7 @@ func newSessionsDeleteCmd() *cobra.Command {
 
 func newSessionsContinueCmd(cfgPath *string) *cobra.Command {
 	var debug bool
+	var latest bool
 
 	cmd := &cobra.Command{
 		Use:     "continue [session-id]",
@@ -305,7 +306,10 @@ func newSessionsContinueCmd(cfgPath *string) *cobra.Command {
 		Short:   "Continue a previous conversation session",
 		Long: `Continue an interactive chat from a previous session.
 
-If no session ID is provided, shows a list of recent sessions to choose from.
+If no session ID is provided:
+  - With --latest: automatically continues the most recent session
+  - Otherwise: shows a list of recent sessions to choose from
+
 Supports session ID prefix matching and title search.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -323,7 +327,7 @@ Supports session ID prefix matching and title search.`,
 			var sess session.Session
 
 			if len(args) == 0 {
-				// No session specified, show recent sessions
+				// No session specified
 				sessions, err := services.Sessions.List(cmd.Context(), 10)
 				if err != nil {
 					return fmt.Errorf("failed to list sessions: %w", err)
@@ -334,36 +338,41 @@ Supports session ID prefix matching and title search.`,
 					return nil
 				}
 
-				// Show selector
-				options := make([]huh.Option[string], len(sessions))
-				for i, s := range sessions {
-					timeAgo := formatTimeAgo(s.UpdatedAt)
-					title := s.Title
-					if len(title) > 30 {
-						title = title[:27] + "..."
+				if latest {
+					// Automatically pick the most recent session
+					sess = sessions[0]
+				} else {
+					// Show selector
+					options := make([]huh.Option[string], len(sessions))
+					for i, s := range sessions {
+						timeAgo := formatTimeAgo(s.UpdatedAt)
+						title := s.Title
+						if len(title) > 30 {
+							title = title[:27] + "..."
+						}
+						label := fmt.Sprintf("%s  %s  %s  %s",
+							s.ID[:8],
+							s.AgentHandle,
+							title,
+							timeAgo,
+						)
+						options[i] = huh.NewOption(label, s.ID)
 					}
-					label := fmt.Sprintf("%s  %s  %s  %s",
-						s.ID[:8],
-						s.AgentHandle,
-						title,
-						timeAgo,
-					)
-					options[i] = huh.NewOption(label, s.ID)
-				}
 
-				var selectedID string
-				err = huh.NewSelect[string]().
-					Title("Select a session to continue:").
-					Options(options...).
-					Value(&selectedID).
-					Run()
-				if err != nil {
-					return err
-				}
+					var selectedID string
+					err = huh.NewSelect[string]().
+						Title("Select a session to continue:").
+						Options(options...).
+						Value(&selectedID).
+						Run()
+					if err != nil {
+						return err
+					}
 
-				sess, err = services.Sessions.Get(cmd.Context(), selectedID)
-				if err != nil {
-					return fmt.Errorf("failed to get session: %w", err)
+					sess, err = services.Sessions.Get(cmd.Context(), selectedID)
+					if err != nil {
+						return fmt.Errorf("failed to get session: %w", err)
+					}
 				}
 			} else {
 				// Find session by query
@@ -456,6 +465,7 @@ Supports session ID prefix matching and title search.`,
 	}
 
 	cmd.Flags().BoolVar(&debug, "debug", false, "show debug output")
+	cmd.Flags().BoolVarP(&latest, "latest", "l", false, "continue the most recent session without prompting")
 
 	return cmd
 }

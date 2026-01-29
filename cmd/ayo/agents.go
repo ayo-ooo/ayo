@@ -201,18 +201,8 @@ func createAgentCmd(cfgPath *string) *cobra.Command {
 		Short: "Create a new agent",
 		Long: `Create a new agent with the specified configuration.
 
-REQUIRED:
-  @handle              Agent handle (e.g., @myagent)
-  --model, -m          Model to use (or configure default_model in ayo.json)
-
-OPTIONAL:
-  --description, -d    Brief description of the agent
-  --system, -s         System prompt text (inline)
-  --system-file, -f    Path to system prompt file (.md or .txt)
-  --tools, -t          Allowed tools (default: bash)
-  --skills             Skills to include
-  --input-schema       JSON schema for structured input
-  --output-schema      JSON schema for structured output
+The @handle argument is required. A model is also required - either via --model
+flag or by setting default_model in ayo.json.
 
 For help designing agents, chat with @ayo:
   ayo "help me create an agent for code review"

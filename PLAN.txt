@@ -1,0 +1,128 @@
+# Interactive Chat TUI Redesign - Implementation Complete
+
+## Problem Summary
+
+The TUI spinner froze during LLM streaming because:
+1. `sendFn()` ran as a Bubble Tea command, blocking while Fantasy streams
+2. Fantasy callbacks called `program.Send()` directly, which disrupted tick timing
+3. The tick chain stopped during the blocking period
+
+## Solution Implemented: Channel-Based Event Aggregation (Crush Pattern)
+
+Adopted the Crush pattern of **decoupling streaming from Bubble Tea's command system**:
+- Run Fantasy streaming in a separate goroutine (not a tea.Cmd)
+- Use a channel to aggregate events
+- A dedicated subscriber loop forwards events to the TUI via `program.Send()`
+- ID-scoped tick messages prevent stale ticks from being processed
+
+---
+
+## Implementation Summary
+
+### Group A: Unified Stream Writer Interface [DONE]
+
+| Task | Status | File |
+|------|--------|------|
+| A.01: Define StreamWriter interface | Done | `internal/run/stream_writer.go` |
+| A.02: Implement PrintWriter for non-interactive mode | Done | `internal/run/print_writer.go` |
+| A.03: Implement ChannelWriter for TUI mode | Done | `internal/run/channel_writer.go` |
+| A.04: Define StreamEvent types | Done | `internal/run/channel_writer.go` |
+
+### Group B: Fantasy Adapter [DONE]
+
+| Task | Status | File |
+|------|--------|------|
+| B.01: Create FantasyAdapter | Done | `internal/run/fantasy_adapter.go` |
+| B.02: Update Runner to use StreamWriter | Done | `internal/run/run.go` |
+
+### Group C: TUI Event Aggregator [DONE]
+
+| Task | Status | File |
+|------|--------|------|
+| C.01: Create EventAggregator | Done | `internal/ui/chat/aggregator.go` |
+| C.02: Update TUI Model to handle StreamEvent | Done | `internal/ui/chat/chat.go` |
+| C.03: Start streaming in separate goroutine | Done | `internal/ui/chat/chat.go` |
+
+### Group D: Animation Robustness [DONE]
+
+| Task | Status | File |
+|------|--------|------|
+| D.01: Add ID-scoped tick messages | Done | `internal/ui/chat/chat.go` |
+| D.02: Consider using Bubble Tea spinner | Skipped | (Custom approach retained) |
+
+### Group E: Model Configuration [DEFERRED]
+
+These are enhancements for future work:
+- E.01: Add model flags to config
+- E.02: Pass model config through runner
+- E.03: Update TUI reasoning panel visibility
+
+### Group F: Cleanup and Integration [DONE]
+
+| Task | Status | File |
+|------|--------|------|
+| F.01: Remove old handler types | Skipped | (Kept for backward compat) |
+| F.02: Update cmd/ayo/chat.go | Done | `cmd/ayo/chat.go` |
+| F.03: Update tests | Done | All tests pass |
+| F.04: Run full test suite | Done | All tests pass |
+
+### Group G: Documentation and Cleanup [DONE]
+
+| Task | Status | Notes |
+|------|--------|-------|
+| G.01: Update AGENTS.md | Skipped | Minor update |
+| G.02: Remove debug logging | Done | None found |
+| G.03: Delete PROBLEM.txt | Done | Deleted |
+
+---
+
+## New Files Created
+
+1. `internal/run/stream_writer.go` - StreamWriter interface and types
+2. `internal/run/print_writer.go` - Non-interactive output writer
+3. `internal/run/channel_writer.go` - TUI channel-based writer + StreamEvent types
+4. `internal/run/fantasy_adapter.go` - Adapts Fantasy callbacks to StreamWriter
+5. `internal/ui/chat/aggregator.go` - Forwards events from channel to TUI
+
+## Key Changes
+
+### Architecture Change
+- **Before**: `sendFn()` returned as tea.Cmd, blocking message loop
+- **After**: Streaming runs in goroutine, events go through channel to aggregator
+
+### Tick Chain Fix
+- **Before**: Global `tickMsg{}` could be disrupted by external messages
+- **After**: ID-scoped `tickMsg{id: int64}` with stale tick rejection
+
+### Code Path
+```
+User sends message
+    → sendMessage() starts goroutine (not tea.Cmd)
+    → Runner.Chat() with ChannelWriter
+    → Fantasy streams, ChannelWriter sends to eventChan
+    → EventAggregator.Subscribe() receives from eventChan
+    → Aggregator calls program.Send(StreamEvent)
+    → TUI Update() handles StreamEvent
+    → handleStreamEvent() dispatches to specific handlers
+```
+
+---
+
+## Testing
+
+All tests pass:
+```
+go test ./...
+ok  	github.com/alexcabrera/ayo/cmd/ayo
+ok  	github.com/alexcabrera/ayo/internal/run
+ok  	github.com/alexcabrera/ayo/internal/ui/chat
+... (all other packages)
+```
+
+---
+
+## Future Work
+
+1. **Model Configuration (E.01-E.03)**: Add support for detecting reasoning models and configuring responses API
+2. **Memory Panel**: Initial memory loading currently bypassed - needs integration
+3. **Old Handler Cleanup**: Remove deprecated TUIStreamHandler and PrintStreamHandler when fully migrated

@@ -29,6 +29,7 @@ func newRootCmd() *cobra.Command {
 	var cfgPath string
 	var attachments []string
 	var debug bool
+	var modelOverride string
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -42,21 +43,19 @@ Examples:
   ayo "tell me a joke"          Run single prompt with @ayo
   ayo @myagent                  Start interactive chat with @myagent
   ayo @myagent "do something"   Run single prompt with @myagent
-  ayo -a file.txt "analyze"     Attach file to prompt
-
-Subcommands:
-  agents      Manage agents (list, create, show)
-  skills      Manage skills (list, create, validate)
-  sessions    Manage conversation sessions
-  memory      Manage persistent memories
-  plugins     Manage plugins
-  chain       Explore agent chaining
-  setup       Install built-in agents and skills
-  doctor      Check system health`,
+  ayo -a file.txt "analyze"     Attach file to prompt`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Load stored credentials into environment
+			if err := config.InjectCredentials(); err != nil {
+				// Non-fatal: just log in debug mode
+				if debug {
+					fmt.Fprintf(os.Stderr, "Warning: failed to load credentials: %v\n", err)
+				}
+			}
+
 			// Auto-install built-in agents and skills if needed (version-based)
 			return builtin.Install()
 		},
@@ -65,6 +64,18 @@ Subcommands:
 				if len(args) == 0 {
 					// No args: show help
 					return cmd.Help()
+				}
+
+				// Check for first-run (no providers configured)
+				if !config.HasAnyProvider() {
+					warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+					fmt.Fprintln(os.Stderr, warnStyle.Render("No API providers configured. Run 'ayo setup' to configure."))
+					fmt.Fprintln(os.Stderr)
+				}
+
+				// Apply model override from flag
+				if modelOverride != "" {
+					cfg.DefaultModel = modelOverride
 				}
 
 				// Determine agent handle and remaining args
@@ -242,6 +253,7 @@ Subcommands:
 	cmd.PersistentFlags().StringVar(&cfgPath, "config", defaultConfigPath(), "path to config file")
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
 	cmd.Flags().BoolVar(&debug, "debug", false, "show debug output including raw tool payloads")
+	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))
