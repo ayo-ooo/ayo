@@ -49,14 +49,6 @@ ayo -a main.go "review this code"
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Design Philosophy
-
-**Conversational-first**: Instead of complex wizards or configuration UIs, ayo relies on natural conversation to accomplish tasks. Ask `@ayo` to create agents, manage skills, or configure your setup.
-
-**Single agent, multiple skills**: Rather than many specialized agents, `@ayo` is a versatile assistant that uses skills to gain domain expertise. Skills are instruction sets that teach the agent how to handle specific tasks.
-
-**Unix philosophy**: Agents can chain via pipes, producing and consuming JSON for structured workflows.
-
 ### Directory Structure
 
 ```
