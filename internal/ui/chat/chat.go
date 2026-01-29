@@ -877,6 +877,8 @@ func (m Model) openEditor() (tea.Model, tea.Cmd) {
 
 // updateViewportContent renders all messages to the viewport.
 func (m *Model) updateViewportContent() {
+	wasAtBottom := m.viewport.AtBottom()
+
 	var content strings.Builder
 
 	for _, msg := range m.messages {
@@ -891,29 +893,41 @@ func (m *Model) updateViewportContent() {
 		content.WriteString("\n\n")
 	}
 
-	// Add reasoning content if any
 	if m.reasoningBuffer.Len() > 0 {
 		content.WriteString(m.renderReasoning(m.reasoningBuffer.String()))
 		content.WriteString("\n")
 	}
 
-	// Add current tool call if any
 	if m.currentToolCall != nil {
 		content.WriteString(m.renderToolInProgress(*m.currentToolCall))
 		content.WriteString("\n")
 	}
 
-	// Add streaming content if any - use simple rendering during streaming for performance
 	if m.streamBuffer.Len() > 0 {
 		content.WriteString(m.renderStreamingMessage(m.streamBuffer.String()))
 	}
 
-	// Add waiting indicator
 	if m.state == StateWaiting && m.currentToolCall == nil && m.reasoningBuffer.Len() == 0 {
 		content.WriteString(m.renderWaiting())
 	}
 
-	m.viewport.SetContent(content.String())
+	rendered := content.String()
+
+	if m.ready && m.viewport.Height > 0 {
+		lineCount := 0
+		if rendered != "" {
+			lineCount = strings.Count(rendered, "\n") + 1
+		}
+		if lineCount < m.viewport.Height {
+			rendered = strings.Repeat("\n", m.viewport.Height-lineCount) + rendered
+		}
+	}
+
+	m.viewport.SetContent(rendered)
+
+	if wasAtBottom {
+		m.viewport.GotoBottom()
+	}
 }
 
 // renderUserMessage styles a user message.
