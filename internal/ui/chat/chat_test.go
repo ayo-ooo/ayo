@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/skills"
 	"github.com/alexcabrera/ayo/internal/ui/chat/panels"
 )
@@ -130,14 +131,16 @@ func TestUpdate_TextEndMsg(t *testing.T) {
 	model, _ := m.Update(TextDeltaMsg{Delta: "Test response"})
 	m = model.(Model)
 
-	// End the stream
+	// TextEndMsg now stays in streaming (EventDone completes the flow)
 	model, _ = m.Update(TextEndMsg{})
 	m = model.(Model)
 
-	if m.state != StateInput {
-		t.Errorf("state should be StateInput after TextEndMsg")
+	// State stays in streaming until EventDone
+	if m.state != StateStreaming {
+		t.Errorf("state should be StateStreaming after TextEndMsg, got %v", m.state)
 	}
 
+	// But message should be accumulated
 	if len(m.messages) != 1 {
 		t.Fatalf("messages count = %d, want 1", len(m.messages))
 	}
@@ -152,6 +155,14 @@ func TestUpdate_TextEndMsg(t *testing.T) {
 
 	if m.streamBuffer.Len() != 0 {
 		t.Error("streamBuffer should be reset after TextEndMsg")
+	}
+
+	// Now send EventDone to complete the flow
+	model, _ = m.Update(run.StreamEvent{Type: run.EventDone, Response: "Test response"})
+	m = model.(Model)
+
+	if m.state != StateInput {
+		t.Errorf("state should be StateInput after EventDone, got %v", m.state)
 	}
 }
 
@@ -377,12 +388,20 @@ func TestState_Transitions(t *testing.T) {
 		t.Errorf("state after TextDelta = %v, want StateStreaming", m.state)
 	}
 
-	// TextEndMsg transitions back to Input
+	// TextEndMsg now stays in StateStreaming (EventDone transitions to Input)
 	model, _ = m.Update(TextEndMsg{})
 	m = model.(Model)
 
+	if m.state != StateStreaming {
+		t.Errorf("state after TextEnd = %v, want StateStreaming", m.state)
+	}
+
+	// EventDone transitions to Input
+	model, _ = m.Update(run.StreamEvent{Type: run.EventDone, Response: "Hello"})
+	m = model.(Model)
+
 	if m.state != StateInput {
-		t.Errorf("state after TextEnd = %v, want StateInput", m.state)
+		t.Errorf("state after EventDone = %v, want StateInput", m.state)
 	}
 }
 

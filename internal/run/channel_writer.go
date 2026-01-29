@@ -1,8 +1,6 @@
 package run
 
 import (
-	"fmt"
-	"os"
 	"time"
 )
 
@@ -50,18 +48,6 @@ type StreamEvent struct {
 	Response string
 }
 
-// debug logging
-func debugLog(format string, args ...interface{}) {
-	f, err := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "%d: ", time.Now().UnixMilli())
-	fmt.Fprintf(f, format, args...)
-	fmt.Fprintln(f)
-}
-
 // ChannelWriter implements StreamWriter by sending events to a channel.
 // This is used in TUI mode - events are read by an EventAggregator
 // and forwarded to the Bubble Tea program.
@@ -71,17 +57,14 @@ type ChannelWriter struct {
 
 // NewChannelWriter creates a writer that sends events to the given channel.
 func NewChannelWriter(events chan<- StreamEvent) *ChannelWriter {
-	debugLog("NewChannelWriter created")
 	return &ChannelWriter{events: events}
 }
 
 func (w *ChannelWriter) WriteText(delta string) {
-	debugLog("WriteText: %q", delta)
 	w.events <- StreamEvent{Type: EventTextDelta, Delta: delta}
 }
 
 func (w *ChannelWriter) WriteTextDone(content string) {
-	debugLog("WriteTextDone")
 	w.events <- StreamEvent{Type: EventTextDone, Content: content}
 }
 

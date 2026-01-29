@@ -99,6 +99,9 @@ type Model struct {
 	// Cached glamour renderer (expensive to create)
 	markdownRenderer *glamour.TermRenderer
 	rendererWidth    int
+
+	// Focus state - true means textarea has focus, false means viewport
+	textareaFocused bool
 }
 
 // message represents a single message in the conversation.
@@ -119,6 +122,7 @@ type KeyMap struct {
 	ScrollDown key.Binding
 	PageUp     key.Binding
 	PageDown   key.Binding
+	ToggleFocus key.Binding
 }
 
 // DefaultKeyMap returns the default keybindings.
@@ -164,6 +168,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("pgdown", "ctrl+d"),
 			key.WithHelp("pgdn", "page down"),
 		),
+		ToggleFocus: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "switch focus"),
+		),
 	}
 }
 
@@ -180,17 +188,18 @@ func New(ag agent.Agent, sessionID string, sendFn SendMessageFunc) Model {
 	ta.KeyMap.InsertNewline.SetEnabled(false) // We handle newlines ourselves
 
 	return Model{
-		agentHandle:  ag.Handle,
-		skillCount:   len(ag.Skills),
-		sessionID:    sessionID,
-		sendFn:       sendFn,
-		textarea:     ta,
-		sidebar:      panels.NewSidebar(),
-		statusBar:    NewStatusBar(),
-		toolCallTree: messages.NewToolCallTree(),
-		keyMap:       DefaultKeyMap(),
-		state:        StateInput,
-		messages:     []message{},
+		agentHandle:     ag.Handle,
+		skillCount:      len(ag.Skills),
+		sessionID:       sessionID,
+		sendFn:          sendFn,
+		textarea:        ta,
+		sidebar:         panels.NewSidebar(),
+		statusBar:       NewStatusBar(),
+		toolCallTree:    messages.NewToolCallTree(),
+		keyMap:          DefaultKeyMap(),
+		state:           StateInput,
+		messages:        []message{},
+		textareaFocused: true, // Start with textarea focused
 	}
 }
 
@@ -198,9 +207,12 @@ func New(ag agent.Agent, sessionID string, sendFn SendMessageFunc) Model {
 func (m Model) Init() tea.Cmd {
 	// Generate initial tick ID
 	id := atomic.AddInt64(&globalTickID, 1)
-	return tea.Batch(textarea.Blink, tea.Tick(time.Millisecond*80, func(t time.Time) tea.Msg {
-		return tickMsg{id: id}
-	}))
+	return tea.Batch(
+		m.textarea.Focus(), // Start with textarea focused
+		tea.Tick(time.Millisecond*80, func(t time.Time) tea.Msg {
+			return tickMsg{id: id}
+		}),
+	)
 }
 
 // tickMsg triggers spinner animation with ID-scoping.
@@ -225,14 +237,6 @@ type AgentResponseMsg struct {
 	Response string
 	Err      error
 }
-
-// StreamDeltaMsg is sent for streaming content.
-type StreamDeltaMsg struct {
-	Delta string
-}
-
-// StreamEndMsg signals the end of streaming.
-type StreamEndMsg struct{}
 
 // OpenEditorMsg is sent when returning from external editor.
 type OpenEditorMsg struct {
@@ -267,12 +271,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case tickMsg:
-		// Debug logging
-		f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if f != nil {
-			fmt.Fprintf(f, "%d: [TICK] received id=%d, currentTickID=%d, state=%d\n", time.Now().UnixMilli(), msg.id, m.currentTickID, m.state)
-			f.Close()
-		}
 		// If this is the first tick or ID matches, process it
 		// The first tick from Init will have a new ID that we accept
 		if m.currentTickID == 0 || msg.id == m.currentTickID {
@@ -288,12 +286,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AgentResponseMsg:
 		return m.handleAgentResponse(msg)
-
-	case StreamDeltaMsg:
-		return m.handleStreamDelta(msg)
-
-	case StreamEndMsg:
-		return m.handleStreamEnd()
 
 	case TextDeltaMsg:
 		return m.handleTextDelta(msg)
@@ -330,12 +322,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case run.StreamEvent:
-		// Debug logging
-		f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if f != nil {
-			fmt.Fprintf(f, "%d: [UPDATE] received StreamEvent type=%d\n", time.Now().UnixMilli(), msg.Type)
-			f.Close()
-		}
 		return m.handleStreamEvent(msg)
 
 	case OpenEditorMsg:
@@ -399,14 +385,18 @@ func (m *Model) updateStatusBarHints() {
 	var hints string
 	switch m.state {
 	case StateInput:
-		// Show line indicator for multiline input
-		content := m.textarea.Value()
-		lineCount := strings.Count(content, "\n") + 1
-		if lineCount > 1 {
-			row := m.textarea.Line()
-			hints = fmt.Sprintf("line %d/%d · ", row+1, lineCount)
+		if m.textareaFocused {
+			// Show line indicator for multiline input
+			content := m.textarea.Value()
+			lineCount := strings.Count(content, "\n") + 1
+			if lineCount > 1 {
+				row := m.textarea.Line()
+				hints = fmt.Sprintf("line %d/%d · ", row+1, lineCount)
+			}
+			hints += "enter send · shift+enter newline · tab messages · ctrl+c quit"
+		} else {
+			hints = "j/k scroll · tab input · ctrl+c quit"
 		}
-		hints += "enter send · shift+enter newline · ctrl+e editor · ctrl+c quit"
 		if m.sidebar.IsVisible() {
 			hints += " · ctrl+p plan · ctrl+m memory"
 		}
@@ -464,8 +454,9 @@ func (m Model) handleTextEnd() (tea.Model, tea.Cmd) {
 		})
 		m.streamBuffer.Reset()
 	}
-	m.setState(StateInput)
-	m.updateViewportContent()
+	// Don't render with glamour here - let EventDone handle final state
+	// Just update to show the raw message for now
+	m.setState(StateStreaming) // Stay in streaming until EventDone
 	return m, nil
 }
 
@@ -540,13 +531,20 @@ func (m Model) handleStreamEvent(event run.StreamEvent) (tea.Model, tea.Cmd) {
 			m.err = event.Err
 		}
 		m.setState(StateInput)
-		return m, nil
+		m.textareaFocused = true
+		// Re-focus textarea so user can type immediately
+		return m, m.textarea.Focus()
 
 	case run.EventDone:
 		// Final response received - streaming is complete
+		m.textareaFocused = true
 		m.setState(StateInput)
+		
+		// Render with glamour
 		m.updateViewportContent()
-		return m, nil
+		
+		focusCmd := m.textarea.Focus()
+		return m, focusCmd
 	}
 
 	return m, nil
@@ -670,6 +668,10 @@ func (m Model) handleResize() Model {
 		m.viewport.MouseWheelEnabled = true
 		m.viewport.MouseWheelDelta = 3
 		m.ready = true
+		
+		// Pre-warm glamour renderer on first resize (when we know the width)
+		// This avoids the 1+ second init delay on first message
+		m.warmupGlamour()
 	} else {
 		m.viewport.Width = contentWidth
 		m.viewport.Height = viewportHeight
@@ -681,6 +683,26 @@ func (m Model) handleResize() Model {
 	m.updateViewportContent()
 
 	return m
+}
+
+// warmupGlamour pre-initializes the glamour renderer to avoid delay on first message.
+func (m *Model) warmupGlamour() {
+	width := m.width - 4
+	if width < 40 {
+		width = 40
+	}
+	if m.markdownRenderer == nil {
+		// Use DarkStyle instead of AutoStyle to avoid terminal queries
+		// that produce escape sequences polluting the textarea
+		r, err := glamour.NewTermRenderer(
+			glamour.WithStylePath("dark"),
+			glamour.WithWordWrap(width),
+		)
+		if err == nil {
+			m.markdownRenderer = r
+			m.rendererWidth = width
+		}
+	}
 }
 
 // handleKey processes keyboard input.
@@ -696,25 +718,54 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cancelFn()
 		}
 		m.setState(StateInput)
+		m.textareaFocused = true
+		return m, m.textarea.Focus()
+
+	case key.Matches(msg, m.keyMap.ToggleFocus) && m.state == StateInput:
+		// Toggle focus between textarea and viewport
+		m.textareaFocused = !m.textareaFocused
+		if m.textareaFocused {
+			m.textarea.Focus()
+		} else {
+			m.textarea.Blur()
+		}
+		m.updateStatusBarHints()
 		return m, nil
 
-	case key.Matches(msg, m.keyMap.Send) && m.state == StateInput:
+	case key.Matches(msg, m.keyMap.Send) && m.state == StateInput && m.textareaFocused:
 		return m.sendMessage()
 
-	case key.Matches(msg, m.keyMap.Newline) && m.state == StateInput:
+	case key.Matches(msg, m.keyMap.Newline) && m.state == StateInput && m.textareaFocused:
 		m.textarea.InsertRune('\n')
 		return m, nil
 
-	case key.Matches(msg, m.keyMap.Editor) && m.state == StateInput:
+	case key.Matches(msg, m.keyMap.Editor) && m.state == StateInput && m.textareaFocused:
 		return m.openEditor()
 
 	case key.Matches(msg, m.keyMap.History):
 		// TODO: Open history viewer dialog
 		return m, nil
+
+	// Viewport scrolling - works when viewport is focused OR when using page keys
+	case key.Matches(msg, m.keyMap.PageUp):
+		m.viewport.ViewUp()
+		return m, nil
+
+	case key.Matches(msg, m.keyMap.PageDown):
+		m.viewport.ViewDown()
+		return m, nil
+
+	case key.Matches(msg, m.keyMap.ScrollUp) && !m.textareaFocused:
+		m.viewport.LineUp(1)
+		return m, nil
+
+	case key.Matches(msg, m.keyMap.ScrollDown) && !m.textareaFocused:
+		m.viewport.LineDown(1)
+		return m, nil
 	}
 
-	// Pass key to textarea if in input state
-	if m.state == StateInput {
+	// Pass key to textarea if focused and in input state
+	if m.state == StateInput && m.textareaFocused {
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
 		return m, cmd
@@ -730,16 +781,11 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Debug logging
-	f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if f != nil {
-		fmt.Fprintf(f, "%d: [SEND] sendMessage called, eventChan=%v\n", time.Now().UnixMilli(), m.eventChan != nil)
-		f.Close()
-	}
-
 	// Add user message
 	m.messages = append(m.messages, message{Role: "user", Content: text})
 	m.textarea.Reset()
+	m.textarea.Blur() // Blur while waiting for response
+	m.textareaFocused = false
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
@@ -756,17 +802,7 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 		eventChan := m.eventChan // Capture locally for goroutine
 		sendFn := m.sendFn
 		go func() {
-			f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if f != nil {
-				fmt.Fprintf(f, "%d: [SEND] goroutine started, calling sendFn\n", time.Now().UnixMilli())
-				f.Close()
-			}
 			response, err := sendFn(ctx, text)
-			f, _ = os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if f != nil {
-				fmt.Fprintf(f, "%d: [SEND] sendFn returned, response=%d bytes, err=%v\n", time.Now().UnixMilli(), len(response), err)
-				f.Close()
-			}
 			// Send done event when streaming completes
 			eventChan <- run.StreamEvent{
 				Type:     run.EventDone,
@@ -787,43 +823,21 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 // handleAgentResponse processes the agent's response.
 func (m Model) handleAgentResponse(msg AgentResponseMsg) (tea.Model, tea.Cmd) {
 	m.setState(StateInput)
+	m.textareaFocused = true
 	m.cancelFn = nil
 
 	if msg.Err != nil {
 		if msg.Err != context.Canceled {
 			m.err = msg.Err
 		}
-		return m, nil
+		return m, m.textarea.Focus()
 	}
 
 	m.messages = append(m.messages, message{Role: "assistant", Content: msg.Response})
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
-	return m, nil
-}
-
-// handleStreamDelta appends streaming content.
-func (m Model) handleStreamDelta(msg StreamDeltaMsg) (tea.Model, tea.Cmd) {
-	m.setState(StateStreaming)
-	m.streamBuffer.WriteString(msg.Delta)
-	m.updateViewportContent()
-	m.viewport.GotoBottom()
-	return m, nil
-}
-
-// handleStreamEnd finalizes streaming.
-func (m Model) handleStreamEnd() (tea.Model, tea.Cmd) {
-	if m.streamBuffer.Len() > 0 {
-		m.messages = append(m.messages, message{
-			Role:    "assistant",
-			Content: m.streamBuffer.String(),
-		})
-		m.streamBuffer.Reset()
-	}
-	m.setState(StateInput)
-	m.updateViewportContent()
-	return m, nil
+	return m, m.textarea.Focus()
 }
 
 // openEditor opens the external editor.
@@ -889,9 +903,9 @@ func (m *Model) updateViewportContent() {
 		content.WriteString("\n")
 	}
 
-	// Add streaming content if any
+	// Add streaming content if any - use simple rendering during streaming for performance
 	if m.streamBuffer.Len() > 0 {
-		content.WriteString(m.renderAssistantMessage(m.streamBuffer.String()))
+		content.WriteString(m.renderStreamingMessage(m.streamBuffer.String()))
 	}
 
 	// Add waiting indicator
@@ -923,6 +937,18 @@ func (m *Model) renderAssistantMessage(content string) string {
 	return labelStyle.Render(m.agentHandle) + "\n" + rendered
 }
 
+// renderStreamingMessage renders streaming content without glamour for performance.
+// Glamour rendering is deferred until the message is complete.
+func (m *Model) renderStreamingMessage(content string) string {
+	labelStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#a78bfa")).
+		Bold(true)
+	contentStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#e4e4e7"))
+
+	return labelStyle.Render(m.agentHandle) + "\n" + contentStyle.Render(content)
+}
+
 // renderMarkdown renders markdown content using glamour with a cached renderer.
 func (m *Model) renderMarkdown(content string) string {
 	width := m.width - 4
@@ -932,8 +958,9 @@ func (m *Model) renderMarkdown(content string) string {
 
 	// Create or update renderer if width changed
 	if m.markdownRenderer == nil || m.rendererWidth != width {
+		// Use DarkStyle instead of AutoStyle to avoid terminal queries
 		r, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithStylePath("dark"),
 			glamour.WithWordWrap(width),
 		)
 		if err != nil {
@@ -1081,10 +1108,12 @@ func (m Model) headerView() string {
 func (m Model) inputView() string {
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#a78bfa")).
 		Padding(0, 1)
 
-	if m.state != StateInput {
+	// Show focused style when textarea has focus and we're in input state
+	if m.state == StateInput && m.textareaFocused {
+		inputStyle = inputStyle.BorderForeground(lipgloss.Color("#a78bfa"))
+	} else {
 		inputStyle = inputStyle.BorderForeground(lipgloss.Color("#3f3f46"))
 	}
 
@@ -1148,21 +1177,6 @@ func Run(ctx context.Context, ag agent.Agent, sessionID string, sendFn SendMessa
 
 	m := finalModel.(Model)
 	return ResultQuit, m.ScrollbackContent(), nil
-}
-
-// RunWithProgram starts the chat TUI and returns the program for external stream handlers.
-// This allows setting up a TUIStreamHandler before running the program.
-func RunWithProgram(ctx context.Context, ag agent.Agent, sessionID string, sendFn SendMessageFunc) (*tea.Program, Model) {
-	model := New(ag, sessionID, sendFn)
-	model.ctx = ctx
-
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-
-	return p, model
 }
 
 // RunWithChannel starts the chat TUI with the new channel-based streaming architecture.
