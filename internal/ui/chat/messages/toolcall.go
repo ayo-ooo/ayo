@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/alexcabrera/ayo/internal/ui/chat/layout"
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
 
 // ToolCall represents the data for a tool invocation.
@@ -301,4 +302,30 @@ func (t *toolCallCmp) textWidth() int {
 		return 80
 	}
 	return t.width
+}
+
+// ToRenderInput converts the component state to a shared ToolRenderInput.
+func (t *toolCallCmp) ToRenderInput() shared.ToolRenderInput {
+	state := shared.ToolStatePending
+	if t.cancelled {
+		state = shared.ToolStateCancelled
+	} else if t.result.ToolCallID != "" {
+		if t.result.IsError {
+			state = shared.ToolStateError
+		} else {
+			state = shared.ToolStateSuccess
+		}
+	} else if t.spinning {
+		state = shared.ToolStateRunning
+	}
+
+	return shared.ToolRenderInput{
+		ID:          t.call.ID,
+		Name:        t.call.Name,
+		ParentID:    "", // Set by caller if nested
+		RawInput:    t.call.Input,
+		RawMetadata: t.result.Metadata,
+		RawOutput:   t.result.Content,
+		State:       state,
+	}
 }

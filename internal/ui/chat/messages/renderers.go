@@ -39,36 +39,21 @@ type BashResponseMetadata = shared.BashResponseMetadata
 
 // Render displays bash command with output.
 func (br bashRenderer) Render(t *toolCallCmp) string {
-	var params BashParams
-	if err := br.unmarshalParams(t.call.Input, &params); err != nil {
-		return br.renderError(t, "Invalid bash parameters")
-	}
+	// Use shared renderer for data extraction
+	renderInput := t.ToRenderInput()
+	renderOutput := shared.RenderTool(renderInput)
 
-	// Sanitize command for display
-	cmd := strings.ReplaceAll(params.Command, "\n", " ")
-	cmd = strings.ReplaceAll(cmd, "\t", "    ")
-
-	args := newParamBuilder().
-		addMain(cmd).
-		addFlag("background", params.RunInBackground).
-		build()
-
-	return br.renderWithParams(t, "Bash", args, func() string {
-		var meta BashResponseMetadata
-		if t.result.Metadata != "" {
-			_ = br.unmarshalParams(t.result.Metadata, &meta)
+	return br.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
+		// Render body sections
+		for _, section := range renderOutput.Sections {
+			switch section.Type {
+			case shared.SectionJSON:
+				return renderPlainContent(t, section.Content, section.MaxLines)
+			case shared.SectionPlain:
+				return renderPlainContent(t, section.Content, section.MaxLines)
+			}
 		}
-
-		output := meta.Output
-		if output == "" && t.result.Content != "" && t.result.Content != "(no output)" {
-			output = t.result.Content
-		}
-
-		if output == "" {
-			return ""
-		}
-
-		return renderPlainContent(t, output, 10)
+		return ""
 	})
 }
 
@@ -88,46 +73,19 @@ type TodosResponseMetadata = shared.TodosResponseMetadata
 
 // Render displays todo list.
 func (tr todosRenderer) Render(t *toolCallCmp) string {
+	// Use shared renderer for data extraction
+	renderInput := t.ToRenderInput()
+	renderOutput := shared.RenderTool(renderInput)
+
+	// Parse todos for body rendering
 	var params TodosParams
 	var meta TodosResponseMetadata
-	var headerText string
-
-	if err := tr.unmarshalParams(t.call.Input, &params); err == nil {
-		completedCount := 0
-		inProgressTask := ""
-
-		for _, todo := range params.Todos {
-			if todo.Status == "completed" {
-				completedCount++
-			}
-			if todo.Status == "in_progress" {
-				if todo.ActiveForm != "" {
-					inProgressTask = todo.ActiveForm
-				} else {
-					inProgressTask = todo.Content
-				}
-			}
-		}
-
-		headerText = fmt.Sprintf("%d/%d", completedCount, len(params.Todos))
-		if inProgressTask != "" {
-			headerText = fmt.Sprintf("%d/%d - %s", completedCount, len(params.Todos), inProgressTask)
-		}
-
-		// Use metadata if available
-		if t.result.Metadata != "" {
-			if err := tr.unmarshalParams(t.result.Metadata, &meta); err == nil {
-				headerText = fmt.Sprintf("%d/%d", meta.Completed, meta.Total)
-				if meta.JustStarted != "" {
-					headerText = fmt.Sprintf("%d/%d - %s", meta.Completed, meta.Total, meta.JustStarted)
-				}
-			}
-		}
+	_ = tr.unmarshalParams(t.call.Input, &params)
+	if t.result.Metadata != "" {
+		_ = tr.unmarshalParams(t.result.Metadata, &meta)
 	}
 
-	args := newParamBuilder().addMain(headerText).build()
-
-	return tr.renderWithParams(t, "Todo", args, func() string {
+	return tr.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
 		todos := params.Todos
 		if len(meta.Todos) > 0 {
 			todos = meta.Todos
