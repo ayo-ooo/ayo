@@ -270,4 +270,4 @@ ayo doctor -v   # Verbose output with model list
 
 ## License
 
-MIT
+BSD
