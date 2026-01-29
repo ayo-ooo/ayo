@@ -149,7 +149,7 @@ ayo "help me create an agent for debugging Go code"
 
 # Or use the CLI directly
 ayo agents create @debugger \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Debugging specialist" \
   -f ~/prompts/debugger.md
 ```

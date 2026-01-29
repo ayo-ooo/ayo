@@ -268,7 +268,7 @@ agents/
 ```json
 {
   "description": "What this agent does",
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "allowed_tools": ["bash", "my-tool"],
   "skills": ["my-skill"],
   "exclude_skills": ["unwanted-skill"],

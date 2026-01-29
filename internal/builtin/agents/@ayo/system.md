@@ -99,7 +99,7 @@ EOF
 
 # Then use the CLI to create the agent
 ayo agents create @agent-name \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Description" \
   -f /tmp/system.md \
   -t bash

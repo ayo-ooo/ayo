@@ -98,7 +98,7 @@ For scripted or quick creation:
 
 ```bash
 ayo agents create @reviewer \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Reviews code for best practices" \
   -f ~/prompts/reviewer.md \
   -t bash \
@@ -121,7 +121,7 @@ You are an expert code reviewer.
 EOF
 
 # Create agent with file
-ayo agents create @reviewer -m gpt-4.1 -f system.md
+ayo agents create @reviewer -m gpt-5.2 -f system.md
 ```
 
 ### Create Flags
@@ -168,7 +168,7 @@ User agents take precedence over built-in agents with the same name.
 ```json
 {
   "description": "What this agent does",
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "allowed_tools": ["bash", "agent_call"],
   "skills": ["debugging"],
   "exclude_skills": [],

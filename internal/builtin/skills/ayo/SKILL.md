@@ -16,7 +16,7 @@ When managing agents or skills, you MUST use the `ayo` CLI commands via bash. NE
 
 **CORRECT - Use CLI commands:**
 ```bash
-ayo agents create @myagent -m gpt-4.1 -f /tmp/system.md
+ayo agents create @myagent -m gpt-5.2 -f /tmp/system.md
 ayo agents list
 ayo skills create myskill --shared
 ```
@@ -102,7 +102,7 @@ Non-interactive (recommended for scripted creation):
 ```bash
 ayo agents create @my-agent \
   --non-interactive \
-  --model gpt-4.1 \
+  --model gpt-5.2 \
   --description "My agent description" \
   --system-file system.md \
   --tools bash \
@@ -233,7 +233,7 @@ rm -rf ~/.config/ayo/agents/@agent-name
 
 ```json
 {
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "description": "What this agent does",
   "allowed_tools": ["bash", "agent_call", "todo"],
   "skills": ["skill-a", "skill-b"],
@@ -368,7 +368,7 @@ cat ~/.config/ayo/ayo.json | grep -A5 default_tools
 **If search is configured:**
 ```bash
 ayo agents create @deep-research -n \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Deep research agent with web search" \
   -t bash,search \
   -f system.md
@@ -875,7 +875,7 @@ EOF
 
 # 4. Create the agent
 ayo agents create @analyzer -n \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Analyzes code and returns structured findings" \
   -f system.md \
   --input-schema input.jsonschema \
@@ -1267,11 +1267,11 @@ Located at `~/.config/ayo/ayo.json`:
 ```json
 {
   "$schema": "./ayo-schema.json",
-  "default_model": "gpt-4.1",
+  "default_model": "gpt-5.2",
   "provider": {
     "openai": {
       "api_key": "sk-...",
-      "models": ["gpt-4.1", "gpt-4.1-mini"]
+      "models": ["gpt-5.2", "gpt-5.2-mini"]
     }
   }
 }

@@ -113,7 +113,7 @@ Or use the CLI directly:
 
 ```bash
 ayo agents create @reviewer \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Reviews code for best practices" \
   -f ~/prompts/reviewer.md
 ```
@@ -185,7 +185,7 @@ Config file: `~/.config/ayo/ayo.json`
 
 ```json
 {
-  "default_model": "gpt-4.1",
+  "default_model": "gpt-5.2",
   "provider": { "name": "openai" }
 }
 ```

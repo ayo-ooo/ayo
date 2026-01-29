@@ -81,7 +81,7 @@ The `.ayo.json` file supports additional settings:
 ```json
 {
   "agent": "@ayo",
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "delegates": {
     "coding": "@crush",
     "research": "@research"

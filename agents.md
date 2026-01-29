@@ -677,7 +677,7 @@ Ayo uses two directories:
   "skills_dir": "~/.config/ayo/skills",
   "system_prefix": "~/.config/ayo/prompts/prefix.md",
   "system_suffix": "~/.config/ayo/prompts/suffix.md",
-  "default_model": "gpt-4.1",
+  "default_model": "gpt-5.2",
   "provider": {}
 }
 ```
@@ -764,7 +764,7 @@ ayo "show me my agents"
 # Agent management (CLI approach)
 ayo agents list                        # List available agents
 ayo agents show @ayo                   # Show agent details
-ayo agents create @myagent -m gpt-4.1  # Create new agent
+ayo agents create @myagent -m gpt-5.2  # Create new agent
 ayo agents update                      # Update built-in agents
 
 # Skills management
@@ -1392,7 +1392,7 @@ Project-level configuration file placed in your project root or any parent direc
     "coding": "@crush",
     "research": "@research"
   },
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "agent": "@ayo"
 }
 ```

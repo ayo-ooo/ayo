@@ -209,23 +209,23 @@ For help designing agents, chat with @ayo:
 
 Examples:
   # Minimal agent
-  ayo agents create @helper -m gpt-4.1
+  ayo agents create @helper -m gpt-5.2
 
   # With description and custom system prompt
   ayo agents create @reviewer \
-    -m gpt-4.1 \
+    -m gpt-5.2 \
     -d "Reviews code for best practices" \
     -f ~/prompts/reviewer.md
 
   # With tools and skills
   ayo agents create @debugger \
-    -m gpt-4.1 \
+    -m gpt-5.2 \
     -t bash,agent_call \
     --skills debugging
 
   # Chainable agent with schemas
   ayo agents create @analyzer \
-    -m gpt-4.1 \
+    -m gpt-5.2 \
     -f system.md \
     --input-schema input.jsonschema \
     --output-schema output.jsonschema`,

@@ -94,7 +94,7 @@ func GetProviderDefaultSmallModel(providerID string) string {
 func GetDefaultModelForConfiguredProvider() string {
 	providers := GetProvidersWithCredentials()
 	if len(providers) == 0 {
-		return "gpt-4.1" // fallback when no credentials
+		return "gpt-5.2" // fallback when no credentials
 	}
 
 	// Priority order
@@ -115,7 +115,7 @@ func GetDefaultModelForConfiguredProvider() string {
 		return defaultModel
 	}
 
-	return "gpt-4.1" // ultimate fallback
+	return "gpt-5.2" // ultimate fallback
 }
 
 // GetDefaultSmallModelForConfiguredProvider returns the best default small model

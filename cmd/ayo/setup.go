@@ -204,7 +204,7 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 							sui.Blank()
 
 							// Offer to set default model to Ollama
-							if cfg.DefaultModel == "gpt-4.1" {
+							if cfg.DefaultModel == "gpt-5.2" {
 								if err := offerOllamaDefault(sui, &cfg, *cfgPath, capable); err != nil {
 									return err
 								}
@@ -501,7 +501,7 @@ func offerCredentialEntry(sui *setupUI, cfg *config.Config, cfgPath string) erro
 	sui.SuccessPath(providerInfo.Name+" API key", "stored")
 
 	// Also update config default model if using a cloud provider for the first time
-	if cfg.DefaultModel == "gpt-4.1" && selectedProvider != "openai" {
+	if cfg.DefaultModel == "gpt-5.2" && selectedProvider != "openai" {
 		// Suggest changing model based on provider
 		var suggestedModel string
 		switch selectedProvider {
@@ -519,7 +519,7 @@ func offerCredentialEntry(sui *setupUI, cfg *config.Config, cfgPath string) erro
 				huh.NewGroup(
 					huh.NewConfirm().
 						Title("Update default model?").
-						Description(fmt.Sprintf("Change from gpt-4.1 to %s?", suggestedModel)).
+						Description(fmt.Sprintf("Change from gpt-5.2 to %s?", suggestedModel)).
 						Value(&changeModel),
 				),
 			).WithTheme(huh.ThemeCharm())

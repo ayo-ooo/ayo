@@ -90,14 +90,14 @@ ayo agents create @handle [--flags]
 ayo agents create
 
 # Minimal agent
-ayo agents create @helper -m gpt-4.1
+ayo agents create @helper -m gpt-5.2
 
 # With system file
-ayo agents create @reviewer -m gpt-4.1 -f system.md
+ayo agents create @reviewer -m gpt-5.2 -f system.md
 
 # Full options
 ayo agents create @debugger \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -d "Debugging specialist" \
   -f system.md \
   -t bash,agent_call \

@@ -177,7 +177,7 @@ EOF
 
 ```bash
 ayo agents create @analyzer \
-  -m gpt-4.1 \
+  -m gpt-5.2 \
   -s "Analyze code and return issues as JSON." \
   --input-schema input.jsonschema \
   --output-schema output.jsonschema

@@ -52,7 +52,7 @@ Located at `~/.config/ayo/ayo.json`:
 ```json
 {
   "$schema": "./ayo-schema.json",
-  "default_model": "gpt-4.1",
+  "default_model": "gpt-5.2",
   "provider": {
     "name": "openai"
   },
@@ -131,7 +131,7 @@ Create `.ayo.json` in your project root to configure ayo for that directory:
 ```json
 {
   "agent": "@ayo",
-  "model": "gpt-4.1",
+  "model": "gpt-5.2",
   "delegates": {
     "coding": "@crush"
   }

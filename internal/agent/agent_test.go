@@ -24,7 +24,7 @@ func TestLoadCombinesPrefixAgentSuffix(t *testing.T) {
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
 		SystemPrefix: filepath.Join(home, "ayo", "prompts", "system-prefix.md"),
 		SystemSuffix: filepath.Join(home, "ayo", "prompts", "system-suffix.md"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	mustWrite(t, cfg.SystemPrefix, "PREFIX")
@@ -61,7 +61,7 @@ func TestLoadHandlesMissingPrefixSuffix(t *testing.T) {
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
 		SystemPrefix: filepath.Join(home, "ayo", "prompts", "prefix_missing.md"),
 		SystemSuffix: filepath.Join(home, "ayo", "prompts", "suffix_missing.md"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@carol")
@@ -145,7 +145,7 @@ func TestSaveRejectsReservedNamespace(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	reservedHandles := []string{
@@ -169,7 +169,7 @@ func TestSaveAllowsNonReservedNamespace(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	allowedHandles := []string{
@@ -195,7 +195,7 @@ func TestLoadWithInputSchema(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@schema-agent")
@@ -235,7 +235,7 @@ func TestLoadWithoutInputSchema(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@no-schema-agent")
@@ -256,7 +256,7 @@ func TestValidateInput(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@validate-agent")
@@ -333,7 +333,7 @@ func TestValidateInputNoSchema(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@no-schema")
@@ -366,7 +366,7 @@ func TestLoadOutputSchema(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@output-schema-agent")
@@ -410,7 +410,7 @@ func TestValidateOutput(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@validate-output")
@@ -482,7 +482,7 @@ func TestValidateOutputNoSchema(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@no-output-schema")
@@ -769,7 +769,7 @@ func TestLoadIncludesGuardrails(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	agentDir := filepath.Join(cfg.AgentsDir, "@testguard")
@@ -798,7 +798,7 @@ func TestLoadWithGuardrailsDisabled(t *testing.T) {
 	home := t.TempDir()
 	cfg := config.Config{
 		AgentsDir:    filepath.Join(home, "ayo", "agents"),
-		DefaultModel: "gpt-4.1",
+		DefaultModel: "gpt-5.2",
 	}
 
 	falseVal := false
