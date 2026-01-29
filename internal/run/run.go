@@ -33,7 +33,8 @@ type Runner struct {
 	smallModel       *smallmodel.Service      // nil = no small model for memory extraction
 	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
 	memoryQueue      *memory.Queue            // nil = sync memory operations
-	streamHandler    StreamHandler            // nil = use default UI handler
+	streamHandler    StreamHandler            // nil = use default UI handler (deprecated)
+	streamWriter     StreamWriter             // nil = use streamHandler or default PrintWriter
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -73,7 +74,8 @@ type RunnerOptions struct {
 	SmallModel       *smallmodel.Service
 	OnAsyncStatus    func(uipkg.AsyncStatusMsg) // Callback for async operation status updates
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
-	StreamHandler    StreamHandler              // Custom stream handler for TUI mode
+	StreamHandler    StreamHandler              // Custom stream handler for TUI mode (deprecated)
+	StreamWriter     StreamWriter               // Preferred: unified stream writer interface
 }
 
 // NewRunner creates a runner with all options.
@@ -89,13 +91,20 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		onAsyncStatus:    opts.OnAsyncStatus,
 		memoryQueue:      opts.MemoryQueue,
 		streamHandler:    opts.StreamHandler,
+		streamWriter:     opts.StreamWriter,
 	}, nil
 }
 
 // SetStreamHandler sets a custom stream handler for TUI mode.
-// This allows the TUI to receive streaming events instead of the default UI.
+// Deprecated: Use SetStreamWriter instead.
 func (r *Runner) SetStreamHandler(h StreamHandler) {
 	r.streamHandler = h
+}
+
+// SetStreamWriter sets a custom stream writer for streaming output.
+// This is the preferred way to handle streaming in TUI mode.
+func (r *Runner) SetStreamWriter(w StreamWriter) {
+	r.streamWriter = w
 }
 
 // MemoryService returns the memory service, or nil if not configured.
@@ -539,12 +548,17 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		fantasy.WithTools(tools.Tools()...),
 	)
 
-	// Use custom stream handler if provided, otherwise use default print handler
+	// Use custom stream writer/handler if provided, otherwise use default print writer
 	var handler StreamHandler
-	if r.streamHandler != nil {
+	if r.streamWriter != nil {
+		// Wrap StreamWriter with FantasyAdapter to get a StreamHandler
+		handler = NewFantasyAdapter(r.streamWriter)
+	} else if r.streamHandler != nil {
+		// Deprecated: use legacy handler
 		handler = r.streamHandler
 	} else {
-		handler = NewPrintStreamHandlerWithSpinner(r.debug, r.depth, ag.Handle)
+		// Default: create PrintWriter which implements StreamWriter
+		handler = NewFantasyAdapter(NewPrintWriter(ag.Handle, r.debug, r.depth))
 	}
 
 	var content strings.Builder

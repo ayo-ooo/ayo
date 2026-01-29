@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
+
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
 
 // genericRenderer handles unknown tool types with basic parameter display.
@@ -29,24 +31,11 @@ type bashRenderer struct {
 	baseRenderer
 }
 
-// BashParams represents bash tool parameters.
-type BashParams struct {
-	Command         string `json:"command"`
-	Description     string `json:"description"`
-	WorkingDir      string `json:"working_dir,omitempty"`
-	TimeoutSeconds  int    `json:"timeout_seconds,omitempty"`
-	RunInBackground bool   `json:"run_in_background,omitempty"`
-}
+// BashParams is an alias for shared.BashParams.
+type BashParams = shared.BashParams
 
-// BashResponseMetadata represents bash tool response metadata.
-type BashResponseMetadata struct {
-	Command     string `json:"command,omitempty"`
-	Description string `json:"description,omitempty"`
-	Output      string `json:"output,omitempty"`
-	ExitCode    int    `json:"exit_code,omitempty"`
-	Background  bool   `json:"background,omitempty"`
-	ShellID     string `json:"shell_id,omitempty"`
-}
+// BashResponseMetadata is an alias for shared.BashResponseMetadata.
+type BashResponseMetadata = shared.BashResponseMetadata
 
 // Render displays bash command with output.
 func (br bashRenderer) Render(t *toolCallCmp) string {
@@ -88,27 +77,14 @@ type todosRenderer struct {
 	baseRenderer
 }
 
-// Todo represents a single todo item.
-type Todo struct {
-	Content    string `json:"content"`
-	Status     string `json:"status"`
-	ActiveForm string `json:"active_form,omitempty"`
-}
+// Todo is an alias for shared.Todo.
+type Todo = shared.Todo
 
-// TodosParams represents todo tool parameters.
-type TodosParams struct {
-	Todos []Todo `json:"todos"`
-}
+// TodosParams is an alias for shared.TodosParams.
+type TodosParams = shared.TodosParams
 
-// TodosResponseMetadata represents todo tool response metadata.
-type TodosResponseMetadata struct {
-	IsNew         bool     `json:"is_new"`
-	Todos         []Todo   `json:"todos"`
-	JustCompleted []string `json:"just_completed,omitempty"`
-	JustStarted   string   `json:"just_started,omitempty"`
-	Completed     int      `json:"completed"`
-	Total         int      `json:"total"`
-}
+// TodosResponseMetadata is an alias for shared.TodosResponseMetadata.
+type TodosResponseMetadata = shared.TodosResponseMetadata
 
 // Render displays todo list.
 func (tr todosRenderer) Render(t *toolCallCmp) string {
@@ -165,42 +141,9 @@ func (tr todosRenderer) Render(t *toolCallCmp) string {
 	})
 }
 
-// formatTodosList formats a list of todos for display.
+// formatTodosList formats a list of todos for display using shared styling.
 func formatTodosList(todos []Todo, width int) string {
-	var lines []string
-
-	for _, todo := range todos {
-		var icon string
-		var style string
-
-		switch todo.Status {
-		case "completed":
-			icon = "✓"
-			style = "#22c55e" // green
-		case "in_progress":
-			icon = "▸"
-			style = "#3b82f6" // blue
-		default:
-			icon = "○"
-			style = "#6b7280" // gray
-		}
-
-		content := todo.Content
-		if todo.Status == "in_progress" && todo.ActiveForm != "" {
-			content = todo.ActiveForm
-		}
-
-		if len(content) > width-4 {
-			content = content[:width-7] + "..."
-		}
-
-		line := fmt.Sprintf("%s %s", icon, content)
-		// Simple colorization - in real implementation would use lipgloss
-		_ = style // TODO: apply style
-		lines = append(lines, line)
-	}
-
-	return strings.Join(lines, "\n")
+	return shared.FormatTodos(todos, width)
 }
 
 // agentRenderer handles sub-agent call display.
@@ -230,7 +173,7 @@ func (ar agentRenderer) Render(t *toolCallCmp) string {
 		prompt = prompt[:57] + "..."
 	}
 
-	taskStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	taskStyle := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
 	taskLine := fmt.Sprintf("  Task: %s", taskStyle.Render(prompt))
 
 	// Combine header and task line

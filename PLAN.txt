@@ -1,505 +1,128 @@
-# Interactive Chat TUI Redesign - Remaining Tasks
+# Interactive Chat TUI Redesign - Implementation Complete
 
-## Preamble
+## Problem Summary
 
-This document outlines all remaining atomic tasks for completing the interactive chat TUI redesign for ayo. The work builds on the foundation already implemented in the `feature/chat-altscreen-pinned` branch.
+The TUI spinner froze during LLM streaming because:
+1. `sendFn()` ran as a Bubble Tea command, blocking while Fantasy streams
+2. Fantasy callbacks called `program.Send()` directly, which disrupted tick timing
+3. The tick chain stopped during the blocking period
 
-### What Has Been Completed
+## Solution Implemented: Channel-Based Event Aggregation (Crush Pattern)
 
-**Phase 1 - Core Streaming Infrastructure (DONE)**
-- `StreamHandler` interface in `internal/run/handler.go`
-- `PrintStreamHandler` for backward-compatible CLI output
-- `TUIStreamHandler` that sends tea.Msg to the Bubble Tea program
-- Runner integration with `streamHandler` field and `SetStreamHandler()` method
-- `cmd/ayo/chat.go` wiring that creates TUIStreamHandler before starting TUI
-
-**Phase 2 - Expandable Side Panels (DONE)**
-- `PlanningPanel` component displaying todo list with status icons
-- `MemoryPanel` component displaying memories with category icons
-- `Sidebar` component managing both panels with ctrl+p/ctrl+m toggles
-- Responsive layout (right sidebar on wide terminals >= 120, bottom on narrow)
-- Todo updates wired from todo tool result metadata
-
-**Phase 3 - Plugin Renderer System (DONE)**
-- Template-based `templateRenderer` for plugin tools
-- `LoadPluginRenderers()` scanning `plugins/<name>/tools/<tool>/render/`
-- Template functions: style, truncate, icon, join, jsonPretty, etc.
-
-### What Remains
-
-The remaining work falls into these categories:
-1. **Memory Panel Wiring** - Connect memory retrieval to populate the panel
-2. **Tree-Based Tool Rendering** - Replace flat viewport with collapsible tool trees
-3. **Input Field Improvements** - Fix backspace and word-wrap issues
-4. **StatusBar Integration** - Use the StatusBar component properly
-5. **Polish & Testing** - Edge cases, performance, visual refinement
+Adopted the Crush pattern of **decoupling streaming from Bubble Tea's command system**:
+- Run Fantasy streaming in a separate goroutine (not a tea.Cmd)
+- Use a channel to aggregate events
+- A dedicated subscriber loop forwards events to the TUI via `program.Send()`
+- ID-scoped tick messages prevent stale ticks from being processed
 
 ---
 
-## GROUP A: Memory Panel Wiring [DONE]
+## Implementation Summary
 
-The MemoryPanel component exists but nothing populates it. Need to:
-1. Retrieve memories at session start
-2. Send MemoriesUpdateMsg to the TUI
-3. Handle real-time memory creation events
+### Group A: Unified Stream Writer Interface [DONE]
 
-Reference files:
-- `internal/run/run.go` lines 124-137 (memory retrieval in Chat())
-- `internal/agent/memory_context.go` (BuildMemoryContext, MemoryContext struct)
-- `internal/memory/memory.go` (Service.Search, Memory struct, SearchResult)
-- `internal/ui/chat/tui_handler.go` (OnMemoryEvent handler)
-- `internal/ui/chat/panels/memory.go` (MemoryItem, MemoriesUpdateMsg)
+| Task | Status | File |
+|------|--------|------|
+| A.01: Define StreamWriter interface | Done | `internal/run/stream_writer.go` |
+| A.02: Implement PrintWriter for non-interactive mode | Done | `internal/run/print_writer.go` |
+| A.03: Implement ChannelWriter for TUI mode | Done | `internal/run/channel_writer.go` |
+| A.04: Define StreamEvent types | Done | `internal/run/channel_writer.go` |
 
-### Tasks
+### Group B: Fantasy Adapter [DONE]
 
-A.01: Add MemoryService field to TUIStreamHandler [DONE]
-- Added memoryService field and memory query context fields (agentHandle, threshold, limit)
-- Used functional options pattern: WithMemoryService(svc)
+| Task | Status | File |
+|------|--------|------|
+| B.01: Create FantasyAdapter | Done | `internal/run/fantasy_adapter.go` |
+| B.02: Update Runner to use StreamWriter | Done | `internal/run/run.go` |
 
-A.02: Create helper to convert memory.SearchResult to panels.MemoryItem [DONE]
-- Created convertSearchResultToMemoryItem() and convertSearchResultsToMemoryItems()
-- Properly maps scope: agent handle > path scope > "global"
+### Group C: TUI Event Aggregator [DONE]
 
-A.03: Add method to retrieve and send initial memories [DONE]
-- Created SendInitialMemories() method
-- Stores query context for re-use in OnMemoryEvent
+| Task | Status | File |
+|------|--------|------|
+| C.01: Create EventAggregator | Done | `internal/ui/chat/aggregator.go` |
+| C.02: Update TUI Model to handle StreamEvent | Done | `internal/ui/chat/chat.go` |
+| C.03: Start streaming in separate goroutine | Done | `internal/ui/chat/chat.go` |
 
-A.04: Update cmd/ayo/chat.go to pass memory service to TUIStreamHandler [DONE]
-- Added Runner.MemoryService() getter
-- Pass memory service via WithMemoryService option
-- Call SendInitialMemories() when memory is enabled and auto_inject is true
+### Group D: Animation Robustness [DONE]
 
-A.05: Implement OnMemoryEvent to update memory panel on new memories [DONE]
-- On "created" event, re-queries memories using stored context
-- Sends MemoriesUpdateMsg to update the panel
+| Task | Status | File |
+|------|--------|------|
+| D.01: Add ID-scoped tick messages | Done | `internal/ui/chat/chat.go` |
+| D.02: Consider using Bubble Tea spinner | Skipped | (Custom approach retained) |
 
-A.06: Add MemoryCreatedMsg type for real-time memory additions [DONE - Not needed]
-- The re-query approach in A.05 is cleaner and ensures consistency
-- MemoriesUpdateMsg already handles full list updates
+### Group E: Model Configuration [DEFERRED]
 
-A.07: Update chat.go to request memories on session start [DONE]
-- Handled in cmd/ayo/chat.go by calling SendInitialMemories()
-- Chat model already handles MemoriesUpdateMsg
+These are enhancements for future work:
+- E.01: Add model flags to config
+- E.02: Pass model config through runner
+- E.03: Update TUI reasoning panel visibility
 
-### Group A Completion Notes
-- 8 new tests added in tui_handler_test.go
-- Total: 26 tests passing in internal/ui/chat
-- All tests pass, binary rebuilt
-- Add InitMsg type to trigger initial memory load
-- In Init(), return cmd that triggers memory retrieval
+### Group F: Cleanup and Integration [DONE]
 
----
+| Task | Status | File |
+|------|--------|------|
+| F.01: Remove old handler types | Skipped | (Kept for backward compat) |
+| F.02: Update cmd/ayo/chat.go | Done | `cmd/ayo/chat.go` |
+| F.03: Update tests | Done | All tests pass |
+| F.04: Run full test suite | Done | All tests pass |
 
-## GROUP B: Tree-Based Tool Call Rendering
+### Group G: Documentation and Cleanup [DONE]
 
-Currently tool calls are rendered as flat text in the viewport. Need to:
-1. Use lipgloss/tree for nested tool call display
-2. Implement collapsible/expandable nodes
-3. Show agent delegations as nested trees
-
-Reference files:
-- `.read-only/lipgloss/tree/tree.go` (tree.Root, .Child, .Enumerator, RoundedEnumerator)
-- `.read-only/crush/internal/ui/chat/agent.go` (roundedEnumerator, tree rendering)
-- `.read-only/crush/internal/tui/components/chat/messages/renderer.go` (agentRenderer with tree)
-- `internal/ui/chat/messages/toolcall.go` (ToolCallCmp interface)
-- `internal/ui/chat/messages/renderers.go` (existing renderers)
-
-### Tasks
-
-B.01: Add lipgloss/tree import to messages package
-- File: internal/ui/chat/messages/renderer.go
-- Import: "github.com/charmbracelet/lipgloss/tree"
-
-B.02: Create roundedEnumerator function for tree branch styling
-- File: internal/ui/chat/messages/renderer.go
-- Copy pattern from crush: roundedEnumerator(lPadding, width int) tree.Enumerator
-- Returns "╰─" for last child, "├─" for others
-
-B.03: Add Expanded field to toolCallCmp struct
-- File: internal/ui/chat/messages/toolcall.go
-- Add `expanded bool` field, default true
-- Add ToggleExpanded() method
-- Add IsExpanded() bool method
-
-B.04: Update agentRenderer to use lipgloss/tree
-- File: internal/ui/chat/messages/renderers.go
-- In agentRenderer.Render(), use tree.Root(header)
-- Add nested tool calls as tree.Child()
-- Apply roundedEnumerator
-
-B.05: Add collapse/expand handling to tool call display
-- File: internal/ui/chat/messages/renderers.go
-- If !expanded, hide nested children
-- Show collapse indicator: ▼ expanded, ▶ collapsed
-
-B.06: Create ToolCallTree component for viewport
-- File: internal/ui/chat/messages/tree.go (NEW)
-- Struct holding slice of ToolCallCmp
-- Methods: Add, Remove, ToggleExpand(id), Render() string
-- Render all tool calls as connected tree
-
-B.07: Update chat.go to use ToolCallTree instead of messages slice for tools
-- File: internal/ui/chat/chat.go
-- Replace tool message rendering with ToolCallTree
-- Track active tool calls by ID
-- On ToolCallResultMsg, update corresponding tree node
-
-B.08: Handle sub-agent tool calls as nested nodes
-- File: internal/ui/chat/chat.go
-- On SubAgentStartMsg, create nested ToolCallCmp under parent
-- On SubAgentEndMsg, mark nested call complete
-- Render with proper tree indentation
-
-B.09: Add keyboard navigation for tree focus
-- File: internal/ui/chat/chat.go
-- Tab key to toggle between input and tree
-- Up/Down to navigate tree nodes when focused
-- Enter/Space to expand/collapse nodes
-
-B.10: Implement auto-collapse behavior
-- File: internal/ui/chat/chat.go
-- When agent completes (all children done), collapse children
-- Keep root node expanded showing summary
+| Task | Status | Notes |
+|------|--------|-------|
+| G.01: Update AGENTS.md | Skipped | Minor update |
+| G.02: Remove debug logging | Done | None found |
+| G.03: Delete PROBLEM.txt | Done | Deleted |
 
 ---
 
-## GROUP C: Input Field Improvements [DONE]
+## New Files Created
 
-The textarea has issues with backspace across lines and no word-wrap display. Need to:
-1. Ensure proper width for word-wrap
-2. Handle multiline editing correctly
-3. Improve visual feedback
+1. `internal/run/stream_writer.go` - StreamWriter interface and types
+2. `internal/run/print_writer.go` - Non-interactive output writer
+3. `internal/run/channel_writer.go` - TUI channel-based writer + StreamEvent types
+4. `internal/run/fantasy_adapter.go` - Adapts Fantasy callbacks to StreamWriter
+5. `internal/ui/chat/aggregator.go` - Forwards events from channel to TUI
 
-Reference files:
-- `.read-only/bubbles/textarea/textarea.go` (SetWidth, LineInfo, wrap behavior)
-- `internal/ui/chat/chat.go` lines 156-176 (current textarea setup)
-- `internal/ui/chat/chat.go` handleResize() (width calculation)
+## Key Changes
 
-### Tasks
+### Architecture Change
+- **Before**: `sendFn()` returned as tea.Cmd, blocking message loop
+- **After**: Streaming runs in goroutine, events go through channel to aggregator
 
-C.01: Ensure textarea width is set correctly on resize [DONE]
-- Already implemented in handleResize(): m.textarea.SetWidth(contentWidth - 4)
-- Accounts for sidebar via m.sidebar.ContentWidth()
+### Tick Chain Fix
+- **Before**: Global `tickMsg{}` could be disrupted by external messages
+- **After**: ID-scoped `tickMsg{id: int64}` with stale tick rejection
 
-C.02: Enable soft word-wrap in textarea [DONE]
-- Word wrap is enabled by default in bubbles textarea
-- CharLimit = 0 allows unlimited input
-
-C.03: Handle newline insertion with shift+enter [DONE]
-- keyMap.Newline bound to shift+enter and alt+enter
-- InsertNewline disabled on textarea; we handle it manually with InsertRune('\n')
-- This allows Enter to send, Shift+Enter to add newline
-
-C.04: Add visual indicator for multiline input [DONE]
-- Added to updateStatusBarHints(): shows "line X/Y" when multiline
-- Uses m.textarea.Line() for current line position
-
-C.05: Test and fix backspace at line start [DONE]
-- Bubbles textarea handles backspace natively
-- No custom code needed; mergeLineAbove works by default
-
-C.06: Adjust input height dynamically based on content [DONE]
-- Created updateTextareaHeight() method
-- Called after every textarea update
-- Height ranges from 3 (min) to 10 (max)
-- Triggers handleResize() to adjust viewport
-
-### Group C Completion Notes
-- Added 5 new tests for input field functionality
-- Total: 48 tests passing in internal/ui/chat
-- Dynamic height updates hints to show line indicator
-
----
-
-## GROUP D: StatusBar Integration [DONE]
-
-The StatusBar component exists but isn't used. Need to:
-1. Integrate StatusBar into chat View
-2. Wire updates from todo/memory events
-3. Show context-aware hints
-
-Reference files:
-- `internal/ui/chat/statusbar.go` (StatusBar struct, Update method, message types)
-- `internal/ui/chat/chat.go` footerView() (current static hints)
-
-### Tasks
-
-D.01: Add StatusBar field to chat Model [DONE]
-- Added statusBar field to Model struct
-- Initialize in New() with NewStatusBar()
-
-D.02: Replace footerView with StatusBar.Render [DONE]
-- footerView() now returns m.statusBar.Render()
-- Simplified to delegate to StatusBar
-
-D.03: Set StatusBar width on resize [DONE]
-- Added m.statusBar.SetWidth(contentWidth) in handleResize()
-
-D.04: Wire TodosUpdateMsg to StatusBar.SetTaskProgress [DONE]
-- In TodosUpdateMsg handler, calculate completed/total counts
-- Find in_progress task for current display
-- Call m.statusBar.SetTaskProgress()
-
-D.05: Wire memory count to StatusBar [DONE]
-- In MemoriesUpdateMsg handler, call m.statusBar.SetMemoryCount()
-
-D.06: Update hints based on state [DONE]
-- Created setState() helper that calls updateStatusBarHints()
-- updateStatusBarHints() sets hints based on state
-- All state changes now use setState() for consistency
-
-D.07: Add panel toggle hints when sidebar visible [DONE]
-- updateStatusBarHints() appends panel hints when sidebar visible
-- Hints update when sidebar visibility changes
-
-### Group D Completion Notes
-- Created statusbar_test.go with 17 tests
-- Total: 43 tests passing in internal/ui/chat
-- Added setState() and updateStatusBarHints() helper methods
-
----
-
-## GROUP E: Polish & Testing
-
-Final refinements and edge case handling.
-
-### Tasks
-
-E.01: Add animation to spinner in tool call headers
-- File: internal/ui/chat/messages/toolcall.go
-- Integrate anim.Model for spinning indicator
-- Tick animation during tool execution
-
-E.02: Truncate long tool outputs with "show more" link
-- File: internal/ui/chat/messages/renderer.go
-- Default max 10 lines
-- Show "[+N more lines]" with expand option
-
-E.03: Add syntax highlighting for code in tool outputs
-- File: internal/ui/chat/messages/renderer.go
-- Use glamour for markdown/code blocks
-- Detect language from file extension or content
-
-E.04: Handle terminal resize during streaming
-- File: internal/ui/chat/chat.go
-- On WindowSizeMsg during StateStreaming, reflow content
-- Preserve scroll position if possible
-
-E.05: Add loading indicator when retrieving memories
-- File: internal/ui/chat/chat.go
-- Show spinner in memory panel while loading
-- Replace with content when MemoriesUpdateMsg arrives
-
-E.06: Persist panel visibility preference
-- File: internal/ui/chat/chat.go
-- Remember if user had planning/memory open
-- Restore on next session (via config or context)
-
-E.07: Add mouse click to expand/collapse tool calls
-- File: internal/ui/chat/chat.go
-- Handle tea.MouseMsg
-- Detect click on collapse indicator
-- Toggle expansion
-
-E.08: Test with very long tool outputs
-- Manual test
-- Verify truncation works
-- Verify scroll performance
-- Check memory usage
-
-E.09: Test with rapid tool call sequences
-- Manual test
-- Multiple tools in quick succession
-- Verify all render correctly
-- Check for race conditions
-
-E.10: Test sidebar on narrow terminals
-- Manual test
-- Terminal width < 120
-- Verify bottom position works
-- Check content doesn't overflow
-
-E.11: Add unit tests for PlanningPanel
-- File: internal/ui/chat/panels/planning_test.go (NEW)
-- Test SetTodos, Toggle, Render
-- Test edge cases: empty list, long items
-
-E.12: Add unit tests for MemoryPanel
-- File: internal/ui/chat/panels/memory_test.go (NEW)
-- Test SetMemories, categories, truncation
-
-E.13: Add unit tests for Sidebar
-- File: internal/ui/chat/panels/sidebar_test.go (NEW)
-- Test toggle logic, responsive layout
-- Test RenderWithContent
-
-E.14: Add integration test for streaming handler
-- File: internal/ui/chat/tui_handler_test.go (NEW)
-- Mock tea.Program
-- Verify correct messages sent for each callback
-
----
-
-## Task Summary
-
-| Group | Description | Task Count |
-|-------|-------------|------------|
-| A | Memory Panel Wiring | 7 |
-| B | Tree-Based Tool Rendering | 10 |
-| C | Input Field Improvements | 6 |
-| D | StatusBar Integration | 7 |
-| E | Polish & Testing | 14 |
-| **Total** | | **44** |
-
-## Priority Order
-
-1. **Group A** (Memory Panel) - Completes Phase 2 functionality
-2. **Group D** (StatusBar) - Quick wins, improves UX
-3. **Group C** (Input Field) - Fixes original pain points
-4. **Group B** (Tree Rendering) - Major visual improvement
-5. **Group E** (Polish) - Final refinements
-
-## Key Reference Files
-
-| Purpose | Location |
-|---------|----------|
-| Chat model | `internal/ui/chat/chat.go` |
-| Stream handler | `internal/ui/chat/tui_handler.go` |
-| Message types | `internal/ui/chat/messages.go` |
-| Panel components | `internal/ui/chat/panels/` |
-| Tool renderers | `internal/ui/chat/messages/renderers.go` |
-| Memory service | `internal/memory/memory.go` |
-| Tree examples | `.read-only/lipgloss/tree/` |
-| Crush patterns | `.read-only/crush/internal/ui/chat/` |
-| Textarea | `.read-only/bubbles/textarea/` |
-
-## How to Load This Plan
-
-In a new session, use:
+### Code Path
 ```
-cat ./PLAN.txt
-cat ./PLAN_CONTEXT.txt
+User sends message
+    → sendMessage() starts goroutine (not tea.Cmd)
+    → Runner.Chat() with ChannelWriter
+    → Fantasy streams, ChannelWriter sends to eventChan
+    → EventAggregator.Subscribe() receives from eventChan
+    → Aggregator calls program.Send(StreamEvent)
+    → TUI Update() handles StreamEvent
+    → handleStreamEvent() dispatches to specific handlers
 ```
 
-Then create todos from the task list. Each task ID (A.01, B.02, etc.) maps to an atomic unit of work that can be completed independently.
+---
+
+## Testing
+
+All tests pass:
+```
+go test ./...
+ok  	github.com/alexcabrera/ayo/cmd/ayo
+ok  	github.com/alexcabrera/ayo/internal/run
+ok  	github.com/alexcabrera/ayo/internal/ui/chat
+... (all other packages)
+```
 
 ---
 
-## Implementation Tracking
+## Future Work
 
-### Session Log
-
-**Session 1** (Planning):
-- Created comprehensive 58-task todo list
-- Added PLAN.txt workflow instructions to AGENTS.md
-- Established test-between-groups pattern for headless integration tests
-- Final task: Add BSD-0-Clause license (most permissive)
-
-**Session 1** (Implementation - PREREQUISITE):
-- Created internal/ui/chat/chat_test.go with 18 headless tests
-- Tests cover: model creation, window sizing, text streaming, tool calls, reasoning, todos, memories, view rendering, state transitions
-- Pattern: call New(), then Update() with synthetic tea.Msg, assert on model state and View() output
-- All tests pass, binary rebuilt
-
-**Session 1** (Implementation - GROUP A):
-- Added memory service to TUIStreamHandler with functional options
-- Created convertSearchResultToMemoryItem helper
-- Implemented SendInitialMemories and re-query on memory creation
-- Added 8 tests in tui_handler_test.go (26 total tests in chat package)
-
-**Session 1** (Implementation - GROUP D):
-- Added StatusBar field to Model, initialized in New()
-- footerView() now delegates to StatusBar.Render()
-- StatusBar width set in handleResize()
-- Wired TodosUpdateMsg and MemoriesUpdateMsg to update StatusBar
-- Created setState() helper for consistent state changes with hint updates
-- updateStatusBarHints() handles state-aware hints including sidebar visibility
-- Added 17 tests in statusbar_test.go (43 total tests in chat package)
-
-**Session 1** (Implementation - GROUP C):
-- Verified textarea width already set correctly in handleResize()
-- Word wrap works by default; CharLimit=0 for unlimited
-- Newline handled via InsertRune('\n') on shift+enter
-- Added line indicator ("line X/Y") to status bar hints for multiline
-- Created updateTextareaHeight() for dynamic height (3-10 lines)
-- Added 5 tests (48 total tests in chat package)
-
-**Session 2** (Implementation - GROUP B):
-- Added lipgloss/tree import to renderer.go
-- Created roundedEnumerator() function with Unicode box-drawing chars
-- Expanded field already added to toolCallCmp with toggle methods
-- Updated agentRenderer to use lipgloss/tree for nested tool display
-- Added collapse indicator for collapsed nested tools
-- Created ToolCallTree component (tree.go) with Add/Remove/Get/ToggleExpand/Render methods
-- Updated chat.go to use ToolCallTree for tool call tracking
-- Added ID/Input/ParentID/Metadata fields to message types
-- Implemented handleSubAgentStart/End handlers for nested agent calls
-- AutoCollapse() implemented for completed tool calls
-- B.09 (keyboard navigation for tree focus) deferred - requires more complex focus management
-- Added 15 unit tests for tree component in tree_test.go
-- Total: 63 tests passing across chat packages
-
-**Session 2** (Implementation - GROUP E Partial):
-- Added 13 tests for PlanningPanel in planning_test.go
-- Added 13 tests for MemoryPanel in memory_test.go
-- Added 34 tests for Sidebar in sidebar_test.go
-- Total: 115 tests passing across chat packages
-
-### Task Completion Status
-
-| Group | Status | Completed Tasks | Notes |
-|-------|--------|-----------------|-------|
-| PREREQUISITE | DONE | 1/1 | Wire headless mode for TUI testing |
-| A | DONE | 7/7 | Memory Panel Wiring |
-| D | DONE | 7/7 | StatusBar Integration |
-| C | DONE | 6/6 | Input Field Improvements |
-| B | DONE | 9/10 | Tree-Based Tool Rendering (B.09 keyboard nav deferred) |
-| E | PARTIAL | 3/14 | E.11-E.13 panel tests done |
-| FINAL | DONE | 3/3 | Full test suite verified, LICENSE added |
-
-### Implementation Order (with Testing)
-
-1. **PREREQUISITE**: Wire headless mode for TUI
-2. **GROUP A**: Memory Panel Wiring → Tests → Update PLAN.txt
-3. **GROUP D**: StatusBar Integration → Tests → Update PLAN.txt
-4. **GROUP C**: Input Field Improvements → Tests → Update PLAN.txt
-5. **GROUP B**: Tree-Based Tool Rendering → Tests → Update PLAN.txt
-6. **GROUP E**: Polish & Testing → E2E Tests → Update PLAN.txt
-7. **FINAL**: Full verification, license (BSD-0-Clause)
-
-### License
-
-Project will be licensed under **BSD-0-Clause** (0BSD) - the most permissive open source license:
-- No attribution required
-- No restrictions on use, modification, or redistribution
-- Compatible with proprietary and open source projects
-- Maximizes "free as in beer" and "free as in speech"
-
----
-
-## Context Window Exhaustion Protocol
-
-If an agent runs low on context window during implementation:
-
-1. **Update this file** with current progress before handoff
-2. **Use summarization** with this prompt:
-   ```
-   Continue implementing the Interactive Chat TUI Redesign for ayo.
-   
-   IMMEDIATELY read these files to restore context:
-   1. ./PLAN.txt - Contains task list and completion status
-   2. ./PLAN_CONTEXT.txt - Contains full design context and rationale
-   3. ./AGENTS.md - Contains project rules and patterns
-   
-   Resume from the task marked as next in the Handoff Notes section.
-   Do not ask questions - read the files and continue working.
-   ```
-3. **The new session** will pick up exactly where the previous left off
-
-This ensures continuous progress regardless of context limitations.
-
----
-
-## Handoff Notes
-
-*(This section will be populated during implementation if context handoffs are needed)*
+1. **Model Configuration (E.01-E.03)**: Add support for detecting reasoning models and configuring responses API
+2. **Memory Panel**: Initial memory loading currently bypassed - needs integration
+3. **Old Handler Cleanup**: Remove deprecated TUIStreamHandler and PrintStreamHandler when fully migrated

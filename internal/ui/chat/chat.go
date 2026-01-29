@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -18,9 +19,13 @@ import (
 	"github.com/charmbracelet/x/editor"
 
 	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 	"github.com/alexcabrera/ayo/internal/ui/chat/panels"
 )
+
+// Global tick ID counter for ID-scoped tick messages
+var globalTickID int64
 
 // Result indicates the outcome of the chat session.
 type Result int
@@ -81,11 +86,19 @@ type Model struct {
 	thinkingStartTime time.Time
 
 	// Spinner animation
-	spinnerFrame int
-	spinnerTick  bool
+	spinnerFrame   int
+	spinnerTick    bool
+	currentTickID  int64 // ID-scoped tick for preventing stale tick processing
 
 	// Scrollback dump content (for exit)
 	scrollbackContent string
+
+	// Event channel for streaming (set by RunWithChannel)
+	eventChan chan run.StreamEvent
+
+	// Cached glamour renderer (expensive to create)
+	markdownRenderer *glamour.TermRenderer
+	rendererWidth    int
 }
 
 // message represents a single message in the conversation.
@@ -183,16 +196,27 @@ func New(ag agent.Agent, sessionID string, sendFn SendMessageFunc) Model {
 
 // Init initializes the model.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.tickSpinner())
+	// Generate initial tick ID
+	id := atomic.AddInt64(&globalTickID, 1)
+	return tea.Batch(textarea.Blink, tea.Tick(time.Millisecond*80, func(t time.Time) tea.Msg {
+		return tickMsg{id: id}
+	}))
 }
 
-// tickMsg triggers spinner animation.
-type tickMsg struct{}
+// tickMsg triggers spinner animation with ID-scoping.
+// The ID prevents stale tick messages from being processed.
+type tickMsg struct {
+	id int64
+}
 
-// tickSpinner returns a command that ticks the spinner.
-func (m Model) tickSpinner() tea.Cmd {
+// tickSpinner returns a command that ticks the spinner with a unique ID.
+// Only ticks with matching IDs will be processed.
+func (m *Model) tickSpinner() tea.Cmd {
+	// Generate new tick ID
+	id := atomic.AddInt64(&globalTickID, 1)
+	m.currentTickID = id
 	return tea.Tick(time.Millisecond*80, func(t time.Time) tea.Msg {
-		return tickMsg{}
+		return tickMsg{id: id}
 	})
 }
 
@@ -243,11 +267,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case tickMsg:
-		if m.state == StateWaiting || m.state == StateStreaming {
-			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
-			m.updateViewportContent()
+		// Debug logging
+		f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if f != nil {
+			fmt.Fprintf(f, "%d: [TICK] received id=%d, currentTickID=%d, state=%d\n", time.Now().UnixMilli(), msg.id, m.currentTickID, m.state)
+			f.Close()
 		}
-		return m, m.tickSpinner()
+		// If this is the first tick or ID matches, process it
+		// The first tick from Init will have a new ID that we accept
+		if m.currentTickID == 0 || msg.id == m.currentTickID {
+			m.currentTickID = msg.id // Accept this tick chain
+			if m.state == StateWaiting || m.state == StateStreaming {
+				m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+				m.updateViewportContent()
+			}
+			return m, m.tickSpinner()
+		}
+		// Reject stale tick messages (from previous tick chains)
+		return m, nil
 
 	case AgentResponseMsg:
 		return m.handleAgentResponse(msg)
@@ -291,6 +328,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reasoningBuffer.Reset()
 		m.updateViewportContent()
 		return m, nil
+
+	case run.StreamEvent:
+		// Debug logging
+		f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if f != nil {
+			fmt.Fprintf(f, "%d: [UPDATE] received StreamEvent type=%d\n", time.Now().UnixMilli(), msg.Type)
+			f.Close()
+		}
+		return m.handleStreamEvent(msg)
 
 	case OpenEditorMsg:
 		m.textarea.SetValue(msg.Text)
@@ -420,6 +466,89 @@ func (m Model) handleTextEnd() (tea.Model, tea.Cmd) {
 	}
 	m.setState(StateInput)
 	m.updateViewportContent()
+	return m, nil
+}
+
+// handleStreamEvent handles unified stream events from the ChannelWriter.
+// This dispatches to the appropriate handler based on event type.
+func (m Model) handleStreamEvent(event run.StreamEvent) (tea.Model, tea.Cmd) {
+	switch event.Type {
+	case run.EventTextDelta:
+		return m.handleTextDelta(TextDeltaMsg{Delta: event.Delta})
+
+	case run.EventTextDone:
+		return m.handleTextEnd()
+
+	case run.EventReasoningDelta:
+		if m.thinkingStartTime.IsZero() {
+			m.thinkingStartTime = time.Now()
+		}
+		m.reasoningBuffer.WriteString(event.Delta)
+		m.updateViewportContent()
+		return m, nil
+
+	case run.EventReasoningDone:
+		m.reasoningBuffer.Reset()
+		m.updateViewportContent()
+		return m, nil
+
+	case run.EventToolStart:
+		if event.Call != nil {
+			msg := ToolCallStartMsg{
+				ID:          event.Call.ID,
+				Name:        event.Call.Name,
+				Description: event.Call.Description,
+				Command:     event.Call.Command,
+				Input:       event.Call.Input,
+				ParentID:    event.Call.ParentID,
+			}
+			return m.handleToolCallStart(msg)
+		}
+
+	case run.EventToolResult:
+		if event.Result != nil {
+			msg := ToolCallResultMsg{
+				ID:       event.Result.ID,
+				Name:     event.Result.Name,
+				Output:   event.Result.Output,
+				Error:    event.Result.Error,
+				Duration: event.Result.Duration.String(),
+				Metadata: event.Result.Metadata,
+			}
+			return m.handleToolCallResult(msg)
+		}
+
+	case run.EventAgentStart:
+		return m.handleSubAgentStart(SubAgentStartMsg{
+			Handle: event.Handle,
+			Prompt: event.Prompt,
+		})
+
+	case run.EventAgentEnd:
+		return m.handleSubAgentEnd(SubAgentEndMsg{
+			Handle:   event.Handle,
+			Duration: event.Duration.String(),
+			Error:    event.Err != nil,
+		})
+
+	case run.EventMemory:
+		// Memory events are handled by the memory panel
+		return m, nil
+
+	case run.EventError:
+		if event.Err != nil {
+			m.err = event.Err
+		}
+		m.setState(StateInput)
+		return m, nil
+
+	case run.EventDone:
+		// Final response received - streaming is complete
+		m.setState(StateInput)
+		m.updateViewportContent()
+		return m, nil
+	}
+
 	return m, nil
 }
 
@@ -601,6 +730,13 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Debug logging
+	f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if f != nil {
+		fmt.Fprintf(f, "%d: [SEND] sendMessage called, eventChan=%v\n", time.Now().UnixMilli(), m.eventChan != nil)
+		f.Close()
+	}
+
 	// Add user message
 	m.messages = append(m.messages, message{Role: "user", Content: text})
 	m.textarea.Reset()
@@ -612,7 +748,36 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 	m.cancelFn = cancel
 	m.setState(StateWaiting)
 
-	// Send message asynchronously
+	// If event channel is set, use the new streaming approach
+	// The EventAggregator will forward events to the TUI
+	if m.eventChan != nil {
+		// Start streaming in a separate goroutine (NOT as a tea.Cmd)
+		// This prevents blocking the Bubble Tea message loop
+		eventChan := m.eventChan // Capture locally for goroutine
+		sendFn := m.sendFn
+		go func() {
+			f, _ := os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if f != nil {
+				fmt.Fprintf(f, "%d: [SEND] goroutine started, calling sendFn\n", time.Now().UnixMilli())
+				f.Close()
+			}
+			response, err := sendFn(ctx, text)
+			f, _ = os.OpenFile("/tmp/ayo_stream.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if f != nil {
+				fmt.Fprintf(f, "%d: [SEND] sendFn returned, response=%d bytes, err=%v\n", time.Now().UnixMilli(), len(response), err)
+				f.Close()
+			}
+			// Send done event when streaming completes
+			eventChan <- run.StreamEvent{
+				Type:     run.EventDone,
+				Response: response,
+				Err:      err,
+			}
+		}()
+		return m, nil // No command - events come via channel
+	}
+
+	// Legacy approach: send as tea.Cmd (may cause tick chain issues)
 	return m, func() tea.Msg {
 		response, err := m.sendFn(ctx, text)
 		return AgentResponseMsg{Response: response, Err: err}
@@ -747,30 +912,38 @@ func (m Model) renderUserMessage(content string) string {
 }
 
 // renderAssistantMessage styles an assistant message.
-func (m Model) renderAssistantMessage(content string) string {
+func (m *Model) renderAssistantMessage(content string) string {
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#a78bfa")).
 		Bold(true)
 
 	// Use glamour for markdown rendering
-	rendered := renderMarkdown(content, m.width-4)
+	rendered := m.renderMarkdown(content)
 
 	return labelStyle.Render(m.agentHandle) + "\n" + rendered
 }
 
-// renderMarkdown renders markdown content using glamour.
-func renderMarkdown(content string, width int) string {
+// renderMarkdown renders markdown content using glamour with a cached renderer.
+func (m *Model) renderMarkdown(content string) string {
+	width := m.width - 4
 	if width < 40 {
 		width = 40
 	}
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		return content
+
+	// Create or update renderer if width changed
+	if m.markdownRenderer == nil || m.rendererWidth != width {
+		r, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err != nil {
+			return content
+		}
+		m.markdownRenderer = r
+		m.rendererWidth = width
 	}
-	rendered, err := r.Render(content)
+
+	rendered, err := m.markdownRenderer.Render(content)
 	if err != nil {
 		return content
 	}
@@ -778,11 +951,11 @@ func renderMarkdown(content string, width int) string {
 }
 
 // renderToolMessage renders a completed tool call.
-func (m Model) renderToolMessage(content string) string {
+func (m *Model) renderToolMessage(content string) string {
 	toolStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#fbbf24"))
 
-	return toolStyle.Render("  ") + renderMarkdown(content, m.width-6)
+	return toolStyle.Render("  ") + m.renderMarkdown(content)
 }
 
 // renderToolInProgress renders a tool that is currently executing.
@@ -990,4 +1163,33 @@ func RunWithProgram(ctx context.Context, ag agent.Agent, sessionID string, sendF
 	)
 
 	return p, model
+}
+
+// RunWithChannel starts the chat TUI with the new channel-based streaming architecture.
+// It creates an event channel, sets up the EventAggregator, and returns a ChannelWriter
+// that should be passed to the Runner.
+// This is the preferred way to run the TUI as it prevents tick chain disruption.
+func RunWithChannel(ctx context.Context, ag agent.Agent, sessionID string, sendFn SendMessageFunc) (*tea.Program, Model, *run.ChannelWriter) {
+	// Create event channel with buffer to prevent blocking
+	eventChan := make(chan run.StreamEvent, 64)
+
+	model := New(ag, sessionID, sendFn)
+	model.ctx = ctx
+	model.eventChan = eventChan
+
+	p := tea.NewProgram(
+		model,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+
+	// Create ChannelWriter for the runner to use
+	writer := run.NewChannelWriter(eventChan)
+
+	// Start the EventAggregator in a goroutine
+	// It will forward events from the channel to the TUI via program.Send()
+	aggregator := NewEventAggregator(eventChan, p)
+	go aggregator.Subscribe(ctx)
+
+	return p, model, writer
 }

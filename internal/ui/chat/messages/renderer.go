@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
@@ -59,12 +60,12 @@ func roundedEnumerator(lPadding, width int) tree.Enumerator {
 	}
 }
 
-// Status icons for tool states.
+// Status icons for tool states - re-exported from shared package.
 const (
-	ToolPending = "○"
-	ToolSuccess = "●"
-	ToolError   = "×"
-	ToolRunning = "◐"
+	ToolPending = shared.ToolPending
+	ToolSuccess = shared.ToolSuccess
+	ToolError   = shared.ToolError
+	ToolRunning = shared.ToolRunning
 )
 
 // baseRenderer provides common functionality for all tool renderers.
@@ -81,20 +82,20 @@ func (br baseRenderer) makeHeader(t *toolCallCmp, toolName string, width int, pa
 		return br.makeNestedHeader(t, toolName, width, params...)
 	}
 
-	icon := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Render(ToolPending)
+	icon := lipgloss.NewStyle().Foreground(shared.ColorToolPending).Render(ToolPending)
 	if t.result.ToolCallID != "" {
 		if t.result.IsError {
-			icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(ToolError)
+			icon = lipgloss.NewStyle().Foreground(shared.ColorError).Render(ToolError)
 		} else {
-			icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(ToolSuccess)
+			icon = lipgloss.NewStyle().Foreground(shared.ColorSuccess).Render(ToolSuccess)
 		}
 	} else if t.cancelled {
-		icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Render(ToolPending)
+		icon = lipgloss.NewStyle().Foreground(shared.ColorToolPending).Render(ToolPending)
 	} else if t.spinning {
-		icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Render(ToolRunning)
+		icon = lipgloss.NewStyle().Foreground(shared.ColorToolRunning).Render(ToolRunning)
 	}
 
-	toolStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3b82f6")).Bold(true)
+	toolStyle := lipgloss.NewStyle().Foreground(shared.ColorToolName).Bold(true)
 	prefix := fmt.Sprintf("%s %s ", icon, toolStyle.Render(toolName))
 
 	return prefix + renderParamList(false, width-lipgloss.Width(prefix), params...)
@@ -102,18 +103,18 @@ func (br baseRenderer) makeHeader(t *toolCallCmp, toolName string, width int, pa
 
 // makeNestedHeader builds header for nested tool calls.
 func (br baseRenderer) makeNestedHeader(t *toolCallCmp, toolName string, width int, params ...string) string {
-	icon := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Render(ToolPending)
+	icon := lipgloss.NewStyle().Foreground(shared.ColorToolPending).Render(ToolPending)
 	if t.result.ToolCallID != "" {
 		if t.result.IsError {
-			icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(ToolError)
+			icon = lipgloss.NewStyle().Foreground(shared.ColorError).Render(ToolError)
 		} else {
-			icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(ToolSuccess)
+			icon = lipgloss.NewStyle().Foreground(shared.ColorSuccess).Render(ToolSuccess)
 		}
 	} else if t.cancelled {
-		icon = lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Render(ToolPending)
+		icon = lipgloss.NewStyle().Foreground(shared.ColorToolPending).Render(ToolPending)
 	}
 
-	toolStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	toolStyle := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
 	prefix := fmt.Sprintf("%s %s ", icon, toolStyle.Render(toolName))
 
 	return prefix + renderParamList(true, width-lipgloss.Width(prefix), params...)
@@ -144,11 +145,11 @@ func (br baseRenderer) renderWithParams(t *toolCallCmp, toolName string, args []
 func (br baseRenderer) renderError(t *toolCallCmp, message string) string {
 	header := br.makeHeader(t, prettifyToolName(t.call.Name), t.textWidth())
 	errorStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#ef4444")).
-		Foreground(lipgloss.Color("#ffffff")).
+		Background(shared.ColorError).
+		Foreground(shared.ColorTextBright).
 		Padding(0, 1)
 	errorTag := errorStyle.Render("ERROR")
-	msgStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	msgStyle := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
 	return joinHeaderBody(header, errorTag+" "+msgStyle.Render(message))
 }
 
@@ -193,14 +194,14 @@ func (pb *paramBuilder) build() []string {
 
 // earlyState returns immediately-rendered error/cancelled/pending states.
 func earlyState(header string, t *toolCallCmp) (string, bool) {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	style := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
 	var message string
 
 	switch {
 	case t.result.IsError:
 		errorStyle := lipgloss.NewStyle().
-			Background(lipgloss.Color("#ef4444")).
-			Foreground(lipgloss.Color("#ffffff")).
+			Background(shared.ColorError).
+			Foreground(shared.ColorTextBright).
 			Padding(0, 1)
 		message = errorStyle.Render("ERROR") + " " + style.Render(truncateText(t.result.Content, t.textWidth()-10))
 	case t.cancelled:
@@ -234,7 +235,7 @@ func renderParamList(nested bool, maxWidth int, params ...string) string {
 		return ""
 	}
 
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	style := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
 	mainParam := params[0]
 
 	if maxWidth > 0 && lipgloss.Width(mainParam) > maxWidth {
@@ -286,8 +287,8 @@ func renderPlainContent(t *toolCallCmp, content string, maxLines int) string {
 	width := t.textWidth() - 2
 
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9ca3af")).
-		Background(lipgloss.Color("#1f2937"))
+		Foreground(shared.ColorTextDim).
+		Background(shared.ColorBgDark)
 
 	var out []string
 	for i, ln := range lines {

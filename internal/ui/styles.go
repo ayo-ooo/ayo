@@ -4,32 +4,33 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
-// Color palette - a cohesive dark theme inspired by popular terminal themes.
+// Color palette - re-exported from shared package for backward compatibility.
 var (
 	// Primary colors
-	colorPrimary     = lipgloss.Color("#a78bfa") // Purple - main accent
-	colorSecondary   = lipgloss.Color("#67e8f9") // Cyan - secondary accent
-	colorTertiary    = lipgloss.Color("#fbbf24") // Amber - warnings/tool labels
-	colorSuccess     = lipgloss.Color("#4ade80") // Green - success states
-	colorError       = lipgloss.Color("#f87171") // Red - errors
-	colorMuted       = lipgloss.Color("#6b7280") // Gray - muted text
-	colorSubtle      = lipgloss.Color("#374151") // Dark gray - borders/backgrounds
+	colorPrimary   = shared.ColorPrimary
+	colorSecondary = shared.ColorSecondary
+	colorTertiary  = shared.ColorTertiary
+	colorSuccess   = shared.ColorSuccess
+	colorError     = shared.ColorError
+	colorMuted     = shared.ColorMuted
+	colorSubtle    = shared.ColorSubtle
 
 	// Text colors
-	colorText       = lipgloss.Color("#e5e7eb") // Light gray - main text
-	colorTextDim    = lipgloss.Color("#9ca3af") // Medium gray - dim text
-	colorTextBright = lipgloss.Color("#f9fafb") // White - bright text
+	colorText       = shared.ColorText
+	colorTextDim    = shared.ColorTextDim
+	colorTextBright = shared.ColorTextBright
 
 	// Background colors
-	colorBgDark     = lipgloss.Color("#1f2937") // Dark background
-	colorBgSubtle   = lipgloss.Color("#111827") // Darker background
-	colorBgAccent   = lipgloss.Color("#312e81") // Purple tinted background
+	colorBgDark   = shared.ColorBgDark
+	colorBgSubtle = shared.ColorBgSubtle
+	colorBgAccent = shared.ColorBgAccent
 )
 
 // Styles holds all the application styles.
@@ -192,234 +193,9 @@ func DefaultStyles() Styles {
 }
 
 // GlamourStyleConfig returns a custom glamour style for markdown rendering.
+// Delegates to shared package for consistency across modes.
 func GlamourStyleConfig() ansi.StyleConfig {
-	margin := uint(2)
-
-	return ansi.StyleConfig{
-		Document: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				BlockPrefix: "",
-				BlockSuffix: "",
-				Color:       strPtr("#e5e7eb"),
-			},
-			Margin: &margin,
-		},
-		BlockQuote: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Color:  strPtr("#67e8f9"),
-				Italic: boolPtr(true),
-			},
-			Indent:      uintPtr(1),
-			IndentToken: strPtr("│ "),
-		},
-		List: ansi.StyleList{
-			LevelIndent: 2,
-			StyleBlock: ansi.StyleBlock{
-				StylePrimitive: ansi.StylePrimitive{
-					Color: strPtr("#e5e7eb"),
-				},
-			},
-		},
-		Heading: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				BlockSuffix: "\n",
-				Color:       strPtr("#a78bfa"),
-				Bold:        boolPtr(true),
-			},
-		},
-		H1: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "# ",
-				Color:  strPtr("#a78bfa"),
-				Bold:   boolPtr(true),
-			},
-		},
-		H2: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "## ",
-				Color:  strPtr("#a78bfa"),
-			},
-		},
-		H3: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "### ",
-				Color:  strPtr("#c4b5fd"),
-			},
-		},
-		H4: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "#### ",
-				Color:  strPtr("#c4b5fd"),
-			},
-		},
-		H5: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "##### ",
-				Color:  strPtr("#ddd6fe"),
-			},
-		},
-		H6: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "###### ",
-				Color:  strPtr("#ddd6fe"),
-			},
-		},
-		Strikethrough: ansi.StylePrimitive{
-			CrossedOut: boolPtr(true),
-		},
-		Emph: ansi.StylePrimitive{
-			Color:  strPtr("#fbbf24"),
-			Italic: boolPtr(true),
-		},
-		Strong: ansi.StylePrimitive{
-			Bold:  boolPtr(true),
-			Color: strPtr("#f9fafb"),
-		},
-		HorizontalRule: ansi.StylePrimitive{
-			Color:  strPtr("#374151"),
-			Format: "\n────────────────────────────────\n",
-		},
-		Item: ansi.StylePrimitive{
-			BlockPrefix: "- ",
-		},
-		Enumeration: ansi.StylePrimitive{
-			BlockPrefix: ". ",
-			Color:       strPtr("#67e8f9"),
-		},
-		Task: ansi.StyleTask{
-			StylePrimitive: ansi.StylePrimitive{},
-			Ticked:         "[x] ",
-			Unticked:       "[ ] ",
-		},
-		Link: ansi.StylePrimitive{
-			Color:     strPtr("#67e8f9"),
-			Underline: boolPtr(true),
-		},
-		LinkText: ansi.StylePrimitive{
-			Color: strPtr("#a78bfa"),
-		},
-		Image: ansi.StylePrimitive{
-			Color:     strPtr("#67e8f9"),
-			Underline: boolPtr(true),
-		},
-		ImageText: ansi.StylePrimitive{
-			Color:  strPtr("#a78bfa"),
-			Format: "Image: {{.text}}",
-		},
-		Code: ansi.StyleBlock{
-			StylePrimitive: ansi.StylePrimitive{
-				Color:           strPtr("#4ade80"),
-				BackgroundColor: strPtr("#1f2937"),
-				Prefix:          " ",
-				Suffix:          " ",
-			},
-		},
-		CodeBlock: ansi.StyleCodeBlock{
-			StyleBlock: ansi.StyleBlock{
-				StylePrimitive: ansi.StylePrimitive{
-					Color: strPtr("#e5e7eb"),
-				},
-				Margin: uintPtr(2),
-			},
-			Chroma: &ansi.Chroma{
-				Text: ansi.StylePrimitive{
-					Color: strPtr("#e5e7eb"),
-				},
-				Error: ansi.StylePrimitive{
-					Color:           strPtr("#f9fafb"),
-					BackgroundColor: strPtr("#f87171"),
-				},
-				Comment: ansi.StylePrimitive{
-					Color: strPtr("#6b7280"),
-				},
-				CommentPreproc: ansi.StylePrimitive{
-					Color: strPtr("#fbbf24"),
-				},
-				Keyword: ansi.StylePrimitive{
-					Color: strPtr("#a78bfa"),
-				},
-				KeywordReserved: ansi.StylePrimitive{
-					Color: strPtr("#c084fc"),
-				},
-				KeywordNamespace: ansi.StylePrimitive{
-					Color: strPtr("#f472b6"),
-				},
-				KeywordType: ansi.StylePrimitive{
-					Color: strPtr("#67e8f9"),
-				},
-				Operator: ansi.StylePrimitive{
-					Color: strPtr("#f87171"),
-				},
-				Punctuation: ansi.StylePrimitive{
-					Color: strPtr("#9ca3af"),
-				},
-				Name: ansi.StylePrimitive{
-					Color: strPtr("#e5e7eb"),
-				},
-				NameBuiltin: ansi.StylePrimitive{
-					Color: strPtr("#67e8f9"),
-				},
-				NameTag: ansi.StylePrimitive{
-					Color: strPtr("#a78bfa"),
-				},
-				NameAttribute: ansi.StylePrimitive{
-					Color: strPtr("#4ade80"),
-				},
-				NameClass: ansi.StylePrimitive{
-					Color:     strPtr("#f9fafb"),
-					Underline: boolPtr(true),
-					Bold:      boolPtr(true),
-				},
-				NameConstant: ansi.StylePrimitive{
-					Color: strPtr("#c084fc"),
-				},
-				NameDecorator: ansi.StylePrimitive{
-					Color: strPtr("#fbbf24"),
-				},
-				NameFunction: ansi.StylePrimitive{
-					Color: strPtr("#4ade80"),
-				},
-				LiteralNumber: ansi.StylePrimitive{
-					Color: strPtr("#67e8f9"),
-				},
-				LiteralString: ansi.StylePrimitive{
-					Color: strPtr("#fbbf24"),
-				},
-				LiteralStringEscape: ansi.StylePrimitive{
-					Color: strPtr("#f472b6"),
-				},
-				GenericDeleted: ansi.StylePrimitive{
-					Color: strPtr("#f87171"),
-				},
-				GenericEmph: ansi.StylePrimitive{
-					Italic: boolPtr(true),
-				},
-				GenericInserted: ansi.StylePrimitive{
-					Color: strPtr("#4ade80"),
-				},
-				GenericStrong: ansi.StylePrimitive{
-					Bold: boolPtr(true),
-				},
-				GenericSubheading: ansi.StylePrimitive{
-					Color: strPtr("#a78bfa"),
-				},
-				Background: ansi.StylePrimitive{
-					BackgroundColor: strPtr("#111827"),
-				},
-			},
-		},
-		Table: ansi.StyleTable{
-			StyleBlock: ansi.StyleBlock{
-				StylePrimitive: ansi.StylePrimitive{},
-			},
-			CenterSeparator: strPtr("┼"),
-			ColumnSeparator: strPtr("│"),
-			RowSeparator:    strPtr("─"),
-		},
-		DefinitionDescription: ansi.StylePrimitive{
-			BlockPrefix: "\n> ",
-		},
-	}
+	return shared.GlamourStyleConfig()
 }
 
 // NewMarkdownRenderer creates a glamour renderer with custom styles.
@@ -437,29 +213,27 @@ func NewMarkdownRenderer() (*glamour.TermRenderer, error) {
 	)
 }
 
-// Icons for various UI elements - colorizable Unicode glyphs (no emojis).
-// These are carefully selected from box drawing, geometric shapes, and
-// miscellaneous symbols to be visually distinct and terminal-compatible.
+// Icons for various UI elements - re-exported from shared package.
 const (
-	IconThinking   = "◇"  // White diamond - thinking/reasoning
-	IconTool       = "▶"  // Black right-pointing triangle - tool execution
-	IconBash       = "❯"  // Heavy right angle bracket - bash/shell prompt
-	IconSuccess    = "✓"  // Check mark - success
-	IconError      = "✗"  // Ballot X - error
-	IconWarning    = "△"  // White up-pointing triangle - warning
-	IconInfo       = "●"  // Black circle - info
-	IconArrowRight = "→"  // Rightwards arrow - navigation
-	IconBullet     = "•"  // Bullet - list items
-	IconCheck      = "✓"  // Check mark - completed
-	IconCross      = "✗"  // Ballot X - failed
-	IconSpinner    = "◐"  // Circle with left half black - in progress
-	IconPending    = "○"  // White circle - pending
-	IconComplete   = "●"  // Black circle - complete
-	IconAgent      = "◆"  // Black diamond - agent
-	IconSubAgent   = "▹"  // White right-pointing small triangle - sub-agent
-	IconEllipsis   = "⋯"  // Midline horizontal ellipsis - loading/truncated
-	IconMenu       = "≡"  // Identical to - menu (hamburger alternative)
-	IconPlan       = "□"  // White square - plan/todo
+	IconThinking   = shared.IconThinking
+	IconTool       = shared.IconTool
+	IconBash       = shared.IconBash
+	IconSuccess    = shared.IconSuccess
+	IconError      = shared.IconError
+	IconWarning    = shared.IconWarning
+	IconInfo       = shared.IconInfo
+	IconArrowRight = shared.IconArrowRight
+	IconBullet     = shared.IconBullet
+	IconCheck      = shared.IconCheck
+	IconCross      = shared.IconCross
+	IconSpinner    = shared.IconSpinner
+	IconPending    = shared.IconPending
+	IconComplete   = shared.IconComplete
+	IconAgent      = shared.IconAgent
+	IconSubAgent   = shared.IconSubAgent
+	IconEllipsis   = shared.IconEllipsis
+	IconMenu       = shared.IconMenu
+	IconPlan       = shared.IconPlan
 )
 
 // FormatToolLabel formats a tool label with an icon.
@@ -520,8 +294,3 @@ func getTerminalWidth() int {
 	}
 	return width
 }
-
-// Helper functions for pointer types.
-func strPtr(s string) *string { return &s }
-func boolPtr(b bool) *bool    { return &b }
-func uintPtr(u uint) *uint    { return &u }

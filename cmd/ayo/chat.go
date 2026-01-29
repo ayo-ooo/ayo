@@ -16,7 +16,7 @@ func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent,
 	sessionID := runner.GetSessionID(ag.Handle)
 
 	// Create a send function that wraps runner.Chat
-	// The runner's StreamHandler (set below) will send streaming events to the TUI.
+	// The runner's StreamWriter will send streaming events through the channel.
 	// This function just triggers the chat and returns the final response.
 	sendFn := func(ctx context.Context, message string) (string, error) {
 		_, err := runner.Chat(ctx, ag, message)
@@ -45,31 +45,15 @@ func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent,
 		return "", nil
 	}
 
-	// Create the tea.Program and model, then set up the TUIStreamHandler
-	program, _ := chat.RunWithProgram(ctx, ag, sessionID, sendFn)
+	// Create the tea.Program and model with the new channel-based architecture
+	// This sets up:
+	// 1. An event channel for streaming events
+	// 2. An EventAggregator that forwards events to the TUI via program.Send()
+	// 3. A ChannelWriter that the runner will use to write events
+	program, _, channelWriter := chat.RunWithChannel(ctx, ag, sessionID, sendFn)
 
-	// Create a TUIStreamHandler with memory service for initial memory loading
-	handlerOpts := []chat.TUIStreamHandlerOption{}
-	if memSvc := runner.MemoryService(); memSvc != nil {
-		handlerOpts = append(handlerOpts, chat.WithMemoryService(memSvc))
-	}
-	handler := chat.NewTUIStreamHandler(program, handlerOpts...)
-
-	// Set the handler on the runner so streaming events go to the TUI
-	runner.SetStreamHandler(handler)
-
-	// Send initial memories to the TUI if memory is enabled for this agent
-	if ag.Config.Memory.Enabled && ag.Config.Memory.Retrieval.AutoInject {
-		// Use a general query to get relevant memories for the session start
-		// The agent handle helps scope the search
-		_ = handler.SendInitialMemories(
-			ctx,
-			"session context", // Generic query for initial memories
-			ag.Handle,
-			ag.Config.Memory.Retrieval.Threshold,
-			ag.Config.Memory.Retrieval.MaxMemories,
-		)
-	}
+	// Set the stream writer on the runner so streaming events go through the channel
+	runner.SetStreamWriter(channelWriter)
 
 	// Run the TUI
 	finalModel, err := program.Run()

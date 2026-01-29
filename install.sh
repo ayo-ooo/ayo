@@ -11,9 +11,41 @@ NC='\033[0m' # No Color
 # Required Ollama models
 REQUIRED_MODELS=("ministral-3:3b" "nomic-embed-text")
 
-# Check if gum is available
+# Flags
+CLEAN=false
+FORCE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --clean)
+            CLEAN=true
+            shift
+            ;;
+        --force|-f)
+            FORCE=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: ./install.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --clean     Remove all ayo data before installing"
+            echo "  --force,-f  Skip confirmation prompts"
+            echo "  --help,-h   Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Run './install.sh --help' for usage"
+            exit 1
+            ;;
+    esac
+done
+
+# Check if gum is available and we have a TTY (interactive mode)
 has_gum() {
-    command -v gum &> /dev/null
+    command -v gum &> /dev/null && [[ -t 0 ]] && [[ -t 1 ]]
 }
 
 # Styled output functions
@@ -76,6 +108,9 @@ spin() {
 # Confirm prompt
 confirm() {
     local prompt="$1"
+    if $FORCE; then
+        return 0
+    fi
     if has_gum; then
         gum confirm "$prompt"
     else
@@ -83,6 +118,68 @@ confirm() {
         echo
         [[ "$REPLY" =~ ^[Yy]$ ]]
     fi
+}
+
+# Determine if this is a dev install (in git repo working directory)
+is_dev_install() {
+    # Check if we're in a git repo with install.sh
+    [[ -d ".git" && -f "install.sh" && -f "go.mod" ]]
+}
+
+# Clean up ayo installation
+clean_install() {
+    header "Cleaning Ayo Installation"
+    
+    local is_dev=$(is_dev_install && echo "true" || echo "false")
+    
+    if [[ "$is_dev" == "true" ]]; then
+        # Dev install - clean local directories without prompting
+        info "Dev mode: cleaning local directories..."
+        
+        local dirs_to_clean=(".local" ".config/ayo")
+        for dir in "${dirs_to_clean[@]}"; do
+            if [[ -d "$dir" ]]; then
+                rm -rf "$dir"
+                success "Removed $dir"
+            fi
+        done
+    else
+        # Production install - prompt before cleaning
+        warn "This will remove ALL ayo data including:"
+        echo "  - Configuration (~/.config/ayo/)"
+        echo "  - Database and sessions (~/.local/share/ayo/)"
+        echo "  - Stored credentials"
+        echo "  - Custom agents and skills"
+        echo ""
+        
+        if ! confirm "Are you sure you want to remove all ayo data?"; then
+            info "Clean cancelled."
+            exit 0
+        fi
+        
+        # Remove production directories
+        local dirs_to_clean=(
+            "$HOME/.config/ayo"
+            "$HOME/.local/share/ayo"
+        )
+        
+        for dir in "${dirs_to_clean[@]}"; do
+            if [[ -d "$dir" ]]; then
+                rm -rf "$dir"
+                success "Removed $dir"
+            fi
+        done
+        
+        # Try to remove the binary from GOBIN
+        local gobin="${GOBIN:-$HOME/go/bin}"
+        if [[ -f "$gobin/ayo" ]]; then
+            rm -f "$gobin/ayo"
+            success "Removed $gobin/ayo"
+        fi
+    fi
+    
+    success "Clean complete"
+    echo ""
 }
 
 # Check if Ollama is installed
@@ -214,6 +311,11 @@ setup_ollama() {
 
 # Main installation flow
 main() {
+    # Handle clean flag first
+    if $CLEAN; then
+        clean_install
+    fi
+    
     header "Ayo Installation"
     
     # Determine install location based on git state
@@ -227,7 +329,11 @@ main() {
         spin "Building ayo..." go install ./cmd/ayo
         success "ayo installed to GOBIN"
         echo ""
-        ayo setup
+        if $FORCE; then
+            ayo setup --force
+        else
+            ayo setup
+        fi
     else
         # Any other state - install to local .local/bin
         info "Installing to .local/bin/ (branch: $branch, dirty: ${dirty:+yes}${dirty:-no})..."
@@ -235,7 +341,11 @@ main() {
         spin "Building ayo..." env GOBIN="$(pwd)/.local/bin" go install ./cmd/ayo
         success "ayo installed to .local/bin/"
         echo ""
-        .local/bin/ayo setup
+        if $FORCE; then
+            .local/bin/ayo setup --force
+        else
+            .local/bin/ayo setup
+        fi
     fi
     
     # Setup Ollama for local AI features
