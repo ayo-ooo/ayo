@@ -15,7 +15,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
-	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
@@ -538,7 +537,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)
 	if tools.HasTool("agent_call") || !ag.BuiltIn {
-		tools.AddAgentCallTool(r.agentCallExecutor(ag.Handle))
+		tools.AddAgentCallTool(r.agentCallExecutor(ag.Handle, ag.Config))
 	}
 
 	// Create Fantasy agent
@@ -670,7 +669,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	return "", msgs, nil
 }
 
-func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func (r *Runner) agentCallExecutor(currentAgentHandle string, callerConfig agent.Config) func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	return func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		// Normalize handle
 		agentHandle := agent.NormalizeHandle(params.Agent)
@@ -680,9 +679,9 @@ func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.C
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("cannot delegate to self (%s) - use bash or other tools directly", agentHandle)), nil
 		}
 
-		// Only allow calling builtin agents or plugin agents
-		if !agent.IsReservedNamespace(agentHandle) && !plugins.IsPluginAgent(agentHandle) {
-			return fantasy.NewTextErrorResponse("agent_call can only invoke builtin or plugin agents"), nil
+		// Check if the calling agent is allowed to call this target agent
+		if !callerConfig.CanCallAgent(agentHandle) {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("agent %s is not allowed to call %s - check allowed_agents in config", currentAgentHandle, agentHandle)), nil
 		}
 
 		// Load the target agent
@@ -708,30 +707,23 @@ func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.C
 		execCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		// Show sub-agent start
-		ui := uipkg.NewWithDepth(r.debug, r.depth)
 		startTime := time.Now()
-		ui.PrintSubAgentStart(agentHandle, params.Prompt)
 
-		// Create sub-runner at increased depth
+		// Create sub-runner at increased depth with silent output
+		// Sub-agent output is captured in the response, not streamed to UI
 		subRunner := &Runner{
-			config:   r.config,
-			debug:    r.debug,
-			depth:    r.depth + 1,
-			sessions: make(map[string]*ChatSession),
-			services: r.services, // Pass services through for persistence
+			config:       r.config,
+			debug:        r.debug,
+			depth:        r.depth + 1,
+			sessions:     make(map[string]*ChatSession),
+			services:     r.services,      // Pass services through for persistence
+			streamWriter: NullWriter{},    // Silence sub-agent streaming output
 		}
 
 		// Run the agent
 		response, err := subRunner.Text(execCtx, targetAgent, params.Prompt, nil)
 
-		// Show sub-agent completion
 		duration := formatElapsed(time.Since(startTime))
-		hasError := err != nil
-		if execCtx.Err() == context.DeadlineExceeded {
-			hasError = true
-		}
-		ui.PrintSubAgentEnd(agentHandle, duration, hasError)
 
 		if err != nil {
 			if execCtx.Err() == context.DeadlineExceeded {
@@ -746,8 +738,32 @@ func (r *Runner) agentCallExecutor(currentAgentHandle string) func(ctx context.C
 			response = response[:maxOutput]
 		}
 
-		return fantasy.NewTextResponse(strings.TrimSpace(response)), nil
+		// Return structured JSON like bash does - renderer will parse RawOutput
+		result := agentCallResult{
+			Agent:    agentHandle,
+			Prompt:   params.Prompt,
+			Response: strings.TrimSpace(response),
+			Duration: duration,
+		}
+
+		return fantasy.NewTextResponse(result.String()), nil
 	}
+}
+
+// agentCallResult holds the structured output from agent_call.
+type agentCallResult struct {
+	Agent    string `json:"agent"`
+	Prompt   string `json:"prompt"`
+	Response string `json:"response"`
+	Duration string `json:"duration"`
+}
+
+func (r agentCallResult) String() string {
+	data, err := json.Marshal(r)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"marshal error: %v"}`, err)
+	}
+	return string(data)
 }
 
 // formatToolResultContent converts a Fantasy tool result to a string for display.

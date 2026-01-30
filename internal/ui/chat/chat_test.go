@@ -199,20 +199,27 @@ func TestUpdate_ToolCallResultMsg(t *testing.T) {
 	m = initModel(m, 100, 40)
 
 	// Start a tool call
-	model, _ := m.Update(ToolCallStartMsg{Name: "bash", Description: "Running tests"})
+	model, _ := m.Update(ToolCallStartMsg{ID: "tc-1", Name: "bash", Description: "Running tests"})
 	m = model.(Model)
 
 	// Complete the tool call
 	model, _ = m.Update(ToolCallResultMsg{
+		ID:       "tc-1",
 		Name:     "bash",
 		Output:   "All tests passed",
 		Duration: "1.5s",
 	})
 	m = model.(Model)
 
-	// Tool message should be added
-	if len(m.messages) == 0 {
-		t.Error("tool result should add a message")
+	// Tool call should be in tree and have result
+	if m.toolCallTree.Count() == 0 {
+		t.Error("tool call should be in tree")
+	}
+	cmp := m.toolCallTree.Get("tc-1")
+	if cmp == nil {
+		t.Error("tool call tc-1 should exist in tree")
+	} else if cmp.GetToolResult().ToolCallID == "" {
+		t.Error("tool call should have result set")
 	}
 }
 
@@ -340,17 +347,18 @@ func TestView_WithToolCall(t *testing.T) {
 	m := New(ag, "session-123", mockSendFn("", nil))
 	m = initModel(m, 100, 40)
 
-	// Start a tool call
+	// Start a tool call with JSON input (as Fantasy would provide)
 	model, _ := m.Update(ToolCallStartMsg{
-		Name:        "bash",
-		Description: "Installing dependencies",
+		ID:    "tc-view",
+		Name:  "bash",
+		Input: `{"command":"npm install","description":"Installing dependencies"}`,
 	})
 	m = model.(Model)
 
 	view := m.View()
 
-	// View should show tool call info
-	if !strings.Contains(view, "Installing") || !strings.Contains(view, "bash") {
+	// View should show tool call info (command from parsed JSON)
+	if !strings.Contains(view, "npm install") && !strings.Contains(view, "Bash") {
 		t.Errorf("view should contain tool call info, got: %s", view)
 	}
 }

@@ -92,6 +92,8 @@ const (
 	SectionTodos
 	// SectionError is error content
 	SectionError
+	// SectionSubAgent is a sub-agent conversation (prompt + response)
+	SectionSubAgent
 )
 
 // ToolRenderer defines how a tool produces render output.

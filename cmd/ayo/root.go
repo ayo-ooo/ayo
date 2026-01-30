@@ -61,11 +61,6 @@ Examples:
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withConfig(&cfgPath, func(cfg config.Config) error {
-				if len(args) == 0 {
-					// No args: show help
-					return cmd.Help()
-				}
-
 				// Check for first-run (no providers configured)
 				if !config.HasAnyProvider() {
 					warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
@@ -82,7 +77,11 @@ Examples:
 				var handle string
 				var promptArgs []string
 
-				if strings.HasPrefix(args[0], "@") {
+				if len(args) == 0 {
+					// No args: use default agent, no prompt (interactive mode)
+					handle = agent.DefaultAgent
+					promptArgs = nil
+				} else if strings.HasPrefix(args[0], "@") {
 					// First arg is an agent handle
 					handle = agent.NormalizeHandle(args[0])
 					promptArgs = args[1:]

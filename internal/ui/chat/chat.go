@@ -80,10 +80,11 @@ type Model struct {
 	err          error
 
 	// Tool/reasoning state
-	currentToolCall   *ToolCallStartMsg
-	toolCallTree      *messages.ToolCallTree // B.07: Tree-based tool rendering
-	reasoningBuffer   strings.Builder
-	thinkingStartTime time.Time
+	currentToolCall    *ToolCallStartMsg
+	toolCallTree       *messages.ToolCallTree // B.07: Tree-based tool rendering
+	pendingToolCallIDs []string               // Tool calls accumulated during current response
+	reasoningBuffer    strings.Builder
+	thinkingStartTime  time.Time
 
 	// Spinner animation
 	spinnerFrame   int
@@ -106,8 +107,9 @@ type Model struct {
 
 // message represents a single message in the conversation.
 type message struct {
-	Role    string // "user" or "assistant"
-	Content string
+	Role        string // "user" or "assistant"
+	Content     string
+	ToolCallIDs []string // Tool call IDs that occurred with this message
 }
 
 // KeyMap defines the keybindings for the chat.
@@ -449,9 +451,11 @@ func (m Model) handleTextDelta(msg TextDeltaMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleTextEnd() (tea.Model, tea.Cmd) {
 	if m.streamBuffer.Len() > 0 {
 		m.messages = append(m.messages, message{
-			Role:    "assistant",
-			Content: m.streamBuffer.String(),
+			Role:        "assistant",
+			Content:     m.streamBuffer.String(),
+			ToolCallIDs: m.pendingToolCallIDs,
 		})
+		m.pendingToolCallIDs = nil // Clear for next response
 		m.streamBuffer.Reset()
 	}
 	// Don't render with glamour here - let EventDone handle final state
@@ -569,7 +573,8 @@ func (m Model) handleToolCallStart(msg ToolCallStartMsg) (tea.Model, tea.Cmd) {
 			parent.SetNestedToolCalls(append(parent.GetNestedToolCalls(), nestedCmp))
 		}
 	} else {
-		// Top-level tool call
+		// Top-level tool call - track for association with current response
+		m.pendingToolCallIDs = append(m.pendingToolCallIDs, msg.ID)
 		cmp := messages.NewToolCallCmp("", tc)
 		cmp.SetSize(m.viewport.Width, 0)
 		m.toolCallTree.Add(cmp)
@@ -597,23 +602,6 @@ func (m Model) handleToolCallResult(msg ToolCallResultMsg) (tea.Model, tea.Cmd) 
 		cmp.SetToolResult(result)
 	}
 
-	// Add tool result to messages for display (legacy format)
-	toolContent := fmt.Sprintf("**%s** %s\n```\n%s\n```",
-		msg.Name,
-		msg.Duration,
-		truncateOutput(msg.Output, 20))
-
-	if msg.Error != "" {
-		toolContent = fmt.Sprintf("**%s** (failed) %s\n```\n%s\n```",
-			msg.Name,
-			msg.Duration,
-			msg.Error)
-	}
-
-	m.messages = append(m.messages, message{
-		Role:    "tool",
-		Content: toolContent,
-	})
 	m.currentToolCall = nil
 
 	// B.10: Auto-collapse completed tool calls with nested children
@@ -833,7 +821,12 @@ func (m Model) handleAgentResponse(msg AgentResponseMsg) (tea.Model, tea.Cmd) {
 		return m, m.textarea.Focus()
 	}
 
-	m.messages = append(m.messages, message{Role: "assistant", Content: msg.Response})
+	m.messages = append(m.messages, message{
+		Role:        "assistant",
+		Content:     msg.Response,
+		ToolCallIDs: m.pendingToolCallIDs,
+	})
+	m.pendingToolCallIDs = nil // Clear for next response
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
@@ -881,16 +874,47 @@ func (m *Model) updateViewportContent() {
 
 	var content strings.Builder
 
+	// Track which tool call IDs have been rendered (to avoid duplicates)
+	renderedToolCallIDs := make(map[string]bool)
+
 	for _, msg := range m.messages {
 		switch msg.Role {
 		case "user":
 			content.WriteString(m.renderUserMessage(msg.Content))
+			content.WriteString("\n\n")
 		case "assistant":
+			// Render tool calls BEFORE the assistant message (tools execute first, then LLM responds)
+			if len(msg.ToolCallIDs) > 0 {
+				toolContent := m.toolCallTree.RenderByIDs(msg.ToolCallIDs)
+				if toolContent != "" {
+					content.WriteString(toolContent)
+					content.WriteString("\n\n")
+				}
+				for _, id := range msg.ToolCallIDs {
+					renderedToolCallIDs[id] = true
+				}
+			}
 			content.WriteString(m.renderAssistantMessage(msg.Content))
-		case "tool":
-			content.WriteString(m.renderToolMessage(msg.Content))
+			content.WriteString("\n\n")
 		}
-		content.WriteString("\n\n")
+	}
+
+	// Render any pending tool calls not yet associated with a message
+	// (tool calls that started but message not yet complete)
+	if len(m.pendingToolCallIDs) > 0 {
+		var pendingIDs []string
+		for _, id := range m.pendingToolCallIDs {
+			if !renderedToolCallIDs[id] {
+				pendingIDs = append(pendingIDs, id)
+			}
+		}
+		if len(pendingIDs) > 0 {
+			toolContent := m.toolCallTree.RenderByIDs(pendingIDs)
+			if toolContent != "" {
+				content.WriteString(toolContent)
+				content.WriteString("\n\n")
+			}
+		}
 	}
 
 	if m.reasoningBuffer.Len() > 0 {
@@ -898,16 +922,11 @@ func (m *Model) updateViewportContent() {
 		content.WriteString("\n")
 	}
 
-	if m.currentToolCall != nil {
-		content.WriteString(m.renderToolInProgress(*m.currentToolCall))
-		content.WriteString("\n")
-	}
-
 	if m.streamBuffer.Len() > 0 {
 		content.WriteString(m.renderStreamingMessage(m.streamBuffer.String()))
 	}
 
-	if m.state == StateWaiting && m.currentToolCall == nil && m.reasoningBuffer.Len() == 0 {
+	if m.state == StateWaiting && m.toolCallTree.Count() == 0 && m.reasoningBuffer.Len() == 0 {
 		content.WriteString(m.renderWaiting())
 	}
 

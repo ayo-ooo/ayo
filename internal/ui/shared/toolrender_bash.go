@@ -22,12 +22,6 @@ func (b *BashRenderer) Render(input ToolRenderInput) ToolRenderOutput {
 		params = BashParams{}
 	}
 
-	// Parse metadata
-	var meta BashResponseMetadata
-	if err := ParseJSON(input.RawMetadata, &meta); err == nil {
-		input.Metadata = meta
-	}
-
 	// Build header params: sanitized command, optional flags
 	cmd := SanitizeCommand(params.Command)
 	out.HeaderParams = []string{cmd}
@@ -37,25 +31,37 @@ func (b *BashRenderer) Render(input ToolRenderInput) ToolRenderOutput {
 
 	// Build body sections based on state
 	if input.State == ToolStateSuccess || input.State == ToolStateError {
-		// Get output from metadata or raw output
-		output := meta.Output
-		if output == "" && input.RawOutput != "" {
-			output = input.RawOutput
-		}
-
-		if output != "" {
-			// Detect if JSON and render appropriately
-			sectionType := SectionPlain
-			trimmed := trimSpaceAndCheck(output)
-			if (len(trimmed) > 0 && trimmed[0] == '{') || (len(trimmed) > 0 && trimmed[0] == '[') {
-				sectionType = SectionJSON
+		// Try to parse output as bash tool JSON result
+		var bashOutput BashToolOutput
+		if err := ParseJSON(input.RawOutput, &bashOutput); err == nil {
+			// Successfully parsed bash output JSON
+			displayOutput := bashOutput.GetDisplayOutput()
+			if displayOutput != "" {
+				out.Sections = append(out.Sections, RenderSection{
+					Type:     SectionCode,
+					Content:  displayOutput,
+					MaxLines: 50,
+				})
 			}
+			// Update state based on exit code
+			if bashOutput.IsError() {
+				out.State = ToolStateError
+			}
+		} else {
+			// Fallback: use raw output directly
+			if input.RawOutput != "" {
+				sectionType := SectionPlain
+				trimmed := trimSpaceAndCheck(input.RawOutput)
+				if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+					sectionType = SectionJSON
+				}
 
-			out.Sections = append(out.Sections, RenderSection{
-				Type:     sectionType,
-				Content:  output,
-				MaxLines: 50,
-			})
+				out.Sections = append(out.Sections, RenderSection{
+					Type:     sectionType,
+					Content:  input.RawOutput,
+					MaxLines: 50,
+				})
+			}
 		}
 	}
 

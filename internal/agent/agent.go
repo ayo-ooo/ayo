@@ -29,6 +29,11 @@ type Config struct {
 	Description string   `json:"description,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	
+	// AllowedAgents restricts which agents can be called via agent_call tool.
+	// If empty or nil, all agents can be called.
+	// Supports exact handles (e.g., "@crush") and namespace patterns (e.g., "@ayo.*").
+	AllowedAgents []string `json:"allowed_agents,omitempty"`
+	
 	// Guardrails configuration
 	// When true (default), ayo applies safety guardrails to the agent's system prompt.
 	// Set to false to disable guardrails (dangerous - use with caution).
@@ -99,6 +104,38 @@ func (c Config) GuardrailsEnabled(handle string) bool {
 		return true
 	}
 	return *c.Guardrails
+}
+
+// CanCallAgent checks if this agent is allowed to call the target agent via agent_call.
+// If AllowedAgents is empty/nil, all agents are allowed.
+// Supports exact handles (e.g., "@crush") and namespace patterns (e.g., "@ayo.*").
+func (c Config) CanCallAgent(targetHandle string) bool {
+	// No restrictions = all agents allowed
+	if len(c.AllowedAgents) == 0 {
+		return true
+	}
+
+	targetHandle = NormalizeHandle(targetHandle)
+
+	for _, pattern := range c.AllowedAgents {
+		pattern = NormalizeHandle(pattern)
+
+		// Namespace pattern (e.g., "@ayo.*")
+		if strings.HasSuffix(pattern, ".*") {
+			prefix := strings.TrimSuffix(pattern, "*")
+			if strings.HasPrefix(targetHandle, prefix) {
+				return true
+			}
+			continue
+		}
+
+		// Exact match
+		if pattern == targetHandle {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Agent struct {
