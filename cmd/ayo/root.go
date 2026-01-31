@@ -23,6 +23,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
 
 func newRootCmd() *cobra.Command {
@@ -56,16 +57,19 @@ Examples:
 				}
 			}
 
+			// Load plugin renderers for custom tool TUI rendering
+			if err := messages.LoadPluginRenderers(paths.PluginsDir()); err != nil {
+				// Non-fatal: just log in debug mode
+				if debug {
+					fmt.Fprintf(os.Stderr, "Warning: failed to load plugin renderers: %v\n", err)
+				}
+			}
+
 			// Auto-install built-in agents and skills if needed (version-based)
 			return builtin.Install()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withConfig(&cfgPath, func(cfg config.Config) error {
-				if len(args) == 0 {
-					// No args: show help
-					return cmd.Help()
-				}
-
 				// Check for first-run (no providers configured)
 				if !config.HasAnyProvider() {
 					warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
@@ -82,7 +86,11 @@ Examples:
 				var handle string
 				var promptArgs []string
 
-				if strings.HasPrefix(args[0], "@") {
+				if len(args) == 0 {
+					// No args: use default agent, no prompt (interactive mode)
+					handle = agent.DefaultAgent
+					promptArgs = nil
+				} else if strings.HasPrefix(args[0], "@") {
 					// First arg is an agent handle
 					handle = agent.NormalizeHandle(args[0])
 					promptArgs = args[1:]

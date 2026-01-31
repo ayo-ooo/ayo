@@ -112,6 +112,35 @@ func (t *ToolCallTree) Render() string {
 	return strings.Join(parts, "\n")
 }
 
+// RenderByIDs renders only the tool calls with the given IDs.
+func (t *ToolCallTree) RenderByIDs(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+
+	// Build a set for quick lookup
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+
+	// Find matching calls (preserving order from ids slice)
+	var parts []string
+	for _, id := range ids {
+		for _, call := range t.calls {
+			if call.ID() == id {
+				if len(parts) > 0 {
+					parts = append(parts, "") // spacing between calls
+				}
+				parts = append(parts, call.View())
+				break
+			}
+		}
+	}
+
+	return strings.Join(parts, "\n")
+}
+
 // RenderAsTree renders all calls as a single connected tree.
 // This creates visual tree structure connecting all tool calls.
 func (t *ToolCallTree) RenderAsTree() string {

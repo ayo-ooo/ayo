@@ -32,7 +32,7 @@ type BashParams struct {
 
 // AgentCallParams defines the parameters for the agent_call tool.
 type AgentCallParams struct {
-	Agent          string `json:"agent" description:"The agent handle to call (e.g., '@ayo'). Must be a builtin agent."`
+	Agent          string `json:"agent" description:"The agent handle to call (e.g., '@crush', '@research'). Can be any available agent unless restricted by allowed_agents config."`
 	Prompt         string `json:"prompt" description:"The prompt/question to send to the agent"`
 	Model          string `json:"model,omitempty" description:"Model to use for the sub-agent (e.g., 'claude-sonnet-4'). If not specified, uses the sub-agent's default."`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" description:"Optional timeout in seconds (default 120, max 300)"`
@@ -228,7 +228,7 @@ func (ts *FantasyToolSet) Close() error {
 func (ts *FantasyToolSet) AddAgentCallTool(executor func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error)) {
 	ts.tools = append(ts.tools, fantasy.NewAgentTool(
 		"agent_call",
-		"Call a builtin agent as a subprocess and get its response. Use this to delegate specialized tasks to other agents.",
+		"Call another agent and get its response. Use this to delegate specialized tasks to other agents (e.g., @crush for coding, @research for web research).",
 		executor,
 	))
 }

@@ -820,3 +820,77 @@ func TestLoadWithGuardrailsDisabled(t *testing.T) {
 		t.Errorf("combined should contain agent system, got:\n%s", ag.CombinedSystem)
 	}
 }
+
+func TestCanCallAgent(t *testing.T) {
+	tests := []struct {
+		name          string
+		allowedAgents []string
+		targetHandle  string
+		want          bool
+	}{
+		{
+			name:          "empty allowed_agents allows all",
+			allowedAgents: nil,
+			targetHandle:  "@crush",
+			want:          true,
+		},
+		{
+			name:          "exact match allowed",
+			allowedAgents: []string{"@crush", "@research"},
+			targetHandle:  "@crush",
+			want:          true,
+		},
+		{
+			name:          "exact match not in list",
+			allowedAgents: []string{"@crush", "@research"},
+			targetHandle:  "@other",
+			want:          false,
+		},
+		{
+			name:          "namespace pattern matches",
+			allowedAgents: []string{"@ayo.*"},
+			targetHandle:  "@ayo.helper",
+			want:          true,
+		},
+		{
+			name:          "namespace pattern does not match other namespace",
+			allowedAgents: []string{"@ayo.*"},
+			targetHandle:  "@crush",
+			want:          false,
+		},
+		{
+			name:          "mixed patterns",
+			allowedAgents: []string{"@ayo.*", "@crush"},
+			targetHandle:  "@crush",
+			want:          true,
+		},
+		{
+			name:          "mixed patterns with namespace match",
+			allowedAgents: []string{"@ayo.*", "@crush"},
+			targetHandle:  "@ayo.coding",
+			want:          true,
+		},
+		{
+			name:          "handle normalization",
+			allowedAgents: []string{"crush"}, // without @
+			targetHandle:  "@crush",
+			want:          true,
+		},
+		{
+			name:          "handle normalization target",
+			allowedAgents: []string{"@crush"},
+			targetHandle:  "crush", // without @
+			want:          true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{AllowedAgents: tt.allowedAgents}
+			got := cfg.CanCallAgent(tt.targetHandle)
+			if got != tt.want {
+				t.Errorf("CanCallAgent(%q) = %v, want %v", tt.targetHandle, got, tt.want)
+			}
+		})
+	}
+}

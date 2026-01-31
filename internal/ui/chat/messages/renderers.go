@@ -3,13 +3,20 @@ package messages
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/tree"
+	"os"
 
 	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
+
+// debugLog writes to a debug file for troubleshooting
+func debugLog(format string, args ...any) {
+	f, err := os.OpenFile("/tmp/ayo_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, format+"\n", args...)
+}
 
 // genericRenderer handles unknown tool types with basic parameter display.
 type genericRenderer struct {
@@ -39,36 +46,23 @@ type BashResponseMetadata = shared.BashResponseMetadata
 
 // Render displays bash command with output.
 func (br bashRenderer) Render(t *toolCallCmp) string {
-	var params BashParams
-	if err := br.unmarshalParams(t.call.Input, &params); err != nil {
-		return br.renderError(t, "Invalid bash parameters")
-	}
+	// Use shared renderer for data extraction
+	renderInput := t.ToRenderInput()
+	renderOutput := shared.RenderTool(renderInput)
 
-	// Sanitize command for display
-	cmd := strings.ReplaceAll(params.Command, "\n", " ")
-	cmd = strings.ReplaceAll(cmd, "\t", "    ")
-
-	args := newParamBuilder().
-		addMain(cmd).
-		addFlag("background", params.RunInBackground).
-		build()
-
-	return br.renderWithParams(t, "Bash", args, func() string {
-		var meta BashResponseMetadata
-		if t.result.Metadata != "" {
-			_ = br.unmarshalParams(t.result.Metadata, &meta)
+	return br.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
+		// Render body sections
+		for _, section := range renderOutput.Sections {
+			switch section.Type {
+			case shared.SectionCode:
+				return renderCodeContent(t, section.Content, section.MaxLines)
+			case shared.SectionJSON:
+				return renderPlainContent(t, section.Content, section.MaxLines)
+			case shared.SectionPlain:
+				return renderPlainContent(t, section.Content, section.MaxLines)
+			}
 		}
-
-		output := meta.Output
-		if output == "" && t.result.Content != "" && t.result.Content != "(no output)" {
-			output = t.result.Content
-		}
-
-		if output == "" {
-			return ""
-		}
-
-		return renderPlainContent(t, output, 10)
+		return ""
 	})
 }
 
@@ -88,46 +82,19 @@ type TodosResponseMetadata = shared.TodosResponseMetadata
 
 // Render displays todo list.
 func (tr todosRenderer) Render(t *toolCallCmp) string {
+	// Use shared renderer for data extraction
+	renderInput := t.ToRenderInput()
+	renderOutput := shared.RenderTool(renderInput)
+
+	// Parse todos for body rendering
 	var params TodosParams
 	var meta TodosResponseMetadata
-	var headerText string
-
-	if err := tr.unmarshalParams(t.call.Input, &params); err == nil {
-		completedCount := 0
-		inProgressTask := ""
-
-		for _, todo := range params.Todos {
-			if todo.Status == "completed" {
-				completedCount++
-			}
-			if todo.Status == "in_progress" {
-				if todo.ActiveForm != "" {
-					inProgressTask = todo.ActiveForm
-				} else {
-					inProgressTask = todo.Content
-				}
-			}
-		}
-
-		headerText = fmt.Sprintf("%d/%d", completedCount, len(params.Todos))
-		if inProgressTask != "" {
-			headerText = fmt.Sprintf("%d/%d - %s", completedCount, len(params.Todos), inProgressTask)
-		}
-
-		// Use metadata if available
-		if t.result.Metadata != "" {
-			if err := tr.unmarshalParams(t.result.Metadata, &meta); err == nil {
-				headerText = fmt.Sprintf("%d/%d", meta.Completed, meta.Total)
-				if meta.JustStarted != "" {
-					headerText = fmt.Sprintf("%d/%d - %s", meta.Completed, meta.Total, meta.JustStarted)
-				}
-			}
-		}
+	_ = tr.unmarshalParams(t.call.Input, &params)
+	if t.result.Metadata != "" {
+		_ = tr.unmarshalParams(t.result.Metadata, &meta)
 	}
 
-	args := newParamBuilder().addMain(headerText).build()
-
-	return tr.renderWithParams(t, "Todo", args, func() string {
+	return tr.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
 		todos := params.Todos
 		if len(meta.Todos) > 0 {
 			todos = meta.Todos
@@ -146,72 +113,50 @@ func formatTodosList(todos []Todo, width int) string {
 	return shared.FormatTodos(todos, width)
 }
 
-// agentRenderer handles sub-agent call display.
-type agentRenderer struct {
+// agentCallRenderer handles sub-agent call display with threaded conversation.
+type agentCallRenderer struct {
 	baseRenderer
 }
 
-// AgentParams represents agent tool parameters.
-type AgentParams struct {
-	Prompt string `json:"prompt"`
+// Render displays agent call with prompt and response threaded.
+func (ar agentCallRenderer) Render(t *toolCallCmp) string {
+	// Use shared renderer for data extraction (like bash does)
+	renderInput := t.ToRenderInput()
+	renderOutput := shared.RenderTool(renderInput)
+
+	debugLog("=== agent_call render ===")
+	debugLog("  ID: %s", t.call.ID)
+	debugLog("  Name: %s", t.call.Name)
+	debugLog("  Input: %s", t.call.Input)
+	debugLog("  Result.Content: %s", t.result.Content)
+	debugLog("  Result.Metadata: %s", t.result.Metadata)
+	debugLog("  Result.ToolCallID: %s", t.result.ToolCallID)
+	debugLog("  RenderOutput.Label: %s", renderOutput.Label)
+	debugLog("  RenderOutput.HeaderParams: %v", renderOutput.HeaderParams)
+	debugLog("  RenderOutput.Sections count: %d", len(renderOutput.Sections))
+	for i, sec := range renderOutput.Sections {
+		debugLog("    Section[%d] Type=%d Content(first 100)=%q", i, sec.Type, truncateForLog(sec.Content, 100))
+	}
+
+	return ar.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
+		// Render body sections from shared renderer
+		for _, section := range renderOutput.Sections {
+			switch section.Type {
+			case shared.SectionMarkdown:
+				return renderMarkdownContent(t, section.Content, section.MaxLines)
+			case shared.SectionPlain:
+				return renderPlainContent(t, section.Content, section.MaxLines)
+			}
+		}
+		return ""
+	})
 }
 
-// Render displays agent call with nested tool calls using lipgloss/tree.
-func (ar agentRenderer) Render(t *toolCallCmp) string {
-	var params AgentParams
-	_ = ar.unmarshalParams(t.call.Input, &params)
-
-	width := t.textWidth()
-
-	// Build header
-	header := ar.makeHeader(t, "Agent", width)
-
-	// Format prompt as task description
-	prompt := params.Prompt
-	prompt = strings.ReplaceAll(prompt, "\n", " ")
-	if len(prompt) > 60 {
-		prompt = prompt[:57] + "..."
+func truncateForLog(s string, n int) string {
+	if len(s) <= n {
+		return s
 	}
-
-	taskStyle := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
-	taskLine := fmt.Sprintf("  Task: %s", taskStyle.Render(prompt))
-
-	// Combine header and task line
-	headerWithTask := lipgloss.JoinVertical(lipgloss.Left, header, "", taskLine)
-
-	// Build tree with nested tool calls
-	rootTree := tree.Root(headerWithTask)
-
-	// Add nested tool calls as children if expanded
-	if t.expanded && len(t.nestedToolCalls) > 0 {
-		for _, nested := range t.nestedToolCalls {
-			childView := nested.View()
-			rootTree.Child(childView)
-		}
-	}
-
-	// Apply enumerator and render tree
-	var result string
-	if len(t.nestedToolCalls) > 0 {
-		result = rootTree.Enumerator(roundedEnumerator(2, 3)).String()
-	} else {
-		result = headerWithTask
-	}
-
-	// Add collapse indicator if there are nested calls
-	if len(t.nestedToolCalls) > 0 && !t.expanded {
-		collapseStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
-		result = lipgloss.JoinVertical(lipgloss.Left, result, "",
-			collapseStyle.Render(fmt.Sprintf("  [%d nested tool calls collapsed]", len(t.nestedToolCalls))))
-	}
-
-	// Add result content when completed
-	if t.result.ToolCallID != "" && t.result.Content != "" {
-		body := renderMarkdownContent(t, t.result.Content, 10)
-		result = joinHeaderBody(result, body)
-	}
-
-	return result
+	return s[:n] + "..."
 }
 
 // init registers all built-in renderers.
@@ -219,7 +164,7 @@ func init() {
 	registry.register("bash", func() renderer { return bashRenderer{} })
 	registry.register("todo", func() renderer { return todosRenderer{} })
 	registry.register("todos", func() renderer { return todosRenderer{} })
-	registry.register("agent", func() renderer { return agentRenderer{} })
+	registry.register("agent_call", func() renderer { return agentCallRenderer{} })
 }
 
 // RegisterRenderer allows external packages to register custom renderers.

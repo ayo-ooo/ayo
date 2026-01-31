@@ -309,6 +309,47 @@ func renderPlainContent(t *toolCallCmp, content string, maxLines int) string {
 	return strings.Join(out, "\n")
 }
 
+// renderCodeContent renders shell/code output styled like terminal output.
+func renderCodeContent(t *toolCallCmp, content string, maxLines int) string {
+	if maxLines <= 0 {
+		maxLines = 20
+	}
+
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\t", "    ")
+	content = strings.TrimSpace(content)
+
+	if content == "" {
+		return ""
+	}
+
+	lines := strings.Split(content, "\n")
+	width := t.textWidth() - 4
+
+	// Style for code output - brighter, monospace-like appearance
+	codeStyle := lipgloss.NewStyle().
+		Foreground(shared.ColorText)
+
+	var out []string
+	for i, ln := range lines {
+		if i >= maxLines {
+			break
+		}
+		if lipgloss.Width(ln) > width {
+			ln = ansi.Truncate(ln, width, "...")
+		}
+		out = append(out, codeStyle.Render(ln))
+	}
+
+	if len(lines) > maxLines {
+		truncStyle := lipgloss.NewStyle().Foreground(shared.ColorMuted).Italic(true)
+		out = append(out, truncStyle.Render(
+			fmt.Sprintf("... (%d more lines)", len(lines)-maxLines)))
+	}
+
+	return strings.Join(out, "\n")
+}
+
 // renderMarkdownContent renders markdown with glamour.
 func renderMarkdownContent(t *toolCallCmp, content string, maxLines int) string {
 	if maxLines <= 0 {

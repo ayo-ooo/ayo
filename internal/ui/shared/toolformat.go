@@ -33,6 +33,36 @@ type BashResponseMetadata struct {
 	ShellID     string `json:"shell_id,omitempty"`
 }
 
+// BashToolOutput represents the JSON output from the bash tool.
+type BashToolOutput struct {
+	Stdout    string `json:"stdout"`
+	Stderr    string `json:"stderr"`
+	ExitCode  int    `json:"exit_code"`
+	TimedOut  bool   `json:"timed_out,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// GetDisplayOutput returns the appropriate output string for display.
+// It prioritizes error, then stderr (for failures), then stdout.
+func (b BashToolOutput) GetDisplayOutput() string {
+	if b.Error != "" {
+		return b.Error
+	}
+	if b.ExitCode != 0 && b.Stderr != "" {
+		return b.Stderr
+	}
+	if b.Stdout != "" {
+		return b.Stdout
+	}
+	return b.Stderr
+}
+
+// IsError returns true if the command failed.
+func (b BashToolOutput) IsError() bool {
+	return b.Error != "" || b.ExitCode != 0
+}
+
 // TodosParams represents todo tool parameters.
 type TodosParams struct {
 	Todos []Todo `json:"todos"`

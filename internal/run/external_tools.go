@@ -16,7 +16,6 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/alexcabrera/ayo/internal/plugins"
-	uipkg "github.com/alexcabrera/ayo/internal/ui"
 )
 
 // externalToolWrapper wraps an external tool to implement the AgentTool interface.
@@ -171,26 +170,12 @@ func executeExternalTool(
 	cmd.Stdout = stdoutBuf
 	cmd.Stderr = stderrBuf
 
-	// Show spinner unless quiet mode or spinner_style is "none"
-	var spinner uipkg.ToolSpinner
-	if !def.Quiet && def.SpinnerStyle != "none" {
-		spinner = uipkg.NewToolSpinner(def.Name, def.SpinnerStyle, depth)
-	}
-	if spinner != nil {
-		spinner.Start()
-	}
+	// Note: Spinners are handled by the StreamWriter (TUI or PrintWriter).
+	// External tools should not create their own spinners as it conflicts
+	// with the centralized UI rendering.
 
 	// Run command
 	runErr := cmd.Run()
-
-	// Stop spinner
-	if spinner != nil {
-		if runErr != nil {
-			spinner.StopWithError(def.Name + " failed")
-		} else {
-			spinner.Stop()
-		}
-	}
 
 	// Build result
 	result := externalToolResult{
@@ -271,9 +256,16 @@ func buildExternalToolArgs(def *plugins.ToolDefinition, params map[string]any) (
 		if param.ArgTemplate != "" {
 			expanded := expandParamTemplate(param.ArgTemplate, param.Name, val)
 			if expanded != "" {
-				// Handle templates that produce multiple args (e.g., "--flag value")
-				parts := splitArgs(expanded)
-				args = append(args, parts...)
+				// If the template is in --flag={{value}} format (with =), treat as single arg
+				// to preserve JSON with quotes. Only use splitArgs for templates like
+				// "--flag value" that need to be split into multiple args.
+				if strings.Contains(param.ArgTemplate, "={{value}}") {
+					args = append(args, expanded)
+				} else {
+					// Handle templates that produce multiple args (e.g., "--flag value")
+					parts := splitArgs(expanded)
+					args = append(args, parts...)
+				}
 			}
 		} else {
 			// Default behavior based on type
@@ -343,15 +335,15 @@ func formatValue(val any) string {
 		return fmt.Sprintf("%g", v)
 	case int, int64, int32:
 		return fmt.Sprintf("%d", v)
-	case []any:
-		// For arrays, join with comma
-		var parts []string
-		for _, item := range v {
-			parts = append(parts, formatValue(item))
+	case []any, map[string]any:
+		// For arrays and objects, use JSON marshaling to preserve structure
+		data, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
 		}
-		return strings.Join(parts, ",")
+		return string(data)
 	default:
-		// Try JSON marshaling for complex types
+		// Try JSON marshaling for other complex types
 		data, err := json.Marshal(v)
 		if err != nil {
 			return fmt.Sprintf("%v", v)

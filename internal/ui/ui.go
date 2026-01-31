@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/alexcabrera/ayo/internal/pipe"
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
 
 type SelectAgentResult struct {
@@ -549,6 +550,29 @@ type ToolCallInfo struct {
 	Error       string // Error message if failed
 	Duration    string // How long the call took
 	Metadata    string // Tool-specific metadata (JSON)
+}
+
+// ToRenderInput converts ToolCallInfo to a shared.ToolRenderInput.
+func (tc ToolCallInfo) ToRenderInput() shared.ToolRenderInput {
+	state := shared.ToolStatePending
+	if tc.Error != "" {
+		state = shared.ToolStateError
+	} else if tc.Output != "" || tc.Metadata != "" {
+		state = shared.ToolStateSuccess
+	}
+
+	return shared.ToolRenderInput{
+		Name:        tc.Name,
+		RawInput:    tc.Input,
+		RawMetadata: tc.Metadata,
+		RawOutput:   tc.Output,
+		State:       state,
+	}
+}
+
+// GetRenderOutput uses the shared renderer to get mode-agnostic render data.
+func (tc ToolCallInfo) GetRenderOutput() shared.ToolRenderOutput {
+	return shared.RenderTool(tc.ToRenderInput())
 }
 
 // PrintToolCallStart prints the tool call header with the command.

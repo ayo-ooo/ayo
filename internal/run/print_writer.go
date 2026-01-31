@@ -1,7 +1,6 @@
 package run
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/ui"
@@ -124,15 +123,3 @@ func (w *PrintWriter) WriteDone(response string) {
 
 // Verify PrintWriter implements StreamWriter
 var _ StreamWriter = (*PrintWriter)(nil)
-
-// extractBashParams extracts command and description from bash tool input JSON.
-func extractBashParams(input string) (command, description string) {
-	var params struct {
-		Command     string `json:"command"`
-		Description string `json:"description"`
-	}
-	if err := json.Unmarshal([]byte(input), &params); err == nil {
-		return params.Command, params.Description
-	}
-	return "", ""
-}
