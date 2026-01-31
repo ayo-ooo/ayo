@@ -12,12 +12,14 @@ func TestIsCategory(t *testing.T) {
 		input    string
 		expected bool
 	}{
-		{"planning is category", "planning", true},
+		{"plan is category", "plan", true},
 		{"shell is category", "shell", true},
+		{"search is category", "search", true},
 		{"bash is not category", "bash", false},
 		{"todo is not category", "todo", false},
 		{"random is not category", "random", false},
 		{"empty is not category", "", false},
+		{"planning is not category (old name)", "planning", false},
 	}
 
 	for _, tt := range tests {
@@ -36,7 +38,7 @@ func TestDefaultForCategory(t *testing.T) {
 		cat      Category
 		expected string
 	}{
-		{"planning default", CategoryPlanning, "todo"},
+		{"plan has no default", CategoryPlan, ""},
 		{"shell default", CategoryShell, "bash"},
 		{"search has no default", CategorySearch, ""},
 		{"unknown category", Category("unknown"), ""},
@@ -60,24 +62,24 @@ func TestResolveToolName(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "category with no config",
-			input:    "planning",
+			name:     "plan category with no config returns empty",
+			input:    "plan",
 			cfg:      nil,
-			expected: "todo",
+			expected: "",
 		},
 		{
-			name:     "category with empty config",
-			input:    "planning",
+			name:     "plan category with empty config returns empty",
+			input:    "plan",
 			cfg:      &config.Config{},
-			expected: "todo",
+			expected: "",
 		},
 		{
-			name:  "category with override",
-			input: "planning",
+			name:  "plan category with override returns configured tool",
+			input: "plan",
 			cfg: &config.Config{
-				DefaultTools: map[string]string{"planning": "plan"},
+				DefaultTools: map[string]string{"plan": "ticket"},
 			},
-			expected: "plan",
+			expected: "ticket",
 		},
 		{
 			name:     "shell category default",
@@ -94,13 +96,13 @@ func TestResolveToolName(t *testing.T) {
 			expected: "nushell",
 		},
 		{
-			name:     "non-category tool",
-			input:    "memory",
+			name:     "search category with no config returns empty",
+			input:    "search",
 			cfg:      nil,
-			expected: "memory",
+			expected: "",
 		},
 		{
-			name:  "non-category with alias",
+			name:  "search category with override returns configured tool",
 			input: "search",
 			cfg: &config.Config{
 				DefaultTools: map[string]string{"search": "searxng"},
@@ -108,10 +110,28 @@ func TestResolveToolName(t *testing.T) {
 			expected: "searxng",
 		},
 		{
+			name:     "non-category tool passthrough",
+			input:    "memory",
+			cfg:      nil,
+			expected: "memory",
+		},
+		{
 			name:     "concrete tool passthrough",
 			input:    "bash",
 			cfg:      nil,
 			expected: "bash",
+		},
+		{
+			name:     "todo tool passthrough (not a category)",
+			input:    "todo",
+			cfg:      nil,
+			expected: "todo",
+		},
+		{
+			name:     "old planning name passthrough (not a category anymore)",
+			input:    "planning",
+			cfg:      nil,
+			expected: "planning",
 		},
 	}
 
@@ -129,16 +149,30 @@ func TestListCategories(t *testing.T) {
 	cats := ListCategories()
 
 	// Verify expected categories exist
-	if cats[CategoryPlanning] != "todo" {
-		t.Errorf("expected planning -> todo, got %q", cats[CategoryPlanning])
+	if _, ok := cats[CategoryPlan]; !ok {
+		t.Error("expected plan category to exist")
+	}
+	if cats[CategoryPlan] != "" {
+		t.Errorf("expected plan to have no default, got %q", cats[CategoryPlan])
 	}
 	if cats[CategoryShell] != "bash" {
 		t.Errorf("expected shell -> bash, got %q", cats[CategoryShell])
 	}
+	if _, ok := cats[CategorySearch]; !ok {
+		t.Error("expected search category to exist")
+	}
+	if cats[CategorySearch] != "" {
+		t.Errorf("expected search to have no default, got %q", cats[CategorySearch])
+	}
+
+	// Verify all three categories are returned
+	if len(cats) != 3 {
+		t.Errorf("expected 3 categories, got %d", len(cats))
+	}
 
 	// Verify returned map is a copy (mutation shouldn't affect original)
-	cats[CategoryPlanning] = "modified"
-	if DefaultForCategory(CategoryPlanning) == "modified" {
+	cats[CategoryShell] = "modified"
+	if DefaultForCategory(CategoryShell) == "modified" {
 		t.Error("ListCategories should return a copy, not the original map")
 	}
 }

@@ -532,7 +532,7 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 
 	// Build tool set with memory queue and depth for proper UI nesting
 	baseDir, _ := os.Getwd()
-	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth)
+	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth, ag.Config.DisableTodo)
 
 	// Add agent_call if explicitly allowed in config (for any agent)
 	// or if it's a non-builtin agent (user agents get it by default)

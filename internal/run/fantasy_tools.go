@@ -138,14 +138,11 @@ type FantasyToolSet struct {
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
-func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int) FantasyToolSet {
+// The disableTodo flag controls whether the built-in todo tool is included.
+// By default (disableTodo=false), todo is always available regardless of allowed list.
+func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int, disableTodo bool) FantasyToolSet {
 	if baseDir == "" {
 		baseDir, _ = os.Getwd()
-	}
-
-	// Default to bash and planning category if no tools specified
-	if len(allowed) == 0 {
-		allowed = []string{"bash", "planning"}
 	}
 
 	// Load config for category resolution
@@ -157,9 +154,32 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 	// Track stateful tools that need cleanup
 	var statefulTools []tools.StatefulTool
 
+	// Always add todo first (unless disabled) - it's an always-available tool
+	if !disableTodo {
+		todoTool := NewTodoTool()
+		fantasyTools = append(fantasyTools, todoTool)
+		statefulTools = append(statefulTools, todoTool)
+		loadedTools["todo"] = true
+	}
+
+	// Default to bash if no tools specified
+	if len(allowed) == 0 {
+		allowed = []string{"bash"}
+	}
+
 	for _, name := range allowed {
+		// Skip todo and old planning name - todo is handled above
+		if name == "todo" || name == "planning" {
+			continue
+		}
+
 		// Resolve category to concrete tool name
 		resolvedName := tools.ResolveToolName(name, &cfg)
+
+		// Skip if empty (category with no configured default)
+		if resolvedName == "" {
+			continue
+		}
 
 		// Skip if already loaded (handles aliases pointing to same tool)
 		if loadedTools[resolvedName] {
@@ -169,11 +189,6 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 		switch resolvedName {
 		case "bash":
 			fantasyTools = append(fantasyTools, NewBashTool(baseDir))
-			loadedTools[resolvedName] = true
-		case "todo":
-			todoTool := NewTodoTool()
-			fantasyTools = append(fantasyTools, todoTool)
-			statefulTools = append(statefulTools, todoTool)
 			loadedTools[resolvedName] = true
 		case "memory":
 			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(memQueue))

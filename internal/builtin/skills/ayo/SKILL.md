@@ -250,7 +250,7 @@ rm -rf ~/.config/ayo/agents/@agent-name
 |-------|------|---------|-------------|
 | `model` | string | (global default) | LLM model to use |
 | `description` | string | | Brief description shown in `ayo agents list` |
-| `allowed_tools` | array | `["bash"]` | Tools: `bash`, `agent_call`, `plan` |
+| `allowed_tools` | array | `["bash"]` | Tools: `bash`, `agent_call`, `plan`, `memory`, `search` |
 | `skills` | array | `[]` | Skills to load for this agent |
 | `exclude_skills` | array | `[]` | Skills to explicitly exclude |
 | `ignore_builtin_skills` | bool | `false` | Don't load any built-in skills |
@@ -275,13 +275,15 @@ rm -rf ~/.config/ayo/agents/@agent-name
 }
 ```
 
-**Agent with todo tracking** (tracks multi-step tasks):
+**Agent with durable planning** (project-level tracking):
 ```json
 {
   "description": "Project planner",
-  "allowed_tools": ["bash", "todo"]
+  "allowed_tools": ["bash", "plan"]
 }
 ```
+
+**Note:** The `todo` tool is always available by default for session-scoped micro-task tracking. To disable it, add `"disable_todo": true` to the agent config.
 
 **Skill-focused agent** (specific expertise):
 ```json
@@ -306,7 +308,7 @@ rm -rf ~/.config/ayo/agents/@agent-name
 | Tool | Purpose | When to Include |
 |------|---------|-----------------|
 | `bash` | Execute shell commands | Almost always (default) |
-| `plan` | Track multi-step tasks with phases/todos | Complex workflows, project management |
+| `plan` | Durable project-level tickets (requires plugin) | Long-running projects, context handoffs |
 | `agent_call` | Delegate to other agents | Orchestrators, managers, routers |
 | `memory` | Store/retrieve persistent facts | Personalization, learning agents |
 | `search` | Web search (if configured) | Research, information gathering |

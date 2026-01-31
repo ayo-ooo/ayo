@@ -60,6 +60,11 @@ type Manifest struct {
 	// Dependencies specifies external requirements.
 	Dependencies *Dependencies `json:"dependencies,omitempty"`
 
+	// PostInstall is an optional script to run after installation.
+	// Path is relative to plugin root. Script receives plugin directory as first arg.
+	// Example: "scripts/post-install.sh"
+	PostInstall string `json:"post_install,omitempty"`
+
 	// AyoVersion specifies the minimum ayo version required.
 	// Uses semver constraints (e.g., ">=0.2.0").
 	AyoVersion string `json:"ayo_version,omitempty"`

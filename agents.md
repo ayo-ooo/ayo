@@ -990,27 +990,29 @@ Purple styled "Chat with @agentname" header with exit hint.
 
 ### Tool Categories
 
-Ayo supports **tool categories** - semantic slots that can be filled by different tool implementations. This allows users to swap planning tools, shell interpreters, or other tools without modifying agent configurations.
+Ayo supports **tool categories** - semantic slots that can be filled by different tool implementations. This allows users to swap tools without modifying agent configurations.
 
 **Defined categories:**
 
 | Category | Default | Description |
 |----------|---------|-------------|
-| `planning` | `todo` | Task tracking during execution |
 | `shell` | `bash` | Command execution |
+| `plan` | (none) | Durable project planning (requires plugin) |
 | `search` | (none) | Web search (requires plugin) |
 
 **Resolution order:**
 1. Check `default_tools` in config for user override
 2. Use built-in default if category has one
 3. Fall back to literal tool name
+4. If no default and not configured, tool is not loaded
 
 **Configuration:**
 ```json
 // ~/.config/ayo/ayo.json
 {
   "default_tools": {
-    "search": "searxng"     // Set default for category with no built-in
+    "plan": "ticket",        // Set default for plan category
+    "search": "searxng"      // Set default for search category
   }
 }
 ```
@@ -1018,9 +1020,27 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 **Agent config:**
 ```json
 {
-  "allowed_tools": ["bash", "planning"]  // "planning" resolves to configured tool
+  "allowed_tools": ["bash", "plan"]  // "plan" resolves to configured tool
 }
 ```
+
+### Always-Available Tools
+
+Some tools are always available to agents without needing to be listed in `allowed_tools`:
+
+| Tool | Purpose | Disable With |
+|------|---------|--------------|
+| `todo` | Session-scoped micro-task tracking | `"disable_todo": true` |
+
+**Todo vs Plan:**
+
+Ayo distinguishes between two levels of planning:
+
+- **Todo** (always available): Ephemeral session-scoped micro-tasks. Lives in SQLite, keyed by session ID. For tracking immediate execution steps within a single conversation.
+
+- **Plan** (category, requires plugin): Durable project-level tickets. Lives in files (`.tickets/`). Survives context handoffs and multi-session workflows. Enables long-running autonomous execution.
+
+Use `todo` for near-term "what am I doing right now" tracking. Use a `plan` tool (like `ticket`) for durable project planning that persists across sessions.
 
 ### Bash Tool
 
@@ -1034,11 +1054,19 @@ Optional parameters:
 - `timeout_seconds`: Command timeout (default 30s)
 - `working_dir`: Working directory scoped to project root
 
-### Todo Tool (Default Planning)
+### Todo Tool (Always Available)
 
-The `todo` tool is the **default** for the `planning` category. It provides a flat todo list for tracking multi-step tasks.
+The `todo` tool is **always available** to all agents by default. It provides a flat todo list for tracking micro-tasks within a session.
 
 **Storage:** Todo data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/todo/todo.db`, keyed by session ID.
+
+**Disabling:** To disable the todo tool for a specific agent, set `disable_todo: true` in the agent's `config.json`:
+
+```json
+{
+  "disable_todo": true
+}
+```
 
 **Parameters:**
 ```json

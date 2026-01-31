@@ -123,6 +123,14 @@ func Install(pluginRef string, opts *InstallOptions) (*InstallResult, error) {
 		return nil, fmt.Errorf("register plugin: %w", err)
 	}
 
+	// Run post-install hook if present
+	if manifest.PostInstall != "" {
+		if err := runPostInstallHook(pluginDir, manifest.PostInstall); err != nil {
+			// Log warning but don't fail installation
+			fmt.Fprintf(os.Stderr, "Warning: post-install hook failed: %v\n", err)
+		}
+	}
+
 	return &InstallResult{
 		Plugin:      plugin,
 		Manifest:    manifest,
@@ -242,6 +250,14 @@ func InstallFromLocal(localPath string, opts *InstallOptions) (*InstallResult, e
 		return nil, fmt.Errorf("register plugin: %w", err)
 	}
 
+	// Run post-install hook if present
+	if manifest.PostInstall != "" {
+		if err := runPostInstallHook(pluginDir, manifest.PostInstall); err != nil {
+			// Log warning but don't fail installation
+			fmt.Fprintf(os.Stderr, "Warning: post-install hook failed: %v\n", err)
+		}
+	}
+
 	return &InstallResult{
 		Plugin:      plugin,
 		Manifest:    manifest,
@@ -314,4 +330,32 @@ func CheckMissingDependencies(manifest *Manifest) []BinaryDep {
 	}
 
 	return missing
+}
+
+// runPostInstallHook runs a post-install script if it exists.
+// The script receives the plugin directory as its first argument.
+func runPostInstallHook(pluginDir, hookPath string) error {
+	fullPath := filepath.Join(pluginDir, hookPath)
+
+	// Check if hook exists
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("post-install script not found: %s", hookPath)
+		}
+		return err
+	}
+
+	// Ensure it's executable (on Unix) or just exists (on Windows)
+	if info.IsDir() {
+		return fmt.Errorf("post-install path is a directory: %s", hookPath)
+	}
+
+	// Run the script with plugin directory as argument
+	cmd := exec.Command("/bin/sh", fullPath, pluginDir)
+	cmd.Dir = pluginDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
