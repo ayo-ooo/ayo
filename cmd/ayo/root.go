@@ -23,6 +23,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
 
 func newRootCmd() *cobra.Command {
@@ -53,6 +54,14 @@ Examples:
 				// Non-fatal: just log in debug mode
 				if debug {
 					fmt.Fprintf(os.Stderr, "Warning: failed to load credentials: %v\n", err)
+				}
+			}
+
+			// Load plugin renderers for custom tool TUI rendering
+			if err := messages.LoadPluginRenderers(paths.PluginsDir()); err != nil {
+				// Non-fatal: just log in debug mode
+				if debug {
+					fmt.Fprintf(os.Stderr, "Warning: failed to load plugin renderers: %v\n", err)
 				}
 			}
 

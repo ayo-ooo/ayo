@@ -230,10 +230,12 @@ func (h *TUIStreamHandler) OnToolResult(result fantasy.ToolResultContent, durati
 			errStr = output
 		}
 		h.program.Send(ToolCallResultMsg{
+			ID:       result.ToolCallID,
 			Name:     result.ToolName,
 			Output:   output,
 			Error:    errStr,
 			Duration: duration.String(),
+			Metadata: result.ClientMetadata,
 		})
 
 		// Handle todo tool metadata to update the planning panel
