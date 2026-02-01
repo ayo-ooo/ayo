@@ -246,13 +246,94 @@
             background: var(--bg-secondary);
             border-right: 1px solid var(--border);
             overflow-y: auto;
-            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .file-tree-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .file-tree-title {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .file-tree-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .file-tree-actions .setting-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        
+        .file-tree-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            -webkit-overflow-scrolling: touch;
         }
         
         .file-preview {
             flex: 1;
-            padding: 20px;
-            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .file-preview-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: none;
+            flex-shrink: 0;
+        }
+        
+        .file-preview-header.visible {
+            display: block;
+        }
+        
+        .file-path {
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .file-editor {
+            flex: 1;
+            display: none;
+            min-height: 0;
+        }
+        
+        .file-editor.visible {
+            display: flex;
+        }
+        
+        .file-content-textarea {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            -webkit-overflow-scrolling: touch;
         }
         
         .file-item {
@@ -337,6 +418,104 @@
             background: var(--error);
         }
         
+        /* Settings - Additional Classes */
+        .settings-description {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .api-key-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .api-key-header .setting-label {
+            margin-bottom: 0;
+        }
+        
+        .api-key-status {
+            font-size: 12px;
+        }
+        
+        .api-key-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+        
+        .api-key-row .setting-input {
+            flex: 1;
+            margin-top: 0;
+        }
+        
+        .api-key-buttons {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        
+        .api-key-buttons .setting-btn {
+            margin-top: 0;
+        }
+        
+        .api-key-help {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 10px;
+        }
+        
+        .api-key-help a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        .api-key-help a:hover {
+            text-decoration: underline;
+        }
+        
+        .model-loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .model-loading .spinner {
+            margin: 0 auto 10px;
+        }
+        
+        .model-progress {
+            display: none;
+            margin-top: 16px;
+        }
+        
+        .model-progress.visible {
+            display: block;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .progress-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            background: var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
         /* Status Bar */
         .status-bar {
             background: var(--bg-secondary);
@@ -406,29 +585,262 @@
             font-size: 12px;
         }
         
-        /* Mobile Responsive Styles */
+        /* ========================================
+           MOBILE RESPONSIVE DESIGN SYSTEM
+           ======================================== */
+        
+        /* --- Tablet Breakpoint (768px) --- */
         @media (max-width: 768px) {
+            /* Header */
             header {
                 padding: 0 12px;
-                height: 48px;
+                height: 52px;
+                gap: 8px;
             }
             
             .logo {
                 font-size: 20px;
-                margin-right: 12px;
+                margin-right: 0;
+                flex-shrink: 0;
             }
             
+            /* Tabs - icon only on tablet */
             .tabs {
-                gap: 2px;
+                flex: 1;
+                justify-content: center;
+                gap: 0;
             }
             
             .tab {
-                padding: 0 12px;
+                padding: 0 14px;
                 font-size: 12px;
+                justify-content: center;
             }
             
-            .tab span:not(.tab-icon) {
+            .tab .tab-label {
                 display: none;
+            }
+            
+            .tab-icon {
+                font-size: 20px;
+            }
+            
+            .mode-badge {
+                padding: 4px 10px;
+                font-size: 11px;
+                flex-shrink: 0;
+            }
+            
+            /* Chat Tab */
+            .chat-messages {
+                padding: 16px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .message-content {
+                padding: 10px 14px;
+                font-size: 15px;
+            }
+            
+            .chat-input-container {
+                padding: 12px 16px;
+            }
+            
+            .chat-input-wrapper {
+                max-width: 100%;
+            }
+            
+            .chat-input {
+                font-size: 16px;
+                padding: 12px 14px;
+                min-height: 48px;
+            }
+            
+            .send-btn {
+                padding: 12px 20px;
+                min-height: 48px;
+            }
+            
+            /* Empty States */
+            .empty-state {
+                padding: 24px 16px;
+            }
+            
+            .empty-state h3 {
+                font-size: 18px;
+            }
+            
+            .empty-state p {
+                font-size: 14px;
+            }
+            
+            /* Terminal Tab */
+            #terminal-container {
+                padding: 8px;
+            }
+            
+            .boot-progress {
+                padding: 24px 16px;
+            }
+            
+            /* Files Tab - vertical split */
+            #files-tab {
+                flex-direction: column;
+            }
+            
+            .file-tree {
+                width: 100%;
+                max-height: 35vh;
+                min-height: 150px;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            
+            .file-tree-header {
+                padding: 8px 12px !important;
+            }
+            
+            .file-tree-actions {
+                gap: 6px !important;
+            }
+            
+            .file-tree-actions .setting-btn {
+                padding: 6px 10px !important;
+                font-size: 12px !important;
+                min-height: 36px;
+            }
+            
+            .file-preview {
+                flex: 1;
+                min-height: 0;
+            }
+            
+            .file-preview-header {
+                padding: 12px !important;
+            }
+            
+            .file-actions {
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+            }
+            
+            .file-actions .setting-btn {
+                flex: 1;
+                min-width: 80px;
+                min-height: 40px;
+            }
+            
+            #file-content {
+                font-size: 14px !important;
+                padding: 12px !important;
+            }
+            
+            /* Settings Tab */
+            #settings-tab {
+                padding: 20px 16px;
+            }
+            
+            .settings-section {
+                max-width: 100%;
+                margin-bottom: 32px;
+            }
+            
+            .settings-section h2 {
+                font-size: 17px;
+                margin-bottom: 16px;
+            }
+            
+            .setting-item {
+                padding: 14px;
+                margin-bottom: 10px;
+            }
+            
+            .api-key-row {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .api-key-row .setting-input {
+                width: 100% !important;
+            }
+            
+            .api-key-buttons {
+                display: flex;
+                gap: 8px;
+                width: 100%;
+            }
+            
+            .api-key-buttons .setting-btn {
+                flex: 1;
+                min-height: 44px;
+            }
+            
+            .setting-input {
+                font-size: 16px;
+                padding: 12px;
+                min-height: 48px;
+            }
+            
+            .setting-btn {
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+            
+            /* Model cards */
+            .model-card {
+                padding: 12px !important;
+            }
+            
+            .model-card-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 4px !important;
+            }
+            
+            .model-card-actions {
+                margin-top: 10px;
+                display: flex;
+                gap: 8px;
+                width: 100%;
+            }
+            
+            .model-card-actions .setting-btn {
+                flex: 1;
+            }
+            
+            /* Progress bar */
+            #model-progress {
+                margin-top: 12px;
+            }
+            
+            /* Status Bar */
+            .status-bar {
+                padding: 8px 12px;
+                min-height: 36px;
+            }
+            
+            .status-bar .status-item:last-child {
+                display: none;
+            }
+        }
+        
+        /* --- Phone Breakpoint (480px) --- */
+        @media (max-width: 480px) {
+            header {
+                height: 48px;
+                padding: 0 10px;
+            }
+            
+            .logo {
+                font-size: 18px;
+            }
+            
+            .tab {
+                padding: 0 10px;
             }
             
             .tab-icon {
@@ -440,143 +852,155 @@
                 font-size: 10px;
             }
             
-            /* Chat Tab Mobile */
+            /* Chat */
             .chat-messages {
                 padding: 12px;
             }
             
             .message {
-                max-width: 100%;
+                max-width: 92%;
+            }
+            
+            .message-content {
+                padding: 10px 12px;
+                font-size: 14px;
+                line-height: 1.4;
             }
             
             .chat-input-container {
-                padding: 12px;
+                padding: 10px 12px;
             }
             
             .chat-input-wrapper {
-                flex-direction: column;
                 gap: 8px;
             }
             
             .chat-input {
-                font-size: 16px; /* Prevents iOS zoom */
+                padding: 10px 12px;
             }
             
             .send-btn {
-                width: 100%;
-                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 14px;
             }
             
-            /* Files Tab Mobile */
-            #files-tab {
-                flex-direction: column;
-            }
-            
-            .file-tree {
-                width: 100%;
-                max-height: 40vh;
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-            }
-            
-            .file-preview {
-                min-height: 50vh;
-            }
-            
-            .file-preview-header > div {
-                flex-wrap: wrap;
-            }
-            
-            /* Settings Tab Mobile */
-            #settings-tab {
-                padding: 16px;
-            }
-            
-            .settings-section {
-                max-width: 100%;
-            }
-            
-            .setting-item > div:last-child {
-                flex-wrap: wrap;
-            }
-            
-            .setting-item .setting-btn {
-                flex: 1;
-                min-width: 60px;
-            }
-            
-            /* Status Bar Mobile */
-            .status-bar {
-                padding: 6px 12px;
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            
-            .status-bar .status-item:last-child {
-                display: none; /* Hide keyboard shortcuts on mobile */
-            }
-            
-            /* Terminal Tab Mobile */
-            #terminal-container {
-                padding: 4px;
-            }
-        }
-        
-        /* Small Mobile */
-        @media (max-width: 480px) {
-            header {
-                height: 44px;
-            }
-            
-            .logo {
-                font-size: 18px;
-                margin-right: 8px;
-            }
-            
-            .tab {
-                padding: 0 8px;
-            }
-            
-            .tab-icon {
+            /* Empty states */
+            .empty-state h3 {
                 font-size: 16px;
             }
             
-            .mode-badge {
-                padding: 2px 6px;
-                font-size: 9px;
+            .empty-state p {
+                font-size: 13px;
+            }
+            
+            /* Terminal */
+            #terminal-container {
+                padding: 4px;
+            }
+            
+            /* Files */
+            .file-tree {
+                max-height: 30vh;
+            }
+            
+            .file-item {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+            
+            #current-file-path {
+                font-size: 12px !important;
+                word-break: break-all;
+            }
+            
+            /* Settings */
+            #settings-tab {
+                padding: 16px 12px;
+            }
+            
+            .settings-section {
+                margin-bottom: 24px;
             }
             
             .settings-section h2 {
                 font-size: 16px;
             }
             
+            .settings-section > p {
+                font-size: 13px !important;
+            }
+            
             .setting-item {
                 padding: 12px;
             }
             
-            .setting-input {
-                font-size: 16px; /* Prevents iOS zoom */
+            .setting-label {
+                font-size: 13px;
+            }
+            
+            .api-key-help {
+                font-size: 11px !important;
+            }
+            
+            /* Status */
+            .status-bar {
+                padding: 6px 10px;
+                font-size: 11px;
             }
         }
         
-        /* Touch-friendly improvements */
+        /* --- Touch Device Enhancements --- */
         @media (hover: none) and (pointer: coarse) {
-            .tab, .send-btn, .setting-btn, .file-item {
+            /* Ensure all interactive elements meet 44px minimum */
+            .tab {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            .send-btn,
+            .setting-btn,
+            #start-vm-btn {
                 min-height: 44px;
             }
             
-            .setting-input, .chat-input {
+            .file-item {
                 min-height: 44px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .setting-input,
+            .chat-input,
+            #file-content {
                 font-size: 16px;
+            }
+            
+            /* Increase tap targets for links */
+            .api-key-help a {
+                padding: 4px 0;
+                display: inline-block;
+            }
+            
+            /* Active states for touch feedback */
+            .tab:active,
+            .setting-btn:active,
+            .send-btn:active,
+            .file-item:active {
+                opacity: 0.7;
             }
         }
         
-        /* Safe area insets for notched devices */
+        /* --- Safe Area Insets (notched devices) --- */
         @supports (padding: env(safe-area-inset-top)) {
             header {
                 padding-top: env(safe-area-inset-top);
                 padding-left: max(12px, env(safe-area-inset-left));
                 padding-right: max(12px, env(safe-area-inset-right));
+            }
+            
+            main {
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
             }
             
             .status-bar {
@@ -587,11 +1011,58 @@
             
             .chat-input-container {
                 padding-bottom: max(12px, env(safe-area-inset-bottom));
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
             }
             
             #settings-tab {
                 padding-left: max(16px, env(safe-area-inset-left));
                 padding-right: max(16px, env(safe-area-inset-right));
+                padding-bottom: max(20px, env(safe-area-inset-bottom));
+            }
+            
+            .file-tree,
+            .file-preview {
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+        }
+        
+        /* --- Landscape Phone Adjustments --- */
+        @media (max-height: 500px) and (orientation: landscape) {
+            header {
+                height: 44px;
+            }
+            
+            .chat-messages {
+                padding: 8px 12px;
+            }
+            
+            .chat-input-container {
+                padding: 8px 12px;
+            }
+            
+            .file-tree {
+                max-height: 100%;
+            }
+            
+            #files-tab {
+                flex-direction: row;
+            }
+            
+            .file-tree {
+                width: 40%;
+                max-height: none;
+                border-right: 1px solid var(--border);
+                border-bottom: none;
+            }
+            
+            .file-preview {
+                width: 60%;
+            }
+            
+            .status-bar {
+                padding: 4px 12px;
             }
         }
     </style>
@@ -603,19 +1074,19 @@
         <nav class="tabs" role="tablist">
             <button class="tab active" role="tab" data-tab="chat" aria-selected="true">
                 <span class="tab-icon">&#9993;</span>
-                <span>Chat</span>
+                <span class="tab-label">Chat</span>
             </button>
             <button class="tab" role="tab" data-tab="terminal" aria-selected="false">
                 <span class="tab-icon">&#62;_</span>
-                <span>Terminal</span>
+                <span class="tab-label">Terminal</span>
             </button>
             <button class="tab" role="tab" data-tab="files" aria-selected="false">
                 <span class="tab-icon">&#128193;</span>
-                <span>Files</span>
+                <span class="tab-label">Files</span>
             </button>
             <button class="tab" role="tab" data-tab="settings" aria-selected="false">
                 <span class="tab-icon">&#9881;</span>
-                <span>Settings</span>
+                <span class="tab-label">Settings</span>
             </button>
         </nav>
         
@@ -658,31 +1129,31 @@
         <!-- Files Tab -->
         <div class="tab-content" id="files-tab" role="tabpanel">
             <div class="file-tree" id="file-tree">
-                <div class="file-tree-header" style="padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 500;">Files</span>
-                    <div style="display: flex; gap: 4px;">
-                        <button class="setting-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="refreshFiles()" title="Refresh">Refresh</button>
-                        <button class="setting-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="createNewFile()" title="New File">+ File</button>
+                <div class="file-tree-header">
+                    <span class="file-tree-title">Files</span>
+                    <div class="file-tree-actions">
+                        <button class="setting-btn secondary" onclick="refreshFiles()" title="Refresh">Refresh</button>
+                        <button class="setting-btn secondary" onclick="createNewFile()" title="New File">+ File</button>
                     </div>
                 </div>
-                <div id="file-tree-content" style="overflow-y: auto; flex: 1; padding: 8px;">
-                    <div class="empty-state" style="padding: 20px;">
+                <div class="file-tree-content" id="file-tree-content">
+                    <div class="empty-state">
                         <p>Start VM to browse files</p>
-                        <button class="setting-btn" style="margin-top: 10px;" onclick="document.querySelector('[data-tab=terminal]').click()">Go to Terminal</button>
+                        <button class="setting-btn" onclick="document.querySelector('[data-tab=terminal]').click()">Go to Terminal</button>
                     </div>
                 </div>
             </div>
             <div class="file-preview" id="file-preview">
-                <div class="file-preview-header" id="file-preview-header" style="padding: 10px; border-bottom: 1px solid var(--border); display: none;">
-                    <span id="current-file-path" style="font-family: monospace; font-size: 13px;"></span>
-                    <div style="margin-top: 8px; display: flex; gap: 8px;">
+                <div class="file-preview-header" id="file-preview-header">
+                    <span id="current-file-path" class="file-path"></span>
+                    <div class="file-actions">
                         <button class="setting-btn" onclick="saveCurrentFile()">Save</button>
                         <button class="setting-btn secondary" onclick="downloadCurrentFile()">Download</button>
                         <button class="setting-btn danger" onclick="deleteCurrentFile()">Delete</button>
                     </div>
                 </div>
-                <div id="file-editor" style="flex: 1; display: none;">
-                    <textarea id="file-content" style="width: 100%; height: 100%; background: var(--bg-primary); color: var(--text-primary); border: none; padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; resize: none; outline: none;"></textarea>
+                <div class="file-editor" id="file-editor">
+                    <textarea id="file-content" class="file-content-textarea"></textarea>
                 </div>
                 <div id="file-empty-state" class="empty-state">
                     <h3>File Preview</h3>
@@ -695,55 +1166,61 @@
         <div class="tab-content" id="settings-tab" role="tabpanel">
             <div class="settings-section">
                 <h2>API Keys</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                <p class="settings-description">
                     Configure API keys to use cloud LLM providers. Keys are encrypted and stored locally.
                 </p>
                 
-                <div class="setting-item" id="api-key-openai">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <div class="setting-label" style="margin-bottom: 0;">OpenAI</div>
-                        <span id="openai-status" style="font-size: 12px;"></span>
+                <div class="setting-item api-key-item" id="api-key-openai">
+                    <div class="api-key-header">
+                        <div class="setting-label">OpenAI</div>
+                        <span id="openai-status" class="api-key-status"></span>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" class="setting-input" id="openai-key" placeholder="sk-..." style="margin-bottom: 0;">
-                        <button class="setting-btn" onclick="saveApiKey('openai')">Save</button>
-                        <button class="setting-btn secondary" onclick="testApiKey('openai')">Test</button>
-                        <button class="setting-btn secondary" onclick="deleteApiKey('openai')">Delete</button>
+                    <div class="api-key-row">
+                        <input type="password" class="setting-input" id="openai-key" placeholder="sk-...">
+                        <div class="api-key-buttons">
+                            <button class="setting-btn" onclick="saveApiKey('openai')">Save</button>
+                            <button class="setting-btn secondary" onclick="testApiKey('openai')">Test</button>
+                            <button class="setting-btn secondary" onclick="deleteApiKey('openai')">Delete</button>
+                        </div>
                     </div>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                        Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color: var(--accent);">platform.openai.com</a>
-                    </div>
-                </div>
-                
-                <div class="setting-item" id="api-key-anthropic">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <div class="setting-label" style="margin-bottom: 0;">Anthropic</div>
-                        <span id="anthropic-status" style="font-size: 12px;"></span>
-                    </div>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" class="setting-input" id="anthropic-key" placeholder="sk-ant-..." style="margin-bottom: 0;">
-                        <button class="setting-btn" onclick="saveApiKey('anthropic')">Save</button>
-                        <button class="setting-btn secondary" onclick="testApiKey('anthropic')">Test</button>
-                        <button class="setting-btn secondary" onclick="deleteApiKey('anthropic')">Delete</button>
-                    </div>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                        Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: var(--accent);">console.anthropic.com</a>
+                    <div class="api-key-help">
+                        Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>
                     </div>
                 </div>
                 
-                <div class="setting-item" id="api-key-openrouter">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <div class="setting-label" style="margin-bottom: 0;">OpenRouter</div>
-                        <span id="openrouter-status" style="font-size: 12px;"></span>
+                <div class="setting-item api-key-item" id="api-key-anthropic">
+                    <div class="api-key-header">
+                        <div class="setting-label">Anthropic</div>
+                        <span id="anthropic-status" class="api-key-status"></span>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="password" class="setting-input" id="openrouter-key" placeholder="sk-or-..." style="margin-bottom: 0;">
-                        <button class="setting-btn" onclick="saveApiKey('openrouter')">Save</button>
-                        <button class="setting-btn secondary" onclick="testApiKey('openrouter')">Test</button>
-                        <button class="setting-btn secondary" onclick="deleteApiKey('openrouter')">Delete</button>
+                    <div class="api-key-row">
+                        <input type="password" class="setting-input" id="anthropic-key" placeholder="sk-ant-...">
+                        <div class="api-key-buttons">
+                            <button class="setting-btn" onclick="saveApiKey('anthropic')">Save</button>
+                            <button class="setting-btn secondary" onclick="testApiKey('anthropic')">Test</button>
+                            <button class="setting-btn secondary" onclick="deleteApiKey('anthropic')">Delete</button>
+                        </div>
                     </div>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                        Get your key at <a href="https://openrouter.ai/keys" target="_blank" style="color: var(--accent);">openrouter.ai</a> (access 100+ models)
+                    <div class="api-key-help">
+                        Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>
+                    </div>
+                </div>
+                
+                <div class="setting-item api-key-item" id="api-key-openrouter">
+                    <div class="api-key-header">
+                        <div class="setting-label">OpenRouter</div>
+                        <span id="openrouter-status" class="api-key-status"></span>
+                    </div>
+                    <div class="api-key-row">
+                        <input type="password" class="setting-input" id="openrouter-key" placeholder="sk-or-...">
+                        <div class="api-key-buttons">
+                            <button class="setting-btn" onclick="saveApiKey('openrouter')">Save</button>
+                            <button class="setting-btn secondary" onclick="testApiKey('openrouter')">Test</button>
+                            <button class="setting-btn secondary" onclick="deleteApiKey('openrouter')">Delete</button>
+                        </div>
+                    </div>
+                    <div class="api-key-help">
+                        Get your key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai</a> (access 100+ models)
                     </div>
                 </div>
             </div>
@@ -753,22 +1230,22 @@
                 <div class="setting-item" id="webgpu-status">
                     Checking WebGPU support...
                 </div>
-                <p style="color: var(--text-secondary); margin: 16px 0; font-size: 14px;">
+                <p class="settings-description">
                     Run models locally in your browser using WebGPU. Models are cached for offline use.
                 </p>
                 <div id="model-list">
-                    <div style="text-align: center; padding: 20px;">
-                        <div class="spinner" style="margin: 0 auto;"></div>
-                        <div style="margin-top: 10px;">Loading models...</div>
+                    <div class="model-loading">
+                        <div class="spinner"></div>
+                        <div>Loading models...</div>
                     </div>
                 </div>
-                <div id="model-progress" style="display: none; margin-top: 16px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <div id="model-progress" class="model-progress">
+                    <div class="progress-header">
                         <span id="progress-label">Downloading...</span>
                         <span id="progress-percent">0%</span>
                     </div>
-                    <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; overflow: hidden;">
-                        <div id="progress-bar" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    <div class="progress-track">
+                        <div id="progress-bar" class="progress-bar"></div>
                     </div>
                 </div>
             </div>
@@ -1115,7 +1592,7 @@
             const percentEl = document.getElementById('progress-percent');
             const barEl = document.getElementById('progress-bar');
             
-            progressEl.style.display = 'block';
+            progressEl.classList.add('visible');
             updateStatusUI({ type: 'info', message: `Downloading ${modelId}...` });
             
             try {
@@ -1140,14 +1617,14 @@
                 // Set as active model
                 await app.storage.setConfig('activeWebLLMModel', modelId);
                 
-                progressEl.style.display = 'none';
+                progressEl.classList.remove('visible');
                 updateStatusUI({ type: 'success', message: `${modelId} downloaded and activated` });
                 
                 // Refresh model list
                 await loadWebLLMModels(true);
                 
             } catch (error) {
-                progressEl.style.display = 'none';
+                progressEl.classList.remove('visible');
                 updateStatusUI({ type: 'error', message: error.message });
             } finally {
                 currentDownload = null;
@@ -1302,10 +1779,10 @@
             
             currentFilePath = path;
             
-            // Show loading
+            // Show file editor, hide empty state
             document.getElementById('file-empty-state').style.display = 'none';
-            document.getElementById('file-preview-header').style.display = 'block';
-            document.getElementById('file-editor').style.display = 'flex';
+            document.getElementById('file-preview-header').classList.add('visible');
+            document.getElementById('file-editor').classList.add('visible');
             document.getElementById('current-file-path').textContent = path;
             
             // Load file content
@@ -1344,8 +1821,8 @@
                 await app.storage.deleteFile(currentFilePath);
                 currentFilePath = null;
                 document.getElementById('file-empty-state').style.display = 'flex';
-                document.getElementById('file-preview-header').style.display = 'none';
-                document.getElementById('file-editor').style.display = 'none';
+                document.getElementById('file-preview-header').classList.remove('visible');
+                document.getElementById('file-editor').classList.remove('visible');
                 updateStatusUI({ type: 'success', message: 'File deleted' });
                 await refreshFiles();
             } catch (error) {
