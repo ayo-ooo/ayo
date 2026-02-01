@@ -139,7 +139,7 @@
         }
         
         /* Chat Tab */
-        #chat-tab {
+        #chat-tab.active {
             display: flex;
             flex-direction: column;
         }
@@ -236,122 +236,6 @@
             padding: 10px;
         }
         
-        /* Files Tab */
-        #files-tab {
-            display: flex;
-        }
-        
-        .file-tree {
-            width: 250px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .file-tree-header {
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
-        }
-        
-        .file-tree-title {
-            font-weight: 500;
-            font-size: 14px;
-        }
-        
-        .file-tree-actions {
-            display: flex;
-            gap: 6px;
-        }
-        
-        .file-tree-actions .setting-btn {
-            padding: 4px 10px;
-            font-size: 12px;
-        }
-        
-        .file-tree-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .file-preview {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .file-preview-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            display: none;
-            flex-shrink: 0;
-        }
-        
-        .file-preview-header.visible {
-            display: block;
-        }
-        
-        .file-path {
-            font-family: 'Fira Code', monospace;
-            font-size: 13px;
-            display: block;
-            margin-bottom: 10px;
-            word-break: break-all;
-        }
-        
-        .file-actions {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .file-editor {
-            flex: 1;
-            display: none;
-            min-height: 0;
-        }
-        
-        .file-editor.visible {
-            display: flex;
-        }
-        
-        .file-content-textarea {
-            width: 100%;
-            height: 100%;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: none;
-            padding: 16px;
-            font-family: 'Fira Code', monospace;
-            font-size: 14px;
-            resize: none;
-            outline: none;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .file-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .file-item:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        
-        .file-item.selected {
-            background: var(--accent);
-        }
         
         /* Settings Tab */
         #settings-tab {
@@ -691,58 +575,6 @@
                 padding: 24px 16px;
             }
             
-            /* Files Tab - vertical split */
-            #files-tab {
-                flex-direction: column;
-            }
-            
-            .file-tree {
-                width: 100%;
-                max-height: 35vh;
-                min-height: 150px;
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-            }
-            
-            .file-tree-header {
-                padding: 8px 12px !important;
-            }
-            
-            .file-tree-actions {
-                gap: 6px !important;
-            }
-            
-            .file-tree-actions .setting-btn {
-                padding: 6px 10px !important;
-                font-size: 12px !important;
-                min-height: 36px;
-            }
-            
-            .file-preview {
-                flex: 1;
-                min-height: 0;
-            }
-            
-            .file-preview-header {
-                padding: 12px !important;
-            }
-            
-            .file-actions {
-                flex-wrap: wrap !important;
-                gap: 8px !important;
-            }
-            
-            .file-actions .setting-btn {
-                flex: 1;
-                min-width: 80px;
-                min-height: 40px;
-            }
-            
-            #file-content {
-                font-size: 14px !important;
-                padding: 12px !important;
-            }
-            
             /* Settings Tab */
             #settings-tab {
                 padding: 20px 16px;
@@ -903,21 +735,6 @@
                 padding: 4px;
             }
             
-            /* Files */
-            .file-tree {
-                max-height: 30vh;
-            }
-            
-            .file-item {
-                padding: 10px 12px;
-                font-size: 13px;
-            }
-            
-            #current-file-path {
-                font-size: 12px !important;
-                word-break: break-all;
-            }
-            
             /* Settings */
             #settings-tab {
                 padding: 16px 12px;
@@ -968,15 +785,8 @@
                 min-height: 44px;
             }
             
-            .file-item {
-                min-height: 44px;
-                display: flex;
-                align-items: center;
-            }
-            
             .setting-input,
-            .chat-input,
-            #file-content {
+            .chat-input {
                 font-size: 16px;
             }
             
@@ -989,8 +799,7 @@
             /* Active states for touch feedback */
             .tab:active,
             .setting-btn:active,
-            .send-btn:active,
-            .file-item:active {
+            .send-btn:active {
                 opacity: 0.7;
             }
         }
@@ -1025,12 +834,6 @@
                 padding-right: max(16px, env(safe-area-inset-right));
                 padding-bottom: max(20px, env(safe-area-inset-bottom));
             }
-            
-            .file-tree,
-            .file-preview {
-                padding-left: env(safe-area-inset-left);
-                padding-right: env(safe-area-inset-right);
-            }
         }
         
         /* --- Landscape Phone Adjustments --- */
@@ -1045,25 +848,6 @@
             
             .chat-input-container {
                 padding: 8px 12px;
-            }
-            
-            .file-tree {
-                max-height: 100%;
-            }
-            
-            #files-tab {
-                flex-direction: row;
-            }
-            
-            .file-tree {
-                width: 40%;
-                max-height: none;
-                border-right: 1px solid var(--border);
-                border-bottom: none;
-            }
-            
-            .file-preview {
-                width: 60%;
             }
             
             .status-bar {
@@ -2141,6 +1925,14 @@
                 // Notify app
                 if (app) {
                     app.switchTab(tabId);
+                    
+                    // Focus terminal when switching to Terminal tab
+                    if (tabId === 'terminal' && terminalInitialized && app.terminal) {
+                        setTimeout(() => {
+                            app.terminal.fit();
+                            app.terminal.focus();
+                        }, 50);
+                    }
                 }
             });
         });
@@ -2153,6 +1945,13 @@
                     e.preventDefault();
                     document.querySelector(`[data-tab="${tabMap[e.key]}"]`).click();
                 }
+            }
+        });
+        
+        // Click on terminal container to focus
+        document.getElementById('terminal-container').addEventListener('click', () => {
+            if (terminalInitialized && app && app.terminal) {
+                app.terminal.focus();
             }
         });
         
@@ -2553,180 +2352,6 @@
             await deleteLocalModel(modelId);
         }
         
-        // Files Tab functionality
-        let currentFilePath = null;
-        
-        async function refreshFiles() {
-            if (!app) return;
-            
-            const treeContent = document.getElementById('file-tree-content');
-            
-            // Load files from IndexedDB storage overlay
-            const files = await app.storage.listFiles();
-            
-            if (files.length === 0) {
-                treeContent.innerHTML = `
-                    <div class="empty-state" style="padding: 20px;">
-                        <p>No files in overlay</p>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                            Files created or modified in the VM are stored here
-                        </p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Build tree structure from flat paths
-            const tree = buildFileTree(files);
-            treeContent.innerHTML = renderFileTree(tree, '');
-        }
-        
-        function buildFileTree(files) {
-            const root = {};
-            for (const file of files) {
-                const parts = file.path.split('/').filter(p => p);
-                let current = root;
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    if (i === parts.length - 1) {
-                        // File
-                        current[part] = { _isFile: true, ...file };
-                    } else {
-                        // Directory
-                        if (!current[part]) {
-                            current[part] = {};
-                        }
-                        current = current[part];
-                    }
-                }
-            }
-            return root;
-        }
-        
-        function renderFileTree(tree, prefix) {
-            let html = '';
-            const entries = Object.entries(tree).sort((a, b) => {
-                // Directories first
-                const aIsDir = !a[1]._isFile;
-                const bIsDir = !b[1]._isFile;
-                if (aIsDir !== bIsDir) return bIsDir ? 1 : -1;
-                return a[0].localeCompare(b[0]);
-            });
-            
-            for (const [name, value] of entries) {
-                const path = prefix ? `${prefix}/${name}` : `/${name}`;
-                
-                if (value._isFile) {
-                    const sizeKB = (value.size / 1024).toFixed(1);
-                    html += `
-                        <div class="file-item" onclick="selectFile('${path}')" data-path="${path}">
-                            <span>&#128196;</span> ${name}
-                            <span style="margin-left: auto; font-size: 11px; color: var(--text-secondary);">${sizeKB}KB</span>
-                        </div>
-                    `;
-                } else {
-                    html += `
-                        <div class="file-item" style="font-weight: 500;">
-                            <span>&#128193;</span> ${name}
-                        </div>
-                        <div style="padding-left: 16px;">
-                            ${renderFileTree(value, path)}
-                        </div>
-                    `;
-                }
-            }
-            
-            return html;
-        }
-        
-        async function selectFile(path) {
-            if (!app) return;
-            
-            // Remove selection from other items
-            document.querySelectorAll('.file-item.selected').forEach(el => el.classList.remove('selected'));
-            const selectedItem = document.querySelector(`[data-path="${path}"]`);
-            if (selectedItem) selectedItem.classList.add('selected');
-            
-            currentFilePath = path;
-            
-            // Show file editor, hide empty state
-            document.getElementById('file-empty-state').style.display = 'none';
-            document.getElementById('file-preview-header').classList.add('visible');
-            document.getElementById('file-editor').classList.add('visible');
-            document.getElementById('current-file-path').textContent = path;
-            
-            // Load file content
-            try {
-                const file = await app.storage.getFile(path);
-                if (file && file.content) {
-                    const decoder = new TextDecoder();
-                    const text = typeof file.content === 'string' ? file.content : decoder.decode(file.content);
-                    document.getElementById('file-content').value = text;
-                } else {
-                    document.getElementById('file-content').value = '';
-                }
-            } catch (error) {
-                document.getElementById('file-content').value = `Error loading file: ${error.message}`;
-            }
-        }
-        
-        async function saveCurrentFile() {
-            if (!app || !currentFilePath) return;
-            
-            const content = document.getElementById('file-content').value;
-            try {
-                await app.storage.saveFile(currentFilePath, content);
-                updateStatusUI({ type: 'success', message: `Saved ${currentFilePath}` });
-                await refreshFiles();
-            } catch (error) {
-                updateStatusUI({ type: 'error', message: error.message });
-            }
-        }
-        
-        async function deleteCurrentFile() {
-            if (!app || !currentFilePath) return;
-            if (!confirm(`Delete ${currentFilePath}?`)) return;
-            
-            try {
-                await app.storage.deleteFile(currentFilePath);
-                currentFilePath = null;
-                document.getElementById('file-empty-state').style.display = 'flex';
-                document.getElementById('file-preview-header').classList.remove('visible');
-                document.getElementById('file-editor').classList.remove('visible');
-                updateStatusUI({ type: 'success', message: 'File deleted' });
-                await refreshFiles();
-            } catch (error) {
-                updateStatusUI({ type: 'error', message: error.message });
-            }
-        }
-        
-        function downloadCurrentFile() {
-            if (!currentFilePath) return;
-            
-            const content = document.getElementById('file-content').value;
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = currentFilePath.split('/').pop();
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        async function createNewFile() {
-            const path = prompt('Enter file path (e.g., /work/script.sh):');
-            if (!path) return;
-            
-            try {
-                await app.storage.saveFile(path, '');
-                await refreshFiles();
-                selectFile(path);
-                updateStatusUI({ type: 'success', message: `Created ${path}` });
-            } catch (error) {
-                updateStatusUI({ type: 'error', message: error.message });
-            }
-        }
-        
         async function loadApiKeyStatus() {
             if (!app) return;
             
@@ -2965,6 +2590,12 @@
                 
                 // Clear progress UI - terminal is already rendered by initTerminal
                 terminalInitialized = true;
+                
+                // Focus terminal so user can type immediately
+                if (app.terminal) {
+                    app.terminal.fit();
+                    app.terminal.focus();
+                }
                 
             } catch (error) {
                 clearInterval(timeInterval);
