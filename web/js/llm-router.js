@@ -33,13 +33,16 @@ const PROVIDERS = {
 
 /**
  * WebLLM model configurations (WebGPU - fast)
+ * Model IDs must match exactly what's in WebLLM's prebuiltAppConfig
  */
 const WEBLLM_MODELS = [
-    { id: 'Llama-3.2-1B-Instruct-q4f16_1', size: '700MB', minVRAM: 2 },
-    { id: 'Llama-3.2-3B-Instruct-q4f16_1', size: '1.8GB', minVRAM: 4 },
-    { id: 'Phi-3.5-mini-instruct-q4f16_1', size: '2GB', minVRAM: 4 },
-    { id: 'Qwen2.5-1.5B-Instruct-q4f16_1', size: '1GB', minVRAM: 3 },
-    { id: 'Mistral-7B-Instruct-v0.3-q4f16_1', size: '4GB', minVRAM: 8 }
+    { id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', name: 'Llama 3.2 1B', size: '880MB', minVRAM: 1 },
+    { id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC', name: 'Llama 3.2 3B', size: '2.3GB', minVRAM: 3 },
+    { id: 'SmolLM2-1.7B-Instruct-q4f16_1-MLC', name: 'SmolLM2 1.7B', size: '1.8GB', minVRAM: 2 },
+    { id: 'SmolLM2-360M-Instruct-q4f32_1-MLC', name: 'SmolLM2 360M', size: '580MB', minVRAM: 1 },
+    { id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', name: 'Qwen2.5 1.5B', size: '1.6GB', minVRAM: 2 },
+    { id: 'Phi-3.5-mini-instruct-q4f16_1-MLC', name: 'Phi 3.5 Mini', size: '3.7GB', minVRAM: 4 },
+    { id: 'TinyLlama-1.1B-Chat-v1.0-q4f32_1-MLC', name: 'TinyLlama 1.1B', size: '840MB', minVRAM: 1 }
 ];
 
 /**
