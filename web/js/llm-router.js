@@ -2,8 +2,9 @@
  * Browser LLM Router
  * 
  * Routes LLM requests to either:
- * 1. WebLLM (local GPU inference) if model is downloaded
- * 2. Cloud API (OpenAI, Anthropic, etc.) if API key is configured
+ * 1. WebLLM (local GPU inference via WebGPU) if available and model is downloaded
+ * 2. Wllama (local CPU inference via WebAssembly) as fallback for browsers without WebGPU
+ * 3. Cloud API (OpenAI, Anthropic, etc.) if API key is configured
  */
 
 /**
@@ -31,7 +32,7 @@ const PROVIDERS = {
 };
 
 /**
- * WebLLM model configurations
+ * WebLLM model configurations (WebGPU - fast)
  */
 const WEBLLM_MODELS = [
     { id: 'Llama-3.2-1B-Instruct-q4f16_1', size: '700MB', minVRAM: 2 },
@@ -42,11 +43,50 @@ const WEBLLM_MODELS = [
 ];
 
 /**
+ * Wllama model configurations (WebAssembly - slower but universal)
+ * These are smaller models suitable for CPU inference
+ */
+const WLLAMA_MODELS = [
+    { 
+        id: 'smollm2-360m-instruct-q8_0',
+        name: 'SmolLM2 360M',
+        size: '390MB',
+        hfRepo: 'HuggingFaceTB/SmolLM2-360M-Instruct-GGUF',
+        hfFile: 'smollm2-360m-instruct-q8_0.gguf',
+        description: 'Tiny but capable. Good for simple tasks.'
+    },
+    { 
+        id: 'smollm2-1.7b-instruct-q4_k_m',
+        name: 'SmolLM2 1.7B',
+        size: '1GB',
+        hfRepo: 'HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF',
+        hfFile: 'smollm2-1.7b-instruct-q4_k_m.gguf',
+        description: 'Best balance of size and quality.'
+    },
+    { 
+        id: 'qwen2.5-0.5b-instruct-q8_0',
+        name: 'Qwen2.5 0.5B',
+        size: '530MB',
+        hfRepo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF',
+        hfFile: 'qwen2.5-0.5b-instruct-q8_0.gguf',
+        description: 'Fast responses, good for chat.'
+    },
+    { 
+        id: 'tinyllama-1.1b-chat-v1.0-q4_k_m',
+        name: 'TinyLlama 1.1B',
+        size: '670MB',
+        hfRepo: 'TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF',
+        hfFile: 'tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+        description: 'Classic small model, well-tested.'
+    }
+];
+
+/**
  * Check if WebGPU is available
  */
 async function checkWebGPU() {
     if (!navigator.gpu) {
-        return { available: false, reason: 'WebGPU not supported' };
+        return { available: false, reason: 'WebGPU not supported in this browser' };
     }
     
     try {
@@ -55,10 +95,22 @@ async function checkWebGPU() {
             return { available: false, reason: 'No GPU adapter found' };
         }
         
-        const info = await adapter.requestAdapterInfo();
+        // Try to get adapter info - may not be available in all browsers
+        let info = {};
+        if (adapter.requestAdapterInfo) {
+            try {
+                info = await adapter.requestAdapterInfo();
+            } catch (e) {
+                // requestAdapterInfo not supported (e.g., older Firefox)
+                info = { vendor: 'Unknown', device: 'GPU detected' };
+            }
+        } else {
+            info = { vendor: 'Unknown', device: 'GPU detected' };
+        }
+        
         return {
             available: true,
-            vendor: info.vendor,
+            vendor: info.vendor || 'Unknown',
             architecture: info.architecture,
             device: info.device
         };
@@ -68,14 +120,36 @@ async function checkWebGPU() {
 }
 
 /**
+ * Check if Wllama (WebAssembly) is available
+ * This works in all modern browsers
+ */
+function checkWllama() {
+    // WebAssembly is supported in all modern browsers
+    const wasmSupported = typeof WebAssembly !== 'undefined';
+    
+    // SharedArrayBuffer is needed for multi-threading (optional but faster)
+    // Requires COOP/COEP headers
+    const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+    
+    return {
+        available: wasmSupported,
+        multiThreaded: hasSharedArrayBuffer,
+        reason: wasmSupported ? null : 'WebAssembly not supported'
+    };
+}
+
+/**
  * LLM Router class
  */
 class LLMRouter {
     constructor(storage) {
         this.storage = storage; // OfflineStorage instance
         this.webllmEngine = null;
+        this.wllamaInstance = null;
         this.webgpuInfo = null;
+        this.wllamaInfo = null;
         this.currentModel = null;
+        this.currentBackend = null; // 'webllm' or 'wllama'
         this.onProgress = null; // Callback for model loading progress
     }
     
@@ -85,6 +159,9 @@ class LLMRouter {
     async init() {
         // Check WebGPU availability
         this.webgpuInfo = await checkWebGPU();
+        
+        // Check Wllama availability
+        this.wllamaInfo = checkWllama();
         
         // Get configured providers
         this.providers = await this.storage.listApiKeyProviders();
@@ -96,7 +173,19 @@ class LLMRouter {
      * Check if any LLM backend is available
      */
     isAvailable() {
-        return this.webgpuInfo?.available || this.providers.length > 0;
+        return this.webgpuInfo?.available || this.wllamaInfo?.available || this.providers.length > 0;
+    }
+    
+    /**
+     * Get the preferred local backend
+     */
+    getPreferredBackend() {
+        if (this.webgpuInfo?.available) {
+            return 'webllm';
+        } else if (this.wllamaInfo?.available) {
+            return 'wllama';
+        }
+        return null;
     }
     
     /**
@@ -105,13 +194,25 @@ class LLMRouter {
     async getBackends() {
         const backends = [];
         
-        // WebLLM backend
+        // WebLLM backend (WebGPU)
         backends.push({
             type: 'webllm',
-            name: 'Local (WebLLM)',
+            name: 'Local GPU (WebLLM)',
             available: this.webgpuInfo?.available || false,
             reason: this.webgpuInfo?.reason,
-            models: this.webgpuInfo?.available ? WEBLLM_MODELS : []
+            models: this.webgpuInfo?.available ? WEBLLM_MODELS : [],
+            performance: 'fast'
+        });
+        
+        // Wllama backend (WebAssembly)
+        backends.push({
+            type: 'wllama',
+            name: 'Local CPU (Wllama)',
+            available: this.wllamaInfo?.available || false,
+            reason: this.wllamaInfo?.reason,
+            models: this.wllamaInfo?.available ? WLLAMA_MODELS : [],
+            performance: 'slower',
+            multiThreaded: this.wllamaInfo?.multiThreaded || false
         });
         
         // Cloud backends
@@ -131,7 +232,7 @@ class LLMRouter {
     }
     
     /**
-     * Load a WebLLM model
+     * Load a WebLLM model (WebGPU)
      * @param {string} modelId Model ID to load
      * @param {function} onProgress Progress callback
      */
@@ -141,7 +242,7 @@ class LLMRouter {
         }
         
         // Dynamically import WebLLM
-        const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
+        const { CreateMLCEngine } = await import('https://esm.run/@mlc-ai/web-llm');
         
         this.webllmEngine = await CreateMLCEngine(modelId, {
             initProgressCallback: (progress) => {
@@ -161,6 +262,65 @@ class LLMRouter {
         });
         
         this.currentModel = modelId;
+        this.currentBackend = 'webllm';
+    }
+    
+    /**
+     * Load a Wllama model (WebAssembly)
+     * @param {string} modelId Model ID to load
+     * @param {function} onProgress Progress callback
+     */
+    async loadWllamaModel(modelId, onProgress = null) {
+        if (!this.wllamaInfo?.available) {
+            throw new Error('WebAssembly not available');
+        }
+        
+        const modelConfig = WLLAMA_MODELS.find(m => m.id === modelId);
+        if (!modelConfig) {
+            throw new Error(`Unknown model: ${modelId}`);
+        }
+        
+        // Dynamically import Wllama from CDN
+        const { Wllama } = await import('https://esm.run/@wllama/wllama');
+        
+        // Import the CDN wasm paths helper
+        const WasmFromCDN = (await import('https://esm.run/@wllama/wllama/esm/wasm-from-cdn.js')).default;
+        
+        // Create Wllama instance
+        this.wllamaInstance = new Wllama(WasmFromCDN, {
+            // Suppress debug messages
+            logger: {
+                debug: () => {},
+                log: (...args) => console.log('[Wllama]', ...args),
+                warn: (...args) => console.warn('[Wllama]', ...args),
+                error: (...args) => console.error('[Wllama]', ...args)
+            }
+        });
+        
+        // Load model from Hugging Face
+        const hfUrl = `https://huggingface.co/${modelConfig.hfRepo}/resolve/main/${modelConfig.hfFile}`;
+        
+        await this.wllamaInstance.loadModelFromUrl(hfUrl, {
+            n_threads: this.wllamaInfo.multiThreaded ? navigator.hardwareConcurrency || 4 : 1,
+            progressCallback: ({ loaded, total }) => {
+                const progress = total > 0 ? loaded / total : 0;
+                if (onProgress) {
+                    onProgress({
+                        stage: `Downloading ${modelConfig.name}...`,
+                        progress
+                    });
+                }
+                if (this.onProgress) {
+                    this.onProgress({
+                        stage: `Downloading ${modelConfig.name}...`,
+                        progress
+                    });
+                }
+            }
+        });
+        
+        this.currentModel = modelId;
+        this.currentBackend = 'wllama';
     }
     
     /**
@@ -168,10 +328,38 @@ class LLMRouter {
      */
     async unloadWebLLMModel() {
         if (this.webllmEngine) {
-            // WebLLM doesn't have an explicit unload, but we can null it
             this.webllmEngine = null;
-            this.currentModel = null;
         }
+        if (this.currentBackend === 'webllm') {
+            this.currentModel = null;
+            this.currentBackend = null;
+        }
+    }
+    
+    /**
+     * Unload the current Wllama model
+     */
+    async unloadWllamaModel() {
+        if (this.wllamaInstance) {
+            try {
+                await this.wllamaInstance.exit();
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+            this.wllamaInstance = null;
+        }
+        if (this.currentBackend === 'wllama') {
+            this.currentModel = null;
+            this.currentBackend = null;
+        }
+    }
+    
+    /**
+     * Unload any loaded local model
+     */
+    async unloadModel() {
+        await this.unloadWebLLMModel();
+        await this.unloadWllamaModel();
     }
     
     /**
@@ -184,8 +372,13 @@ class LLMRouter {
         const { model, messages, temperature = 0.7, maxTokens = 1000 } = params;
         
         // Try WebLLM first if model is loaded
-        if (this.webllmEngine && this.currentModel) {
+        if (this.webllmEngine && this.currentBackend === 'webllm') {
             return this.generateWithWebLLM(messages, temperature, maxTokens, onChunk, signal);
+        }
+        
+        // Try Wllama if model is loaded
+        if (this.wllamaInstance && this.currentBackend === 'wllama') {
+            return this.generateWithWllama(messages, temperature, maxTokens, onChunk, signal);
         }
         
         // Try cloud providers
@@ -198,7 +391,7 @@ class LLMRouter {
             }
         }
         
-        throw new Error('No LLM backend available');
+        throw new Error('No LLM backend available. Please load a local model or configure an API key.');
     }
     
     /**
@@ -233,6 +426,63 @@ class LLMRouter {
         }
         
         return { content: fullContent };
+    }
+    
+    /**
+     * Generate using Wllama
+     */
+    async generateWithWllama(messages, temperature, maxTokens, onChunk, signal) {
+        // Build prompt from messages
+        // Most small models use ChatML or similar format
+        let prompt = '';
+        for (const msg of messages) {
+            if (msg.role === 'system') {
+                prompt += `<|im_start|>system\n${msg.content}<|im_end|>\n`;
+            } else if (msg.role === 'user') {
+                prompt += `<|im_start|>user\n${msg.content}<|im_end|>\n`;
+            } else if (msg.role === 'assistant') {
+                prompt += `<|im_start|>assistant\n${msg.content}<|im_end|>\n`;
+            }
+        }
+        prompt += '<|im_start|>assistant\n';
+        
+        let fullContent = '';
+        
+        // Use createCompletion with streaming callback
+        const result = await this.wllamaInstance.createCompletion(prompt, {
+            nPredict: maxTokens,
+            sampling: {
+                temp: temperature,
+                top_k: 40,
+                top_p: 0.9
+            },
+            onNewToken: (token, piece, currentText, { abortSignal }) => {
+                if (signal?.aborted) {
+                    abortSignal();
+                    return;
+                }
+                
+                fullContent = currentText;
+                if (onChunk) {
+                    onChunk({ content: piece, done: false });
+                }
+            }
+        });
+        
+        if (onChunk) {
+            onChunk({ content: '', done: true });
+        }
+        
+        // Clean up any trailing special tokens
+        let cleanContent = result;
+        const stopTokens = ['<|im_end|>', '<|endoftext|>', '</s>'];
+        for (const token of stopTokens) {
+            if (cleanContent.endsWith(token)) {
+                cleanContent = cleanContent.slice(0, -token.length);
+            }
+        }
+        
+        return { content: cleanContent.trim() };
     }
     
     /**
@@ -415,10 +665,12 @@ class LLMRouter {
 
 // Export
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { LLMRouter, PROVIDERS, WEBLLM_MODELS, checkWebGPU };
+    module.exports = { LLMRouter, PROVIDERS, WEBLLM_MODELS, WLLAMA_MODELS, checkWebGPU, checkWllama };
 } else if (typeof window !== 'undefined') {
     window.LLMRouter = LLMRouter;
     window.LLM_PROVIDERS = PROVIDERS;
     window.WEBLLM_MODELS = WEBLLM_MODELS;
+    window.WLLAMA_MODELS = WLLAMA_MODELS;
     window.checkWebGPU = checkWebGPU;
+    window.checkWllama = checkWllama;
 }

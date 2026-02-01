@@ -1494,21 +1494,35 @@
         }
         
         // Settings functions
+        // Track current inference backend
+        let currentBackend = null; // 'webllm' or 'wllama'
+        
         async function loadSettings() {
             if (!app) return;
             
             // Check WebGPU
             const webgpuStatus = document.getElementById('webgpu-status');
             const gpuInfo = await checkWebGPU();
+            const wllamaInfo = checkWllama();
+            
+            // Determine which backend to use
             if (gpuInfo.available) {
+                currentBackend = 'webllm';
                 webgpuStatus.innerHTML = `
                     <span style="color: var(--success);">WebGPU Available</span><br>
                     <small>${gpuInfo.vendor} ${gpuInfo.device || ''}</small>
                 `;
-            } else {
+            } else if (wllamaInfo.available) {
+                currentBackend = 'wllama';
                 webgpuStatus.innerHTML = `
-                    <span style="color: var(--error);">WebGPU Not Available</span><br>
-                    <small>${gpuInfo.reason}</small>
+                    <span style="color: var(--warning);">WebGPU Not Available - Using CPU Fallback</span><br>
+                    <small>Models will run slower via WebAssembly${wllamaInfo.multiThreaded ? ' (multi-threaded)' : ' (single-threaded)'}</small>
+                `;
+            } else {
+                currentBackend = null;
+                webgpuStatus.innerHTML = `
+                    <span style="color: var(--error);">Local Models Not Available</span><br>
+                    <small>Use API keys for cloud providers instead</small>
                 `;
             }
             
@@ -1520,19 +1534,19 @@
             // Load API key status
             await loadApiKeyStatus();
             
-            // Load WebLLM models
-            await loadWebLLMModels(gpuInfo.available);
+            // Load local models based on backend
+            await loadLocalModels();
         }
         
-        async function loadWebLLMModels(webgpuAvailable) {
+        async function loadLocalModels() {
             const modelListEl = document.getElementById('model-list');
             
-            if (!webgpuAvailable) {
+            if (!currentBackend) {
                 modelListEl.innerHTML = `
                     <div class="setting-item" style="text-align: center; color: var(--text-secondary);">
-                        <p>WebGPU is required for local model inference.</p>
+                        <p>Local model inference is not available in this browser.</p>
                         <p style="font-size: 12px; margin-top: 8px;">
-                            Try Chrome 113+ or Edge 113+ for WebGPU support.
+                            Configure an API key above to use cloud providers.
                         </p>
                     </div>
                 `;
@@ -1544,31 +1558,54 @@
             const downloadedIds = new Set(downloadedModels.map(m => m.id));
             
             // Get active model from config
-            const activeModel = await app.storage.getConfig('activeWebLLMModel');
+            const activeModel = await app.storage.getConfig('activeLocalModel');
+            
+            // Choose model list based on backend
+            const models = currentBackend === 'webllm' ? WEBLLM_MODELS : WLLAMA_MODELS;
+            const backendLabel = currentBackend === 'webllm' ? 'GPU' : 'CPU';
             
             let html = '';
-            for (const model of WEBLLM_MODELS) {
+            
+            // Show backend info banner
+            if (currentBackend === 'wllama') {
+                html += `
+                    <div class="setting-item" style="background: rgba(251, 191, 36, 0.1); border: 1px solid var(--warning);">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 18px;">&#9888;</span>
+                            <strong style="color: var(--warning);">CPU Fallback Mode</strong>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">
+                            Your browser doesn't support WebGPU, so models run on CPU via WebAssembly.
+                            This is <strong>significantly slower</strong> than GPU inference.
+                            For best performance, use Chrome, Edge, or Safari with WebGPU support.
+                        </p>
+                    </div>
+                `;
+            }
+            
+            for (const model of models) {
                 const isDownloaded = downloadedIds.has(model.id);
                 const isActive = activeModel === model.id;
-                const shortName = model.id.split('-q')[0];
+                const displayName = model.name || model.id.split('-q')[0];
                 
                 html += `
                     <div class="setting-item" id="model-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <div>
-                                <strong>${shortName}</strong>
+                                <strong>${displayName}</strong>
                                 ${isActive ? '<span style="color: var(--accent); margin-left: 8px;">Active</span>' : ''}
                             </div>
                             <span style="font-size: 12px; color: var(--text-secondary);">
-                                ${model.size} | ${model.minVRAM}GB VRAM min
+                                ${model.size}${model.minVRAM ? ` | ${model.minVRAM}GB VRAM` : ''}
                             </span>
                         </div>
+                        ${model.description ? `<p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 8px 0;">${model.description}</p>` : ''}
                         <div style="display: flex; gap: 8px;">
                             ${isDownloaded ? `
-                                ${!isActive ? `<button class="setting-btn" onclick="activateModel('${model.id}')">Activate</button>` : ''}
-                                <button class="setting-btn secondary" onclick="deleteWebLLMModel('${model.id}')">Delete</button>
+                                ${!isActive ? `<button class="setting-btn" onclick="activateLocalModel('${model.id}')">Activate</button>` : ''}
+                                <button class="setting-btn secondary" onclick="deleteLocalModel('${model.id}')">Delete</button>
                             ` : `
-                                <button class="setting-btn" onclick="downloadWebLLMModel('${model.id}')">Download</button>
+                                <button class="setting-btn" onclick="downloadLocalModel('${model.id}')">Download</button>
                             `}
                         </div>
                     </div>
@@ -1578,9 +1615,14 @@
             modelListEl.innerHTML = html;
         }
         
+        // Backwards compatibility
+        async function loadWebLLMModels(webgpuAvailable) {
+            await loadLocalModels();
+        }
+        
         let currentDownload = null;
         
-        async function downloadWebLLMModel(modelId) {
+        async function downloadLocalModel(modelId) {
             if (currentDownload) {
                 updateStatusUI({ type: 'warning', message: 'A download is already in progress' });
                 return;
@@ -1601,27 +1643,37 @@
                     await app.initOfflineMode();
                 }
                 
-                await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
-                    labelEl.textContent = progress.stage;
-                    const pct = Math.round(progress.progress * 100);
-                    percentEl.textContent = `${pct}%`;
-                    barEl.style.width = `${pct}%`;
-                });
+                // Load based on current backend
+                if (currentBackend === 'webllm') {
+                    await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
+                        labelEl.textContent = progress.stage;
+                        const pct = Math.round(progress.progress * 100);
+                        percentEl.textContent = `${pct}%`;
+                        barEl.style.width = `${pct}%`;
+                    });
+                } else {
+                    await app.llmRouter.loadWllamaModel(modelId, (progress) => {
+                        labelEl.textContent = progress.stage;
+                        const pct = Math.round(progress.progress * 100);
+                        percentEl.textContent = `${pct}%`;
+                        barEl.style.width = `${pct}%`;
+                    });
+                }
                 
                 // Mark as downloaded in storage
                 await app.storage.saveModel(modelId, new Uint8Array([1]), { 
                     name: modelId,
-                    downloadedViaWebLLM: true 
+                    backend: currentBackend
                 });
                 
                 // Set as active model
-                await app.storage.setConfig('activeWebLLMModel', modelId);
+                await app.storage.setConfig('activeLocalModel', modelId);
                 
                 progressEl.classList.remove('visible');
                 updateStatusUI({ type: 'success', message: `${modelId} downloaded and activated` });
                 
                 // Refresh model list
-                await loadWebLLMModels(true);
+                await loadLocalModels();
                 
             } catch (error) {
                 progressEl.classList.remove('visible');
@@ -1631,7 +1683,12 @@
             }
         }
         
-        async function activateModel(modelId) {
+        // Backwards compatibility
+        async function downloadWebLLMModel(modelId) {
+            await downloadLocalModel(modelId);
+        }
+        
+        async function activateLocalModel(modelId) {
             updateStatusUI({ type: 'info', message: `Activating ${modelId}...` });
             
             try {
@@ -1639,40 +1696,53 @@
                     await app.initOfflineMode();
                 }
                 
-                await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
-                    const pct = Math.round(progress.progress * 100);
-                    updateStatusUI({ type: 'info', message: `Loading ${modelId}: ${pct}%` });
-                });
+                // Load based on current backend
+                if (currentBackend === 'webllm') {
+                    await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
+                        const pct = Math.round(progress.progress * 100);
+                        updateStatusUI({ type: 'info', message: `Loading ${modelId}: ${pct}%` });
+                    });
+                } else {
+                    await app.llmRouter.loadWllamaModel(modelId, (progress) => {
+                        const pct = Math.round(progress.progress * 100);
+                        updateStatusUI({ type: 'info', message: `Loading ${modelId}: ${pct}%` });
+                    });
+                }
                 
-                await app.storage.setConfig('activeWebLLMModel', modelId);
+                await app.storage.setConfig('activeLocalModel', modelId);
                 updateStatusUI({ type: 'success', message: `${modelId} activated` });
                 
-                await loadWebLLMModels(true);
+                await loadLocalModels();
             } catch (error) {
                 updateStatusUI({ type: 'error', message: error.message });
             }
         }
         
-        async function deleteWebLLMModel(modelId) {
+        // Backwards compatibility
+        async function activateModel(modelId) {
+            await activateLocalModel(modelId);
+        }
+        
+        async function deleteLocalModel(modelId) {
             if (!confirm(`Delete ${modelId}? You will need to download it again.`)) return;
             
             try {
                 // Unload if currently loaded
                 if (app.llmRouter && app.llmRouter.currentModel === modelId) {
-                    await app.llmRouter.unloadWebLLMModel();
+                    await app.llmRouter.unloadModel();
                 }
                 
                 // Remove from storage
                 await app.storage.deleteModel(modelId);
                 
                 // Clear active model if it was this one
-                const activeModel = await app.storage.getConfig('activeWebLLMModel');
+                const activeModel = await app.storage.getConfig('activeLocalModel');
                 if (activeModel === modelId) {
-                    await app.storage.deleteConfig('activeWebLLMModel');
+                    await app.storage.deleteConfig('activeLocalModel');
                 }
                 
                 updateStatusUI({ type: 'success', message: `${modelId} deleted` });
-                await loadWebLLMModels(true);
+                await loadLocalModels();
                 
                 // Update storage stats
                 const stats = await app.getStorageStats();
@@ -1681,6 +1751,11 @@
             } catch (error) {
                 updateStatusUI({ type: 'error', message: error.message });
             }
+        }
+        
+        // Backwards compatibility
+        async function deleteWebLLMModel(modelId) {
+            await deleteLocalModel(modelId);
         }
         
         // Files Tab functionality
@@ -2126,3 +2201,4 @@
     </script>
 </body>
 </html>
+
