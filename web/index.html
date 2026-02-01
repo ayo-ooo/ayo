@@ -591,6 +591,11 @@
         
         /* --- Tablet Breakpoint (768px) --- */
         @media (max-width: 768px) {
+            /* Hide Files tab on mobile - confusing UX */
+            .tab[data-tab="files"] {
+                display: none;
+            }
+            
             /* Header */
             header {
                 padding: 0 12px;
@@ -1065,9 +1070,547 @@
                 padding: 4px 12px;
             }
         }
+        
+        /* ========================================
+           ONBOARDING MODAL STYLES
+           ======================================== */
+        
+        .onboarding-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 15, 26, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+        
+        .onboarding-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .onboarding-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .onboarding-header {
+            text-align: center;
+            padding: 40px 30px 30px;
+        }
+        
+        .onboarding-logo {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 16px;
+        }
+        
+        .onboarding-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .onboarding-subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        
+        .onboarding-options {
+            padding: 0 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .onboarding-option {
+            background: var(--bg-surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        
+        .onboarding-option:hover {
+            border-color: var(--accent);
+            background: rgba(157, 78, 221, 0.1);
+        }
+        
+        .onboarding-option.recommended {
+            border-color: var(--accent);
+            position: relative;
+        }
+        
+        .onboarding-option.recommended::before {
+            content: 'Recommended';
+            position: absolute;
+            top: -10px;
+            right: 16px;
+            background: var(--accent);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .onboarding-option-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .onboarding-option-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .onboarding-option-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        
+        .onboarding-option-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .onboarding-feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .onboarding-footer {
+            padding: 20px 30px 30px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+        
+        .onboarding-skip {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 8px 16px;
+            transition: color 0.2s;
+        }
+        
+        .onboarding-skip:hover {
+            color: var(--text-primary);
+        }
+        
+        .onboarding-step {
+            display: none;
+            flex-direction: column;
+        }
+        
+        .onboarding-step.active {
+            display: flex;
+        }
+        
+        .onboarding-back {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: all 0.2s;
+        }
+        
+        .onboarding-back:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .onboarding-next {
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .onboarding-next:hover {
+            background: var(--accent-hover);
+        }
+        
+        .onboarding-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Model selection in onboarding */
+        .onboarding-model-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px 30px;
+        }
+        
+        .onboarding-model {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: var(--bg-surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .onboarding-model:hover {
+            border-color: var(--accent);
+        }
+        
+        .onboarding-model.selected {
+            border-color: var(--accent);
+            background: rgba(157, 78, 221, 0.1);
+        }
+        
+        .onboarding-model-info h4 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .onboarding-model-info span {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .onboarding-model-size {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        /* API key input in onboarding */
+        .onboarding-api-form {
+            padding: 20px 30px;
+        }
+        
+        .onboarding-api-form .setting-input {
+            margin-bottom: 16px;
+        }
+        
+        .onboarding-provider-select {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .onboarding-provider-btn {
+            flex: 1;
+            padding: 12px;
+            background: var(--bg-surface);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .onboarding-provider-btn:hover {
+            border-color: var(--accent);
+        }
+        
+        .onboarding-provider-btn.selected {
+            border-color: var(--accent);
+            background: rgba(157, 78, 221, 0.1);
+        }
+        
+        /* Progress indicator in onboarding */
+        .onboarding-progress {
+            padding: 20px 30px;
+        }
+        
+        .onboarding-progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .onboarding-progress-bar {
+            background: var(--bg-surface);
+            border-radius: 8px;
+            height: 12px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        
+        .onboarding-progress-fill {
+            background: linear-gradient(90deg, var(--accent), #7c3aed);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 8px;
+        }
+        
+        .onboarding-progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        /* Mobile responsive onboarding */
+        @media (max-width: 480px) {
+            .onboarding-modal {
+                border-radius: 12px;
+                max-height: 95vh;
+            }
+            
+            .onboarding-header {
+                padding: 30px 20px 24px;
+            }
+            
+            .onboarding-logo {
+                font-size: 40px;
+            }
+            
+            .onboarding-title {
+                font-size: 20px;
+            }
+            
+            .onboarding-subtitle {
+                font-size: 14px;
+            }
+            
+            .onboarding-options {
+                padding: 0 20px 16px;
+            }
+            
+            .onboarding-option {
+                padding: 20px;
+            }
+            
+            .onboarding-option-icon {
+                font-size: 28px;
+            }
+            
+            .onboarding-option-title {
+                font-size: 16px;
+            }
+            
+            .onboarding-footer {
+                padding: 16px 20px 24px;
+            }
+            
+            .onboarding-model-list,
+            .onboarding-api-form,
+            .onboarding-progress {
+                padding: 16px 20px;
+            }
+            
+            .onboarding-provider-select {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Onboarding Modal -->
+    <div id="onboarding-overlay" class="onboarding-overlay hidden">
+        <div class="onboarding-modal">
+            <!-- Step 1: Welcome & Choice -->
+            <div id="onboarding-step-1" class="onboarding-step active">
+                <div class="onboarding-header">
+                    <div class="onboarding-logo">ayo</div>
+                    <h1 class="onboarding-title">Welcome to ayo</h1>
+                    <p class="onboarding-subtitle">Your AI assistant that runs anywhere. Choose how you'd like to get started:</p>
+                </div>
+                
+                <div class="onboarding-options">
+                    <div class="onboarding-option recommended" id="option-local" onclick="selectOnboardingOption('local')">
+                        <div class="onboarding-option-icon">&#128187;</div>
+                        <div class="onboarding-option-title">Run Locally (Private)</div>
+                        <div class="onboarding-option-desc">
+                            Download a small AI model that runs entirely in your browser. 
+                            No API key needed, works offline, and your data never leaves your device.
+                        </div>
+                        <div class="onboarding-option-features">
+                            <span class="onboarding-feature">No signup required</span>
+                            <span class="onboarding-feature">Works offline</span>
+                            <span class="onboarding-feature">100% private</span>
+                        </div>
+                    </div>
+                    
+                    <div class="onboarding-option" id="option-cloud" onclick="selectOnboardingOption('cloud')">
+                        <div class="onboarding-option-icon">&#9729;</div>
+                        <div class="onboarding-option-title">Use Cloud Provider</div>
+                        <div class="onboarding-option-desc">
+                            Connect to OpenAI, Anthropic, or other cloud AI providers. 
+                            Requires an API key but gives access to the most powerful models.
+                        </div>
+                        <div class="onboarding-option-features">
+                            <span class="onboarding-feature">GPT-4, Claude, etc.</span>
+                            <span class="onboarding-feature">Faster responses</span>
+                            <span class="onboarding-feature">More capable</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="onboarding-footer">
+                    <button class="onboarding-skip" onclick="skipOnboarding()">
+                        Skip for now - I'll configure later
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Step 2a: Local LLM Setup -->
+            <div id="onboarding-step-local" class="onboarding-step">
+                <div class="onboarding-header">
+                    <h1 class="onboarding-title">Choose a Model</h1>
+                    <p class="onboarding-subtitle" id="local-backend-info">
+                        Select a model to download. Smaller models are faster but less capable.
+                    </p>
+                </div>
+                
+                <div class="onboarding-model-list" id="onboarding-model-list">
+                    <!-- Models populated by JS -->
+                </div>
+                
+                <div class="onboarding-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <button class="onboarding-back" onclick="showOnboardingStep(1)">Back</button>
+                    <button class="onboarding-next" id="download-model-btn" onclick="downloadOnboardingModel()" disabled>
+                        Download Selected Model
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Step 2b: Cloud API Setup -->
+            <div id="onboarding-step-cloud" class="onboarding-step">
+                <div class="onboarding-header">
+                    <h1 class="onboarding-title">Connect Your Provider</h1>
+                    <p class="onboarding-subtitle">Enter an API key to get started. You can add more providers later in Settings.</p>
+                </div>
+                
+                <div class="onboarding-api-form">
+                    <div class="onboarding-provider-select">
+                        <button class="onboarding-provider-btn selected" data-provider="openai" onclick="selectOnboardingProvider('openai')">
+                            OpenAI
+                        </button>
+                        <button class="onboarding-provider-btn" data-provider="anthropic" onclick="selectOnboardingProvider('anthropic')">
+                            Anthropic
+                        </button>
+                        <button class="onboarding-provider-btn" data-provider="openrouter" onclick="selectOnboardingProvider('openrouter')">
+                            OpenRouter
+                        </button>
+                    </div>
+                    
+                    <input type="password" class="setting-input" id="onboarding-api-key" placeholder="Enter your API key...">
+                    
+                    <p class="api-key-help" id="onboarding-api-help">
+                        Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>
+                    </p>
+                </div>
+                
+                <div class="onboarding-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <button class="onboarding-back" onclick="showOnboardingStep(1)">Back</button>
+                    <button class="onboarding-next" id="save-api-key-btn" onclick="saveOnboardingApiKey()">
+                        Save & Continue
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Step 3: Download Progress -->
+            <div id="onboarding-step-progress" class="onboarding-step">
+                <div class="onboarding-header">
+                    <h1 class="onboarding-title">Downloading Model</h1>
+                    <p class="onboarding-subtitle" id="download-model-name">Preparing download...</p>
+                </div>
+                
+                <div class="onboarding-progress">
+                    <div class="onboarding-progress-info">
+                        <span id="download-stage">Initializing...</span>
+                        <span id="download-percent">0%</span>
+                    </div>
+                    <div class="onboarding-progress-bar">
+                        <div class="onboarding-progress-fill" id="download-progress-fill"></div>
+                    </div>
+                    <div class="onboarding-progress-stats">
+                        <span id="download-size">0 MB / 0 MB</span>
+                        <span id="download-speed">-- MB/s</span>
+                    </div>
+                </div>
+                
+                <div class="onboarding-footer">
+                    <p style="color: var(--text-secondary); font-size: 13px;">
+                        This may take a few minutes depending on your connection.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Step 4: Complete -->
+            <div id="onboarding-step-complete" class="onboarding-step">
+                <div class="onboarding-header">
+                    <div style="font-size: 64px; margin-bottom: 20px;">&#10003;</div>
+                    <h1 class="onboarding-title">You're All Set!</h1>
+                    <p class="onboarding-subtitle" id="complete-message">
+                        Start chatting with ayo or explore the terminal.
+                    </p>
+                </div>
+                
+                <div class="onboarding-footer">
+                    <button class="onboarding-next" onclick="completeOnboarding()" style="min-width: 200px;">
+                        Start Chatting
+                    </button>
+                    <p style="margin-top: 16px; font-size: 13px; color: var(--text-secondary);">
+                        You can change your settings anytime in the Settings tab.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <header>
         <div class="logo">ayo</div>
         
@@ -1286,6 +1829,296 @@
         // Initialize application
         let app;
         
+        // ========================================
+        // ONBOARDING LOGIC
+        // ========================================
+        
+        const ONBOARDING_KEY = 'ayoOnboardingComplete';
+        let selectedOnboardingOption = null;
+        let selectedOnboardingModel = null;
+        let selectedOnboardingProvider = 'openai';
+        let onboardingDownloadStartTime = null;
+        let onboardingBytesDownloaded = 0;
+        
+        // Provider help links
+        const PROVIDER_HELP = {
+            openai: { url: 'https://platform.openai.com/api-keys', placeholder: 'sk-...' },
+            anthropic: { url: 'https://console.anthropic.com/settings/keys', placeholder: 'sk-ant-...' },
+            openrouter: { url: 'https://openrouter.ai/keys', placeholder: 'sk-or-...' }
+        };
+        
+        function isOnboardingComplete() {
+            return localStorage.getItem(ONBOARDING_KEY) === 'true';
+        }
+        
+        function showOnboarding() {
+            const overlay = document.getElementById('onboarding-overlay');
+            overlay.classList.remove('hidden');
+            // Focus trap for accessibility
+            overlay.querySelector('.onboarding-option')?.focus();
+        }
+        
+        function hideOnboarding() {
+            const overlay = document.getElementById('onboarding-overlay');
+            overlay.classList.add('hidden');
+        }
+        
+        function showOnboardingStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.onboarding-step').forEach(s => s.classList.remove('active'));
+            
+            if (step === 1) {
+                document.getElementById('onboarding-step-1').classList.add('active');
+            } else if (step === 'local') {
+                populateOnboardingModels();
+                document.getElementById('onboarding-step-local').classList.add('active');
+            } else if (step === 'cloud') {
+                document.getElementById('onboarding-step-cloud').classList.add('active');
+            } else if (step === 'progress') {
+                document.getElementById('onboarding-step-progress').classList.add('active');
+            } else if (step === 'complete') {
+                document.getElementById('onboarding-step-complete').classList.add('active');
+            }
+        }
+        
+        function selectOnboardingOption(option) {
+            selectedOnboardingOption = option;
+            
+            // Remove selection styling from both options
+            document.querySelectorAll('.onboarding-option').forEach(el => {
+                el.style.borderColor = '';
+                el.style.background = '';
+            });
+            
+            // Show appropriate step
+            showOnboardingStep(option);
+        }
+        
+        async function populateOnboardingModels() {
+            const listEl = document.getElementById('onboarding-model-list');
+            const infoEl = document.getElementById('local-backend-info');
+            
+            // Detect backend availability
+            const gpuInfo = await checkWebGPU();
+            const wllamaInfo = checkWllama();
+            
+            let models = [];
+            let backendNote = '';
+            
+            if (gpuInfo.available) {
+                models = WEBLLM_MODELS.slice(0, 4); // Show top 4 models
+                backendNote = `Using WebGPU (${gpuInfo.vendor || 'GPU detected'}) for fast inference.`;
+            } else if (wllamaInfo.available) {
+                models = WLLAMA_MODELS;
+                backendNote = 'WebGPU not available. Using CPU fallback - models will run slower.';
+            } else {
+                listEl.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                        <p>Local model inference is not available in this browser.</p>
+                        <p style="margin-top: 10px;">
+                            <button class="onboarding-back" onclick="showOnboardingStep(1)">Go Back</button>
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+            
+            infoEl.textContent = backendNote;
+            
+            let html = '';
+            models.forEach((model, i) => {
+                const displayName = model.name || model.id.split('-q')[0];
+                const isRecommended = i === 0;
+                html += `
+                    <div class="onboarding-model ${isRecommended ? 'selected' : ''}" 
+                         data-model-id="${model.id}" 
+                         onclick="selectOnboardingModel('${model.id}')">
+                        <div class="onboarding-model-info">
+                            <h4>${displayName}${isRecommended ? ' <span style="color: var(--accent); font-size: 12px;">(Recommended)</span>' : ''}</h4>
+                            <span>${model.description || (model.minVRAM ? `Requires ${model.minVRAM}GB VRAM` : 'CPU-optimized')}</span>
+                        </div>
+                        <div class="onboarding-model-size">${model.size}</div>
+                    </div>
+                `;
+            });
+            
+            listEl.innerHTML = html;
+            
+            // Pre-select first model
+            if (models.length > 0) {
+                selectedOnboardingModel = models[0].id;
+                document.getElementById('download-model-btn').disabled = false;
+            }
+        }
+        
+        function selectOnboardingModel(modelId) {
+            selectedOnboardingModel = modelId;
+            
+            // Update UI
+            document.querySelectorAll('.onboarding-model').forEach(el => {
+                el.classList.toggle('selected', el.dataset.modelId === modelId);
+            });
+            
+            document.getElementById('download-model-btn').disabled = false;
+        }
+        
+        function selectOnboardingProvider(provider) {
+            selectedOnboardingProvider = provider;
+            
+            // Update UI
+            document.querySelectorAll('.onboarding-provider-btn').forEach(el => {
+                el.classList.toggle('selected', el.dataset.provider === provider);
+            });
+            
+            // Update help link
+            const help = PROVIDER_HELP[provider];
+            const helpEl = document.getElementById('onboarding-api-help');
+            const inputEl = document.getElementById('onboarding-api-key');
+            
+            helpEl.innerHTML = `Get your key at <a href="${help.url}" target="_blank">${help.url.replace('https://', '').split('/')[0]}</a>`;
+            inputEl.placeholder = help.placeholder;
+        }
+        
+        async function downloadOnboardingModel() {
+            if (!selectedOnboardingModel) return;
+            
+            showOnboardingStep('progress');
+            
+            const modelName = selectedOnboardingModel.split('-q')[0];
+            document.getElementById('download-model-name').textContent = `Downloading ${modelName}...`;
+            
+            onboardingDownloadStartTime = Date.now();
+            onboardingBytesDownloaded = 0;
+            
+            try {
+                if (!app.llmRouter) {
+                    await app.initOfflineMode();
+                }
+                
+                // Determine backend
+                const gpuInfo = await checkWebGPU();
+                
+                if (gpuInfo.available) {
+                    await app.llmRouter.loadWebLLMModel(selectedOnboardingModel, updateOnboardingProgress);
+                } else {
+                    await app.llmRouter.loadWllamaModel(selectedOnboardingModel, updateOnboardingProgress);
+                }
+                
+                // Save to storage
+                await app.storage.saveModel(selectedOnboardingModel, new Uint8Array([1]), {
+                    name: selectedOnboardingModel,
+                    backend: gpuInfo.available ? 'webllm' : 'wllama'
+                });
+                
+                await app.storage.setConfig('activeLocalModel', selectedOnboardingModel);
+                
+                // Show completion
+                document.getElementById('complete-message').textContent = 
+                    `${modelName} is ready. Start chatting with ayo!`;
+                showOnboardingStep('complete');
+                
+            } catch (error) {
+                console.error('Model download failed:', error);
+                document.getElementById('download-stage').textContent = `Error: ${error.message}`;
+                document.getElementById('download-percent').textContent = '';
+                document.getElementById('download-size').textContent = '';
+                document.getElementById('download-speed').textContent = '';
+            }
+        }
+        
+        function updateOnboardingProgress(progress) {
+            const stageEl = document.getElementById('download-stage');
+            const percentEl = document.getElementById('download-percent');
+            const fillEl = document.getElementById('download-progress-fill');
+            const sizeEl = document.getElementById('download-size');
+            const speedEl = document.getElementById('download-speed');
+            
+            const pct = Math.round(progress.progress * 100);
+            
+            stageEl.textContent = progress.stage || 'Downloading...';
+            percentEl.textContent = `${pct}%`;
+            fillEl.style.width = `${pct}%`;
+            
+            // Calculate size and speed if available
+            if (progress.loaded && progress.total) {
+                const loadedMB = (progress.loaded / 1024 / 1024).toFixed(1);
+                const totalMB = (progress.total / 1024 / 1024).toFixed(1);
+                sizeEl.textContent = `${loadedMB} MB / ${totalMB} MB`;
+                
+                const elapsed = (Date.now() - onboardingDownloadStartTime) / 1000;
+                if (elapsed > 0.5) {
+                    const speed = (progress.loaded / 1024 / 1024 / elapsed).toFixed(1);
+                    speedEl.textContent = `${speed} MB/s`;
+                }
+            } else {
+                sizeEl.textContent = '';
+                speedEl.textContent = '';
+            }
+        }
+        
+        async function saveOnboardingApiKey() {
+            const key = document.getElementById('onboarding-api-key').value.trim();
+            if (!key) {
+                alert('Please enter an API key');
+                return;
+            }
+            
+            const btn = document.getElementById('save-api-key-btn');
+            btn.disabled = true;
+            btn.textContent = 'Validating...';
+            
+            try {
+                // Test the key first
+                const result = await testProviderApi(selectedOnboardingProvider, key);
+                
+                if (!result.success) {
+                    alert(`Invalid API key: ${result.error}`);
+                    btn.disabled = false;
+                    btn.textContent = 'Save & Continue';
+                    return;
+                }
+                
+                // Save the key
+                await app.storage.setApiKey(selectedOnboardingProvider, key);
+                
+                // Show completion
+                const providerName = selectedOnboardingProvider.charAt(0).toUpperCase() + selectedOnboardingProvider.slice(1);
+                document.getElementById('complete-message').textContent = 
+                    `${providerName} is configured. Start chatting with ayo!`;
+                showOnboardingStep('complete');
+                
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                btn.disabled = false;
+                btn.textContent = 'Save & Continue';
+            }
+        }
+        
+        function skipOnboarding() {
+            document.getElementById('complete-message').textContent = 
+                'No worries! Go to Settings when you\'re ready to set up an AI provider.';
+            showOnboardingStep('complete');
+        }
+        
+        function completeOnboarding() {
+            localStorage.setItem(ONBOARDING_KEY, 'true');
+            hideOnboarding();
+            
+            // Refresh settings to show new configuration
+            loadSettings();
+        }
+        
+        // Check onboarding on page load
+        function checkOnboarding() {
+            if (!isOnboardingComplete()) {
+                showOnboarding();
+            }
+        }
+        
+        // ========================================
+        // END ONBOARDING LOGIC
+        // ========================================
+        
         async function init() {
             try {
                 app = await new AyoApp().init();
@@ -1300,6 +2133,9 @@
                 
                 // Load settings
                 loadSettings();
+                
+                // Check if first-time user needs onboarding
+                checkOnboarding();
                 
             } catch (error) {
                 console.error('Init failed:', error);
