@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f0f1a">
     <title>ayo</title>
     <style>
         :root {
@@ -33,6 +36,10 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overscroll-behavior: none;
+            -webkit-text-size-adjust: 100%;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* Header */
@@ -397,6 +404,195 @@
             border-radius: 4px;
             font-family: monospace;
             font-size: 12px;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            header {
+                padding: 0 12px;
+                height: 48px;
+            }
+            
+            .logo {
+                font-size: 20px;
+                margin-right: 12px;
+            }
+            
+            .tabs {
+                gap: 2px;
+            }
+            
+            .tab {
+                padding: 0 12px;
+                font-size: 12px;
+            }
+            
+            .tab span:not(.tab-icon) {
+                display: none;
+            }
+            
+            .tab-icon {
+                font-size: 18px;
+            }
+            
+            .mode-badge {
+                padding: 3px 8px;
+                font-size: 10px;
+            }
+            
+            /* Chat Tab Mobile */
+            .chat-messages {
+                padding: 12px;
+            }
+            
+            .message {
+                max-width: 100%;
+            }
+            
+            .chat-input-container {
+                padding: 12px;
+            }
+            
+            .chat-input-wrapper {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .chat-input {
+                font-size: 16px; /* Prevents iOS zoom */
+            }
+            
+            .send-btn {
+                width: 100%;
+                min-height: 44px;
+            }
+            
+            /* Files Tab Mobile */
+            #files-tab {
+                flex-direction: column;
+            }
+            
+            .file-tree {
+                width: 100%;
+                max-height: 40vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            
+            .file-preview {
+                min-height: 50vh;
+            }
+            
+            .file-preview-header > div {
+                flex-wrap: wrap;
+            }
+            
+            /* Settings Tab Mobile */
+            #settings-tab {
+                padding: 16px;
+            }
+            
+            .settings-section {
+                max-width: 100%;
+            }
+            
+            .setting-item > div:last-child {
+                flex-wrap: wrap;
+            }
+            
+            .setting-item .setting-btn {
+                flex: 1;
+                min-width: 60px;
+            }
+            
+            /* Status Bar Mobile */
+            .status-bar {
+                padding: 6px 12px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .status-bar .status-item:last-child {
+                display: none; /* Hide keyboard shortcuts on mobile */
+            }
+            
+            /* Terminal Tab Mobile */
+            #terminal-container {
+                padding: 4px;
+            }
+        }
+        
+        /* Small Mobile */
+        @media (max-width: 480px) {
+            header {
+                height: 44px;
+            }
+            
+            .logo {
+                font-size: 18px;
+                margin-right: 8px;
+            }
+            
+            .tab {
+                padding: 0 8px;
+            }
+            
+            .tab-icon {
+                font-size: 16px;
+            }
+            
+            .mode-badge {
+                padding: 2px 6px;
+                font-size: 9px;
+            }
+            
+            .settings-section h2 {
+                font-size: 16px;
+            }
+            
+            .setting-item {
+                padding: 12px;
+            }
+            
+            .setting-input {
+                font-size: 16px; /* Prevents iOS zoom */
+            }
+        }
+        
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .tab, .send-btn, .setting-btn, .file-item {
+                min-height: 44px;
+            }
+            
+            .setting-input, .chat-input {
+                min-height: 44px;
+                font-size: 16px;
+            }
+        }
+        
+        /* Safe area insets for notched devices */
+        @supports (padding: env(safe-area-inset-top)) {
+            header {
+                padding-top: env(safe-area-inset-top);
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
+            }
+            
+            .status-bar {
+                padding-bottom: max(8px, env(safe-area-inset-bottom));
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
+            }
+            
+            .chat-input-container {
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
+            }
+            
+            #settings-tab {
+                padding-left: max(16px, env(safe-area-inset-left));
+                padding-right: max(16px, env(safe-area-inset-right));
+            }
         }
     </style>
 </head>
