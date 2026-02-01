@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ayo</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-surface: #16213e;
+            --border: #333;
+            --text-primary: #eee;
+            --text-secondary: #888;
+            --accent: #9d4edd;
+            --accent-hover: #7c3aed;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #f87171;
+            --info: #60a5fa;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            height: 56px;
+            flex-shrink: 0;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-right: 30px;
+        }
+        
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            height: 100%;
+        }
+        
+        .tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            height: 100%;
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        
+        .tab-icon {
+            font-size: 16px;
+        }
+        
+        /* Mode Badge */
+        .mode-badge {
+            margin-left: auto;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .mode-badge.connected {
+            background: rgba(74, 222, 128, 0.2);
+            color: var(--success);
+        }
+        
+        .mode-badge.offline {
+            background: rgba(251, 191, 36, 0.2);
+            color: var(--warning);
+        }
+        
+        .mode-badge.detecting {
+            background: rgba(96, 165, 250, 0.2);
+            color: var(--info);
+        }
+        
+        /* Main Content */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .tab-content.active {
+            display: flex;
+        }
+        
+        /* Chat Tab */
+        #chat-tab {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            max-width: 800px;
+        }
+        
+        .message.user {
+            margin-left: auto;
+        }
+        
+        .message-content {
+            background: var(--bg-surface);
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+        }
+        
+        .message.user .message-content {
+            background: var(--accent);
+        }
+        
+        .message-role {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: none;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .send-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Terminal Tab */
+        #terminal-tab {
+            background: #000;
+        }
+        
+        #terminal-container {
+            flex: 1;
+            padding: 10px;
+        }
+        
+        /* Files Tab */
+        #files-tab {
+            display: flex;
+        }
+        
+        .file-tree {
+            width: 250px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .file-preview {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+        }
+        
+        .file-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .file-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .file-item.selected {
+            background: var(--accent);
+        }
+        
+        /* Settings Tab */
+        #settings-tab {
+            padding: 30px;
+            overflow-y: auto;
+        }
+        
+        .settings-section {
+            max-width: 600px;
+            margin-bottom: 40px;
+        }
+        
+        .settings-section h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+        
+        .setting-item {
+            background: var(--bg-surface);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .setting-label {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        
+        .setting-input {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .setting-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .setting-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .setting-btn.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+        }
+        
+        .setting-btn.danger {
+            background: var(--error);
+        }
+        
+        /* Status Bar */
+        .status-bar {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 8px 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.green { background: var(--success); }
+        .status-dot.yellow { background: var(--warning); }
+        .status-dot.red { background: var(--error); }
+        
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Keyboard Shortcuts */
+        kbd {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">ayo</div>
+        
+        <nav class="tabs" role="tablist">
+            <button class="tab active" role="tab" data-tab="chat" aria-selected="true">
+                <span class="tab-icon">&#9993;</span>
+                <span>Chat</span>
+            </button>
+            <button class="tab" role="tab" data-tab="terminal" aria-selected="false">
+                <span class="tab-icon">&#62;_</span>
+                <span>Terminal</span>
+            </button>
+            <button class="tab" role="tab" data-tab="files" aria-selected="false">
+                <span class="tab-icon">&#128193;</span>
+                <span>Files</span>
+            </button>
+            <button class="tab" role="tab" data-tab="settings" aria-selected="false">
+                <span class="tab-icon">&#9881;</span>
+                <span>Settings</span>
+            </button>
+        </nav>
+        
+        <div class="mode-badge detecting" id="mode-badge">Detecting...</div>
+    </header>
+    
+    <main>
+        <!-- Chat Tab -->
+        <div class="tab-content active" id="chat-tab" role="tabpanel">
+            <div class="chat-messages" id="chat-messages">
+                <div class="empty-state">
+                    <h3>Welcome to ayo</h3>
+                    <p>Start a conversation or switch to Terminal for shell access</p>
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                    <textarea 
+                        class="chat-input" 
+                        id="chat-input" 
+                        placeholder="Message @ayo..." 
+                        rows="1"
+                    ></textarea>
+                    <button class="send-btn" id="send-btn">Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Terminal Tab -->
+        <div class="tab-content" id="terminal-tab" role="tabpanel">
+            <div id="terminal-container">
+                <div class="empty-state">
+                    <h3>Terminal</h3>
+                    <p>Emulator not initialized. Start the VM to access the terminal.</p>
+                    <button class="setting-btn" id="start-vm-btn">Start VM</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Files Tab -->
+        <div class="tab-content" id="files-tab" role="tabpanel">
+            <div class="file-tree" id="file-tree">
+                <div class="file-tree-header" style="padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500;">Files</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="setting-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="refreshFiles()" title="Refresh">Refresh</button>
+                        <button class="setting-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="createNewFile()" title="New File">+ File</button>
+                    </div>
+                </div>
+                <div id="file-tree-content" style="overflow-y: auto; flex: 1; padding: 8px;">
+                    <div class="empty-state" style="padding: 20px;">
+                        <p>Start VM to browse files</p>
+                        <button class="setting-btn" style="margin-top: 10px;" onclick="document.querySelector('[data-tab=terminal]').click()">Go to Terminal</button>
+                    </div>
+                </div>
+            </div>
+            <div class="file-preview" id="file-preview">
+                <div class="file-preview-header" id="file-preview-header" style="padding: 10px; border-bottom: 1px solid var(--border); display: none;">
+                    <span id="current-file-path" style="font-family: monospace; font-size: 13px;"></span>
+                    <div style="margin-top: 8px; display: flex; gap: 8px;">
+                        <button class="setting-btn" onclick="saveCurrentFile()">Save</button>
+                        <button class="setting-btn secondary" onclick="downloadCurrentFile()">Download</button>
+                        <button class="setting-btn danger" onclick="deleteCurrentFile()">Delete</button>
+                    </div>
+                </div>
+                <div id="file-editor" style="flex: 1; display: none;">
+                    <textarea id="file-content" style="width: 100%; height: 100%; background: var(--bg-primary); color: var(--text-primary); border: none; padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; resize: none; outline: none;"></textarea>
+                </div>
+                <div id="file-empty-state" class="empty-state">
+                    <h3>File Preview</h3>
+                    <p>Select a file to view or edit</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div class="tab-content" id="settings-tab" role="tabpanel">
+            <div class="settings-section">
+                <h2>API Keys</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                    Configure API keys to use cloud LLM providers. Keys are encrypted and stored locally.
+                </p>
+                
+                <div class="setting-item" id="api-key-openai">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="setting-label" style="margin-bottom: 0;">OpenAI</div>
+                        <span id="openai-status" style="font-size: 12px;"></span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" class="setting-input" id="openai-key" placeholder="sk-..." style="margin-bottom: 0;">
+                        <button class="setting-btn" onclick="saveApiKey('openai')">Save</button>
+                        <button class="setting-btn secondary" onclick="testApiKey('openai')">Test</button>
+                        <button class="setting-btn secondary" onclick="deleteApiKey('openai')">Delete</button>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color: var(--accent);">platform.openai.com</a>
+                    </div>
+                </div>
+                
+                <div class="setting-item" id="api-key-anthropic">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="setting-label" style="margin-bottom: 0;">Anthropic</div>
+                        <span id="anthropic-status" style="font-size: 12px;"></span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" class="setting-input" id="anthropic-key" placeholder="sk-ant-..." style="margin-bottom: 0;">
+                        <button class="setting-btn" onclick="saveApiKey('anthropic')">Save</button>
+                        <button class="setting-btn secondary" onclick="testApiKey('anthropic')">Test</button>
+                        <button class="setting-btn secondary" onclick="deleteApiKey('anthropic')">Delete</button>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: var(--accent);">console.anthropic.com</a>
+                    </div>
+                </div>
+                
+                <div class="setting-item" id="api-key-openrouter">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="setting-label" style="margin-bottom: 0;">OpenRouter</div>
+                        <span id="openrouter-status" style="font-size: 12px;"></span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" class="setting-input" id="openrouter-key" placeholder="sk-or-..." style="margin-bottom: 0;">
+                        <button class="setting-btn" onclick="saveApiKey('openrouter')">Save</button>
+                        <button class="setting-btn secondary" onclick="testApiKey('openrouter')">Test</button>
+                        <button class="setting-btn secondary" onclick="deleteApiKey('openrouter')">Delete</button>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        Get your key at <a href="https://openrouter.ai/keys" target="_blank" style="color: var(--accent);">openrouter.ai</a> (access 100+ models)
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h2>Local Models (WebLLM)</h2>
+                <div class="setting-item" id="webgpu-status">
+                    Checking WebGPU support...
+                </div>
+                <p style="color: var(--text-secondary); margin: 16px 0; font-size: 14px;">
+                    Run models locally in your browser using WebGPU. Models are cached for offline use.
+                </p>
+                <div id="model-list">
+                    <div style="text-align: center; padding: 20px;">
+                        <div class="spinner" style="margin: 0 auto;"></div>
+                        <div style="margin-top: 10px;">Loading models...</div>
+                    </div>
+                </div>
+                <div id="model-progress" style="display: none; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span id="progress-label">Downloading...</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; overflow: hidden;">
+                        <div id="progress-bar" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h2>Storage</h2>
+                <div class="setting-item">
+                    <div class="setting-label">Storage Usage</div>
+                    <div id="storage-usage">Calculating...</div>
+                </div>
+                <button class="setting-btn danger" onclick="clearAllData()">Clear All Data</button>
+            </div>
+        </div>
+    </main>
+    
+    <footer class="status-bar">
+        <div class="status-item">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Initializing...</span>
+        </div>
+        <div class="status-item">
+            <kbd>Ctrl+1</kbd> Chat
+            <kbd>Ctrl+2</kbd> Terminal
+            <kbd>Ctrl+3</kbd> Files
+            <kbd>Ctrl+4</kbd> Settings
+        </div>
+    </footer>
+    
+    <!-- Scripts -->
+    <script src="js/storage.js"></script>
+    <script src="js/protocol.js"></script>
+    <script src="js/llm-router.js"></script>
+    <script src="js/emulator.js"></script>
+    <script src="js/terminal.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Initialize application
+        let app;
+        
+        async function init() {
+            try {
+                app = await new AyoApp().init();
+                
+                // Set up callbacks
+                app.onModeChange = updateModeUI;
+                app.onStatusChange = updateStatusUI;
+                
+                // Initial UI updates
+                updateModeUI(app.mode);
+                updateStatusUI({ type: 'success', message: 'Ready' });
+                
+                // Load settings
+                loadSettings();
+                
+            } catch (error) {
+                console.error('Init failed:', error);
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        function updateModeUI(mode) {
+            const badge = document.getElementById('mode-badge');
+            badge.className = 'mode-badge ' + mode;
+            badge.textContent = mode === 'connected' ? 'Connected' : 
+                               mode === 'offline' ? 'Offline' : 'Detecting...';
+        }
+        
+        function updateStatusUI(status) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            
+            dot.className = 'status-dot ' + 
+                (status.type === 'success' ? 'green' : 
+                 status.type === 'error' ? 'red' : 'yellow');
+            text.textContent = status.message;
+        }
+        
+        // Tab navigation
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.dataset.tab;
+                
+                // Update tab buttons
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+                
+                // Update tab content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tabId + '-tab').classList.add('active');
+                
+                // Notify app
+                if (app) {
+                    app.switchTab(tabId);
+                }
+            });
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                const tabMap = { '1': 'chat', '2': 'terminal', '3': 'files', '4': 'settings' };
+                if (tabMap[e.key]) {
+                    e.preventDefault();
+                    document.querySelector(`[data-tab="${tabMap[e.key]}"]`).click();
+                }
+            }
+        });
+        
+        // Chat functionality
+        let currentSession = null;
+        let isGenerating = false;
+        let abortController = null;
+        
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('chat-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+            // Allow Escape to cancel generation
+            if (e.key === 'Escape' && isGenerating && abortController) {
+                abortController.abort();
+            }
+        });
+        
+        async function initSession() {
+            if (currentSession) return currentSession;
+            
+            const sessionId = crypto.randomUUID();
+            currentSession = {
+                id: sessionId,
+                title: 'New Chat',
+                agentHandle: '@ayo',
+                createdAt: Date.now(),
+                messages: []
+            };
+            
+            if (app && app.storage) {
+                await app.storage.saveSession(currentSession);
+            }
+            
+            return currentSession;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('send-btn');
+            const message = input.value.trim();
+            if (!message || !app || isGenerating) return;
+            
+            // Initialize session if needed
+            await initSession();
+            
+            // Clear input and disable button
+            input.value = '';
+            isGenerating = true;
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Stop';
+            sendBtn.onclick = () => abortController?.abort();
+            
+            // Add user message to chat
+            addMessage('user', message);
+            
+            // Save user message to session
+            currentSession.messages.push({ role: 'user', content: message });
+            
+            // Create abort controller
+            abortController = new AbortController();
+            
+            // Add placeholder for assistant response
+            const assistantDiv = addMessage('assistant', '', true);
+            const contentDiv = assistantDiv.querySelector('.message-content');
+            
+            try {
+                let fullContent = '';
+                
+                // Stream response
+                await app.sendChatMessage(message, '@ayo', (chunk) => {
+                    if (chunk.content) {
+                        fullContent += chunk.content;
+                        contentDiv.innerHTML = escapeHtml(fullContent);
+                        // Scroll to bottom
+                        document.getElementById('chat-messages').scrollTop = 
+                            document.getElementById('chat-messages').scrollHeight;
+                    }
+                    if (chunk.done) {
+                        // Save assistant message to session
+                        currentSession.messages.push({ role: 'assistant', content: fullContent });
+                        app.storage.saveSession(currentSession);
+                    }
+                }, abortController.signal);
+                
+                // Update session title from first message
+                if (currentSession.messages.length === 2 && currentSession.title === 'New Chat') {
+                    currentSession.title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
+                    await app.storage.saveSession(currentSession);
+                }
+                
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    contentDiv.innerHTML += '<span style="color: var(--text-secondary);"> (cancelled)</span>';
+                } else {
+                    contentDiv.innerHTML = `<span style="color: var(--error);">Error: ${escapeHtml(error.message)}</span>`;
+                }
+            } finally {
+                isGenerating = false;
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+                sendBtn.onclick = sendMessage;
+                abortController = null;
+            }
+        }
+        
+        function addMessage(role, content, returnElement = false) {
+            const container = document.getElementById('chat-messages');
+            
+            // Remove empty state if present
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            div.innerHTML = `
+                <div class="message-role">${role === 'user' ? 'You' : '@ayo'}</div>
+                <div class="message-content">${content ? escapeHtml(content) : '<span class="spinner" style="width: 16px; height: 16px; display: inline-block;"></span>'}</div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            
+            if (returnElement) {
+                return div;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Settings functions
+        async function loadSettings() {
+            if (!app) return;
+            
+            // Check WebGPU
+            const webgpuStatus = document.getElementById('webgpu-status');
+            const gpuInfo = await checkWebGPU();
+            if (gpuInfo.available) {
+                webgpuStatus.innerHTML = `
+                    <span style="color: var(--success);">WebGPU Available</span><br>
+                    <small>${gpuInfo.vendor} ${gpuInfo.device || ''}</small>
+                `;
+            } else {
+                webgpuStatus.innerHTML = `
+                    <span style="color: var(--error);">WebGPU Not Available</span><br>
+                    <small>${gpuInfo.reason}</small>
+                `;
+            }
+            
+            // Load storage stats
+            const stats = await app.getStorageStats();
+            document.getElementById('storage-usage').textContent = 
+                `${(stats.total / 1024 / 1024).toFixed(2)} MB used`;
+            
+            // Load API key status
+            await loadApiKeyStatus();
+            
+            // Load WebLLM models
+            await loadWebLLMModels(gpuInfo.available);
+        }
+        
+        async function loadWebLLMModels(webgpuAvailable) {
+            const modelListEl = document.getElementById('model-list');
+            
+            if (!webgpuAvailable) {
+                modelListEl.innerHTML = `
+                    <div class="setting-item" style="text-align: center; color: var(--text-secondary);">
+                        <p>WebGPU is required for local model inference.</p>
+                        <p style="font-size: 12px; margin-top: 8px;">
+                            Try Chrome 113+ or Edge 113+ for WebGPU support.
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Get downloaded models from storage
+            const downloadedModels = await app.storage.listModels();
+            const downloadedIds = new Set(downloadedModels.map(m => m.id));
+            
+            // Get active model from config
+            const activeModel = await app.storage.getConfig('activeWebLLMModel');
+            
+            let html = '';
+            for (const model of WEBLLM_MODELS) {
+                const isDownloaded = downloadedIds.has(model.id);
+                const isActive = activeModel === model.id;
+                const shortName = model.id.split('-q')[0];
+                
+                html += `
+                    <div class="setting-item" id="model-${model.id.replace(/[^a-zA-Z0-9]/g, '_')}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div>
+                                <strong>${shortName}</strong>
+                                ${isActive ? '<span style="color: var(--accent); margin-left: 8px;">Active</span>' : ''}
+                            </div>
+                            <span style="font-size: 12px; color: var(--text-secondary);">
+                                ${model.size} | ${model.minVRAM}GB VRAM min
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${isDownloaded ? `
+                                ${!isActive ? `<button class="setting-btn" onclick="activateModel('${model.id}')">Activate</button>` : ''}
+                                <button class="setting-btn secondary" onclick="deleteWebLLMModel('${model.id}')">Delete</button>
+                            ` : `
+                                <button class="setting-btn" onclick="downloadWebLLMModel('${model.id}')">Download</button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            modelListEl.innerHTML = html;
+        }
+        
+        let currentDownload = null;
+        
+        async function downloadWebLLMModel(modelId) {
+            if (currentDownload) {
+                updateStatusUI({ type: 'warning', message: 'A download is already in progress' });
+                return;
+            }
+            
+            currentDownload = modelId;
+            const progressEl = document.getElementById('model-progress');
+            const labelEl = document.getElementById('progress-label');
+            const percentEl = document.getElementById('progress-percent');
+            const barEl = document.getElementById('progress-bar');
+            
+            progressEl.style.display = 'block';
+            updateStatusUI({ type: 'info', message: `Downloading ${modelId}...` });
+            
+            try {
+                // Use LLM router to load the model (which downloads it)
+                if (!app.llmRouter) {
+                    await app.initOfflineMode();
+                }
+                
+                await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
+                    labelEl.textContent = progress.stage;
+                    const pct = Math.round(progress.progress * 100);
+                    percentEl.textContent = `${pct}%`;
+                    barEl.style.width = `${pct}%`;
+                });
+                
+                // Mark as downloaded in storage
+                await app.storage.saveModel(modelId, new Uint8Array([1]), { 
+                    name: modelId,
+                    downloadedViaWebLLM: true 
+                });
+                
+                // Set as active model
+                await app.storage.setConfig('activeWebLLMModel', modelId);
+                
+                progressEl.style.display = 'none';
+                updateStatusUI({ type: 'success', message: `${modelId} downloaded and activated` });
+                
+                // Refresh model list
+                await loadWebLLMModels(true);
+                
+            } catch (error) {
+                progressEl.style.display = 'none';
+                updateStatusUI({ type: 'error', message: error.message });
+            } finally {
+                currentDownload = null;
+            }
+        }
+        
+        async function activateModel(modelId) {
+            updateStatusUI({ type: 'info', message: `Activating ${modelId}...` });
+            
+            try {
+                if (!app.llmRouter) {
+                    await app.initOfflineMode();
+                }
+                
+                await app.llmRouter.loadWebLLMModel(modelId, (progress) => {
+                    const pct = Math.round(progress.progress * 100);
+                    updateStatusUI({ type: 'info', message: `Loading ${modelId}: ${pct}%` });
+                });
+                
+                await app.storage.setConfig('activeWebLLMModel', modelId);
+                updateStatusUI({ type: 'success', message: `${modelId} activated` });
+                
+                await loadWebLLMModels(true);
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function deleteWebLLMModel(modelId) {
+            if (!confirm(`Delete ${modelId}? You will need to download it again.`)) return;
+            
+            try {
+                // Unload if currently loaded
+                if (app.llmRouter && app.llmRouter.currentModel === modelId) {
+                    await app.llmRouter.unloadWebLLMModel();
+                }
+                
+                // Remove from storage
+                await app.storage.deleteModel(modelId);
+                
+                // Clear active model if it was this one
+                const activeModel = await app.storage.getConfig('activeWebLLMModel');
+                if (activeModel === modelId) {
+                    await app.storage.deleteConfig('activeWebLLMModel');
+                }
+                
+                updateStatusUI({ type: 'success', message: `${modelId} deleted` });
+                await loadWebLLMModels(true);
+                
+                // Update storage stats
+                const stats = await app.getStorageStats();
+                document.getElementById('storage-usage').textContent = 
+                    `${(stats.total / 1024 / 1024).toFixed(2)} MB used`;
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        // Files Tab functionality
+        let currentFilePath = null;
+        
+        async function refreshFiles() {
+            if (!app) return;
+            
+            const treeContent = document.getElementById('file-tree-content');
+            
+            // Load files from IndexedDB storage overlay
+            const files = await app.storage.listFiles();
+            
+            if (files.length === 0) {
+                treeContent.innerHTML = `
+                    <div class="empty-state" style="padding: 20px;">
+                        <p>No files in overlay</p>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                            Files created or modified in the VM are stored here
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Build tree structure from flat paths
+            const tree = buildFileTree(files);
+            treeContent.innerHTML = renderFileTree(tree, '');
+        }
+        
+        function buildFileTree(files) {
+            const root = {};
+            for (const file of files) {
+                const parts = file.path.split('/').filter(p => p);
+                let current = root;
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    if (i === parts.length - 1) {
+                        // File
+                        current[part] = { _isFile: true, ...file };
+                    } else {
+                        // Directory
+                        if (!current[part]) {
+                            current[part] = {};
+                        }
+                        current = current[part];
+                    }
+                }
+            }
+            return root;
+        }
+        
+        function renderFileTree(tree, prefix) {
+            let html = '';
+            const entries = Object.entries(tree).sort((a, b) => {
+                // Directories first
+                const aIsDir = !a[1]._isFile;
+                const bIsDir = !b[1]._isFile;
+                if (aIsDir !== bIsDir) return bIsDir ? 1 : -1;
+                return a[0].localeCompare(b[0]);
+            });
+            
+            for (const [name, value] of entries) {
+                const path = prefix ? `${prefix}/${name}` : `/${name}`;
+                
+                if (value._isFile) {
+                    const sizeKB = (value.size / 1024).toFixed(1);
+                    html += `
+                        <div class="file-item" onclick="selectFile('${path}')" data-path="${path}">
+                            <span>&#128196;</span> ${name}
+                            <span style="margin-left: auto; font-size: 11px; color: var(--text-secondary);">${sizeKB}KB</span>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="file-item" style="font-weight: 500;">
+                            <span>&#128193;</span> ${name}
+                        </div>
+                        <div style="padding-left: 16px;">
+                            ${renderFileTree(value, path)}
+                        </div>
+                    `;
+                }
+            }
+            
+            return html;
+        }
+        
+        async function selectFile(path) {
+            if (!app) return;
+            
+            // Remove selection from other items
+            document.querySelectorAll('.file-item.selected').forEach(el => el.classList.remove('selected'));
+            const selectedItem = document.querySelector(`[data-path="${path}"]`);
+            if (selectedItem) selectedItem.classList.add('selected');
+            
+            currentFilePath = path;
+            
+            // Show loading
+            document.getElementById('file-empty-state').style.display = 'none';
+            document.getElementById('file-preview-header').style.display = 'block';
+            document.getElementById('file-editor').style.display = 'flex';
+            document.getElementById('current-file-path').textContent = path;
+            
+            // Load file content
+            try {
+                const file = await app.storage.getFile(path);
+                if (file && file.content) {
+                    const decoder = new TextDecoder();
+                    const text = typeof file.content === 'string' ? file.content : decoder.decode(file.content);
+                    document.getElementById('file-content').value = text;
+                } else {
+                    document.getElementById('file-content').value = '';
+                }
+            } catch (error) {
+                document.getElementById('file-content').value = `Error loading file: ${error.message}`;
+            }
+        }
+        
+        async function saveCurrentFile() {
+            if (!app || !currentFilePath) return;
+            
+            const content = document.getElementById('file-content').value;
+            try {
+                await app.storage.saveFile(currentFilePath, content);
+                updateStatusUI({ type: 'success', message: `Saved ${currentFilePath}` });
+                await refreshFiles();
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function deleteCurrentFile() {
+            if (!app || !currentFilePath) return;
+            if (!confirm(`Delete ${currentFilePath}?`)) return;
+            
+            try {
+                await app.storage.deleteFile(currentFilePath);
+                currentFilePath = null;
+                document.getElementById('file-empty-state').style.display = 'flex';
+                document.getElementById('file-preview-header').style.display = 'none';
+                document.getElementById('file-editor').style.display = 'none';
+                updateStatusUI({ type: 'success', message: 'File deleted' });
+                await refreshFiles();
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        function downloadCurrentFile() {
+            if (!currentFilePath) return;
+            
+            const content = document.getElementById('file-content').value;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentFilePath.split('/').pop();
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        async function createNewFile() {
+            const path = prompt('Enter file path (e.g., /work/script.sh):');
+            if (!path) return;
+            
+            try {
+                await app.storage.saveFile(path, '');
+                await refreshFiles();
+                selectFile(path);
+                updateStatusUI({ type: 'success', message: `Created ${path}` });
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function loadApiKeyStatus() {
+            if (!app) return;
+            
+            const providers = ['openai', 'anthropic', 'openrouter'];
+            const configuredProviders = await app.storage.listApiKeyProviders();
+            
+            for (const provider of providers) {
+                const statusEl = document.getElementById(`${provider}-status`);
+                if (!statusEl) continue;
+                
+                if (configuredProviders.includes(provider)) {
+                    statusEl.innerHTML = '<span style="color: var(--success);">Configured</span>';
+                } else {
+                    statusEl.innerHTML = '<span style="color: var(--text-secondary);">Not configured</span>';
+                }
+            }
+        }
+        
+        async function saveApiKey(provider) {
+            const input = document.getElementById(provider + '-key');
+            const key = input.value.trim();
+            if (!key || !app) return;
+            
+            const statusEl = document.getElementById(`${provider}-status`);
+            statusEl.innerHTML = '<span style="color: var(--info);">Saving...</span>';
+            
+            try {
+                await app.storage.setApiKey(provider, key);
+                input.value = '';
+                statusEl.innerHTML = '<span style="color: var(--success);">Configured</span>';
+                updateStatusUI({ type: 'success', message: `${provider} key saved` });
+            } catch (error) {
+                statusEl.innerHTML = '<span style="color: var(--error);">Error</span>';
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function testApiKey(provider) {
+            if (!app) return;
+            
+            const statusEl = document.getElementById(`${provider}-status`);
+            statusEl.innerHTML = '<span style="color: var(--info);">Testing...</span>';
+            
+            try {
+                const key = await app.storage.getApiKey(provider);
+                if (!key) {
+                    statusEl.innerHTML = '<span style="color: var(--warning);">No key saved</span>';
+                    return;
+                }
+                
+                // Test API endpoint
+                const result = await testProviderApi(provider, key);
+                
+                if (result.success) {
+                    statusEl.innerHTML = `<span style="color: var(--success);">Valid</span>`;
+                    updateStatusUI({ type: 'success', message: `${provider} key is valid` });
+                } else {
+                    statusEl.innerHTML = `<span style="color: var(--error);">Invalid</span>`;
+                    updateStatusUI({ type: 'error', message: result.error });
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<span style="color: var(--error);">Test failed</span>';
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function testProviderApi(provider, key) {
+            const endpoints = {
+                openai: {
+                    url: 'https://api.openai.com/v1/models',
+                    headers: { 'Authorization': `Bearer ${key}` }
+                },
+                anthropic: {
+                    url: 'https://api.anthropic.com/v1/messages',
+                    headers: {
+                        'x-api-key': key,
+                        'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true'
+                    },
+                    method: 'POST',
+                    body: JSON.stringify({
+                        model: 'claude-3-haiku-20240307',
+                        max_tokens: 1,
+                        messages: [{ role: 'user', content: 'Hi' }]
+                    })
+                },
+                openrouter: {
+                    url: 'https://openrouter.ai/api/v1/models',
+                    headers: { 'Authorization': `Bearer ${key}` }
+                }
+            };
+            
+            const config = endpoints[provider];
+            if (!config) {
+                return { success: false, error: 'Unknown provider' };
+            }
+            
+            try {
+                const response = await fetch(config.url, {
+                    method: config.method || 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...config.headers
+                    },
+                    body: config.body
+                });
+                
+                if (response.ok) {
+                    return { success: true };
+                } else if (response.status === 401 || response.status === 403) {
+                    return { success: false, error: 'Invalid API key' };
+                } else {
+                    const body = await response.text();
+                    return { success: false, error: `API error: ${response.status}` };
+                }
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+        
+        async function deleteApiKey(provider) {
+            if (!app) return;
+            if (!confirm(`Delete ${provider} API key?`)) return;
+            
+            try {
+                await app.storage.deleteApiKey(provider);
+                document.getElementById(`${provider}-status`).innerHTML = 
+                    '<span style="color: var(--text-secondary);">Not configured</span>';
+                updateStatusUI({ type: 'success', message: `${provider} key deleted` });
+            } catch (error) {
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        async function clearAllData() {
+            if (!confirm('Clear all offline data? This cannot be undone.')) return;
+            if (app) {
+                await app.clearOfflineData();
+                loadSettings();
+            }
+        }
+        
+        // VM controls
+        let terminalInitialized = false;
+        
+        const bootStages = [
+            { id: 'wasm', label: 'Loading WebAssembly', progress: 0.15 },
+            { id: 'worker', label: 'Initializing Worker', progress: 0.25 },
+            { id: 'rootfs', label: 'Loading Rootfs', progress: 0.45 },
+            { id: 'boot', label: 'Booting Linux', progress: 0.75 },
+            { id: 'ready', label: 'System Ready', progress: 1.0 }
+        ];
+        
+        function showBootProgress(container) {
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 40px;">
+                    <div class="logo" style="font-size: 36px; margin-bottom: 20px;">ayo</div>
+                    <div id="boot-stage" style="color: var(--text-primary); font-size: 16px; margin-bottom: 16px;">Initializing...</div>
+                    <div style="width: 300px; max-width: 100%;">
+                        <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div id="boot-progress-bar" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.5s ease;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
+                            <span id="boot-progress-text">0%</span>
+                            <span id="boot-time"></span>
+                        </div>
+                    </div>
+                    <div id="boot-substage" style="color: var(--text-secondary); font-size: 12px; margin-top: 12px;"></div>
+                </div>
+            `;
+        }
+        
+        function updateBootProgress(stage, subStage = '') {
+            const stageEl = document.getElementById('boot-stage');
+            const subEl = document.getElementById('boot-substage');
+            const barEl = document.getElementById('boot-progress-bar');
+            const textEl = document.getElementById('boot-progress-text');
+            
+            if (!stageEl) return;
+            
+            const stageInfo = bootStages.find(s => s.id === stage);
+            if (stageInfo) {
+                stageEl.textContent = stageInfo.label;
+                const pct = Math.round(stageInfo.progress * 100);
+                barEl.style.width = `${pct}%`;
+                textEl.textContent = `${pct}%`;
+            }
+            
+            if (subStage) {
+                subEl.textContent = subStage;
+            }
+        }
+        
+        async function initTerminalTab() {
+            if (terminalInitialized || !app) return;
+            
+            const container = document.getElementById('terminal-container');
+            const startTime = Date.now();
+            
+            // Show boot progress UI
+            showBootProgress(container);
+            
+            const updateTime = () => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                const timeEl = document.getElementById('boot-time');
+                if (timeEl) timeEl.textContent = `${elapsed}s`;
+            };
+            const timeInterval = setInterval(updateTime, 100);
+            
+            try {
+                // Stage 1: Loading WASM
+                updateBootProgress('wasm', 'Fetching tinyemu.wasm...');
+                
+                // Stage 2: Initialize worker
+                updateBootProgress('worker', 'Starting Web Worker...');
+                
+                // Stage 3: Load rootfs
+                updateBootProgress('rootfs', 'Decompressing rootfs...');
+                
+                // Initialize terminal and emulator
+                await app.initTerminal(container);
+                
+                // Stage 4: Boot Linux
+                updateBootProgress('boot', 'Starting Linux kernel...');
+                
+                // Start VM
+                await app.startVM();
+                
+                // Stage 5: Ready
+                updateBootProgress('ready', 'Welcome to ayo');
+                
+                // Brief pause to show ready state
+                await new Promise(r => setTimeout(r, 500));
+                
+                clearInterval(timeInterval);
+                
+                // Clear progress UI - terminal is already rendered by initTerminal
+                terminalInitialized = true;
+                
+            } catch (error) {
+                clearInterval(timeInterval);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Boot Failed</h3>
+                        <p style="color: var(--error); margin-bottom: 16px;">${error.message}</p>
+                        <button class="setting-btn" onclick="terminalInitialized = false; initTerminalTab()">Retry</button>
+                    </div>
+                `;
+                updateStatusUI({ type: 'error', message: error.message });
+            }
+        }
+        
+        document.getElementById('start-vm-btn')?.addEventListener('click', initTerminalTab);
+        
+        // Auto-init terminal when tab is selected
+        const originalTabClick = document.querySelectorAll('.tab');
+        originalTabClick.forEach(tab => {
+            tab.addEventListener('click', () => {
+                if (tab.dataset.tab === 'terminal' && !terminalInitialized && app) {
+                    initTerminalTab();
+                }
+            });
+        });
+        
+        // Start the app
+        init();
+    </script>
+</body>
+</html>

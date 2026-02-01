@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>ayo Storage Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+        h1 { color: #9d4edd; }
+        #output {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #0f0f1a;
+            padding: 20px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        .pass { color: #4ade80; }
+        .fail { color: #f87171; }
+        button {
+            background: #9d4edd;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        button:hover { background: #7c3aed; }
+    </style>
+</head>
+<body>
+    <h1>ayo Storage Tests</h1>
+    <button onclick="runTests()">Run Tests</button>
+    <div id="output">Click "Run Tests" to start...</div>
+    
+    <script src="../js/storage.js"></script>
+    <script src="storage.test.js"></script>
+    <script>
+        // Override console.log to show in UI
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            const text = args.join(' ');
+            const span = document.createElement('span');
+            span.className = text.includes('OK:') ? 'pass' : '';
+            span.textContent = text + '\n';
+            output.appendChild(span);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            const text = args.join(' ');
+            const span = document.createElement('span');
+            span.className = 'fail';
+            span.textContent = text + '\n';
+            output.appendChild(span);
+        };
+        
+        async function runTests() {
+            output.innerHTML = '';
+            await window.runStorageTests();
+        }
+    </script>
+</body>
+</html>
