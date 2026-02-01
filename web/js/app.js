@@ -366,6 +366,11 @@ class AyoApp {
      * Send message in offline mode (via LLM router)
      */
     async sendOfflineMessage(message, agentHandle, onChunk = null, signal = null) {
+        // Ensure LLM router is initialized
+        if (!this.llmRouter) {
+            await this.initOfflineMode();
+        }
+        
         // Build messages array
         const messages = [
             { role: 'system', content: this.getSystemPrompt(agentHandle) },

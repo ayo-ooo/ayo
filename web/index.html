@@ -1623,10 +1623,6 @@
                 <span class="tab-icon">&#62;_</span>
                 <span class="tab-label">Terminal</span>
             </button>
-            <button class="tab" role="tab" data-tab="files" aria-selected="false">
-                <span class="tab-icon">&#128193;</span>
-                <span class="tab-label">Files</span>
-            </button>
             <button class="tab" role="tab" data-tab="settings" aria-selected="false">
                 <span class="tab-icon">&#9881;</span>
                 <span class="tab-label">Settings</span>
@@ -1665,42 +1661,6 @@
                     <h3>Terminal</h3>
                     <p>Emulator not initialized. Start the VM to access the terminal.</p>
                     <button class="setting-btn" id="start-vm-btn">Start VM</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Files Tab -->
-        <div class="tab-content" id="files-tab" role="tabpanel">
-            <div class="file-tree" id="file-tree">
-                <div class="file-tree-header">
-                    <span class="file-tree-title">Files</span>
-                    <div class="file-tree-actions">
-                        <button class="setting-btn secondary" onclick="refreshFiles()" title="Refresh">Refresh</button>
-                        <button class="setting-btn secondary" onclick="createNewFile()" title="New File">+ File</button>
-                    </div>
-                </div>
-                <div class="file-tree-content" id="file-tree-content">
-                    <div class="empty-state">
-                        <p>Start VM to browse files</p>
-                        <button class="setting-btn" onclick="document.querySelector('[data-tab=terminal]').click()">Go to Terminal</button>
-                    </div>
-                </div>
-            </div>
-            <div class="file-preview" id="file-preview">
-                <div class="file-preview-header" id="file-preview-header">
-                    <span id="current-file-path" class="file-path"></span>
-                    <div class="file-actions">
-                        <button class="setting-btn" onclick="saveCurrentFile()">Save</button>
-                        <button class="setting-btn secondary" onclick="downloadCurrentFile()">Download</button>
-                        <button class="setting-btn danger" onclick="deleteCurrentFile()">Delete</button>
-                    </div>
-                </div>
-                <div class="file-editor" id="file-editor">
-                    <textarea id="file-content" class="file-content-textarea"></textarea>
-                </div>
-                <div id="file-empty-state" class="empty-state">
-                    <h3>File Preview</h3>
-                    <p>Select a file to view or edit</p>
                 </div>
             </div>
         </div>
@@ -1812,8 +1772,7 @@
         <div class="status-item">
             <kbd>Ctrl+1</kbd> Chat
             <kbd>Ctrl+2</kbd> Terminal
-            <kbd>Ctrl+3</kbd> Files
-            <kbd>Ctrl+4</kbd> Settings
+            <kbd>Ctrl+3</kbd> Settings
         </div>
     </footer>
     
@@ -2189,7 +2148,7 @@
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.metaKey) {
-                const tabMap = { '1': 'chat', '2': 'terminal', '3': 'files', '4': 'settings' };
+                const tabMap = { '1': 'chat', '2': 'terminal', '3': 'settings' };
                 if (tabMap[e.key]) {
                     e.preventDefault();
                     document.querySelector(`[data-tab="${tabMap[e.key]}"]`).click();

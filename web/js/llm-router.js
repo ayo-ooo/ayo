@@ -384,6 +384,29 @@ class LLMRouter {
             return this.generateWithWllama(messages, temperature, maxTokens, onChunk, signal);
         }
         
+        // Check if we have a configured local model that needs to be loaded
+        const activeLocalModel = await this.storage.getConfig('activeLocalModel');
+        if (activeLocalModel) {
+            // Determine which backend to use based on model ID
+            const isWebLLMModel = WEBLLM_MODELS.some(m => m.id === activeLocalModel);
+            const isWllamaModel = WLLAMA_MODELS.some(m => m.id === activeLocalModel);
+            
+            if (isWebLLMModel && this.webgpuInfo?.available) {
+                // Load WebLLM model
+                await this.loadWebLLMModel(activeLocalModel, (progress) => {
+                    // Show loading progress in status
+                    console.log(`Loading model: ${progress.stage} (${Math.round(progress.progress * 100)}%)`);
+                });
+                return this.generateWithWebLLM(messages, temperature, maxTokens, onChunk, signal);
+            } else if (isWllamaModel && this.wllamaInfo?.available) {
+                // Load Wllama model
+                await this.loadWllamaModel(activeLocalModel, (progress) => {
+                    console.log(`Loading model: ${progress.stage} (${Math.round(progress.progress * 100)}%)`);
+                });
+                return this.generateWithWllama(messages, temperature, maxTokens, onChunk, signal);
+            }
+        }
+        
         // Try cloud providers
         for (const provider of this.providers) {
             try {
@@ -394,7 +417,7 @@ class LLMRouter {
             }
         }
         
-        throw new Error('No LLM backend available. Please load a local model or configure an API key.');
+        throw new Error('No LLM backend available. Please download a local model or configure an API key in Settings.');
     }
     
     /**
