@@ -12,7 +12,6 @@ require (
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.0
-	github.com/charmbracelet/x/input v0.3.7
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/google/uuid v1.6.0
 	github.com/pressly/goose/v3 v3.26.0
@@ -24,7 +23,12 @@ require (
 
 require (
 	github.com/charmbracelet/huh/spinner v0.0.0-20251215014908-6f7d32faaff3
+	github.com/charmbracelet/x/editor v0.2.0
+	github.com/kaptinlin/jsonschema v0.6.5
+	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/ncruces/go-sqlite3 v0.30.5
+	github.com/oklog/ulid/v2 v2.1.1
+	rsc.io/qr v0.2.0
 )
 
 require (
@@ -58,7 +62,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.3.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20251106190538-99ea45596692 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14 // indirect
-	github.com/charmbracelet/x/editor v0.2.0 // indirect
 	github.com/charmbracelet/x/etag v0.2.0 // indirect
 	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250904123553-b4e2667e5ad5 // indirect
@@ -87,7 +90,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.2 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.8 // indirect
-	github.com/kaptinlin/jsonschema v0.6.5 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.7 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -105,7 +107,6 @@ require (
 	github.com/muesli/roff v0.1.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/openai/openai-go/v2 v2.7.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
