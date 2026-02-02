@@ -281,3 +281,29 @@ ayo doctor -v   # Verbose output with model list
 ## License
 
 BSD
+
+---
+
+## Offline Web Client (Experimental)
+
+Try ayo directly in your browser with no installation required:
+
+**[Launch ayo Offline Demo](https://alexcabrera.github.io/ayo/)**
+
+The offline web client runs entirely in your browser using:
+- **WebLLM** for local model inference (requires WebGPU)
+- **TinyEMU** for Linux shell access via WebAssembly
+- **IndexedDB** for persistent storage
+
+### Features
+- Chat with AI using local models or cloud API keys
+- Full Linux terminal with BusyBox tools
+- File editor for the browser-based filesystem
+- Works offline after initial load
+
+### Requirements
+- Chrome 113+ or Edge 113+ (for WebGPU)
+- 4GB+ available memory
+- For local models: GPU with 2-8GB VRAM
+
+See [Offline Mode User Guide](docs/user-guide.md) for details.

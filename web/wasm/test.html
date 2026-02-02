@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>TinyEMU WASM Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #9d4edd; }
+        #console {
+            background: #0f0f23;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 300px;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #16213e;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .info { color: #60a5fa; }
+        button {
+            background: #9d4edd;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #7c3aed; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>TinyEMU WASM Test Harness</h1>
+    
+    <div id="status" class="info">Loading WASM module...</div>
+    
+    <div>
+        <button id="initBtn" disabled onclick="initEmu()">Initialize</button>
+        <button id="startBtn" disabled onclick="startEmu()">Start Emulator</button>
+        <button id="stopBtn" disabled onclick="stopEmu()">Stop</button>
+        <button onclick="clearConsole()">Clear Console</button>
+    </div>
+    
+    <h3>Console Output:</h3>
+    <div id="console"></div>
+    
+    <script src="wasm_exec.js"></script>
+    <script>
+        const consoleEl = document.getElementById('console');
+        const statusEl = document.getElementById('status');
+        const initBtn = document.getElementById('initBtn');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        
+        function log(msg, type = 'info') {
+            const line = document.createElement('div');
+            line.textContent = msg;
+            line.className = type;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+        
+        function setStatus(msg, type = 'info') {
+            statusEl.textContent = msg;
+            statusEl.className = type;
+        }
+        
+        function clearConsole() {
+            consoleEl.innerHTML = '';
+        }
+        
+        // Callback for emulator console output
+        function onConsoleOutput(text) {
+            log(text, 'success');
+        }
+        
+        async function loadWasm() {
+            try {
+                const go = new Go();
+                log('Fetching WASM module...', 'info');
+                
+                const result = await WebAssembly.instantiateStreaming(
+                    fetch('tinyemu.wasm'),
+                    go.importObject
+                );
+                
+                log('WASM module loaded, starting Go runtime...', 'info');
+                go.run(result.instance);
+                
+                // Wait for Go to initialize
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const version = tinyemuVersion();
+                setStatus(`WASM loaded successfully. TinyEMU version: ${version}`, 'success');
+                log(`TinyEMU version: ${version}`, 'success');
+                
+                initBtn.disabled = false;
+                
+            } catch (err) {
+                setStatus(`Failed to load WASM: ${err.message}`, 'error');
+                log(`Error: ${err.message}`, 'error');
+                console.error(err);
+            }
+        }
+        
+        function initEmu() {
+            try {
+                const result = tinyemuInit(onConsoleOutput);
+                log(`Init result: ${JSON.stringify(result)}`, 'info');
+                setStatus('Emulator initialized', 'success');
+                startBtn.disabled = false;
+            } catch (err) {
+                log(`Init error: ${err.message}`, 'error');
+            }
+        }
+        
+        function startEmu() {
+            try {
+                const result = tinyemuStart();
+                log(`Start result: ${JSON.stringify(result)}`, 'info');
+                setStatus('Emulator running', 'success');
+                stopBtn.disabled = false;
+            } catch (err) {
+                log(`Start error: ${err.message}`, 'error');
+            }
+        }
+        
+        function stopEmu() {
+            try {
+                const result = tinyemuStop();
+                log(`Stop result: ${JSON.stringify(result)}`, 'info');
+                setStatus('Emulator stopped', 'info');
+            } catch (err) {
+                log(`Stop error: ${err.message}`, 'error');
+            }
+        }
+        
+        // Load WASM on page load
+        loadWasm();
+    </script>
+</body>
+</html>
