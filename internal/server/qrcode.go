@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/mdp/qrterminal/v3"
@@ -34,11 +33,6 @@ func GenerateQRCode(url string) (string, error) {
 	qrterminal.GenerateWithConfig(url, config)
 
 	return buf.String(), nil
-}
-
-// GenerateQRCodeToStdout writes the QR code directly to stdout with optimal rendering.
-func GenerateQRCodeToStdout(url string) {
-	qrterminal.GenerateHalfBlock(url, qr.M, os.Stdout)
 }
 
 // GenerateQRCodeWithURL generates a QR code and returns both the ASCII art

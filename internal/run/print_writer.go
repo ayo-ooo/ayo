@@ -1,6 +1,7 @@
 package run
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/ui"
@@ -123,3 +124,11 @@ func (w *PrintWriter) WriteDone(response string) {
 
 // Verify PrintWriter implements StreamWriter
 var _ StreamWriter = (*PrintWriter)(nil)
+
+// formatDuration formats a duration as a human-readable string.
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
+}

@@ -136,7 +136,7 @@ func TestSessionServiceList(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple sessions
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		svc.Sessions.Create(ctx, CreateParams{AgentHandle: "@ayo"})
 	}
 

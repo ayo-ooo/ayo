@@ -68,7 +68,7 @@ func validateJSON(jsonStr string, schemaData []byte, context string) error {
 	}
 
 	// Parse the JSON
-	var data interface{}
+	var data any
 	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
 		return &SchemaValidationError{
 			Message: fmt.Sprintf("invalid %s JSON", context),

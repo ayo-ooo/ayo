@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -220,12 +221,7 @@ func (ts FantasyToolSet) Tools() []fantasy.AgentTool {
 
 // HasTool checks if a tool name is in the allowed list.
 func (ts FantasyToolSet) HasTool(name string) bool {
-	for _, t := range ts.allowedList {
-		if t == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ts.allowedList, name)
 }
 
 // Close releases resources held by stateful tools.

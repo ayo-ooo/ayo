@@ -14,8 +14,8 @@ type MessageEvent struct {
 	Role string
 	// Content is the message content (may be partial for streaming).
 	Content string
-	// Parts contains structured message parts as interface{} to avoid import cycles.
-	Parts []interface{}
+	// Parts contains structured message parts as any to avoid import cycles.
+	Parts []any
 	// ParentMessageID is set for nested agent messages.
 	ParentMessageID string
 	// ToolCallID is set if this message is related to a tool call.

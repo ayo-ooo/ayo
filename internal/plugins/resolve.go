@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/paths"
@@ -218,15 +219,13 @@ func detectToolConflict(name string, pluginDir string) *Conflict {
 
 	// Built-in tools are hardcoded, check against known list
 	builtinTools := []string{"bash", "plan", "agent_call"}
-	for _, bt := range builtinTools {
-		if bt == name {
-			return &Conflict{
-				Type:         ConflictTool,
-				Name:         name,
-				ExistingPath: "(builtin)",
-				NewPath:      newPath,
-				Source:       "builtin",
-			}
+	if slices.Contains(builtinTools, name) {
+		return &Conflict{
+			Type:         ConflictTool,
+			Name:         name,
+			ExistingPath: "(builtin)",
+			NewPath:      newPath,
+			Source:       "builtin",
 		}
 	}
 

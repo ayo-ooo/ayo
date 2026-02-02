@@ -73,10 +73,7 @@ type Styles struct {
 
 // DefaultStyles returns the default application styles.
 func DefaultStyles() Styles {
-	maxWidth := getTerminalWidth()
-	if maxWidth > 120 {
-		maxWidth = 120
-	}
+	maxWidth := min(getTerminalWidth(), 120)
 
 	return Styles{
 		// Section labels with icons
@@ -200,10 +197,7 @@ func GlamourStyleConfig() ansi.StyleConfig {
 
 // NewMarkdownRenderer creates a glamour renderer with custom styles.
 func NewMarkdownRenderer() (*glamour.TermRenderer, error) {
-	width := getTerminalWidth()
-	if width > 120 {
-		width = 120
-	}
+	width := min(getTerminalWidth(), 120)
 
 	return glamour.NewTermRenderer(
 		glamour.WithStyles(GlamourStyleConfig()),

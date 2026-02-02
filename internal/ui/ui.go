@@ -186,10 +186,7 @@ func renderPlainOutput(out string, maxLines int) string {
 	totalLines := len(lines)
 
 	// Get max width for line truncation
-	maxWidth := getTerminalWidth() - 4 // Account for box padding
-	if maxWidth > 116 {
-		maxWidth = 116
-	}
+	maxWidth := min(getTerminalWidth()-4, 116) // Account for box padding
 
 	lineStyle := lipgloss.NewStyle().Foreground(colorTextDim)
 	truncStyle := lipgloss.NewStyle().Foreground(colorMuted).Italic(true)
@@ -197,7 +194,7 @@ func renderPlainOutput(out string, maxLines int) string {
 	var result []string
 	displayLines := min(len(lines), maxLines)
 
-	for i := 0; i < displayLines; i++ {
+	for i := range displayLines {
 		line := lines[i]
 		// Truncate long lines with ellipsis
 		if lipgloss.Width(line) > maxWidth {
@@ -447,10 +444,7 @@ func (u *UI) PrintInfo(msg string) {
 
 // PrintDivider prints a horizontal divider.
 func (u *UI) PrintDivider() {
-	width := u.styles.MaxWidth
-	if width > 60 {
-		width = 60
-	}
+	width := min(u.styles.MaxWidth, 60)
 	divider := lipgloss.NewStyle().
 		Foreground(colorSubtle).
 		Render(strings.Repeat("─", width))
@@ -464,10 +458,7 @@ func (u *UI) PrintChatHeader(agentHandle string) {
 
 // PrintChatHeaderWithSkills prints the header with skill count.
 func (u *UI) PrintChatHeaderWithSkills(agentHandle string, skillCount int) {
-	width := getTerminalWidth()
-	if width > 100 {
-		width = 100
-	}
+	width := min(getTerminalWidth(), 100)
 
 	// Create styled components
 	titleStyle := lipgloss.NewStyle().
@@ -496,10 +487,7 @@ func (u *UI) PrintChatHeaderWithSkills(agentHandle string, skillCount int) {
 	// Calculate line length to fill remaining space
 	// Format: "  title skills ─── hint  "
 	contentWidth := lipgloss.Width(title) + lipgloss.Width(skillsInfo) + lipgloss.Width(hint) + 6 // 6 = padding + min gap
-	lineWidth := width - contentWidth
-	if lineWidth < 3 {
-		lineWidth = 3
-	}
+	lineWidth := max(width-contentWidth, 3)
 
 	line := lineStyle.Render(strings.Repeat("─", lineWidth))
 

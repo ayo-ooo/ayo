@@ -9,6 +9,8 @@ import (
 	"text/template"
 
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // templateRenderer renders tool calls using a custom template.
@@ -131,7 +133,7 @@ func templateFuncs() template.FuncMap {
 		"join":       strings.Join,
 		"lower":      strings.ToLower,
 		"upper":      strings.ToUpper,
-		"title":      strings.Title,
+		"title":      cases.Title(language.Und, cases.NoLower).String,
 		"trim":       strings.TrimSpace,
 		"jsonPretty": jsonPrettyFunc,
 	}
@@ -171,7 +173,7 @@ func iconFunc(status string) string {
 
 // jsonPrettyFunc pretty-prints JSON.
 func jsonPrettyFunc(s string) string {
-	var obj interface{}
+	var obj any
 	if err := json.Unmarshal([]byte(s), &obj); err != nil {
 		return s
 	}
@@ -186,7 +188,7 @@ func jsonPrettyFunc(s string) string {
 type templateData struct {
 	Name       string
 	Input      string
-	Params     map[string]interface{}
+	Params     map[string]any
 	Result     string
 	IsError    bool
 	Duration   string
@@ -205,7 +207,7 @@ func (r *templateRenderer) Render(t *toolCallCmp) string {
 	}
 
 	// Parse input JSON
-	var params map[string]interface{}
+	var params map[string]any
 	json.Unmarshal([]byte(t.call.Input), &params)
 
 	data := templateData{
@@ -236,7 +238,7 @@ func (r *templateRenderer) RenderPanel(t *toolCallCmp) string {
 		return ""
 	}
 
-	var params map[string]interface{}
+	var params map[string]any
 	json.Unmarshal([]byte(t.call.Input), &params)
 
 	data := templateData{

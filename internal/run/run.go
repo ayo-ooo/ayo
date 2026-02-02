@@ -7,6 +7,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -488,12 +489,7 @@ func isTextMediaType(mediaType string) bool {
 	}
 	// Strip parameters (e.g., "text/plain; charset=utf-8" -> "text/plain")
 	baseType := strings.Split(mediaType, ";")[0]
-	for _, t := range textTypes {
-		if baseType == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(textTypes, baseType)
 }
 
 func (r *Runner) runChat(ctx context.Context, ag agent.Agent, msgs []fantasy.Message) (string, error) {
@@ -1043,7 +1039,7 @@ func (r *Runner) castToStructuredOutput(ctx context.Context, model fantasy.Langu
 	}
 
 	var lastError error
-	for attempt := 0; attempt < maxOutputCastRetries; attempt++ {
+	for attempt := range maxOutputCastRetries {
 		// Build prompt for structured output casting
 		var prompt fantasy.Prompt
 		if attempt == 0 {

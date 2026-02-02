@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -355,11 +356,8 @@ func printSchema(s *agent.Schema, indent string) {
 		fmt.Printf("%sproperties:\n", indent)
 		for name, prop := range s.Properties {
 			req := ""
-			for _, r := range s.Required {
-				if r == name {
-					req = " *"
-					break
-				}
+			if slices.Contains(s.Required, name) {
+				req = " *"
 			}
 			desc := ""
 			if prop.Description != "" {

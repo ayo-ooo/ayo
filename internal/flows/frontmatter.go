@@ -67,8 +67,7 @@ func ParseFrontmatter(content []byte) (FlowRaw, error) {
 		}
 
 		// Check if it's a metadata comment
-		if strings.HasPrefix(trimmed, "#") {
-			rest := strings.TrimPrefix(trimmed, "#")
+		if rest, ok := strings.CutPrefix(trimmed, "#"); ok {
 			rest = strings.TrimSpace(rest)
 
 			if idx := strings.Index(rest, ":"); idx > 0 {

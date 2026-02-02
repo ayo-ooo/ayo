@@ -35,7 +35,7 @@ func renderAny(b *strings.Builder, v any, depth int) {
 	case []any:
 		renderArray(b, val, depth)
 	default:
-		b.WriteString(fmt.Sprintf("%v", val))
+		fmt.Fprintf(b, "%v", val)
 	}
 }
 
@@ -206,7 +206,7 @@ func renderSearchResults(b *strings.Builder, results []any) {
 	maxResults := 8
 	for i, r := range results {
 		if i >= maxResults {
-			b.WriteString(fmt.Sprintf("\n  ... and %d more results\n", len(results)-maxResults))
+			fmt.Fprintf(b, "\n  ... and %d more results\n", len(results)-maxResults)
 			break
 		}
 

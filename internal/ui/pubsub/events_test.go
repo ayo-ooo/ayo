@@ -11,7 +11,7 @@ func TestMessageEvent_Fields(t *testing.T) {
 		SessionID:       "session-456",
 		Role:            "assistant",
 		Content:         "Hello, world!",
-		Parts:           []interface{}{"part1", "part2"},
+		Parts:           []any{"part1", "part2"},
 		ParentMessageID: "msg-parent",
 		ToolCallID:      "tool-789",
 	}

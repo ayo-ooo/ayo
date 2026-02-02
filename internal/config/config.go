@@ -67,13 +67,6 @@ type EmbeddingConfig struct {
 	Endpoint string `json:"endpoint,omitempty"`
 }
 
-func apiKeyEnvForProvider(p catwalk.Provider) string {
-	if p.ID == "" {
-		return ""
-	}
-	return strings.ToUpper(string(p.ID)) + "_API_KEY"
-}
-
 func defaultCatwalkURL() string {
 	if env := strings.TrimSpace(os.Getenv("CATWALK_URL")); env != "" {
 		return env
