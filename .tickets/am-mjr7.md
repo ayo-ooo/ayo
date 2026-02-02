@@ -1,6 +1,6 @@
 ---
 id: am-mjr7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-02T02:56:14Z

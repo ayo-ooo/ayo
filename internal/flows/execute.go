@@ -73,7 +73,7 @@ func Run(ctx context.Context, flow *Flow, opts RunOptions) (*RunResult, error) {
 		result.Error = fmt.Errorf("resolve input: %w", err)
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result, false)
+		recordHistoryIfEnabled(ctx, opts, flow, result)
 		return result, nil
 	}
 	result.InputUsed = input
@@ -85,7 +85,7 @@ func Run(ctx context.Context, flow *Flow, opts RunOptions) (*RunResult, error) {
 		result.Error = err
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result, inputValidated)
+		recordHistoryIfEnabled(ctx, opts, flow, result)
 		return result, nil
 	}
 
@@ -158,7 +158,7 @@ func Run(ctx context.Context, flow *Flow, opts RunOptions) (*RunResult, error) {
 	}
 
 	// Record completion in history
-	recordHistoryIfEnabled(ctx, opts, flow, result, inputValidated)
+	recordHistoryIfEnabled(ctx, opts, flow, result)
 
 	return result, nil
 }
@@ -178,7 +178,7 @@ func RunStreaming(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter
 		result.Error = fmt.Errorf("resolve input: %w", err)
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result, false)
+		recordHistoryIfEnabled(ctx, opts, flow, result)
 		return result, nil
 	}
 	result.InputUsed = input
@@ -190,7 +190,7 @@ func RunStreaming(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter
 		result.Error = err
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result, inputValidated)
+		recordHistoryIfEnabled(ctx, opts, flow, result)
 		return result, nil
 	}
 
@@ -270,7 +270,7 @@ func RunStreaming(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter
 	}
 
 	// Record completion in history
-	recordHistoryIfEnabled(ctx, opts, flow, result, inputValidated)
+	recordHistoryIfEnabled(ctx, opts, flow, result)
 
 	return result, nil
 }
@@ -341,7 +341,7 @@ func CleanupTempFiles(result *RunResult) {
 }
 
 // recordHistoryIfEnabled records the run result in history if a HistoryService is configured.
-func recordHistoryIfEnabled(ctx context.Context, opts RunOptions, flow *Flow, result *RunResult, inputValidated bool) {
+func recordHistoryIfEnabled(ctx context.Context, opts RunOptions, flow *Flow, result *RunResult) {
 	if opts.History == nil {
 		return
 	}
