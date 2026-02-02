@@ -234,6 +234,16 @@ ayo chain validate @agent <json> # Validate input against schema
 ayo chain example @agent         # Generate example input
 ```
 
+### Server & Web Client
+
+```bash
+ayo serve                        # Start HTTP API server
+ayo serve --port 8080            # Start on specific port
+ayo serve --host 0.0.0.0         # Allow external connections
+```
+
+Connect from the **[Web Client](https://alexcabrera.github.io/ayo-client-web/)** by scanning the QR code or entering the URL and token shown in the terminal.
+
 ### System
 
 ```bash
