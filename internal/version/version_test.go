@@ -18,7 +18,7 @@ func TestVersionFormat(t *testing.T) {
 
 func TestVersionValue(t *testing.T) {
 	// Verify current version matches expected
-	expected := "0.2.0"
+	expected := "0.3.0"
 	if Version != expected {
 		t.Errorf("Version = %q, want %q", Version, expected)
 	}

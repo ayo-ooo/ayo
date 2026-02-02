@@ -1,6 +1,6 @@
 ---
 id: am-f70c
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-02T02:57:01Z
