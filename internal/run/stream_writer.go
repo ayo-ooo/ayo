@@ -6,7 +6,6 @@ import (
 
 // StreamWriter is the unified interface for streaming output from agent execution.
 // Both TUI mode (ChannelWriter) and non-interactive mode (PrintWriter) implement this.
-// This replaces the callback-based StreamHandler with a simpler push-based API.
 type StreamWriter interface {
 	// Text streaming
 	WriteText(delta string)

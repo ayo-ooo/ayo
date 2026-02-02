@@ -136,6 +136,3 @@ func (a *FantasyAdapter) OnError(err error) error {
 	a.writer.WriteError(err)
 	return nil
 }
-
-// Verify FantasyAdapter implements StreamHandler (for backward compatibility during transition)
-var _ StreamHandler = (*FantasyAdapter)(nil)
