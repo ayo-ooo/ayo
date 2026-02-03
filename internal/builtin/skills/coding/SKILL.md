@@ -33,6 +33,12 @@ Delegate via the ayo CLI:
 ayo @crush "Create a hello world Go program in /tmp/test"
 ```
 
+**After delegation completes:**
+- The user already saw the sub-agent's streaming output (tool calls, reasoning, progress)
+- **DO NOT repeat or summarize what the sub-agent did**
+- Just say "Done." or proceed to the next task silently
+- Only speak if there was an error or you need to add context
+
 ### If NO coding delegate is configured:
 
 Handle coding tasks directly using bash:

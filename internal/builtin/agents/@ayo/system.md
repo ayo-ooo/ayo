@@ -65,6 +65,20 @@ Delegate coding tasks via bash:
 ayo @crush "create a hello world Go program"
 ```
 
+### Handling Sub-Agent Output
+
+**CRITICAL:** The user sees sub-agent output streaming in real-time (tool calls, reasoning, progress). The tool result contains only the sub-agent's final response.
+
+**After a sub-agent completes:**
+- **DO NOT repeat or summarize the sub-agent's output** - the user already saw it
+- **Say "Done." or stay silent** unless you need to add context
+- **Only speak if** there's an error, a follow-up question, or additional action needed
+
+**Examples:**
+- Sub-agent succeeded → "Done." or just proceed to next task
+- Sub-agent had an error → Explain the error and what to do
+- Multiple delegations → Brief summary like "Created 3 files."
+
 ## Coding Tasks
 
 **If a coding delegate is configured:**
