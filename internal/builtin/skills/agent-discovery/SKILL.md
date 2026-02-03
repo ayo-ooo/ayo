@@ -1,23 +1,23 @@
 ---
 name: agent-discovery
-description: Discover and inspect other agents managed by ayo. Required when using the agent_call tool to delegate tasks to specialized agents.
+description: Discover and inspect other agents managed by ayo. Use this before delegating tasks to specialized agents via the CLI.
 license: MIT
 compatibility: Requires ayo CLI
 metadata:
   author: ayo
-  version: "1.0"
+  version: "2.0"
 ---
 
 # Agent Discovery Skill
 
-Use this skill to discover available agents before delegating tasks via `agent_call`.
+Use this skill to discover available agents before delegating tasks.
 
 ## When to Use
 
 Activate this skill when:
 - You need to find which agents are available for delegation
 - You want to understand what an agent does before calling it
-- You're planning to use `agent_call` to delegate a task
+- You're planning to delegate a task to another agent
 - The user asks about available agents
 
 ## Discovery Commands
@@ -44,9 +44,21 @@ Displays full configuration including:
 - System prompt
 - Input/output schemas (for chainable agents)
 
+## Delegation via CLI
+
+To delegate to another agent, use the ayo CLI via bash:
+
+```bash
+# Run a prompt with another agent
+ayo @crush "implement feature X"
+
+# Continue a previous session with an agent
+ayo @crush -s SESSION_ID "follow up on that"
+```
+
 ## Delegation Decision Process
 
-Before using `agent_call`:
+Before delegating:
 
 1. **List available agents** to see what's available
 2. **Show agent details** for candidates that might help
@@ -60,10 +72,10 @@ Before using `agent_call`:
 ayo agents list
 
 # Inspect a promising agent
-ayo agents show @ayo
+ayo agents show @crush
 
-# Then use agent_call with confidence
-# agent_call(agent="@ayo", prompt="...")
+# Then delegate via CLI
+ayo @crush "create a REST API in Go"
 ```
 
 ## Best Practices
@@ -80,4 +92,4 @@ When `ayo agents list` returns:
 - **User-defined**: Agents you or users created
 - **Built-in**: Agents shipped with ayo
 
-Agent handles start with `@` (e.g., `@ayo`, `@code-reviewer`).
+Agent handles start with `@` (e.g., `@ayo`, `@crush`).

@@ -3,7 +3,6 @@ package agent
 import (
 	"strings"
 
-	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/plugins"
 )
@@ -46,19 +45,16 @@ func isSearchToolAvailable() bool {
 func BuildToolsPrompt(allowedTools []string) string {
 	// Default to bash if no tools specified
 	if len(allowedTools) == 0 {
-		allowedTools = []string{"bash", "agent_call"}
+		allowedTools = []string{"bash"}
 	}
 
 	hasBash := false
-	hasAgentCall := false
 	hasMemory := false
 	hasSearch := false
 	for _, t := range allowedTools {
 		switch t {
 		case "bash":
 			hasBash = true
-		case "agent_call":
-			hasAgentCall = true
 		case "memory":
 			hasMemory = true
 		case "search":
@@ -69,7 +65,7 @@ func BuildToolsPrompt(allowedTools []string) string {
 	// Check if search tool is actually available (not just in allowed list)
 	searchAvailable := hasSearch && isSearchToolAvailable()
 
-	if !hasBash && !hasAgentCall && !hasMemory && !searchAvailable {
+	if !hasBash && !hasMemory && !searchAvailable {
 		return ""
 	}
 
@@ -103,63 +99,6 @@ func BuildToolsPrompt(allowedTools []string) string {
 
 		b.WriteString("Optional: `timeout_seconds`, `working_dir`\n")
 		b.WriteString("</bash>\n\n")
-	}
-
-	if hasAgentCall {
-		// Only include agent_call section if there are builtin agents to call
-		agentInfos := builtin.ListAgentInfo()
-		pluginAgents := plugins.ListPluginAgents()
-
-		if len(agentInfos) == 0 && len(pluginAgents) == 0 {
-			// No agents available, skip agent_call section
-		} else {
-			b.WriteString("<agent_call>\n")
-			b.WriteString("You have access to specialized agents via the agent_call tool.\n\n")
-
-			if len(agentInfos) > 0 {
-				b.WriteString("Available builtin agents:\n\n")
-
-				// Dynamically list builtin agents with their delegation hints
-				for _, info := range agentInfos {
-					b.WriteString("### ")
-					b.WriteString(info.Handle)
-					b.WriteString("\n")
-					if info.Description != "" {
-						b.WriteString(info.Description)
-						b.WriteString("\n")
-					}
-					if info.DelegateHint != "" {
-						b.WriteString("**When to use**: ")
-						b.WriteString(info.DelegateHint)
-						b.WriteString("\n")
-					}
-					b.WriteString("\n")
-				}
-			}
-
-			if len(pluginAgents) > 0 {
-				b.WriteString("Available plugin agents:\n\n")
-
-				for _, info := range pluginAgents {
-					b.WriteString("### ")
-					b.WriteString(info.Handle)
-					b.WriteString("\n")
-					b.WriteString("(from plugin: ")
-					b.WriteString(info.PluginName)
-					b.WriteString(")\n\n")
-				}
-			}
-
-			b.WriteString("The called agent runs as a subprocess and returns its complete response.\n")
-			b.WriteString("You can then incorporate or process that response as needed.\n\n")
-
-			b.WriteString("Required parameters:\n")
-			b.WriteString("- `agent`: The agent handle (e.g., '@ayo')\n")
-			b.WriteString("- `prompt`: The prompt/question to send to the agent\n\n")
-
-			b.WriteString("Optional: `timeout_seconds` (default 120, max 300)\n")
-			b.WriteString("</agent_call>\n\n")
-		}
 	}
 
 	if hasMemory {

@@ -31,6 +31,7 @@ func newRootCmd() *cobra.Command {
 	var attachments []string
 	var debug bool
 	var modelOverride string
+	var sessionID string
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -44,7 +45,8 @@ Examples:
   ayo "tell me a joke"          Run single prompt with @ayo
   ayo @myagent                  Start interactive chat with @myagent
   ayo @myagent "do something"   Run single prompt with @myagent
-  ayo -a file.txt "analyze"     Attach file to prompt`,
+  ayo -a file.txt "analyze"     Attach file to prompt
+  ayo -s abc123 "follow up"     Continue a previous session`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
@@ -233,7 +235,14 @@ Examples:
 					ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 					defer cancel()
 
-					result, err := runner.TextWithSession(ctx, ag, prompt, attachments)
+					var result run.TextResult
+					if sessionID != "" {
+						// Continue existing session
+						result, err = runner.ContinueSessionWithPrompt(ctx, ag, sessionID, prompt, attachments)
+					} else {
+						// Start new session
+						result, err = runner.TextWithSession(ctx, ag, prompt, attachments)
+					}
 					if err != nil {
 						return err
 					}
@@ -262,6 +271,7 @@ Examples:
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
 	cmd.Flags().BoolVar(&debug, "debug", false, "show debug output including raw tool payloads")
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
+	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a previous session by ID")
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))

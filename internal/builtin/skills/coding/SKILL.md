@@ -5,7 +5,7 @@ description: |
   Check <delegate_context> for a coding delegate - if configured, you MUST delegate ALL coding to it.
 metadata:
   author: ayo
-  version: "7.0"
+  version: "8.0"
 ---
 
 # Coding Skill
@@ -28,12 +28,9 @@ This includes:
 
 **DO NOT write code yourself using bash when a delegate is configured.**
 
-Use agent_call:
-```json
-{
-  "agent": "@crush",
-  "prompt": "Create a hello world Go program in /tmp/test"
-}
+Delegate via the ayo CLI:
+```bash
+ayo @crush "Create a hello world Go program in /tmp/test"
 ```
 
 ### If NO coding delegate is configured:
@@ -66,6 +63,6 @@ Even when a coding delegate is configured, use bash for:
 
 ```
 Is there a coding delegate in <delegate_context>?
-├── YES → Use agent_call for ALL code writing
+├── YES → Use `ayo @agent` for ALL code writing
 └── NO  → Use bash with heredocs to write code
 ```

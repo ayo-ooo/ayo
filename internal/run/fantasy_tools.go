@@ -31,14 +31,6 @@ type BashParams struct {
 	WorkingDir     string `json:"working_dir,omitempty" description:"Optional working directory scoped to the project root"`
 }
 
-// AgentCallParams defines the parameters for the agent_call tool.
-type AgentCallParams struct {
-	Agent          string `json:"agent" description:"The agent handle to call (e.g., '@crush', '@research'). Can be any available agent unless restricted by allowed_agents config."`
-	Prompt         string `json:"prompt" description:"The prompt/question to send to the agent"`
-	Model          string `json:"model,omitempty" description:"Model to use for the sub-agent (e.g., 'claude-sonnet-4'). If not specified, uses the sub-agent's default."`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty" description:"Optional timeout in seconds (default 120, max 300)"`
-}
-
 const (
 	fantasyDefaultToolTimeout = 30 * time.Second
 	fantasyOutputLimitBytes   = 64 * 1024
@@ -194,7 +186,6 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 		case "memory":
 			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(memQueue))
 			loadedTools[resolvedName] = true
-		// agent_call is added separately when needed
 		default:
 			// Try to load as external tool from plugins
 			if tool := loadExternalTool(resolvedName, baseDir, depth); tool != nil {
@@ -233,15 +224,6 @@ func (ts *FantasyToolSet) Close() error {
 		}
 	}
 	return lastErr
-}
-
-// AddAgentCallTool adds the agent_call tool with the given executor.
-func (ts *FantasyToolSet) AddAgentCallTool(executor func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error)) {
-	ts.tools = append(ts.tools, fantasy.NewAgentTool(
-		"agent_call",
-		"Call another agent and get its response. Use this to delegate specialized tasks to other agents (e.g., @crush for coding, @research for web research).",
-		executor,
-	))
 }
 
 // resolveWorkingDir is shared between old and new tool implementations.

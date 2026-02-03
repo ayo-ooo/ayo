@@ -2,21 +2,9 @@ package messages
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 
 	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
-
-// debugLog writes to a debug file for troubleshooting
-func debugLog(format string, args ...any) {
-	f, err := os.OpenFile("/tmp/ayo_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	fmt.Fprintf(f, format+"\n", args...)
-}
 
 // genericRenderer handles unknown tool types with basic parameter display.
 type genericRenderer struct {
@@ -113,58 +101,11 @@ func formatTodosList(todos []Todo, width int) string {
 	return shared.FormatTodos(todos, width)
 }
 
-// agentCallRenderer handles sub-agent call display with threaded conversation.
-type agentCallRenderer struct {
-	baseRenderer
-}
-
-// Render displays agent call with prompt and response threaded.
-func (ar agentCallRenderer) Render(t *toolCallCmp) string {
-	// Use shared renderer for data extraction (like bash does)
-	renderInput := t.ToRenderInput()
-	renderOutput := shared.RenderTool(renderInput)
-
-	debugLog("=== agent_call render ===")
-	debugLog("  ID: %s", t.call.ID)
-	debugLog("  Name: %s", t.call.Name)
-	debugLog("  Input: %s", t.call.Input)
-	debugLog("  Result.Content: %s", t.result.Content)
-	debugLog("  Result.Metadata: %s", t.result.Metadata)
-	debugLog("  Result.ToolCallID: %s", t.result.ToolCallID)
-	debugLog("  RenderOutput.Label: %s", renderOutput.Label)
-	debugLog("  RenderOutput.HeaderParams: %v", renderOutput.HeaderParams)
-	debugLog("  RenderOutput.Sections count: %d", len(renderOutput.Sections))
-	for i, sec := range renderOutput.Sections {
-		debugLog("    Section[%d] Type=%d Content(first 100)=%q", i, sec.Type, truncateForLog(sec.Content, 100))
-	}
-
-	return ar.renderWithParams(t, renderOutput.Label, renderOutput.HeaderParams, func() string {
-		// Render body sections from shared renderer
-		for _, section := range renderOutput.Sections {
-			switch section.Type {
-			case shared.SectionMarkdown:
-				return renderMarkdownContent(t, section.Content, section.MaxLines)
-			case shared.SectionPlain:
-				return renderPlainContent(t, section.Content, section.MaxLines)
-			}
-		}
-		return ""
-	})
-}
-
-func truncateForLog(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
-
 // init registers all built-in renderers.
 func init() {
 	registry.register("bash", func() renderer { return bashRenderer{} })
 	registry.register("todo", func() renderer { return todosRenderer{} })
 	registry.register("todos", func() renderer { return todosRenderer{} })
-	registry.register("agent_call", func() renderer { return agentCallRenderer{} })
 }
 
 // RegisterRenderer allows external packages to register custom renderers.

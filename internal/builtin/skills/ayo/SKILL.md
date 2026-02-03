@@ -117,7 +117,7 @@ ayo agents create @my-agent \
 | `--description` | `-d` | Brief description of the agent |
 | `--system` | `-s` | System prompt text (inline) |
 | `--system-file` | `-f` | Path to system prompt file (.md or .txt) |
-| `--tools` | `-t` | Allowed tools: bash, agent_call, todo (comma-separated) |
+| `--tools` | `-t` | Allowed tools: bash, memory, todo (comma-separated) |
 | `--skills` | | Skills to include (comma-separated) |
 | `--exclude-skills` | | Skills to exclude |
 | `--ignore-builtin-skills` | | Don't load built-in skills |

@@ -2,7 +2,7 @@ package skills
 
 // ToolSkillRequirement defines skills that must be attached when a tool is enabled.
 type ToolSkillRequirement struct {
-	// ToolName is the name of the tool (e.g., "agent_call").
+	// ToolName is the name of the tool (e.g., "memory").
 	ToolName string
 	// RequiredSkills is the list of skill names required by this tool.
 	RequiredSkills []string
@@ -11,13 +11,8 @@ type ToolSkillRequirement struct {
 }
 
 // toolRequirements is the registry of tool-to-skill requirements.
-var toolRequirements = []ToolSkillRequirement{
-	{
-		ToolName:       "agent_call",
-		RequiredSkills: []string{"agent-discovery"},
-		Reason:         "agent_call requires knowledge of available agents for delegation",
-	},
-}
+// Currently empty as no tools require automatic skill loading.
+var toolRequirements = []ToolSkillRequirement{}
 
 // GetToolSkillRequirements returns all registered tool-skill requirements.
 func GetToolSkillRequirements() []ToolSkillRequirement {

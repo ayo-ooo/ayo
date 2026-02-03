@@ -218,7 +218,7 @@ func detectToolConflict(name string, pluginDir string) *Conflict {
 	newPath := filepath.Join(pluginDir, "tools", name)
 
 	// Built-in tools are hardcoded, check against known list
-	builtinTools := []string{"bash", "plan", "agent_call"}
+	builtinTools := []string{"bash", "plan"}
 	if slices.Contains(builtinTools, name) {
 		return &Conflict{
 			Type:         ConflictTool,

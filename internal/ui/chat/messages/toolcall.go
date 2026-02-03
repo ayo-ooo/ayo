@@ -148,6 +148,10 @@ type toolCallCmp struct {
 
 	spinning        bool
 	nestedToolCalls []ToolCallCmp
+
+	// View cache: once completed, the rendered view doesn't change
+	cachedView      string
+	cachedViewWidth int
 }
 
 // NewToolCallCmp creates a new tool call component.
@@ -185,9 +189,23 @@ func (t *toolCallCmp) Update(msg tea.Msg) (layout.Model, tea.Cmd) {
 }
 
 // View renders the component using the registered renderer.
+// Results are cached once the tool call is complete.
 func (t *toolCallCmp) View() string {
+	// If completed and cached at current width, return cached view
+	if t.result.ToolCallID != "" && t.cachedView != "" && t.cachedViewWidth == t.width {
+		return t.cachedView
+	}
+
 	r := registry.lookup(t.call.Name)
-	return r.Render(t)
+	view := r.Render(t)
+
+	// Cache the view if completed
+	if t.result.ToolCallID != "" && !t.cancelled {
+		t.cachedView = view
+		t.cachedViewWidth = t.width
+	}
+
+	return view
 }
 
 // Focus gives the component focus.

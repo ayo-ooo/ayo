@@ -220,7 +220,7 @@ Examples:
   # With tools and skills
   ayo agents create @debugger \
     -m gpt-5.2 \
-    -t bash,agent_call \
+    -t bash,memory \
     --skills debugging
 
   # Chainable agent with schemas

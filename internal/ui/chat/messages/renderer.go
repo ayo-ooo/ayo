@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/ui/shared"
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/ansi"
@@ -139,57 +138,6 @@ func (br baseRenderer) renderWithParams(t *toolCallCmp, toolName string, args []
 
 	body := contentRenderer()
 	return joinHeaderBody(header, body)
-}
-
-// renderError provides consistent error rendering.
-func (br baseRenderer) renderError(t *toolCallCmp, message string) string {
-	header := br.makeHeader(t, prettifyToolName(t.call.Name), t.textWidth())
-	errorStyle := lipgloss.NewStyle().
-		Background(shared.ColorError).
-		Foreground(shared.ColorTextBright).
-		Padding(0, 1)
-	errorTag := errorStyle.Render("ERROR")
-	msgStyle := lipgloss.NewStyle().Foreground(shared.ColorTextDim)
-	return joinHeaderBody(header, errorTag+" "+msgStyle.Render(message))
-}
-
-// paramBuilder helps construct parameter lists for tool headers.
-type paramBuilder struct {
-	args []string
-}
-
-// newParamBuilder creates a new parameter builder.
-func newParamBuilder() *paramBuilder {
-	return &paramBuilder{args: make([]string, 0)}
-}
-
-// addMain adds the main parameter.
-func (pb *paramBuilder) addMain(value string) *paramBuilder {
-	if value != "" {
-		pb.args = append(pb.args, value)
-	}
-	return pb
-}
-
-// addKeyValue adds a key-value pair.
-func (pb *paramBuilder) addKeyValue(key, value string) *paramBuilder {
-	if value != "" {
-		pb.args = append(pb.args, key, value)
-	}
-	return pb
-}
-
-// addFlag adds a boolean flag.
-func (pb *paramBuilder) addFlag(key string, value bool) *paramBuilder {
-	if value {
-		pb.args = append(pb.args, key, "true")
-	}
-	return pb
-}
-
-// build returns the parameter list.
-func (pb *paramBuilder) build() []string {
-	return pb.args
 }
 
 // earlyState returns immediately-rendered error/cancelled/pending states.
@@ -348,51 +296,6 @@ func renderCodeContent(t *toolCallCmp, content string, maxLines int) string {
 	}
 
 	return strings.Join(out, "\n")
-}
-
-// renderMarkdownContent renders markdown with glamour.
-func renderMarkdownContent(t *toolCallCmp, content string, maxLines int) string {
-	if maxLines <= 0 {
-		maxLines = 10
-	}
-
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	content = strings.TrimSpace(content)
-
-	width := t.textWidth() - 2
-	if width > 120 {
-		width = 120
-	}
-
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		return renderPlainContent(t, content, maxLines)
-	}
-
-	rendered, err := r.Render(content)
-	if err != nil {
-		return renderPlainContent(t, content, maxLines)
-	}
-
-	lines := strings.Split(strings.TrimSpace(rendered), "\n")
-	if len(lines) > maxLines {
-		lines = lines[:maxLines]
-		lines = append(lines, fmt.Sprintf("... (%d lines)", len(strings.Split(rendered, "\n"))-maxLines))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-// truncateHeight truncates content to max lines.
-func truncateHeight(s string, maxLines int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) > maxLines {
-		return strings.Join(lines[:maxLines], "\n")
-	}
-	return s
 }
 
 // truncateText truncates text to max width.

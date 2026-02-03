@@ -384,6 +384,91 @@ func (r *Runner) TextWithSession(ctx context.Context, ag agent.Agent, prompt str
 	return TextResult{Response: resp, SessionID: sessionID}, nil
 }
 
+// ContinueSessionWithPrompt continues an existing session with a new prompt.
+// Unlike ResumeSession (for interactive mode), this runs a single prompt and returns.
+func (r *Runner) ContinueSessionWithPrompt(ctx context.Context, ag agent.Agent, existingSessionID string, prompt string, attachments []string) (TextResult, error) {
+	if r.services == nil {
+		return TextResult{}, fmt.Errorf("session continuation requires database services")
+	}
+
+	// Load existing messages from the session
+	existingMsgs, err := r.services.Messages.List(ctx, existingSessionID)
+	if err != nil {
+		return TextResult{}, fmt.Errorf("failed to load session messages: %w", err)
+	}
+
+	// Build system messages (same as buildMessagesWithAttachments)
+	var msgs []fantasy.Message
+
+	systemPrompt := ag.CombinedSystem
+	if r.memoryService != nil && ag.Config.Memory.Enabled {
+		memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", prompt, ag.Config.Memory)
+		if err == nil && memCtx != nil {
+			systemPrompt = agent.InjectMemoryContext(systemPrompt, memCtx)
+		}
+	}
+
+	if strings.TrimSpace(systemPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(systemPrompt))
+	}
+	if strings.TrimSpace(ag.ToolsPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(ag.ToolsPrompt))
+	}
+	if strings.TrimSpace(ag.SkillsPrompt) != "" {
+		msgs = append(msgs, fantasy.NewSystemMessage(ag.SkillsPrompt))
+	}
+
+	// Convert persisted messages to Fantasy messages
+	for _, msg := range existingMsgs {
+		if msg.Role == session.RoleSystem {
+			continue
+		}
+		msgs = append(msgs, msg.ToFantasyMessage())
+	}
+
+	// Handle attachments in the new prompt
+	newMsgs := r.buildMessagesWithAttachments(ctx, ag, prompt, attachments)
+	// Find the user message from newMsgs (last message) and add it
+	for _, m := range newMsgs {
+		if m.Role == fantasy.MessageRoleUser {
+			msgs = append(msgs, m)
+			break
+		}
+	}
+
+	// Persist the new user message
+	r.services.Messages.Create(ctx, session.CreateMessageParams{
+		SessionID: existingSessionID,
+		Role:      session.RoleUser,
+		Parts:     []session.ContentPart{session.TextContent{Text: prompt}},
+		Model:     ag.Model,
+	})
+
+	// Inject session context for tools
+	toolCtx := WithSessionID(ctx, existingSessionID)
+	toolCtx = WithServices(toolCtx, r.services)
+
+	resp, err := r.runChat(toolCtx, ag, msgs)
+	if err != nil {
+		return TextResult{}, err
+	}
+
+	// Persist assistant response
+	r.services.Messages.Create(ctx, session.CreateMessageParams{
+		SessionID: existingSessionID,
+		Role:      session.RoleAssistant,
+		Parts:     []session.ContentPart{session.TextContent{Text: resp}},
+		Model:     ag.Model,
+	})
+
+	// Trigger memory formation
+	if r.formationService != nil && ag.Config.Memory.Enabled {
+		r.maybeFormMemory(ctx, ag, prompt, existingSessionID)
+	}
+
+	return TextResult{Response: resp, SessionID: existingSessionID}, nil
+}
+
 func (r *Runner) buildMessages(ctx context.Context, ag agent.Agent, prompt string) []fantasy.Message {
 	return r.buildMessagesWithAttachments(ctx, ag, prompt, nil)
 }
@@ -520,12 +605,6 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	baseDir, _ := os.Getwd()
 	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth, ag.Config.DisableTodo)
 
-	// Add agent_call if explicitly allowed in config (for any agent)
-	// or if it's a non-builtin agent (user agents get it by default)
-	if tools.HasTool("agent_call") || !ag.BuiltIn {
-		tools.AddAgentCallTool(r.agentCallExecutor(ag.Handle, ag.Config))
-	}
-
 	// Create Fantasy agent
 	fantasyAgent := fantasy.NewAgent(
 		model,
@@ -649,136 +728,6 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 
 	// Text was already streamed to output, return empty to avoid duplicate
 	return "", msgs, nil
-}
-
-func (r *Runner) agentCallExecutor(currentAgentHandle string, callerConfig agent.Config) func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-	return func(ctx context.Context, params AgentCallParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-		// Normalize handle
-		agentHandle := agent.NormalizeHandle(params.Agent)
-
-		// Prevent self-delegation loops
-		if agentHandle == currentAgentHandle {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("cannot delegate to self (%s) - use bash or other tools directly", agentHandle)), nil
-		}
-
-		// Check if the calling agent is allowed to call this target agent
-		if !callerConfig.CanCallAgent(agentHandle) {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("agent %s is not allowed to call %s - check allowed_agents in config", currentAgentHandle, agentHandle)), nil
-		}
-
-		// Load the target agent
-		targetAgent, err := agent.Load(r.config, agentHandle)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("failed to load agent %s: %v", agentHandle, err)), nil
-		}
-
-		// Override model if specified in params
-		if params.Model != "" {
-			targetAgent.Model = params.Model
-		}
-
-		// Configure timeout
-		timeout := 120 * time.Second
-		if params.TimeoutSeconds > 0 {
-			timeout = time.Duration(params.TimeoutSeconds) * time.Second
-		}
-		if timeout > 300*time.Second {
-			timeout = 300 * time.Second
-		}
-
-		execCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
-		startTime := time.Now()
-
-		// Create sub-runner at increased depth with silent output
-		// Sub-agent output is captured in the response, not streamed to UI
-		subRunner := &Runner{
-			config:       r.config,
-			debug:        r.debug,
-			depth:        r.depth + 1,
-			sessions:     make(map[string]*ChatSession),
-			services:     r.services,      // Pass services through for persistence
-			streamWriter: NullWriter{},    // Silence sub-agent streaming output
-		}
-
-		// Run the agent
-		response, err := subRunner.Text(execCtx, targetAgent, params.Prompt, nil)
-
-		duration := formatElapsed(time.Since(startTime))
-
-		if err != nil {
-			if execCtx.Err() == context.DeadlineExceeded {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("agent %s timed out after %v", agentHandle, timeout)), nil
-			}
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("agent %s error: %v", agentHandle, err)), nil
-		}
-
-		// Truncate if too long
-		const maxOutput = 128 * 1024
-		if len(response) > maxOutput {
-			response = response[:maxOutput]
-		}
-
-		// Return structured JSON like bash does - renderer will parse RawOutput
-		result := agentCallResult{
-			Agent:    agentHandle,
-			Prompt:   params.Prompt,
-			Response: strings.TrimSpace(response),
-			Duration: duration,
-		}
-
-		return fantasy.NewTextResponse(result.String()), nil
-	}
-}
-
-// agentCallResult holds the structured output from agent_call.
-type agentCallResult struct {
-	Agent    string `json:"agent"`
-	Prompt   string `json:"prompt"`
-	Response string `json:"response"`
-	Duration string `json:"duration"`
-}
-
-func (r agentCallResult) String() string {
-	data, err := json.Marshal(r)
-	if err != nil {
-		return fmt.Sprintf(`{"error":"marshal error: %v"}`, err)
-	}
-	return string(data)
-}
-
-// formatToolResultContent converts a Fantasy tool result to a string for display.
-func formatToolResultContent(result fantasy.ToolResultContent) string {
-	switch result.Result.GetType() {
-	case fantasy.ToolResultContentTypeText:
-		if r, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Result); ok {
-			return r.Text
-		}
-	case fantasy.ToolResultContentTypeError:
-		if r, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Result); ok {
-			return r.Error.Error()
-		}
-	case fantasy.ToolResultContentTypeMedia:
-		if r, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Result); ok {
-			if r.Text != "" {
-				return r.Text
-			}
-			return fmt.Sprintf("[media: %s]", r.MediaType)
-		}
-	}
-	return ""
-}
-
-// formatElapsed formats a duration for display.
-func formatElapsed(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.0fs", d.Seconds())
-	}
-	return fmt.Sprintf("%.1fm", d.Minutes())
 }
 
 // generateSessionTitle creates a simple fallback title from the prompt.
