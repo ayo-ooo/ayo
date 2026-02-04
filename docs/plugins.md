@@ -179,7 +179,6 @@ Every plugin requires a `manifest.json` at the repository root:
   "description": "A brief description of what this plugin provides",
   "author": "your-name",
   "repository": "https://github.com/user/ayo-plugins-my-plugin",
-  "license": "MIT",
   "agents": ["@my-agent"],
   "skills": ["my-skill"],
   "tools": ["my-tool"],
@@ -215,7 +214,6 @@ Every plugin requires a `manifest.json` at the repository root:
 |-------|-------------|
 | `author` | Author name or organization. |
 | `repository` | Git repository URL. |
-| `license` | SPDX license identifier (e.g., `MIT`, `Apache-2.0`). |
 | `agents` | List of agent handles provided (must exist in `agents/`). |
 | `skills` | List of skill names provided (must exist in `skills/`). |
 | `tools` | List of tool names provided (must exist in `tools/`). |
@@ -697,7 +695,6 @@ ayo-plugins-docker/
   "description": "Docker container management agent with compose support",
   "author": "devops-team",
   "repository": "https://github.com/org/ayo-plugins-docker",
-  "license": "MIT",
   "agents": ["@docker"],
   "skills": ["docker-ops"],
   "tools": ["docker-compose"],

@@ -549,7 +549,7 @@ If your remaining context drops below **50,000 tokens**, you MUST:
 This implementation spans 58 tasks across multiple groups. You are expected to:
 - Work continuously without stopping for user input
 - Handle context limitations via summarization handoffs
-- Complete ALL tasks including final license addition
+- Complete ALL tasks
 - Only stop when the entire plan is complete OR you hit an actual blocking error
 
 ## Project Overview

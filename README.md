@@ -278,12 +278,6 @@ ayo doctor      # Check dependencies and configuration
 ayo doctor -v   # Verbose output with model list
 ```
 
-## License
-
-BSD
-
----
-
 ## Offline Web Client (Experimental)
 
 Try ayo directly in your browser with no installation required:
