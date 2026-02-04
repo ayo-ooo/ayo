@@ -60,6 +60,16 @@ type RunResult struct {
 
 // Run executes a flow and returns the result.
 func Run(ctx context.Context, flow *Flow, opts RunOptions) (*RunResult, error) {
+	return runCore(ctx, flow, opts, nil)
+}
+
+// RunStreaming executes a flow with real-time stderr streaming.
+func RunStreaming(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter io.Writer) (*RunResult, error) {
+	return runCore(ctx, flow, opts, stderrWriter)
+}
+
+// runCore is the common implementation for Run and RunStreaming.
+func runCore(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter io.Writer) (*RunResult, error) {
 	result := &RunResult{
 		RunID:     generateRunID(),
 		Flow:      flow,
@@ -128,116 +138,10 @@ func Run(ctx context.Context, flow *Flow, opts RunOptions) (*RunResult, error) {
 	cmd.Env = buildEnv(flow, result.RunID, input, opts.Env)
 
 	// Capture output
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	// Execute
-	err = cmd.Run()
-	result.EndTime = time.Now()
-	result.Duration = result.EndTime.Sub(result.StartTime)
-	result.Stdout = stdout.String()
-	result.Stderr = stderr.String()
-
-	// Handle result
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			result.Status = RunStatusTimeout
-			result.Error = fmt.Errorf("flow timed out after %v", timeout)
-		} else if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-			result.Status = RunStatusFailed
-			result.Error = fmt.Errorf("flow exited with code %d", result.ExitCode)
-		} else {
-			result.Status = RunStatusError
-			result.Error = err
-		}
-	} else {
-		result.Status = RunStatusSuccess
-		result.ExitCode = 0
-	}
-
-	// Record completion in history
-	recordHistoryIfEnabled(ctx, opts, flow, result)
-
-	return result, nil
-}
-
-// RunStreaming executes a flow with real-time stderr streaming.
-func RunStreaming(ctx context.Context, flow *Flow, opts RunOptions, stderrWriter io.Writer) (*RunResult, error) {
-	result := &RunResult{
-		RunID:     generateRunID(),
-		Flow:      flow,
-		StartTime: time.Now(),
-	}
-
-	// Resolve input
-	input, err := resolveInput(opts)
-	if err != nil {
-		result.Status = RunStatusError
-		result.Error = fmt.Errorf("resolve input: %w", err)
-		result.EndTime = time.Now()
-		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result)
-		return result, nil
-	}
-	result.InputUsed = input
-
-	// Validate input against schema
-	inputValidated := flow.HasInputSchema()
-	if err := ValidateInput(flow, input); err != nil {
-		result.Status = RunStatusValidationFailed
-		result.Error = err
-		result.EndTime = time.Now()
-		result.Duration = result.EndTime.Sub(result.StartTime)
-		recordHistoryIfEnabled(ctx, opts, flow, result)
-		return result, nil
-	}
-
-	// Validate only mode
-	if opts.Validate {
-		result.Status = RunStatusSuccess
-		result.EndTime = time.Now()
-		result.Duration = result.EndTime.Sub(result.StartTime)
-		return result, nil
-	}
-
-	// Record start in history
-	if opts.History != nil {
-		runID, err := opts.History.RecordStart(ctx, flow, input, inputValidated, opts.ParentRunID, opts.SessionID)
-		if err == nil {
-			result.RunID = runID
-		}
-	}
-
-	// Set timeout
-	timeout := opts.Timeout
-	if timeout == 0 {
-		timeout = 5 * time.Minute
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// Prepare command
-	cmd := exec.CommandContext(ctx, "bash", flow.Path, input)
-
-	// Set working directory
-	if opts.WorkingDir != "" {
-		cmd.Dir = opts.WorkingDir
-	} else {
-		cmd.Dir = flow.Dir
-	}
-
-	// Set environment
-	cmd.Env = buildEnv(flow, result.RunID, input, opts.Env)
-
-	// Capture stdout, stream stderr
-	var stdout bytes.Buffer
-	var stderrBuf bytes.Buffer
+	var stdout, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdout
 
-	// Tee stderr to both buffer and writer
+	// For streaming, tee stderr to both buffer and writer
 	if stderrWriter != nil {
 		cmd.Stderr = io.MultiWriter(&stderrBuf, stderrWriter)
 	} else {

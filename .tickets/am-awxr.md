@@ -1,6 +1,6 @@
 ---
 id: am-awxr
-status: open
+status: done
 deps: []
 links: []
 created: 2026-02-02T02:56:49Z

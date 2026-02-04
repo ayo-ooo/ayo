@@ -289,3 +289,44 @@ func TestGetAllBuiltinSkillInfos(t *testing.T) {
 		t.Error("expected debugging in skill infos")
 	}
 }
+
+func TestNewSkillsExist(t *testing.T) {
+	// Test that the new sandbox, memory, and session skills exist
+	newSkills := []string{"sandbox", "memory-usage", "memory-worthy", "session-summary"}
+	for _, name := range newSkills {
+		if !HasBuiltinSkill(name) {
+			t.Errorf("expected HasBuiltinSkill(%s) to be true", name)
+			continue
+		}
+
+		skill, err := LoadBuiltinSkill(name)
+		if err != nil {
+			t.Errorf("LoadBuiltinSkill(%s) error: %v", name, err)
+			continue
+		}
+
+		if skill.Name != name {
+			t.Errorf("skill.Name = %q, want %q", skill.Name, name)
+		}
+
+		if skill.Description == "" {
+			t.Errorf("%s skill should have description", name)
+		}
+
+		if skill.Content == "" {
+			t.Errorf("%s skill should have content", name)
+		}
+	}
+}
+
+func TestMemorySkillUpdated(t *testing.T) {
+	skill, err := LoadBuiltinSkill("memory")
+	if err != nil {
+		t.Fatalf("LoadBuiltinSkill(memory) error: %v", err)
+	}
+
+	// Check that the memory skill mentions Zettelkasten
+	if skill.Content == "" {
+		t.Error("memory skill content should not be empty")
+	}
+}

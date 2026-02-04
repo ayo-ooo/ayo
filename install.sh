@@ -11,6 +11,14 @@ NC='\033[0m' # No Color
 # Required Ollama models
 REQUIRED_MODELS=("ministral-3:3b" "nomic-embed-text")
 
+# Docker images for sandbox
+SANDBOX_BASE_IMAGE="busybox:stable"
+SANDBOX_EXTENDED_IMAGE="ayo-sandbox:latest"
+
+# Apple Container (macOS 15+)
+APPLE_CONTAINER_MIN_VERSION="15.0"
+APPLE_CONTAINER_PKG_URL="https://github.com/apple/container/releases"
+
 # Flags
 CLEAN=false
 FORCE=false
@@ -309,6 +317,159 @@ setup_ollama() {
     pull_models
 }
 
+# Check if Docker is available
+check_docker() {
+    command -v docker &> /dev/null && docker info &> /dev/null
+}
+
+# Check if a Docker image is available locally
+has_docker_image() {
+    local image="$1"
+    docker images -q "$image" 2>/dev/null | grep -q .
+}
+
+# Setup Docker sandbox images
+setup_docker() {
+    header "Sandbox Setup"
+    
+    if ! check_docker; then
+        warn "Docker not available - sandbox will run on host"
+        echo "Install Docker Desktop to enable sandboxed execution:"
+        echo "  https://docs.docker.com/get-docker/"
+        return 0
+    fi
+    
+    success "Docker available"
+    
+    # Pull base image
+    if has_docker_image "$SANDBOX_BASE_IMAGE"; then
+        success "$SANDBOX_BASE_IMAGE already available"
+    else
+        info "Pulling $SANDBOX_BASE_IMAGE..."
+        if spin "Pulling $SANDBOX_BASE_IMAGE..." docker pull "$SANDBOX_BASE_IMAGE"; then
+            success "$SANDBOX_BASE_IMAGE ready"
+        else
+            warn "Failed to pull $SANDBOX_BASE_IMAGE"
+        fi
+    fi
+    
+    # Check for extended image or build it
+    if has_docker_image "$SANDBOX_EXTENDED_IMAGE"; then
+        success "$SANDBOX_EXTENDED_IMAGE already available"
+    else
+        # Check if we have the Dockerfile to build it
+        local dockerfile="internal/sandbox/images/Dockerfile"
+        if [[ -f "$dockerfile" ]]; then
+            info "Building $SANDBOX_EXTENDED_IMAGE..."
+            if spin "Building $SANDBOX_EXTENDED_IMAGE..." docker build -t "$SANDBOX_EXTENDED_IMAGE" -f "$dockerfile" .; then
+                success "$SANDBOX_EXTENDED_IMAGE built"
+            else
+                warn "Failed to build $SANDBOX_EXTENDED_IMAGE - using base image"
+            fi
+        else
+            info "$SANDBOX_EXTENDED_IMAGE not found - using base image"
+        fi
+    fi
+}
+
+# Check if running macOS 15+ (Sequoia)
+check_macos_version() {
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        return 1
+    fi
+    
+    local version=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+    [[ "$version" -ge 15 ]]
+}
+
+# Check if Apple Container is installed
+check_apple_container() {
+    command -v container &> /dev/null
+}
+
+# Check if Apple Container service is running
+check_apple_container_running() {
+    container system status &>/dev/null
+}
+
+# Setup Apple Container (macOS 15+ only)
+setup_apple_container() {
+    # Only run on macOS
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        return 0
+    fi
+    
+    # Check macOS version
+    if ! check_macos_version; then
+        info "Apple Container requires macOS 15+ (current: $(sw_vers -productVersion 2>/dev/null || echo 'unknown'))"
+        return 0
+    fi
+    
+    # Check for Apple Silicon
+    if [[ "$(uname -m)" != "arm64" ]]; then
+        info "Apple Container requires Apple Silicon"
+        return 0
+    fi
+    
+    header "Apple Container Setup"
+    
+    if has_gum; then
+        gum format << EOF
+**Apple Container** provides native Linux container support on macOS 15+.
+
+Benefits over Docker:
+* Native virtualization (faster startup)
+* Lower resource usage
+* Optimized for Apple Silicon
+* virtiofs for fast file sharing
+
+This is optional - Docker works great too!
+EOF
+    else
+        echo "Apple Container provides native Linux container support on macOS 15+."
+        echo ""
+        echo "Benefits over Docker:"
+        echo "  - Native virtualization (faster startup)"
+        echo "  - Lower resource usage"
+        echo "  - Optimized for Apple Silicon"
+        echo "  - virtiofs for fast file sharing"
+        echo ""
+        echo "This is optional - Docker works great too!"
+    fi
+    echo ""
+    
+    if check_apple_container; then
+        success "Apple Container already installed"
+        
+        # Check if service is running
+        if check_apple_container_running; then
+            success "Apple Container service running"
+        else
+            if confirm "Start Apple Container service?"; then
+                info "Starting Apple Container service..."
+                if container system start; then
+                    success "Apple Container service started"
+                else
+                    warn "Failed to start Apple Container service"
+                fi
+            fi
+        fi
+        return 0
+    fi
+    
+    # Apple Container not installed - offer to install
+    echo ""
+    info "Apple Container is not installed."
+    echo "Download the installer from: $APPLE_CONTAINER_PKG_URL"
+    echo ""
+    
+    if confirm "Open the download page in your browser?"; then
+        open "$APPLE_CONTAINER_PKG_URL"
+        echo ""
+        info "After installing, run: container system start"
+    fi
+}
+
 # Main installation flow
 main() {
     # Handle clean flag first
@@ -351,6 +512,12 @@ main() {
     # Setup Ollama for local AI features
     setup_ollama
     
+    # Setup Docker sandbox images
+    setup_docker
+    
+    # Setup Apple Container on macOS 15+
+    setup_apple_container
+    
     # Final summary
     header "Installation Complete"
     
@@ -365,6 +532,19 @@ main() {
         done
     else
         warn "Ollama not running - memory features disabled"
+    fi
+    
+    if check_docker; then
+        if has_docker_image "$SANDBOX_BASE_IMAGE"; then
+            success "Sandbox image ready"
+        else
+            warn "Sandbox image not pulled - sandbox will be slow on first use"
+        fi
+    fi
+    
+    # Check Apple Container on macOS
+    if [[ "$(uname -s)" == "Darwin" ]] && check_apple_container; then
+        success "Apple Container available (native virtualization)"
     fi
     
     echo ""

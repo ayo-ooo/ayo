@@ -14,6 +14,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/ollama"
@@ -29,7 +30,7 @@ import (
 func newRootCmd() *cobra.Command {
 	var cfgPath string
 	var attachments []string
-	var debug bool
+	var debugFlag bool
 	var modelOverride string
 	var sessionID string
 
@@ -51,20 +52,22 @@ Examples:
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Enable debug logging if --debug flag is set
+			if debugFlag {
+				debug.SetEnabled(true)
+				debug.Log("debug mode enabled")
+			}
+
 			// Load stored credentials into environment
 			if err := config.InjectCredentials(); err != nil {
 				// Non-fatal: just log in debug mode
-				if debug {
-					fmt.Fprintf(os.Stderr, "Warning: failed to load credentials: %v\n", err)
-				}
+				debug.Log("failed to load credentials", "error", err)
 			}
 
 			// Load plugin renderers for custom tool TUI rendering
 			if err := messages.LoadPluginRenderers(paths.PluginsDir()); err != nil {
 				// Non-fatal: just log in debug mode
-				if debug {
-					fmt.Fprintf(os.Stderr, "Warning: failed to load plugin renderers: %v\n", err)
-				}
+				debug.Log("failed to load plugin renderers", "error", err)
 			}
 
 			// Auto-install built-in agents and skills if needed (version-based)
@@ -111,9 +114,7 @@ Examples:
 				services, err := session.Connect(cmd.Context(), paths.DatabasePath())
 				if err != nil {
 					// Log warning but continue without persistence
-					if debug {
-						fmt.Fprintf(os.Stderr, "Warning: session persistence unavailable: %v\n", err)
-					}
+					debug.Log("session persistence unavailable", "error", err)
 					services = nil
 				}
 				if services != nil {
@@ -138,8 +139,8 @@ Examples:
 							Host:  cfg.OllamaHost,
 							Model: cfg.SmallModel,
 						})
-					} else if debug {
-						fmt.Fprintf(os.Stderr, "Warning: Ollama not available at %s, memory features disabled\n", cfg.OllamaHost)
+					} else {
+						debug.Log("Ollama not available, memory features disabled", "host", cfg.OllamaHost)
 					}
 					memSvc = memory.NewService(services.Queries(), embedder)
 					if embedder != nil {
@@ -184,7 +185,7 @@ Examples:
 					})
 				}
 
-				runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
+				runner, err := run.NewRunner(cfg, debugFlag, run.RunnerOptions{
 					Services:         services,
 					MemoryService:    memSvc,
 					FormationService: formSvc,
@@ -262,14 +263,14 @@ Examples:
 				}
 
 				// Interactive mode
-				return runInteractiveChat(cmd.Context(), runner, ag, debug)
+				return runInteractiveChat(cmd.Context(), runner, ag, debugFlag)
 			})
 		},
 	}
 
 	cmd.PersistentFlags().StringVar(&cfgPath, "config", defaultConfigPath(), "path to config file")
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
-	cmd.Flags().BoolVar(&debug, "debug", false, "show debug output including raw tool payloads")
+	cmd.Flags().BoolVar(&debugFlag, "debug", false, "show debug output including raw tool payloads")
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a previous session by ID")
 
@@ -282,6 +283,8 @@ Examples:
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
+	cmd.AddCommand(newStatusCmd(&cfgPath))
+	cmd.AddCommand(newDaemonCmd(&cfgPath))
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
 

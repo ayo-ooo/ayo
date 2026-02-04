@@ -18,6 +18,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/session/jsonl"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
@@ -39,6 +40,8 @@ Storage: ~/.local/share/ayo/ayo.db`,
 	cmd.AddCommand(newSessionsShowCmd())
 	cmd.AddCommand(newSessionsDeleteCmd())
 	cmd.AddCommand(newSessionsContinueCmd(cfgPath))
+	cmd.AddCommand(newSessionsMigrateCmd())
+	cmd.AddCommand(newSessionsReindexCmd())
 
 	return cmd
 }
@@ -559,4 +562,132 @@ func formatTimeAgo(unixTime int64) string {
 func formatTime(unixTime int64) string {
 	t := time.Unix(unixTime, 0)
 	return t.Format("Jan 2, 2006 3:04 PM")
+}
+
+func newSessionsMigrateCmd() *cobra.Command {
+	var overwrite bool
+
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Migrate sessions from SQLite to JSONL files",
+		Long: `Migrate existing sessions from the SQLite database to JSONL files.
+
+This converts session data to the new file-based storage format.
+Each session is stored as a separate JSONL file in:
+~/.local/share/ayo/sessions/@agent/YYYY-MM/session-id.jsonl
+
+By default, existing files are skipped. Use --overwrite to replace them.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			services, err := session.Connect(ctx, paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("open database: %w", err)
+			}
+			defer services.Close()
+
+			structure := jsonl.NewStructure("")
+
+			fmt.Println("Migrating sessions from SQLite to JSONL files...")
+
+			result, err := jsonl.MigrateFromSQLite(ctx, services.Queries(), structure, overwrite)
+			if err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+
+			// Print results
+			fmt.Printf("\nMigration complete:\n")
+			fmt.Printf("  Sessions migrated: %d\n", result.SessionsMigrated)
+			fmt.Printf("  Sessions skipped:  %d\n", result.SessionsSkipped)
+			fmt.Printf("  Messages migrated: %d\n", result.MessagesMigrated)
+
+			if len(result.Errors) > 0 {
+				fmt.Printf("\nErrors encountered (%d):\n", len(result.Errors))
+				for _, e := range result.Errors {
+					fmt.Printf("  - %s\n", e)
+				}
+			}
+
+			fmt.Printf("\nSession files stored in: %s\n", structure.Root)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite existing session files")
+
+	return cmd
+}
+
+func newSessionsReindexCmd() *cobra.Command {
+	var fullRebuild bool
+
+	cmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "Rebuild the session search index",
+		Long: `Rebuild the SQLite search index from JSONL session files.
+
+The index is used for fast session listing and searching. It is
+derived from session file headers and can be fully rebuilt.
+
+By default, performs an incremental sync (adds new files, removes orphans).
+Use --full to completely rebuild the index from scratch.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			structure := jsonl.NewStructure("")
+
+			if !structure.Exists() {
+				fmt.Println("No session files found. Nothing to index.")
+				return nil
+			}
+
+			idx, err := jsonl.OpenIndex(structure)
+			if err != nil {
+				return fmt.Errorf("open index: %w", err)
+			}
+			defer idx.Close()
+
+			if fullRebuild {
+				fmt.Println("Rebuilding session index from scratch...")
+				result, err := idx.Rebuild()
+				if err != nil {
+					return fmt.Errorf("rebuild: %w", err)
+				}
+
+				fmt.Printf("\nIndex rebuilt:\n")
+				fmt.Printf("  Sessions indexed: %d\n", result.Indexed)
+				if len(result.Errors) > 0 {
+					fmt.Printf("  Errors: %d\n", len(result.Errors))
+					for _, e := range result.Errors {
+						fmt.Printf("    - %s\n", e)
+					}
+				}
+			} else {
+				fmt.Println("Syncing session index...")
+				result, err := idx.Sync()
+				if err != nil {
+					return fmt.Errorf("sync: %w", err)
+				}
+
+				fmt.Printf("\nIndex synced:\n")
+				fmt.Printf("  Sessions added:   %d\n", result.Added)
+				fmt.Printf("  Sessions removed: %d\n", result.Removed)
+				if len(result.Errors) > 0 {
+					fmt.Printf("  Errors: %d\n", len(result.Errors))
+					for _, e := range result.Errors {
+						fmt.Printf("    - %s\n", e)
+					}
+				}
+			}
+
+			count, _ := idx.Count()
+			fmt.Printf("\nTotal indexed sessions: %d\n", count)
+			fmt.Printf("Index path: %s\n", structure.IndexDB)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&fullRebuild, "full", false, "fully rebuild index (not incremental)")
+
+	return cmd
 }

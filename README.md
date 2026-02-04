@@ -27,6 +27,8 @@ ayo -a main.go "review this code"
 - **Sessions**: Resume previous conversations
 - **Chaining**: Compose agents via Unix pipes
 - **Plugins**: Extend with community packages
+- **Sandbox**: Isolated execution environments for secure command running
+- **Daemon**: Background service for managing sandbox lifecycles
 
 ## Architecture
 
@@ -43,6 +45,8 @@ ayo -a main.go "review this code"
 │  Sessions           Persist conversation history            │
 │  Memory             Store facts/preferences across sessions │
 │  Plugins            Extend with community packages          │
+│  Sandbox            Isolated execution environments         │
+│  Daemon             Background service for sandbox mgmt     │
 ├─────────────────────────────────────────────────────────────┤
 │  Fantasy            Provider-agnostic LLM abstraction       │
 │  (OpenAI, Anthropic, Google, OpenRouter)                    │
@@ -251,7 +255,18 @@ ayo setup                        # Install/update built-ins
 ayo setup -f                     # Force reinstall
 ayo doctor                       # Check system health
 ayo doctor -v                    # Verbose with model list
+ayo status                       # Show daemon and system status
 ```
+
+### Daemon (Sandbox Management)
+
+```bash
+ayo daemon start                 # Start daemon in background
+ayo daemon start --foreground    # Start in foreground (for debugging)
+ayo daemon stop                  # Stop the daemon
+```
+
+The daemon manages sandbox lifecycles and provides IPC for sandbox operations.
 
 ## Configuration
 
@@ -276,6 +291,52 @@ export OPENAI_API_KEY="sk-..."
 ```bash
 ayo doctor      # Check dependencies and configuration
 ayo doctor -v   # Verbose output with model list
+```
+
+## Sandbox Execution (Experimental)
+
+Sandbox mode runs agent commands in isolated containers for security and reproducibility.
+
+### Enabling Sandbox Mode
+
+Configure an agent for sandbox execution in its `config.json`:
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "provider": "docker",
+    "image": "golang:1.22",
+    "mounts": [
+      {"host": ".", "container": "/workspace", "readonly": false}
+    ],
+    "network": true
+  }
+}
+```
+
+### Sandbox Providers
+
+| Provider | Status | Requirements |
+|----------|--------|--------------|
+| Docker | Available | Docker installed |
+| Lima | Available | Lima installed (macOS) |
+| Apple Container | Planned | macOS 15+ |
+
+### How It Works
+
+1. Daemon starts (auto-started on first sandbox operation)
+2. Agent requests sandbox via IPC
+3. Container is created with configured mounts
+4. Commands execute in the container
+5. Sandbox is released when session ends
+
+### Daemon Commands
+
+```bash
+ayo status                       # Check daemon status
+ayo daemon start                 # Start daemon manually
+ayo daemon stop                  # Stop daemon
 ```
 
 ## Offline Web Client (Experimental)

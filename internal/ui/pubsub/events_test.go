@@ -121,39 +121,6 @@ func TestMemoryEvent_Fields(t *testing.T) {
 	}
 }
 
-func TestAgentEvent_Fields(t *testing.T) {
-	e := AgentEvent{
-		AgentHandle:      "@ayo.coding",
-		Prompt:           "Fix the bug",
-		SessionID:        "sub-session-123",
-		ParentSessionID:  "parent-session-456",
-		ParentToolCallID: "tool-789",
-		Duration:         30 * time.Second,
-		Error:            "",
-	}
-
-	if e.AgentHandle != "@ayo.coding" {
-		t.Errorf("AgentHandle = %q, want %q", e.AgentHandle, "@ayo.coding")
-	}
-	if e.Prompt != "Fix the bug" {
-		t.Errorf("Prompt = %q, want %q", e.Prompt, "Fix the bug")
-	}
-	if e.Duration != 30*time.Second {
-		t.Errorf("Duration = %v, want %v", e.Duration, 30*time.Second)
-	}
-}
-
-func TestAgentEvent_WithError(t *testing.T) {
-	e := AgentEvent{
-		AgentHandle: "@ayo.coding",
-		Error:       "agent failed",
-	}
-
-	if e.Error != "agent failed" {
-		t.Errorf("Error = %q, want %q", e.Error, "agent failed")
-	}
-}
-
 func TestTextDeltaEvent_Fields(t *testing.T) {
 	e := TextDeltaEvent{
 		ID:    "text-123",

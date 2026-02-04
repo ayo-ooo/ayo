@@ -577,40 +577,14 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 		return "", nil, fmt.Errorf("model is required")
 	}
 
-	// Extract the last user message as the prompt for Fantasy
-	// Fantasy requires a non-empty Prompt field
-	var prompt string
-	var historyMsgs []fantasy.Message
-	if len(msgs) > 0 && msgs[len(msgs)-1].Role == fantasy.MessageRoleUser {
-		// Get the text content from the last user message
-		for _, part := range msgs[len(msgs)-1].Content {
-			if tp, ok := part.(fantasy.TextPart); ok {
-				prompt = tp.Text
-				break
-			}
-		}
-		// History is everything except the last user message
-		historyMsgs = msgs[:len(msgs)-1]
-	} else {
-		historyMsgs = msgs
-	}
+	// Extract prompt and history from messages
+	prompt, historyMsgs := extractPromptAndHistory(msgs)
 
-	// Create language model from config
-	model, err := NewLanguageModel(ctx, r.config.Provider, ag.Model)
+	// Build Fantasy agent with tools
+	fantasyAgent, model, err := r.buildFantasyAgent(ctx, ag)
 	if err != nil {
-		return "", nil, fmt.Errorf("create language model: %w", err)
+		return "", nil, err
 	}
-
-	// Build tool set with memory queue and depth for proper UI nesting
-	baseDir, _ := os.Getwd()
-	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth, ag.Config.DisableTodo)
-
-	// Create Fantasy agent
-	fantasyAgent := fantasy.NewAgent(
-		model,
-		fantasy.WithSystemPrompt(""), // System prompt already in messages
-		fantasy.WithTools(tools.Tools()...),
-	)
 
 	// Use custom stream writer if provided, otherwise use default print writer
 	var handler *FantasyAdapter
@@ -728,6 +702,46 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 
 	// Text was already streamed to output, return empty to avoid duplicate
 	return "", msgs, nil
+}
+
+// extractPromptAndHistory extracts the last user message as prompt and returns remaining history.
+// Fantasy requires a non-empty Prompt field.
+func extractPromptAndHistory(msgs []fantasy.Message) (string, []fantasy.Message) {
+	if len(msgs) == 0 {
+		return "", nil
+	}
+	last := msgs[len(msgs)-1]
+	if last.Role != fantasy.MessageRoleUser {
+		return "", msgs
+	}
+	// Get text content from last user message
+	var prompt string
+	for _, part := range last.Content {
+		if tp, ok := part.(fantasy.TextPart); ok {
+			prompt = tp.Text
+			break
+		}
+	}
+	return prompt, msgs[:len(msgs)-1]
+}
+
+// buildFantasyAgent creates a Fantasy agent with tools for the given agent configuration.
+func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy.Agent, fantasy.LanguageModel, error) {
+	model, err := NewLanguageModel(ctx, r.config.Provider, ag.Model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create language model: %w", err)
+	}
+
+	baseDir, _ := os.Getwd()
+	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth, ag.Config.DisableTodo)
+
+	fantasyAgent := fantasy.NewAgent(
+		model,
+		fantasy.WithSystemPrompt(""), // System prompt already in messages
+		fantasy.WithTools(tools.Tools()...),
+	)
+
+	return fantasyAgent, model, nil
 }
 
 // generateSessionTitle creates a simple fallback title from the prompt.
@@ -872,81 +886,13 @@ func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessag
 		existing = nil
 	}
 
-	// If we have similar memories, use small model to decide what to do
-	if len(existing) > 0 {
-		existingList := make([]smallmodel.ExistingMemory, len(existing))
-		for i, m := range existing {
-			existingList[i] = smallmodel.ExistingMemory{
-				ID:      m.Memory.ID,
-				Content: m.Memory.Content,
-			}
-		}
-
-		decision, err := r.smallModel.CheckDuplicate(ctx, extraction.Content, existingList)
-		if err != nil {
-			if r.debug {
-				fmt.Fprintf(os.Stderr, "DEBUG: dedup check failed: %v\n", err)
-			}
-			// Continue with creation anyway
-		} else {
-			switch decision.Action {
-			case "duplicate":
-				// Already have this memory, skip
-				if r.formationService != nil {
-					r.formationService.NotifySkipped(extraction.Content, existingList[0].ID)
-				}
-				return
-			case "supersede":
-				// Find the memory to supersede
-				targetID := decision.TargetID
-				if targetID == "" && len(existingList) > 0 {
-					targetID = existingList[0].ID
-				}
-				if targetID != "" {
-					mem, err := r.memoryService.Supersede(ctx, targetID, memory.Memory{
-						Content:         extraction.Content,
-						Category:        category,
-						AgentHandle:     ag.Handle,
-						SourceSessionID: sessionID,
-					}, decision.Reason)
-					if err != nil {
-						if r.debug {
-							fmt.Fprintf(os.Stderr, "DEBUG: memory supersede failed: %v\n", err)
-						}
-						if r.formationService != nil {
-							r.formationService.NotifyFailed(extraction.Content, err)
-						}
-					} else {
-						if r.formationService != nil {
-							r.formationService.NotifySuperseded(mem, targetID)
-						}
-					}
-					return
-				}
-			}
-			// action == "new", fall through to create
-		}
-	}
-
-	// Create the memory
-	mem, err := r.memoryService.Create(ctx, memory.Memory{
-		Content:         extraction.Content,
-		Category:        category,
-		AgentHandle:     ag.Handle,
-		SourceSessionID: sessionID,
-	})
-	if err != nil {
-		if r.debug {
-			fmt.Fprintf(os.Stderr, "DEBUG: memory creation failed: %v\n", err)
-		}
-		if r.formationService != nil {
-			r.formationService.NotifyFailed(extraction.Content, err)
-		}
-	} else {
-		if r.formationService != nil {
-			r.formationService.NotifyCreated(mem)
-		}
-	}
+	// Store the memory (handles dedup, supersede, and create)
+	r.storeMemory(ctx, memoryInput{
+		content:     extraction.Content,
+		category:    category,
+		agentHandle: ag.Handle,
+		sessionID:   sessionID,
+	}, existing)
 }
 
 // categoryFromString converts a category string to memory.Category.
@@ -962,6 +908,103 @@ func categoryFromString(s string) memory.Category {
 		return memory.CategoryPattern
 	default:
 		return memory.CategoryFact
+	}
+}
+
+// memoryInput bundles parameters for memory storage.
+type memoryInput struct {
+	content     string
+	category    memory.Category
+	agentHandle string
+	sessionID   string
+}
+
+// storeMemory handles deduplication and storage of a memory.
+// It checks for duplicates/supersedes using the small model, then creates or updates.
+func (r *Runner) storeMemory(ctx context.Context, input memoryInput, existing []memory.SearchResult) {
+	// If we have similar memories, use small model to decide what to do
+	if len(existing) > 0 {
+		existingList := make([]smallmodel.ExistingMemory, len(existing))
+		for i, m := range existing {
+			existingList[i] = smallmodel.ExistingMemory{
+				ID:      m.Memory.ID,
+				Content: m.Memory.Content,
+			}
+		}
+
+		decision, err := r.smallModel.CheckDuplicate(ctx, input.content, existingList)
+		if err != nil {
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "DEBUG: dedup check failed: %v\n", err)
+			}
+			// Continue with creation anyway
+		} else {
+			switch decision.Action {
+			case "duplicate":
+				if r.formationService != nil {
+					r.formationService.NotifySkipped(input.content, existingList[0].ID)
+				}
+				return
+			case "supersede":
+				r.supersedeMemory(ctx, input, decision, existingList)
+				return
+			}
+			// action == "new", fall through to create
+		}
+	}
+
+	r.createMemory(ctx, input)
+}
+
+// supersedeMemory replaces an existing memory with new content.
+func (r *Runner) supersedeMemory(ctx context.Context, input memoryInput, decision *smallmodel.DedupDecision, existingList []smallmodel.ExistingMemory) {
+	targetID := decision.TargetID
+	if targetID == "" && len(existingList) > 0 {
+		targetID = existingList[0].ID
+	}
+	if targetID == "" {
+		return
+	}
+
+	mem, err := r.memoryService.Supersede(ctx, targetID, memory.Memory{
+		Content:         input.content,
+		Category:        input.category,
+		AgentHandle:     input.agentHandle,
+		SourceSessionID: input.sessionID,
+	}, decision.Reason)
+	if err != nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "DEBUG: memory supersede failed: %v\n", err)
+		}
+		if r.formationService != nil {
+			r.formationService.NotifyFailed(input.content, err)
+		}
+		return
+	}
+	if r.formationService != nil {
+		r.formationService.NotifySuperseded(mem, targetID)
+	}
+}
+
+// createMemory creates a new memory.
+func (r *Runner) createMemory(ctx context.Context, input memoryInput) {
+	mem, err := r.memoryService.Create(ctx, memory.Memory{
+		Content:         input.content,
+		Category:        input.category,
+		AgentHandle:     input.agentHandle,
+		SourceSessionID: input.sessionID,
+	})
+	if err != nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "DEBUG: memory creation failed: %v\n", err)
+		}
+		if r.formationService != nil {
+			r.formationService.NotifyFailed(input.content, err)
+		}
+		return
+	}
+	if r.formationService != nil {
+		r.formationService.NotifyCreated(mem)
 	}
 }
 

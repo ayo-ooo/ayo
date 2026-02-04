@@ -14,6 +14,22 @@
 	- **Block elements:** `█ ▓ ▒ ░ ▀ ▄ ▌ ▐`
 - **CRITICAL:** All command examples in documentation (README.md, AGENTS.md, etc.) must work if copy/pasted.
 
+## Manual Testing Support
+
+When assisting a user performing manual testing from `MANUAL_TEST.md`:
+
+1. **Read `AGENTS_TEST.md`** - Contains detailed instructions for supporting manual testing
+2. **Follow the debugging workflow** - Diagnose, fix, test, report
+3. **Be concise** - The user is actively testing and waiting for fixes
+4. **Fix blocking issues first** - Prioritize whatever is preventing test progress
+
+The test plan has 15 phases covering all major subsystems. When the user reports a failure:
+- Note the phase and step number
+- Investigate the specific code path
+- Make minimal fixes to unblock
+- Run relevant unit tests
+- Tell the user to retry
+
 ## Documentation Guidelines
 
 - Use real agent handles and skill names that exist (e.g., `@ayo`, `debugging`)
@@ -911,6 +927,33 @@ Both models are installed during `ayo setup`.
 
 **Storage:** Memories are stored in SQLite (`~/.local/share/ayo/ayo.db`) with vector embeddings as BLOBs. Similarity search is performed in Go without requiring external vector databases.
 
+**Zettelkasten File Storage (Experimental):**
+Memories can also be stored as Markdown files with TOML frontmatter:
+
+```
+~/.local/share/ayo/memory/
+├── index.md              # Auto-generated overview
+├── preferences/          # User preferences
+│   └── go-testing.md
+├── facts/                # Project/user facts
+│   └── api-endpoint.md
+├── corrections/          # Behavior corrections
+└── .index.sqlite         # Search index (derived)
+```
+
+File format:
+```markdown
++++
+id = "mem_01HX..."
+created = 2024-01-15T10:30:00Z
+category = "preference"
+topics = ["go", "testing"]
+source = "session:abc123"
++++
+
+User strongly prefers table-driven tests in Go.
+```
+
 **Memory tool:** Agents with `memory` in their `allowed_tools` can use the memory tool to:
 - `search`: Find relevant memories semantically
 - `store`: Save new information
@@ -1172,6 +1215,120 @@ Built-in skills are embedded in the binary and installed via `ayo setup`:
 - `debugging` - Systematic debugging techniques
 - `project-summary` - Project analysis and documentation (for @ayo)
 
+## Sandbox Execution (Experimental)
+
+The sandbox system allows agents to execute commands in isolated containers instead of directly on the host. This provides security isolation and reproducible environments.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      ayo daemon                                 │
+│  - LLM inference (local models, API keys)                       │
+│  - Session/memory persistence                                   │
+│  - Container lifecycle management                               │
+│  - Tool result routing                                          │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ Unix socket IPC
+┌──────────────────────┴──────────────────────────────────────────┐
+│                    Sandbox Pool                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  @ayo       │  │  @research  │  │  @custom    │              │
+│  │  - bash     │  │  - bash     │  │  - bash     │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Daemon Commands
+
+```bash
+# Start the daemon
+ayo daemon start              # Start in background
+ayo daemon start --foreground # Run in foreground (for debugging)
+
+# Stop the daemon
+ayo daemon stop
+
+# Check status
+ayo status                    # Shows daemon status, sandbox pool, etc.
+```
+
+### Agent Sandbox Configuration
+
+Agents can configure sandbox behavior in their `config.json`:
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "languages": ["go", "python", "node"],
+    "image": "custom:latest",
+    "network": true,
+    "resources": {
+      "cpus": 2,
+      "memory_mb": 2048,
+      "disk_mb": 4096,
+      "timeout_seconds": 300
+    },
+    "mounts": [
+      {
+        "source": "/host/data",
+        "target": "/data",
+        "readonly": true
+      }
+    ]
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Enable sandbox execution for this agent |
+| `languages` | Language runtimes to install (go, python, node, ruby, rust) |
+| `image` | Custom container image (default: busybox + tools) |
+| `network` | Allow network access (default: true) |
+| `resources` | Resource limits (CPUs, memory, disk, timeout) |
+| `mounts` | Host directories to mount in sandbox |
+
+### Pool Configuration
+
+Configure the sandbox pool in `~/.config/ayo/ayo.json`:
+
+```json
+{
+  "providers": {
+    "sandbox": {
+      "type": "apple-container",
+      "pool": {
+        "min_size": 1,
+        "max_size": 4
+      }
+    }
+  }
+}
+```
+
+### Providers
+
+| Provider | Description | Platform |
+|----------|-------------|----------|
+| `none` | Execute locally (no isolation) | All |
+| `apple-container` | Apple Containerization framework | macOS 15+ |
+
+### Debug Logging
+
+Enable debug logging for sandbox operations:
+
+```bash
+# Via environment variable
+AYO_DEBUG=1 ayo daemon start --foreground
+
+# Via --debug flag
+ayo --debug "run some task"
+```
+
+Debug output goes to stderr and includes timestamps and component tags.
+
 ## System Prompt Assembly
 
 Messages are built in order:
@@ -1221,6 +1378,76 @@ Users can add custom prefix/suffix prompts that layer on top of guardrails:
 - `~/.config/ayo/prompts/system-suffix.md` - Added after agent prompt
 
 These are optional user customizations, not replacements for guardrails.
+
+## Provider System
+
+Ayo uses a pluggable provider architecture for memory, sandbox, embedding, and observability. Providers are configured in `~/.config/ayo/ayo.json`.
+
+### Provider Types
+
+| Type | Purpose | Built-in Options |
+|------|---------|------------------|
+| `memory` | Persistent memory storage | `zettelkasten` (file-based), `sqlite` (legacy) |
+| `sandbox` | Command execution isolation | `none` (local), `apple-container` (macOS 15+) |
+| `embedding` | Vector embeddings for search | `ollama` (local), `none` (disabled) |
+| `observer` | Telemetry and monitoring | `none` (default) |
+
+### Configuration
+
+```json
+{
+  "providers": {
+    "memory": {
+      "type": "zettelkasten",
+      "auto_merge": true,
+      "index_on_startup": false
+    },
+    "sandbox": {
+      "type": "none",
+      "pool": {
+        "min_size": 1,
+        "max_size": 4
+      }
+    },
+    "embedding": {
+      "type": "ollama",
+      "model": "nomic-embed-text",
+      "host": "http://localhost:11434"
+    },
+    "observer": {
+      "type": "none"
+    }
+  }
+}
+```
+
+### Provider Interfaces
+
+Providers implement interfaces defined in `internal/providers/providers.go`:
+
+| Interface | Methods |
+|-----------|---------|
+| `MemoryProvider` | Store, Get, Search, List, Update, Delete, Reindex |
+| `SandboxProvider` | Create, Get, List, Start, Stop, Delete, Exec, Status |
+| `EmbeddingProvider` | Embed, EmbedBatch, Dimensions, Model |
+| `ObserverProvider` | Start, Stop, Record |
+
+### Plugin-Provided Providers
+
+Plugins can provide custom provider implementations via their `manifest.json`:
+
+```json
+{
+  "name": "my-plugin",
+  "providers": [
+    {
+      "name": "custom-memory",
+      "type": "memory",
+      "description": "Custom memory backend"
+    }
+  ]
+}
+```
 
 ## Architecture Notes
 

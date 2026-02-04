@@ -2,6 +2,9 @@ package run
 
 import (
 	"testing"
+
+	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 func TestNewFantasyToolSetWithOptions_TodoAlwaysAvailable(t *testing.T) {
@@ -113,5 +116,65 @@ func TestNewFantasyToolSetWithOptions_StatefulToolsTracked(t *testing.T) {
 	// Close should not error
 	if err := ts.Close(); err != nil {
 		t.Errorf("Close() error = %v", err)
+	}
+}
+
+func TestNewFantasyToolSet_WithSandboxExecutor(t *testing.T) {
+	// Test that sandbox executor is used when provided
+	provider := sandbox.NewNoneProvider()
+	sb, err := provider.Create(nil, providers.SandboxCreateOptions{})
+	if err != nil {
+		t.Fatalf("failed to create sandbox: %v", err)
+	}
+	defer provider.Delete(nil, sb.ID, true)
+
+	executor := sandbox.NewExecutor(provider, sb.ID, t.TempDir())
+
+	ts := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools:    []string{"bash"},
+		SandboxExecutor: executor,
+		DisableTodo:     true, // Simplify test
+	})
+	defer ts.Close()
+
+	// Should have bash tool
+	tools := ts.Tools()
+	if len(tools) != 1 {
+		t.Errorf("expected 1 tool (bash), got %d", len(tools))
+	}
+
+	info := tools[0].Info()
+	if info.Name != "bash" {
+		t.Errorf("expected bash tool, got %s", info.Name)
+	}
+
+	// Verify sandbox executor is stored
+	if ts.sandboxExecutor == nil {
+		t.Error("expected sandbox executor to be stored")
+	}
+}
+
+func TestNewFantasyToolSet_WithoutSandboxExecutor(t *testing.T) {
+	// Test that local bash is used when no sandbox executor provided
+	ts := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools: []string{"bash"},
+		DisableTodo:  true,
+	})
+	defer ts.Close()
+
+	// Should have bash tool
+	tools := ts.Tools()
+	if len(tools) != 1 {
+		t.Errorf("expected 1 tool (bash), got %d", len(tools))
+	}
+
+	info := tools[0].Info()
+	if info.Name != "bash" {
+		t.Errorf("expected bash tool, got %s", info.Name)
+	}
+
+	// Verify no sandbox executor
+	if ts.sandboxExecutor != nil {
+		t.Error("expected no sandbox executor")
 	}
 }

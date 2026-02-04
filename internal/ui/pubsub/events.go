@@ -82,24 +82,6 @@ type MemoryEvent struct {
 	Count int
 }
 
-// AgentEvent represents events related to sub-agent calls.
-type AgentEvent struct {
-	// AgentHandle is the handle of the agent being called.
-	AgentHandle string
-	// Prompt is the prompt sent to the agent.
-	Prompt string
-	// SessionID is the sub-agent's session ID.
-	SessionID string
-	// ParentSessionID is the parent session that spawned this agent.
-	ParentSessionID string
-	// ParentToolCallID links this agent call to a tool call.
-	ParentToolCallID string
-	// Duration is the total execution time (set on completion).
-	Duration time.Duration
-	// Error is set if the agent call failed.
-	Error string
-}
-
 // TextDeltaEvent represents streaming text content.
 type TextDeltaEvent struct {
 	// ID identifies the text stream.

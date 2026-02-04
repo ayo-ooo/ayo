@@ -442,3 +442,293 @@ func TestLoadManifestWithDependencies(t *testing.T) {
 		t.Errorf("Plugins = %v, want [other-plugin]", m.Dependencies.Plugins)
 	}
 }
+
+func TestProviderValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		m       Manifest
+		wantErr error
+	}{
+		{
+			name: "valid provider",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Name: "my-memory", Type: PluginTypeMemory},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "multiple valid providers",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Name: "my-memory", Type: PluginTypeMemory},
+					{Name: "my-sandbox", Type: PluginTypeSandbox},
+					{Name: "my-embedding", Type: PluginTypeEmbedding},
+					{Name: "my-observer", Type: PluginTypeObserver},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "provider missing name",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Type: PluginTypeMemory},
+				},
+			},
+			wantErr: ErrMissingProviderName,
+		},
+		{
+			name: "provider invalid type",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Name: "my-agent", Type: PluginTypeAgent},
+				},
+			},
+			wantErr: ErrInvalidProviderType,
+		},
+		{
+			name: "duplicate provider name within same type",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Name: "my-memory", Type: PluginTypeMemory},
+					{Name: "my-memory", Type: PluginTypeMemory},
+				},
+			},
+			wantErr: ErrDuplicateProviderName,
+		},
+		{
+			name: "same name different types is valid",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Providers: []ProviderDef{
+					{Name: "my-provider", Type: PluginTypeMemory},
+					{Name: "my-provider", Type: PluginTypeSandbox},
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.m.Validate()
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Errorf("Expected error %v, got nil", tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestManifestTypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		m         Manifest
+		wantTypes []PluginType
+	}{
+		{
+			name:      "empty manifest",
+			m:         Manifest{},
+			wantTypes: nil,
+		},
+		{
+			name: "agents only",
+			m: Manifest{
+				Agents: []string{"@test"},
+			},
+			wantTypes: []PluginType{PluginTypeAgent},
+		},
+		{
+			name: "mixed content types",
+			m: Manifest{
+				Agents: []string{"@test"},
+				Skills: []string{"skill1"},
+				Tools:  []string{"tool1"},
+			},
+			wantTypes: []PluginType{PluginTypeAgent, PluginTypeSkill, PluginTypeTool},
+		},
+		{
+			name: "providers only",
+			m: Manifest{
+				Providers: []ProviderDef{
+					{Name: "mem", Type: PluginTypeMemory},
+					{Name: "sand", Type: PluginTypeSandbox},
+				},
+			},
+			wantTypes: []PluginType{PluginTypeMemory, PluginTypeSandbox},
+		},
+		{
+			name: "mixed content and providers",
+			m: Manifest{
+				Agents: []string{"@test"},
+				Providers: []ProviderDef{
+					{Name: "mem", Type: PluginTypeMemory},
+				},
+			},
+			wantTypes: []PluginType{PluginTypeAgent, PluginTypeMemory},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			types := tt.m.Types()
+			if len(types) != len(tt.wantTypes) {
+				t.Fatalf("got %d types, want %d: %v vs %v", len(types), len(tt.wantTypes), types, tt.wantTypes)
+			}
+			for i, got := range types {
+				if got != tt.wantTypes[i] {
+					t.Errorf("types[%d] = %q, want %q", i, got, tt.wantTypes[i])
+				}
+			}
+		})
+	}
+}
+
+func TestManifestProvidersByType(t *testing.T) {
+	m := Manifest{
+		Providers: []ProviderDef{
+			{Name: "mem1", Type: PluginTypeMemory},
+			{Name: "mem2", Type: PluginTypeMemory},
+			{Name: "sand1", Type: PluginTypeSandbox},
+		},
+	}
+
+	memProviders := m.ProvidersByType(PluginTypeMemory)
+	if len(memProviders) != 2 {
+		t.Fatalf("got %d memory providers, want 2", len(memProviders))
+	}
+	if memProviders[0].Name != "mem1" || memProviders[1].Name != "mem2" {
+		t.Errorf("unexpected memory providers: %v", memProviders)
+	}
+
+	sandProviders := m.ProvidersByType(PluginTypeSandbox)
+	if len(sandProviders) != 1 || sandProviders[0].Name != "sand1" {
+		t.Errorf("unexpected sandbox providers: %v", sandProviders)
+	}
+
+	embedProviders := m.ProvidersByType(PluginTypeEmbedding)
+	if len(embedProviders) != 0 {
+		t.Errorf("expected no embedding providers, got %v", embedProviders)
+	}
+}
+
+func TestManifestHasProviders(t *testing.T) {
+	empty := Manifest{}
+	if empty.HasProviders() {
+		t.Error("empty manifest should not have providers")
+	}
+
+	withProviders := Manifest{
+		Providers: []ProviderDef{{Name: "test", Type: PluginTypeMemory}},
+	}
+	if !withProviders.HasProviders() {
+		t.Error("manifest with providers should return true")
+	}
+}
+
+func TestIsProviderType(t *testing.T) {
+	providerTypes := []PluginType{
+		PluginTypeMemory,
+		PluginTypeSandbox,
+		PluginTypeEmbedding,
+		PluginTypeObserver,
+	}
+	for _, pt := range providerTypes {
+		if !IsProviderType(pt) {
+			t.Errorf("expected %q to be a provider type", pt)
+		}
+	}
+
+	contentTypes := []PluginType{
+		PluginTypeAgent,
+		PluginTypeSkill,
+		PluginTypeTool,
+	}
+	for _, ct := range contentTypes {
+		if IsProviderType(ct) {
+			t.Errorf("expected %q to NOT be a provider type", ct)
+		}
+	}
+}
+
+func TestLoadManifestWithProviders(t *testing.T) {
+	dir := t.TempDir()
+
+	manifest := `{
+		"name": "test-plugin",
+		"version": "1.0.0",
+		"description": "A test plugin with providers",
+		"providers": [
+			{
+				"name": "custom-memory",
+				"type": "memory",
+				"description": "Custom memory provider",
+				"config": {
+					"path": "/custom/path"
+				}
+			},
+			{
+				"name": "custom-sandbox",
+				"type": "sandbox",
+				"entry_point": "bin/sandbox"
+			}
+		]
+	}`
+
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest failed: %v", err)
+	}
+
+	if len(m.Providers) != 2 {
+		t.Fatalf("got %d providers, want 2", len(m.Providers))
+	}
+
+	// Check first provider
+	if m.Providers[0].Name != "custom-memory" {
+		t.Errorf("providers[0].Name = %q, want %q", m.Providers[0].Name, "custom-memory")
+	}
+	if m.Providers[0].Type != PluginTypeMemory {
+		t.Errorf("providers[0].Type = %q, want %q", m.Providers[0].Type, PluginTypeMemory)
+	}
+	if m.Providers[0].Description != "Custom memory provider" {
+		t.Errorf("providers[0].Description = %q, want %q", m.Providers[0].Description, "Custom memory provider")
+	}
+	if m.Providers[0].Config["path"] != "/custom/path" {
+		t.Errorf("providers[0].Config[path] = %v, want /custom/path", m.Providers[0].Config["path"])
+	}
+
+	// Check second provider
+	if m.Providers[1].Name != "custom-sandbox" {
+		t.Errorf("providers[1].Name = %q, want %q", m.Providers[1].Name, "custom-sandbox")
+	}
+	if m.Providers[1].EntryPoint != "bin/sandbox" {
+		t.Errorf("providers[1].EntryPoint = %q, want %q", m.Providers[1].EntryPoint, "bin/sandbox")
+	}
+}

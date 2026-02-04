@@ -1,6 +1,6 @@
 ---
 id: am-m4uw
-status: open
+status: done
 deps: []
 links: []
 created: 2026-02-02T02:56:52Z

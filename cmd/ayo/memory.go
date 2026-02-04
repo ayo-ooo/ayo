@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/memory/zettelkasten"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
@@ -46,6 +47,11 @@ Categories:
 	cmd.AddCommand(newMemoryForgetCmd())
 	cmd.AddCommand(newMemoryStatsCmd())
 	cmd.AddCommand(newMemoryClearCmd())
+	cmd.AddCommand(newMemoryReindexCmd())
+	cmd.AddCommand(newMemoryTopicsCmd())
+	cmd.AddCommand(newMemoryLinkCmd())
+	cmd.AddCommand(newMemoryMergeCmd())
+	cmd.AddCommand(newMemoryMigrateCmd())
 
 	return cmd
 }
@@ -641,6 +647,464 @@ func newMemoryClearCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Only clear memories for this agent")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation")
+
+	return cmd
+}
+
+func newMemoryReindexCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "Rebuild the memory search index from source files",
+		Long: `Rebuild the .index.sqlite file from memory markdown files.
+
+This command scans all memory files in the zettelkasten directory and
+rebuilds the SQLite search index. The index is derived and can always
+be rebuilt from the source files.
+
+Use this if:
+- The index becomes corrupted
+- You manually edited memory files
+- After restoring memory files from backup`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			// Show spinner unless JSON output
+			var spinner *ui.Spinner
+			if !jsonOutput {
+				spinner = ui.NewSpinnerWithType("rebuilding memory index...", ui.SpinnerMemory)
+				spinner.Start()
+			}
+
+			// Get memory directory
+			memDir := zettelkasten.DefaultMemoryDir()
+
+			// Create structure and index
+			structure := zettelkasten.NewStructure(memDir)
+			if !structure.Exists() {
+				if spinner != nil {
+					spinner.StopWithMessage("no memory directory found")
+				}
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"success": false,
+						"error":   "no memory directory found",
+					})
+				}
+				fmt.Println("No memory directory found. Nothing to reindex.")
+				return nil
+			}
+
+			// Count files first
+			files, err := structure.ListAllMemories()
+			if err != nil {
+				if spinner != nil {
+					spinner.StopWithError("failed to list memory files")
+				}
+				return fmt.Errorf("failed to list memory files: %w", err)
+			}
+
+			if len(files) == 0 {
+				if spinner != nil {
+					spinner.StopWithMessage("no memory files found")
+				}
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"success": true,
+						"count":   0,
+						"message": "no memory files found",
+					})
+				}
+				fmt.Println("No memory files found. Index is empty.")
+				return nil
+			}
+
+			// Open index and rebuild
+			idx := zettelkasten.NewIndex(structure)
+			if err := idx.Open(ctx); err != nil {
+				if spinner != nil {
+					spinner.StopWithError("failed to open index")
+				}
+				return fmt.Errorf("failed to open index: %w", err)
+			}
+			defer idx.Close()
+
+			if err := idx.Rebuild(ctx); err != nil {
+				if spinner != nil {
+					spinner.StopWithError("failed to rebuild index")
+				}
+				return fmt.Errorf("failed to rebuild index: %w", err)
+			}
+
+			// Get final count
+			count, _ := idx.Count(ctx)
+
+			if spinner != nil {
+				spinner.StopWithMessage(fmt.Sprintf("reindexed %d memories", count))
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"success": true,
+					"count":   count,
+				})
+			}
+
+			fmt.Printf("Successfully reindexed %d memories\n", count)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+
+	return cmd
+}
+
+func newMemoryTopicsCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "topics",
+		Short: "List all memory topics",
+		Long: `List all topics that have been assigned to memories.
+
+Topics help organize memories by subject matter. Memories can have
+multiple topics, and topics are automatically created when storing
+memories with the --topics flag or via the zettelkasten file format.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get memory directory
+			memDir := zettelkasten.DefaultMemoryDir()
+
+			// Create structure
+			structure := zettelkasten.NewStructure(memDir)
+			if !structure.Exists() {
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"topics": []string{},
+					})
+				}
+				fmt.Println("No topics found")
+				return nil
+			}
+
+			// List topics
+			topics, err := structure.ListTopics()
+			if err != nil {
+				return fmt.Errorf("failed to list topics: %w", err)
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"topics": topics,
+				})
+			}
+
+			if len(topics) == 0 {
+				fmt.Println("No topics found")
+				return nil
+			}
+
+			// Styles
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+			topicStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
+
+			fmt.Println()
+			fmt.Println(headerStyle.Render("  Memory Topics"))
+			fmt.Println(headerStyle.Render("  " + strings.Repeat("-", 30)))
+			fmt.Println()
+
+			for _, topic := range topics {
+				fmt.Printf("  %s\n", topicStyle.Render(topic))
+			}
+			fmt.Println()
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+
+	return cmd
+}
+
+func newMemoryLinkCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "link <id1> <id2>",
+		Short: "Create a bidirectional link between two memories",
+		Long: `Create a bidirectional link between two memories.
+
+Links establish relationships between related memories, forming a
+knowledge graph. Links are symmetric: if A links to B, B links to A.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id1, id2 := args[0], args[1]
+
+			// Get memory directory
+			memDir := zettelkasten.DefaultMemoryDir()
+
+			// Create and initialize provider
+			provider := zettelkasten.NewProvider()
+			if err := provider.Init(cmd.Context(), map[string]any{"root": memDir}); err != nil {
+				return fmt.Errorf("failed to initialize memory provider: %w", err)
+			}
+			defer provider.Close()
+
+			// Create the link
+			if err := provider.Link(cmd.Context(), id1, id2); err != nil {
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"error": err.Error(),
+					})
+				}
+				return fmt.Errorf("failed to link memories: %w", err)
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"linked": []string{id1, id2},
+				})
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Printf("%s Linked %s <-> %s\n", successStyle.Render("✓"), id1, id2)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+
+	return cmd
+}
+
+func newMemoryMergeCmd() *cobra.Command {
+	var dryRun bool
+	var jsonOutput bool
+	var threshold float64
+	var unclearThreshold float64
+
+	cmd := &cobra.Command{
+		Use:   "merge",
+		Short: "Find and merge similar memories",
+		Long: `Find and merge similar memories automatically.
+
+Similar memories are merged into one, with the newer memory becoming
+the keeper and older memories marked as superseded. Memories that are
+similar but not identical are flagged for clarification.
+
+Thresholds:
+  --threshold       Similarity above which memories are merged (default: 0.90)
+  --unclear         Similarity range for flagging (default: 0.75)
+                    Memories with similarity between unclear and threshold
+                    are flagged for user clarification.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get memory directory
+			memDir := zettelkasten.DefaultMemoryDir()
+
+			// Create and initialize provider
+			provider := zettelkasten.NewProvider()
+			if err := provider.Init(cmd.Context(), map[string]any{"root": memDir}); err != nil {
+				return fmt.Errorf("failed to initialize memory provider: %w", err)
+			}
+			defer provider.Close()
+
+			// Create structure and index
+			structure := zettelkasten.NewStructure(memDir)
+			if !structure.Exists() {
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"merged":  0,
+						"flagged": 0,
+						"linked":  0,
+					})
+				}
+				fmt.Println("No memories found")
+				return nil
+			}
+
+			idx := zettelkasten.NewIndex(structure)
+			if err := idx.Open(cmd.Context()); err != nil {
+				return fmt.Errorf("failed to open index: %w", err)
+			}
+			defer idx.Close()
+
+			// Create merger config
+			config := zettelkasten.DefaultMergeConfig()
+			config.DryRun = dryRun
+			if threshold > 0 {
+				config.SimilarityThreshold = float32(threshold)
+			}
+			if unclearThreshold > 0 {
+				config.UnclearThreshold = float32(unclearThreshold)
+			}
+
+			merger := zettelkasten.NewMerger(provider, idx, nil, config)
+
+			// Find candidates
+			candidates, err := merger.FindCandidates(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to find candidates: %w", err)
+			}
+
+			if len(candidates) == 0 {
+				if jsonOutput {
+					return writeJSON(map[string]interface{}{
+						"merged":     0,
+						"flagged":    0,
+						"linked":     0,
+						"candidates": []interface{}{},
+					})
+				}
+				fmt.Println("No merge candidates found")
+				return nil
+			}
+
+			// Execute merge
+			result, err := merger.Execute(cmd.Context(), candidates)
+			if err != nil {
+				return fmt.Errorf("failed to execute merge: %w", err)
+			}
+
+			if jsonOutput {
+				candidatesJSON := make([]map[string]interface{}, len(result.Candidates))
+				for i, c := range result.Candidates {
+					candidatesJSON[i] = map[string]interface{}{
+						"memory_a":   c.MemoryA.Frontmatter.ID,
+						"memory_b":   c.MemoryB.Frontmatter.ID,
+						"similarity": c.Similarity,
+						"action":     string(c.Action),
+						"reason":     c.Reason,
+					}
+				}
+				errStrings := make([]string, len(result.Errors))
+				for i, e := range result.Errors {
+					errStrings[i] = e.Error()
+				}
+				return writeJSON(map[string]interface{}{
+					"merged":     result.Merged,
+					"flagged":    result.FlaggedAsUnclear,
+					"linked":     result.Linked,
+					"candidates": candidatesJSON,
+					"errors":     errStrings,
+					"dry_run":    dryRun,
+				})
+			}
+
+			// Print results
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+
+			if dryRun {
+				fmt.Println(warnStyle.Render("Dry run - no changes made"))
+				fmt.Println()
+			}
+
+			fmt.Printf("  Merged:  %d\n", result.Merged)
+			fmt.Printf("  Flagged: %d\n", result.FlaggedAsUnclear)
+			fmt.Printf("  Linked:  %d\n", result.Linked)
+
+			if len(result.Errors) > 0 {
+				fmt.Println()
+				fmt.Println(warnStyle.Render("Errors:"))
+				for _, e := range result.Errors {
+					fmt.Printf("  - %s\n", e.Error())
+				}
+			}
+
+			if result.Merged > 0 || result.FlaggedAsUnclear > 0 || result.Linked > 0 {
+				fmt.Println()
+				fmt.Println(successStyle.Render("✓ Memory merge complete"))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Simulate merge without making changes")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+	cmd.Flags().Float64Var(&threshold, "threshold", 0, "Similarity threshold for auto-merge (default: 0.90)")
+	cmd.Flags().Float64Var(&unclearThreshold, "unclear", 0, "Similarity threshold for flagging unclear (default: 0.75)")
+
+	return cmd
+}
+
+func newMemoryMigrateCmd() *cobra.Command {
+	var overwrite bool
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Migrate memories from SQLite to Zettelkasten files",
+		Long: `Migrate existing memories from the SQLite database to Zettelkasten markdown files.
+
+This is a one-way migration that:
+- Reads all memories from the SQLite database
+- Creates corresponding markdown files in the zettelkasten directory
+- Preserves all metadata including timestamps, categories, and relationships
+
+By default, existing files are skipped. Use --overwrite to replace them.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Connect to SQLite database
+			dbConn, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("failed to connect to database: %w", err)
+			}
+			defer dbConn.Close()
+
+			// Get memory directory
+			memDir := zettelkasten.DefaultMemoryDir()
+
+			// Create and initialize provider
+			provider := zettelkasten.NewProvider()
+			if err := provider.Init(cmd.Context(), map[string]any{"root": memDir}); err != nil {
+				return fmt.Errorf("failed to initialize memory provider: %w", err)
+			}
+			defer provider.Close()
+
+			// Perform migration
+			result, err := zettelkasten.MigrateFromSQLite(cmd.Context(), queries, provider, overwrite)
+			if err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+
+			if jsonOutput {
+				return writeJSON(map[string]interface{}{
+					"migrated": result.Migrated,
+					"skipped":  result.Skipped,
+					"failed":   result.Failed,
+					"errors":   result.Errors,
+				})
+			}
+
+			// Print results
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+
+			fmt.Printf("  Migrated: %d\n", result.Migrated)
+			fmt.Printf("  Skipped:  %d\n", result.Skipped)
+			fmt.Printf("  Failed:   %d\n", result.Failed)
+
+			if len(result.Errors) > 0 {
+				fmt.Println()
+				fmt.Println(warnStyle.Render("Errors:"))
+				for _, e := range result.Errors {
+					fmt.Printf("  - %s\n", e)
+				}
+			}
+
+			if result.Migrated > 0 {
+				fmt.Println()
+				fmt.Println(successStyle.Render("✓ Migration complete"))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite existing files")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }

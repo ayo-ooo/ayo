@@ -28,6 +28,8 @@ require (
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/ncruces/go-sqlite3 v0.30.5
 	github.com/oklog/ulid/v2 v2.1.1
+	github.com/pelletier/go-toml/v2 v2.2.4
+	golang.org/x/text v0.33.0
 	rsc.io/qr v0.2.0
 )
 
@@ -132,7 +134,6 @@ require (
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/api v0.239.0 // indirect
 	google.golang.org/genai v1.41.0 // indirect

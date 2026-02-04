@@ -3,7 +3,6 @@ package run
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -18,18 +17,14 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
+	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/tools"
 )
 
 // Tool parameter types for Fantasy
 
-// BashParams defines the parameters for the bash tool.
-type BashParams struct {
-	Command        string `json:"command" description:"Command to run (will be executed via /bin/sh -c)"`
-	Description    string `json:"description" description:"Brief human-readable description of what this command does (e.g. 'Installing dependencies', 'Running tests')"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty" description:"Optional timeout in seconds"`
-	WorkingDir     string `json:"working_dir,omitempty" description:"Optional working directory scoped to the project root"`
-}
+// BashParams is an alias to sandbox.BashParams.
+type BashParams = sandbox.BashParams
 
 const (
 	fantasyDefaultToolTimeout = 30 * time.Second
@@ -69,7 +64,7 @@ func NewBashTool(baseDir string) fantasy.AgentTool {
 
 			runErr := cmd.Run()
 
-			result := fantasyBashResult{
+			result := CommandResult{
 				Stdout:    stdoutBuf.String(),
 				Stderr:    stderrBuf.String(),
 				Truncated: stdoutBuf.truncated || stderrBuf.truncated,
@@ -102,38 +97,46 @@ func NewBashTool(baseDir string) fantasy.AgentTool {
 	)
 }
 
-// fantasyBashResult mirrors toolResult for JSON serialization.
-type fantasyBashResult struct {
-	Stdout    string `json:"stdout"`
-	Stderr    string `json:"stderr"`
-	ExitCode  int    `json:"exit_code"`
-	TimedOut  bool   `json:"timed_out,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
 
-func (r fantasyBashResult) String() string {
-	data, err := json.Marshal(r)
-	if err != nil {
-		return fmt.Sprintf(`{"error":"marshal error: %v"}`, err)
-	}
-	return string(data)
-}
 
 // FantasyToolSet wraps Fantasy tools for use with the runner.
 type FantasyToolSet struct {
-	tools         []fantasy.AgentTool
-	allowedList   []string
-	baseDir       string
-	memoryQueue   *memory.Queue // Optional async memory queue
-	depth         int
-	statefulTools []tools.StatefulTool // Tools that need cleanup
+	tools           []fantasy.AgentTool
+	allowedList     []string
+	baseDir         string
+	memoryQueue     *memory.Queue           // Optional async memory queue
+	depth           int
+	sandboxExecutor *sandbox.Executor       // Optional sandbox executor for bash
+	statefulTools   []tools.StatefulTool    // Tools that need cleanup
+}
+
+// ToolSetOptions configures the Fantasy tool set.
+type ToolSetOptions struct {
+	AllowedTools    []string
+	BaseDir         string
+	MemoryQueue     *memory.Queue
+	Depth           int
+	DisableTodo     bool
+	SandboxExecutor *sandbox.Executor
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
 // The disableTodo flag controls whether the built-in todo tool is included.
 // By default (disableTodo=false), todo is always available regardless of allowed list.
 func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int, disableTodo bool) FantasyToolSet {
+	return NewFantasyToolSet(ToolSetOptions{
+		AllowedTools: allowed,
+		BaseDir:      baseDir,
+		MemoryQueue:  memQueue,
+		Depth:        depth,
+		DisableTodo:  disableTodo,
+	})
+}
+
+// NewFantasyToolSet creates a Fantasy tool set with configurable options.
+// This is the recommended way to create a tool set with sandbox support.
+func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
+	baseDir := opts.BaseDir
 	if baseDir == "" {
 		baseDir, _ = os.Getwd()
 	}
@@ -148,7 +151,7 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 	var statefulTools []tools.StatefulTool
 
 	// Always add todo first (unless disabled) - it's an always-available tool
-	if !disableTodo {
+	if !opts.DisableTodo {
 		todoTool := NewTodoTool()
 		fantasyTools = append(fantasyTools, todoTool)
 		statefulTools = append(statefulTools, todoTool)
@@ -156,6 +159,7 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 	}
 
 	// Default to bash if no tools specified
+	allowed := opts.AllowedTools
 	if len(allowed) == 0 {
 		allowed = []string{"bash"}
 	}
@@ -181,14 +185,19 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 
 		switch resolvedName {
 		case "bash":
-			fantasyTools = append(fantasyTools, NewBashTool(baseDir))
+			// Use sandbox executor if provided, otherwise use local execution
+			if opts.SandboxExecutor != nil {
+				fantasyTools = append(fantasyTools, sandbox.NewBashTool(opts.SandboxExecutor))
+			} else {
+				fantasyTools = append(fantasyTools, NewBashTool(baseDir))
+			}
 			loadedTools[resolvedName] = true
 		case "memory":
-			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(memQueue))
+			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(opts.MemoryQueue))
 			loadedTools[resolvedName] = true
 		default:
 			// Try to load as external tool from plugins
-			if tool := loadExternalTool(resolvedName, baseDir, depth); tool != nil {
+			if tool := loadExternalTool(resolvedName, baseDir, opts.Depth, &cfg); tool != nil {
 				fantasyTools = append(fantasyTools, tool)
 				loadedTools[resolvedName] = true
 			}
@@ -196,12 +205,13 @@ func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *me
 	}
 
 	return FantasyToolSet{
-		tools:        fantasyTools,
-		allowedList:  allowed,
-		baseDir:      baseDir,
-		memoryQueue:  memQueue,
-		depth:        depth,
-		statefulTools: statefulTools,
+		tools:           fantasyTools,
+		allowedList:     allowed,
+		baseDir:         baseDir,
+		memoryQueue:     opts.MemoryQueue,
+		depth:           opts.Depth,
+		sandboxExecutor: opts.SandboxExecutor,
+		statefulTools:   statefulTools,
 	}
 }
 
@@ -304,11 +314,12 @@ func (l *fantasyLimitedBuffer) String() string {
 
 // MemoryParams defines the parameters for the memory tool.
 type MemoryParams struct {
-	Operation string `json:"operation" description:"The memory operation to perform: 'search', 'store', 'list', 'forget'"`
+	Operation string `json:"operation" description:"The memory operation to perform: 'search', 'store', 'list', 'forget', 'topics', 'link'"`
 	Query     string `json:"query,omitempty" description:"For 'search': the semantic search query"`
 	Content   string `json:"content,omitempty" description:"For 'store': the memory content to store"`
 	Category  string `json:"category,omitempty" description:"For 'store': the memory category (preference, fact, correction, pattern). Default: fact"`
-	ID        string `json:"id,omitempty" description:"For 'forget': the memory ID (or prefix) to forget"`
+	ID        string `json:"id,omitempty" description:"For 'forget' or 'link': the first memory ID"`
+	TargetID  string `json:"target_id,omitempty" description:"For 'link': the second memory ID to link with"`
 	Limit     int    `json:"limit,omitempty" description:"For 'search' or 'list': maximum number of results. Default: 10"`
 }
 
@@ -326,7 +337,7 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 
 	return fantasy.NewAgentTool(
 		"memory",
-		"Manage persistent memories that persist across sessions. Use 'search' to find relevant memories, 'store' to save new information, 'list' to see all memories, or 'forget' to remove memories.",
+		"Manage persistent memories that persist across sessions. Use 'search' to find relevant memories, 'store' to save new information, 'list' to see all memories, 'forget' to remove memories, 'topics' to list all memory topics, or 'link' to connect two related memories.",
 		func(ctx context.Context, params MemoryParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			// Handle store operation with async queue if available
 			if params.Operation == "store" {
@@ -384,8 +395,20 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 				}
 				args = []string{"memory", "forget", params.ID, "--json", "-f"}
 
+			case "topics":
+				args = []string{"memory", "topics", "--json"}
+
+			case "link":
+				if params.ID == "" {
+					return fantasy.NewTextErrorResponse("id is required for link operation"), nil
+				}
+				if params.TargetID == "" {
+					return fantasy.NewTextErrorResponse("target_id is required for link operation"), nil
+				}
+				args = []string{"memory", "link", params.ID, params.TargetID, "--json"}
+
 			default:
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("unknown operation: %s. Valid operations: search, store, list, forget", params.Operation)), nil
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("unknown operation: %s. Valid operations: search, store, list, forget, topics, link", params.Operation)), nil
 			}
 
 			// Execute the ayo command
@@ -423,9 +446,9 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 // Returns nil if the tool is not found.
 // It first checks if the toolName is a tool alias (e.g., "search") and resolves it
 // to the configured default tool (e.g., "searxng").
-func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentTool {
+func loadExternalTool(toolName string, baseDir string, depth int, cfg *config.Config) fantasy.AgentTool {
 	// First, check if this is a tool alias that should be resolved
-	resolvedName := resolveToolAlias(toolName)
+	resolvedName := resolveToolAlias(toolName, cfg)
 
 	// Load plugin registry
 	registry, err := plugins.LoadRegistry()
@@ -453,14 +476,8 @@ func loadExternalTool(toolName string, baseDir string, depth int) fantasy.AgentT
 
 // resolveToolAlias checks if the given tool name is an alias and returns the
 // configured concrete tool name. Returns the original name if no alias is configured.
-func resolveToolAlias(toolName string) string {
-	// Load config to check for default_tools mappings
-	cfg, err := config.Load(config.DefaultPath())
-	if err != nil {
-		return toolName
-	}
-
-	if cfg.DefaultTools == nil {
+func resolveToolAlias(toolName string, cfg *config.Config) string {
+	if cfg == nil || cfg.DefaultTools == nil {
 		return toolName
 	}
 

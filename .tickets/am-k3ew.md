@@ -1,6 +1,6 @@
 ---
 id: am-k3ew
-status: open
+status: done
 deps: []
 links: []
 created: 2026-02-02T02:57:11Z

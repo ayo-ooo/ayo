@@ -52,6 +52,64 @@ type Config struct {
 	// Delegation configuration
 	// Maps task types (e.g., "coding", "research") to agent handles (e.g., "@crush")
 	Delegates map[string]string `json:"delegates,omitempty"`
+
+	// Sandbox configuration
+	// Configures the sandbox environment for this agent.
+	Sandbox SandboxConfig `json:"sandbox,omitempty"`
+}
+
+// SandboxConfig configures the agent's sandbox environment.
+type SandboxConfig struct {
+	// Enabled determines if this agent runs in a sandbox.
+	// When false (default), commands execute directly on the host.
+	// When true, commands execute in an isolated container.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Languages specifies the language runtimes needed in the sandbox.
+	// Supported values: "go", "python", "node", "ruby", "rust", "c", "cpp"
+	// The sandbox image will be configured with these runtimes.
+	Languages []string `json:"languages,omitempty"`
+
+	// Image overrides the default sandbox image.
+	// If not specified, an image is derived from the Languages list.
+	Image string `json:"image,omitempty"`
+
+	// Network determines if network access is allowed in the sandbox.
+	// Defaults to true.
+	Network *bool `json:"network,omitempty"`
+
+	// Resources configures resource limits for the sandbox.
+	Resources SandboxResourceConfig `json:"resources,omitempty"`
+
+	// Mounts specifies additional mount points into the sandbox.
+	Mounts []SandboxMountConfig `json:"mounts,omitempty"`
+}
+
+// SandboxResourceConfig configures resource limits for agent sandboxes.
+type SandboxResourceConfig struct {
+	// CPUs is the number of CPUs to allocate. Defaults to provider default.
+	CPUs int `json:"cpus,omitempty"`
+
+	// MemoryMB is the memory limit in megabytes. Defaults to provider default.
+	MemoryMB int64 `json:"memory_mb,omitempty"`
+
+	// DiskMB is the disk limit in megabytes. Defaults to provider default.
+	DiskMB int64 `json:"disk_mb,omitempty"`
+
+	// Timeout is the maximum execution time in seconds. Defaults to 300 (5 min).
+	Timeout int `json:"timeout,omitempty"`
+}
+
+// SandboxMountConfig configures a mount point in the sandbox.
+type SandboxMountConfig struct {
+	// Source is the path on the host.
+	Source string `json:"source"`
+
+	// Target is the path inside the sandbox.
+	Target string `json:"target"`
+
+	// ReadOnly determines if the mount is read-only. Defaults to true for safety.
+	ReadOnly *bool `json:"readonly,omitempty"`
 }
 
 // MemoryConfig configures agent memory behavior.
@@ -104,6 +162,44 @@ func (c Config) GuardrailsEnabled(handle string) bool {
 		return true
 	}
 	return *c.Guardrails
+}
+
+// SandboxEnabled returns true if this agent should run in a sandbox.
+func (c Config) SandboxEnabled() bool {
+	return c.Sandbox.Enabled
+}
+
+// SandboxImage returns the container image to use for this agent's sandbox.
+// Returns the explicit image if set, otherwise derives from language dependencies.
+func (c SandboxConfig) SandboxImage() string {
+	if c.Image != "" {
+		return c.Image
+	}
+	// Default to busybox if no languages specified
+	if len(c.Languages) == 0 {
+		return "busybox:latest"
+	}
+	// For now, return busybox as default
+	// Future: build dynamic image tags based on language combinations
+	return "busybox:latest"
+}
+
+// NetworkEnabled returns true if network access is allowed.
+// Defaults to true if not explicitly set.
+func (c SandboxConfig) NetworkEnabled() bool {
+	if c.Network == nil {
+		return true
+	}
+	return *c.Network
+}
+
+// MountReadOnly returns true if a mount should be read-only.
+// Defaults to true for safety if not explicitly set.
+func (m SandboxMountConfig) MountReadOnly() bool {
+	if m.ReadOnly == nil {
+		return true
+	}
+	return *m.ReadOnly
 }
 
 type Agent struct {

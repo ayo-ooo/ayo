@@ -3,7 +3,7 @@ name: ayo
 description: Manage ayo agents, skills, and configuration using the ayo CLI. Use when the user wants to create, list, modify, or understand agents and skills.
 metadata:
   author: ayo
-  version: "2.0"
+  version: "2.1"
 ---
 
 # Ayo CLI Skill
@@ -59,6 +59,8 @@ ayo [command] [@agent] [prompt] [--flags]
 | `ayo memory` | Manage agent memories |
 | `ayo chain` | Explore and validate agent chaining |
 | `ayo setup` | Install/update built-in agents and skills |
+| `ayo daemon` | Manage the ayo background daemon |
+| `ayo status` | Show daemon and system status |
 
 ## Running Agents
 
@@ -1318,3 +1320,94 @@ Located at `~/.config/ayo/ayo.json`:
 - Check `--help` for correct usage
 - Run with `--debug` for verbose output
 - Verify paths and file permissions
+
+---
+
+# Daemon & Sandbox (Experimental)
+
+The ayo daemon manages background services including sandbox execution.
+
+## Daemon Commands
+
+```bash
+# Check daemon status
+ayo status
+
+# Start daemon manually (usually auto-started)
+ayo daemon start
+
+# Start in foreground (for debugging)
+ayo daemon start --foreground
+
+# Stop daemon
+ayo daemon stop
+```
+
+## System Status
+
+```bash
+ayo status
+```
+
+Shows:
+- Daemon running status
+- Uptime and memory usage
+- Active sandbox count
+- Pool capacity
+
+## Sandbox Execution
+
+When sandbox mode is enabled, agent commands run in isolated containers.
+
+### Agent Sandbox Configuration
+
+Add sandbox config to agent's `config.json`:
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "provider": "docker",
+    "image": "golang:1.22",
+    "languages": ["go", "python"],
+    "network": true,
+    "mounts": [
+      {"source": ".", "target": "/workspace"}
+    ],
+    "resources": {
+      "cpus": 2,
+      "memory_mb": 2048,
+      "timeout": 300
+    }
+  }
+}
+```
+
+### Sandbox Providers
+
+| Provider | Status | Requirements |
+|----------|--------|--------------|
+| `none` | Available | Direct host execution (default) |
+| `docker` | Available | Docker installed |
+| `lima` | Available | Lima installed (macOS) |
+| `apple` | Planned | macOS 15+ |
+
+### How It Works
+
+1. Agent requests sandbox via daemon IPC
+2. Container created with configured mounts
+3. Commands execute in isolated environment
+4. Sandbox released when session ends
+
+### Debugging Sandbox Issues
+
+```bash
+# Check if daemon is running
+ayo status
+
+# Run with debug logging
+AYO_DEBUG=1 ayo daemon start --foreground
+
+# Check container status manually
+docker ps | grep ayo
+```

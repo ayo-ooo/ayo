@@ -1,6 +1,6 @@
 // Package plugins provides functionality for managing ayo plugins.
 // Plugins are distributed via git repositories with the naming convention
-// ayo-plugins-<name> and can contain agents, skills, and tools.
+// ayo-plugins-<name> and can contain agents, skills, tools, and providers.
 package plugins
 
 import (
@@ -11,6 +11,26 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+)
+
+// PluginType categorizes what a plugin provides.
+type PluginType string
+
+const (
+	// PluginTypeAgent indicates the plugin provides agents.
+	PluginTypeAgent PluginType = "agent"
+	// PluginTypeSkill indicates the plugin provides skills.
+	PluginTypeSkill PluginType = "skill"
+	// PluginTypeTool indicates the plugin provides tools.
+	PluginTypeTool PluginType = "tool"
+	// PluginTypeMemory indicates the plugin provides a memory provider.
+	PluginTypeMemory PluginType = "memory"
+	// PluginTypeSandbox indicates the plugin provides a sandbox provider.
+	PluginTypeSandbox PluginType = "sandbox"
+	// PluginTypeEmbedding indicates the plugin provides an embedding provider.
+	PluginTypeEmbedding PluginType = "embedding"
+	// PluginTypeObserver indicates the plugin provides an observer provider.
+	PluginTypeObserver PluginType = "observer"
 )
 
 // Manifest represents the plugin manifest (manifest.json).
@@ -68,6 +88,30 @@ type Manifest struct {
 	// AyoVersion specifies the minimum ayo version required.
 	// Uses semver constraints (e.g., ">=0.2.0").
 	AyoVersion string `json:"ayo_version,omitempty"`
+
+	// Providers lists provider implementations this plugin provides.
+	// Each provider must have a unique name within its type (memory, sandbox, etc.).
+	Providers []ProviderDef `json:"providers,omitempty"`
+}
+
+// ProviderDef describes a provider implementation in a plugin.
+type ProviderDef struct {
+	// Name is the unique identifier for this provider (e.g., "zettelkasten", "apple-container").
+	Name string `json:"name"`
+
+	// Type is the provider category. Must be one of: memory, sandbox, embedding, observer.
+	Type PluginType `json:"type"`
+
+	// Description briefly describes what this provider does.
+	Description string `json:"description,omitempty"`
+
+	// EntryPoint is the path to the provider implementation (Go plugin or binary).
+	// For built-in providers, this may be empty.
+	EntryPoint string `json:"entry_point,omitempty"`
+
+	// Config contains provider-specific default configuration.
+	// These values are merged with user config when the provider is activated.
+	Config map[string]any `json:"config,omitempty"`
 }
 
 // Dependencies specifies external requirements for a plugin.
@@ -185,17 +229,20 @@ const PluginPrefix = "ayo-plugins-"
 
 // Validation errors
 var (
-	ErrManifestNotFound    = errors.New("manifest.json not found")
-	ErrInvalidManifest     = errors.New("invalid manifest")
-	ErrMissingName         = errors.New("manifest: name is required")
-	ErrMissingVersion      = errors.New("manifest: version is required")
-	ErrMissingDescription  = errors.New("manifest: description is required")
-	ErrInvalidName         = errors.New("manifest: name must be lowercase alphanumeric with hyphens")
-	ErrInvalidVersion      = errors.New("manifest: version must be valid semver (e.g., 1.0.0)")
-	ErrAgentNotFound       = errors.New("manifest: declared agent not found in agents/ directory")
-	ErrSkillNotFound       = errors.New("manifest: declared skill not found in skills/ directory")
-	ErrToolNotFound        = errors.New("manifest: declared tool not found in tools/ directory")
-	ErrInvalidPluginRef    = errors.New("invalid plugin reference: must be a full git URL (https:// or git@)")
+	ErrManifestNotFound      = errors.New("manifest.json not found")
+	ErrInvalidManifest       = errors.New("invalid manifest")
+	ErrMissingName           = errors.New("manifest: name is required")
+	ErrMissingVersion        = errors.New("manifest: version is required")
+	ErrMissingDescription    = errors.New("manifest: description is required")
+	ErrInvalidName           = errors.New("manifest: name must be lowercase alphanumeric with hyphens")
+	ErrInvalidVersion        = errors.New("manifest: version must be valid semver (e.g., 1.0.0)")
+	ErrAgentNotFound         = errors.New("manifest: declared agent not found in agents/ directory")
+	ErrSkillNotFound         = errors.New("manifest: declared skill not found in skills/ directory")
+	ErrToolNotFound          = errors.New("manifest: declared tool not found in tools/ directory")
+	ErrInvalidPluginRef      = errors.New("invalid plugin reference: must be a full git URL (https:// or git@)")
+	ErrInvalidProviderType   = errors.New("manifest: provider type must be memory, sandbox, embedding, or observer")
+	ErrMissingProviderName   = errors.New("manifest: provider name is required")
+	ErrDuplicateProviderName = errors.New("manifest: duplicate provider name")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -250,6 +297,41 @@ func (m *Manifest) Validate() error {
 
 	if m.Description == "" {
 		return ErrMissingDescription
+	}
+
+	// Validate providers
+	if err := m.validateProviders(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateProviders checks that provider definitions are valid.
+func (m *Manifest) validateProviders() error {
+	seen := make(map[string]bool)
+	validTypes := map[PluginType]bool{
+		PluginTypeMemory:    true,
+		PluginTypeSandbox:   true,
+		PluginTypeEmbedding: true,
+		PluginTypeObserver:  true,
+	}
+
+	for i, p := range m.Providers {
+		if p.Name == "" {
+			return fmt.Errorf("%w (provider %d)", ErrMissingProviderName, i)
+		}
+
+		if !validTypes[p.Type] {
+			return fmt.Errorf("%w: got %q for provider %q", ErrInvalidProviderType, p.Type, p.Name)
+		}
+
+		// Check for duplicates within the same type
+		key := string(p.Type) + ":" + p.Name
+		if seen[key] {
+			return fmt.Errorf("%w: %s/%s", ErrDuplicateProviderName, p.Type, p.Name)
+		}
+		seen[key] = true
 	}
 
 	return nil
@@ -316,4 +398,60 @@ func ExtractNameFromRepo(repoName string) string {
 		return strings.TrimPrefix(repoName, PluginPrefix)
 	}
 	return repoName
+}
+
+// Types returns the list of content types this plugin provides.
+// This is useful for displaying what a plugin offers.
+func (m *Manifest) Types() []PluginType {
+	var types []PluginType
+	seen := make(map[PluginType]bool)
+
+	if len(m.Agents) > 0 && !seen[PluginTypeAgent] {
+		types = append(types, PluginTypeAgent)
+		seen[PluginTypeAgent] = true
+	}
+	if len(m.Skills) > 0 && !seen[PluginTypeSkill] {
+		types = append(types, PluginTypeSkill)
+		seen[PluginTypeSkill] = true
+	}
+	if len(m.Tools) > 0 && !seen[PluginTypeTool] {
+		types = append(types, PluginTypeTool)
+		seen[PluginTypeTool] = true
+	}
+	for _, p := range m.Providers {
+		if !seen[p.Type] {
+			types = append(types, p.Type)
+			seen[p.Type] = true
+		}
+	}
+
+	return types
+}
+
+// ProvidersByType returns providers filtered by the given type.
+func (m *Manifest) ProvidersByType(t PluginType) []ProviderDef {
+	var result []ProviderDef
+	for _, p := range m.Providers {
+		if p.Type == t {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// HasProviders returns true if the plugin provides any providers.
+func (m *Manifest) HasProviders() bool {
+	return len(m.Providers) > 0
+}
+
+// IsProviderType returns true if the given type is a provider type
+// (memory, sandbox, embedding, observer) as opposed to a content type
+// (agent, skill, tool).
+func IsProviderType(t PluginType) bool {
+	switch t {
+	case PluginTypeMemory, PluginTypeSandbox, PluginTypeEmbedding, PluginTypeObserver:
+		return true
+	default:
+		return false
+	}
 }

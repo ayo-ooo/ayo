@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alexcabrera/ayo/internal/ui/shared"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -230,7 +231,7 @@ func (m *AssistantMessageCmp) Render(width int) string {
 		contentWidth = 40
 	}
 
-	renderer := GetMarkdownRenderer(contentWidth)
+	renderer := shared.GetMarkdownRenderer(contentWidth)
 	var rendered string
 	if renderer != nil {
 		md, err := renderer.Render(content)

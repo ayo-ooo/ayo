@@ -1,7 +1,7 @@
 # TinyEMU Web Build System
 # Builds WASM emulator and RISC-V ayo binary for offline web client
 
-.PHONY: all wasm riscv rootfs clean help serve
+.PHONY: all wasm riscv rootfs clean help serve test test-coverage test-coverage-html
 
 # Paths
 TINYEMU_DIR := .read-only/tinyemu-go
@@ -32,6 +32,11 @@ help:
 	@echo "  make rootfs   - Build minimal rootfs (requires Linux)"
 	@echo "  make serve    - Start local dev server"
 	@echo "  make clean    - Remove build artifacts"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test              - Run all tests"
+	@echo "  make test-coverage     - Run tests with coverage (summary)"
+	@echo "  make test-coverage-html - Generate HTML coverage report"
 	@echo ""
 	@echo "Outputs:"
 	@echo "  $(WASM_OUTPUT)"
@@ -77,7 +82,7 @@ serve: wasm
 	cd $(WEB_DIR) && python3 -m http.server 8080
 
 # Clean build artifacts
-clean:
+clean: clean-coverage
 	rm -rf $(BUILD_DIR)
 	rm -f $(WASM_OUTPUT)
 	rm -f $(WASM_EXEC_JS)
@@ -88,3 +93,50 @@ version:
 	@echo "Go version: $$($(GO) version)"
 	@echo "GOROOT: $$($(GO) env GOROOT)"
 	@echo "TinyEMU: $(TINYEMU_DIR)"
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+# Coverage output paths
+COVERAGE_DIR := $(BUILD_DIR)/coverage
+COVERAGE_OUT := $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
+
+# Run tests
+test:
+	@echo "Running tests..."
+	$(GO) test ./...
+
+# Run tests with coverage
+test-coverage: $(COVERAGE_OUT)
+	@echo "Coverage summary:"
+	@$(GO) tool cover -func=$(COVERAGE_OUT) | tail -1
+	@echo ""
+	@echo "Per-package coverage:"
+	@$(GO) tool cover -func=$(COVERAGE_OUT) | grep -E '^[^t]' | sort -t'%' -k3 -rn | head -20
+	@echo ""
+	@echo "Coverage profile: $(COVERAGE_OUT)"
+
+$(COVERAGE_OUT):
+	@echo "Running tests with coverage..."
+	@mkdir -p $(COVERAGE_DIR)
+	$(GO) test -coverprofile=$(COVERAGE_OUT) -covermode=atomic ./internal/...
+	@echo ""
+
+# Generate HTML coverage report
+test-coverage-html: $(COVERAGE_OUT)
+	@echo "Generating HTML coverage report..."
+	$(GO) tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML)
+	@echo "Coverage report: $(COVERAGE_HTML)"
+	@if command -v open >/dev/null 2>&1; then \
+		echo "Opening in browser..."; \
+		open $(COVERAGE_HTML); \
+	elif command -v xdg-open >/dev/null 2>&1; then \
+		echo "Opening in browser..."; \
+		xdg-open $(COVERAGE_HTML); \
+	fi
+
+# Clean coverage files
+clean-coverage:
+	rm -rf $(COVERAGE_DIR)

@@ -178,7 +178,7 @@ func executeExternalTool(
 	runErr := cmd.Run()
 
 	// Build result
-	result := externalToolResult{
+	result := CommandResult{
 		Stdout:    stdoutBuf.String(),
 		Stderr:    stderrBuf.String(),
 		Truncated: stdoutBuf.truncated || stderrBuf.truncated,
@@ -188,7 +188,7 @@ func executeExternalTool(
 		result.TimedOut = true
 		result.ExitCode = -1
 		result.Error = fmt.Sprintf("%s timed out", def.Name)
-		return fantasy.NewTextResponse(result.String()), nil
+		return fantasy.NewTextResponse(result.SmartString()), nil
 	}
 
 	if runErr != nil {
@@ -199,14 +199,14 @@ func executeExternalTool(
 			result.ExitCode = -1
 		}
 		result.Error = runErr.Error()
-		return fantasy.NewTextResponse(result.String()), nil
+		return fantasy.NewTextResponse(result.SmartString()), nil
 	}
 
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
 
-	return fantasy.NewTextResponse(result.String()), nil
+	return fantasy.NewTextResponse(result.SmartString()), nil
 }
 
 // buildExternalToolArgs builds command line arguments from the tool definition and parameters.
@@ -412,29 +412,4 @@ func splitArgs(s string) []string {
 	return args
 }
 
-// externalToolResult holds the result of an external tool invocation.
-type externalToolResult struct {
-	Stdout    string `json:"stdout"`
-	Stderr    string `json:"stderr,omitempty"`
-	ExitCode  int    `json:"exit_code"`
-	TimedOut  bool   `json:"timed_out,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
 
-func (r externalToolResult) String() string {
-	// For successful runs, just return stdout
-	if r.ExitCode == 0 && r.Error == "" && !r.TimedOut {
-		if r.Stdout != "" {
-			return r.Stdout
-		}
-		return "[command completed successfully with no output]"
-	}
-
-	// For errors, return structured JSON
-	data, err := json.Marshal(r)
-	if err != nil {
-		return fmt.Sprintf(`{"error":"marshal error: %v"}`, err)
-	}
-	return string(data)
-}

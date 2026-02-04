@@ -820,3 +820,65 @@ func TestLoadWithGuardrailsDisabled(t *testing.T) {
 		t.Errorf("combined should contain agent system, got:\n%s", ag.CombinedSystem)
 	}
 }
+
+func TestSandboxConfig_Enabled(t *testing.T) {
+	cfg := Config{}
+	if cfg.SandboxEnabled() {
+		t.Error("SandboxEnabled should default to false")
+	}
+
+	cfg.Sandbox.Enabled = true
+	if !cfg.SandboxEnabled() {
+		t.Error("SandboxEnabled should return true when enabled")
+	}
+}
+
+func TestSandboxConfig_Image(t *testing.T) {
+	// Default image when no languages
+	cfg := SandboxConfig{}
+	if cfg.SandboxImage() != "busybox:latest" {
+		t.Errorf("SandboxImage() = %q, want 'busybox:latest'", cfg.SandboxImage())
+	}
+
+	// Explicit image takes precedence
+	cfg.Image = "custom:v1"
+	if cfg.SandboxImage() != "custom:v1" {
+		t.Errorf("SandboxImage() = %q, want 'custom:v1'", cfg.SandboxImage())
+	}
+}
+
+func TestSandboxConfig_Network(t *testing.T) {
+	cfg := SandboxConfig{}
+	if !cfg.NetworkEnabled() {
+		t.Error("NetworkEnabled should default to true")
+	}
+
+	falseVal := false
+	cfg.Network = &falseVal
+	if cfg.NetworkEnabled() {
+		t.Error("NetworkEnabled should return false when disabled")
+	}
+}
+
+func TestSandboxMountConfig_ReadOnly(t *testing.T) {
+	m := SandboxMountConfig{Source: "/host", Target: "/container"}
+	if !m.MountReadOnly() {
+		t.Error("MountReadOnly should default to true")
+	}
+
+	falseVal := false
+	m.ReadOnly = &falseVal
+	if m.MountReadOnly() {
+		t.Error("MountReadOnly should return false when explicitly set to false")
+	}
+}
+
+func TestSandboxConfig_Languages(t *testing.T) {
+	cfg := SandboxConfig{
+		Languages: []string{"go", "python"},
+	}
+	// Currently returns busybox, but languages are stored for future use
+	if len(cfg.Languages) != 2 {
+		t.Errorf("Languages should have 2 elements, got %d", len(cfg.Languages))
+	}
+}
