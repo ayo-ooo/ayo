@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
@@ -22,6 +23,9 @@ import (
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
+
+// Ensure cli package is used
+var _ = cli.Output{}
 
 func newSessionsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -75,7 +79,46 @@ func newSessionsListCmd() *cobra.Command {
 			}
 
 			if len(sessions) == 0 {
-				fmt.Println("No sessions found")
+				if globalOutput.JSON {
+					globalOutput.PrintData([]struct{}{}, "")
+					return nil
+				}
+				if !globalOutput.Quiet {
+					fmt.Println("No sessions found")
+				}
+				return nil
+			}
+
+			// JSON output
+			if globalOutput.JSON {
+				type sessionJSON struct {
+					ID           string `json:"id"`
+					Agent        string `json:"agent"`
+					Title        string `json:"title"`
+					MessageCount int64  `json:"message_count"`
+					Source       string `json:"source,omitempty"`
+					UpdatedAt    int64  `json:"updated_at"`
+				}
+				var out []sessionJSON
+				for _, s := range sessions {
+					out = append(out, sessionJSON{
+						ID:           s.ID,
+						Agent:        s.AgentHandle,
+						Title:        s.Title,
+						MessageCount: s.MessageCount,
+						Source:       s.Source,
+						UpdatedAt:    s.UpdatedAt,
+					})
+				}
+				globalOutput.PrintData(out, "")
+				return nil
+			}
+
+			// Quiet mode: just list IDs
+			if globalOutput.Quiet {
+				for _, s := range sessions {
+					fmt.Println(s.ID)
+				}
 				return nil
 			}
 
@@ -137,6 +180,8 @@ func newSessionsListCmd() *cobra.Command {
 }
 
 func newSessionsShowCmd() *cobra.Command {
+	var latest bool
+
 	cmd := &cobra.Command{
 		Use:   "show [session-id]",
 		Short: "Show session details and conversation",
@@ -151,7 +196,7 @@ func newSessionsShowCmd() *cobra.Command {
 			var sess session.Session
 
 			if len(args) == 0 {
-				// No session specified, show selector
+				// No session specified
 				sessions, err := services.Sessions.List(cmd.Context(), 10)
 				if err != nil {
 					return fmt.Errorf("failed to list sessions: %w", err)
@@ -162,35 +207,41 @@ func newSessionsShowCmd() *cobra.Command {
 					return nil
 				}
 
-				options := make([]huh.Option[string], len(sessions))
-				for i, s := range sessions {
-					timeAgo := formatTimeAgo(s.UpdatedAt)
-					title := s.Title
-					if len(title) > 30 {
-						title = title[:27] + "..."
+				if latest {
+					// Automatically pick the most recent session
+					sess = sessions[0]
+				} else {
+					// Show selector
+					options := make([]huh.Option[string], len(sessions))
+					for i, s := range sessions {
+						timeAgo := formatTimeAgo(s.UpdatedAt)
+						title := s.Title
+						if len(title) > 30 {
+								title = title[:27] + "..."
+						}
+						label := fmt.Sprintf("%s  %s  %s  %s",
+							s.ID[:8],
+							s.AgentHandle,
+							title,
+							timeAgo,
+						)
+						options[i] = huh.NewOption(label, s.ID)
 					}
-					label := fmt.Sprintf("%s  %s  %s  %s",
-						s.ID[:8],
-						s.AgentHandle,
-						title,
-						timeAgo,
-					)
-					options[i] = huh.NewOption(label, s.ID)
-				}
 
-				var selectedID string
-				err = huh.NewSelect[string]().
-					Title("Select a session to show:").
-					Options(options...).
-					Value(&selectedID).
-					Run()
-				if err != nil {
-					return err
-				}
+					var selectedID string
+					err = huh.NewSelect[string]().
+						Title("Select a session to show:").
+						Options(options...).
+						Value(&selectedID).
+						Run()
+					if err != nil {
+						return err
+					}
 
-				sess, err = services.Sessions.Get(cmd.Context(), selectedID)
-				if err != nil {
-					return fmt.Errorf("failed to get session: %w", err)
+					sess, err = services.Sessions.Get(cmd.Context(), selectedID)
+					if err != nil {
+						return fmt.Errorf("failed to get session: %w", err)
+					}
 				}
 			} else {
 				// Find session by query
@@ -241,29 +292,47 @@ func newSessionsShowCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVarP(&latest, "latest", "l", false, "show the most recent session without prompting")
+
 	return cmd
 }
 
 func newSessionsDeleteCmd() *cobra.Command {
 	var force bool
+	var latest bool
 
 	cmd := &cobra.Command{
-		Use:   "delete <session-id>",
+		Use:   "delete [session-id]",
 		Short: "Delete a session",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sessionQuery := args[0]
-
 			services, err := session.Connect(cmd.Context(), paths.DatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to connect to database: %w", err)
 			}
 			defer services.Close()
 
-			// Find session by ID or prefix
-			sess, err := findSession(cmd, services, sessionQuery)
-			if err != nil {
-				return err
+			var sess session.Session
+
+			if len(args) == 0 {
+				if !latest {
+					return fmt.Errorf("session ID required (or use --latest)")
+				}
+				// Get the most recent session
+				sessions, err := services.Sessions.List(cmd.Context(), 1)
+				if err != nil {
+					return fmt.Errorf("failed to list sessions: %w", err)
+				}
+				if len(sessions) == 0 {
+					return fmt.Errorf("no sessions found")
+				}
+				sess = sessions[0]
+			} else {
+				// Find session by ID or prefix
+				sess, err = findSession(cmd, services, args[0])
+				if err != nil {
+					return err
+				}
 			}
 
 			// Confirm deletion unless --force
@@ -295,6 +364,7 @@ func newSessionsDeleteCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "delete without confirmation")
+	cmd.Flags().BoolVarP(&latest, "latest", "l", false, "delete the most recent session")
 
 	return cmd
 }

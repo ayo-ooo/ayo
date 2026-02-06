@@ -10,10 +10,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
 )
+
+// Ensure cli package is used
+var _ = cli.Output{}
 
 func newSkillsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -92,6 +96,35 @@ func listSkillsCmd(cfgPath *string) *cobra.Command {
 					case skills.SourceBuiltIn:
 						builtinSkills = append(builtinSkills, s)
 					}
+				}
+
+				// JSON output
+				if globalOutput.JSON {
+					type skillJSON struct {
+						Name        string `json:"name"`
+						Description string `json:"description,omitempty"`
+						Builtin     bool   `json:"builtin"`
+					}
+					var allSkills []skillJSON
+					for _, s := range userSkills {
+						allSkills = append(allSkills, skillJSON{Name: s.Name, Description: s.Description, Builtin: false})
+					}
+					for _, s := range builtinSkills {
+						allSkills = append(allSkills, skillJSON{Name: s.Name, Description: s.Description, Builtin: true})
+					}
+					globalOutput.PrintData(allSkills, "")
+					return nil
+				}
+
+				// Quiet mode: just list names
+				if globalOutput.Quiet {
+					for _, s := range userSkills {
+						fmt.Println(s.Name)
+					}
+					for _, s := range builtinSkills {
+						fmt.Println(s.Name)
+					}
+					return nil
 				}
 
 				// Render function for a skill

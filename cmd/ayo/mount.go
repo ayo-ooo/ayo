@@ -1,0 +1,271 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"text/tabwriter"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
+
+	"github.com/alexcabrera/ayo/internal/sandbox/mounts"
+)
+
+func newMountCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mount",
+		Short: "Manage persistent filesystem access grants",
+		Long: `Manage persistent filesystem access grants for sandboxed agents.
+
+Grants persist across sessions and allow agents to access host filesystem paths.
+Project-level mounts (.ayo.json) and session mounts (--mount flag) can only 
+restrict access to paths already granted here - they cannot grant new access.
+
+Examples:
+  ayo mount .                      Grant readwrite access to current directory
+  ayo mount ~/Documents --readonly Grant readonly access to Documents
+  ayo mount list                   List all grants
+  ayo mount revoke ~/Documents     Remove grant
+  ayo mount revoke --all           Remove all grants`,
+	}
+
+	cmd.AddCommand(newMountGrantCmd())
+	cmd.AddCommand(newMountListCmd())
+	cmd.AddCommand(newMountRevokeCmd())
+
+	return cmd
+}
+
+func newMountGrantCmd() *cobra.Command {
+	var readonly bool
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "grant <path>",
+		Short: "Grant filesystem access",
+		Long: `Grant persistent filesystem access for sandboxed agents.
+
+By default grants readwrite access. Use --readonly for read-only access.
+Path can be relative, absolute, or use ~/. Paths are resolved to absolute paths.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := args[0]
+
+			// Expand home directory
+			if len(path) >= 2 && path[:2] == "~/" {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("expand home directory: %w", err)
+				}
+				path = filepath.Join(home, path[2:])
+			}
+
+			// Resolve to absolute path
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				return fmt.Errorf("resolve path: %w", err)
+			}
+
+			// Check if path exists (warn if not)
+			if _, err := os.Stat(absPath); os.IsNotExist(err) {
+				warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+				fmt.Fprintln(os.Stderr, warnStyle.Render(fmt.Sprintf("Warning: path does not exist: %s", absPath)))
+			}
+
+			// Load grants service
+			service := mounts.NewGrantService()
+			if err := service.Load(); err != nil {
+				return fmt.Errorf("load grants: %w", err)
+			}
+
+			// Determine mode
+			mode := mounts.GrantModeReadWrite
+			if readonly {
+				mode = mounts.GrantModeReadOnly
+			}
+
+			// Grant access
+			if err := service.Grant(absPath, mode); err != nil {
+				return fmt.Errorf("grant access: %w", err)
+			}
+
+			// Save grants
+			if err := service.Save(); err != nil {
+				return fmt.Errorf("save grants: %w", err)
+			}
+
+			if jsonOutput {
+				result := map[string]string{
+					"path": absPath,
+					"mode": string(mode),
+				}
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(result)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render(fmt.Sprintf("Granted %s access to %s", mode, absPath)))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&readonly, "readonly", false, "grant read-only access")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
+
+	return cmd
+}
+
+func newMountListCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List all filesystem grants",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load grants service
+			service := mounts.NewGrantService()
+			if err := service.Load(); err != nil {
+				return fmt.Errorf("load grants: %w", err)
+			}
+
+			grants := service.List()
+
+			if jsonOutput {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(grants)
+			}
+
+			if len(grants) == 0 {
+				dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+				fmt.Println(dimStyle.Render("No grants configured. Use 'ayo mount grant <path>' to add one."))
+				return nil
+			}
+
+			// Print table
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "PATH\tMODE\tGRANTED")
+			for _, g := range grants {
+				fmt.Fprintf(w, "%s\t%s\t%s\n",
+					g.Path,
+					g.Mode,
+					g.GrantedAt.Format("2006-01-02"),
+				)
+			}
+			return w.Flush()
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
+
+	return cmd
+}
+
+func newMountRevokeCmd() *cobra.Command {
+	var revokeAll bool
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "revoke [path]",
+		Short: "Revoke filesystem access",
+		Long: `Revoke persistent filesystem access.
+
+Use --all to revoke all grants.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load grants service
+			service := mounts.NewGrantService()
+			if err := service.Load(); err != nil {
+				return fmt.Errorf("load grants: %w", err)
+			}
+
+			if revokeAll {
+				// Get current count
+				grants := service.List()
+				count := len(grants)
+
+				// Revoke all
+				for _, g := range grants {
+					if err := service.Revoke(g.Path); err != nil {
+						return fmt.Errorf("revoke %s: %w", g.Path, err)
+					}
+				}
+
+				// Save
+				if err := service.Save(); err != nil {
+					return fmt.Errorf("save grants: %w", err)
+				}
+
+				if jsonOutput {
+					result := map[string]int{"revoked": count}
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(result)
+				}
+
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Println(successStyle.Render(fmt.Sprintf("Revoked %d grant(s)", count)))
+				return nil
+			}
+
+			if len(args) == 0 {
+				return fmt.Errorf("path required (or use --all)")
+			}
+
+			path := args[0]
+
+			// Expand home directory
+			if len(path) >= 2 && path[:2] == "~/" {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("expand home directory: %w", err)
+				}
+				path = filepath.Join(home, path[2:])
+			}
+
+			// Resolve to absolute path
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				return fmt.Errorf("resolve path: %w", err)
+			}
+
+			// Check if granted
+			grant := service.GetGrant(absPath)
+			if grant == nil {
+				warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+				fmt.Fprintln(os.Stderr, warnStyle.Render(fmt.Sprintf("Warning: path not granted: %s", absPath)))
+				return nil
+			}
+
+			// Revoke
+			if err := service.Revoke(absPath); err != nil {
+				return fmt.Errorf("revoke access: %w", err)
+			}
+
+			// Save
+			if err := service.Save(); err != nil {
+				return fmt.Errorf("save grants: %w", err)
+			}
+
+			if jsonOutput {
+				result := map[string]string{"revoked": absPath}
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(result)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render(fmt.Sprintf("Revoked access to %s", absPath)))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&revokeAll, "all", false, "revoke all grants")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
+
+	return cmd
+}

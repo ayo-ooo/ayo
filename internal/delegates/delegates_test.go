@@ -191,3 +191,81 @@ func TestSaveDirectoryConfig(t *testing.T) {
 		t.Errorf("coding = %q, want @crush", loaded.Delegates["coding"])
 	}
 }
+
+func TestDirectoryConfig_Mounts(t *testing.T) {
+	dir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origWd)
+
+	// Create config with mounts
+	dirCfg := DirectoryConfig{
+		Mounts: map[string]string{
+			".":             "readwrite",
+			"../shared-lib": "readonly",
+			"~/Documents":   "readonly",
+		},
+	}
+	data, _ := json.Marshal(dirCfg)
+	os.WriteFile(filepath.Join(dir, ".ayo.json"), data, 0o644)
+
+	// Load and verify
+	cfg, path := LoadDirectoryConfig()
+	if cfg == nil {
+		t.Fatal("Expected config, got nil")
+	}
+	if path == "" {
+		t.Error("Expected path to be set")
+	}
+
+	if len(cfg.Mounts) != 3 {
+		t.Errorf("Expected 3 mounts, got %d", len(cfg.Mounts))
+	}
+	if cfg.Mounts["."] != "readwrite" {
+		t.Errorf("Expected '.' mount to be readwrite, got %s", cfg.Mounts["."])
+	}
+	if cfg.Mounts["../shared-lib"] != "readonly" {
+		t.Errorf("Expected '../shared-lib' mount to be readonly, got %s", cfg.Mounts["../shared-lib"])
+	}
+	if cfg.Mounts["~/Documents"] != "readonly" {
+		t.Errorf("Expected '~/Documents' mount to be readonly, got %s", cfg.Mounts["~/Documents"])
+	}
+}
+
+func TestDirectoryConfig_MountsWithDelegates(t *testing.T) {
+	dir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origWd)
+
+	// Create config with both mounts and delegates
+	dirCfg := DirectoryConfig{
+		Delegates: map[string]string{"coding": "@crush"},
+		Agent:     "@custom",
+		Model:     "gpt-4",
+		Mounts: map[string]string{
+			".": "readwrite",
+		},
+	}
+	data, _ := json.Marshal(dirCfg)
+	os.WriteFile(filepath.Join(dir, ".ayo.json"), data, 0o644)
+
+	cfg, _ := LoadDirectoryConfig()
+	if cfg == nil {
+		t.Fatal("Expected config, got nil")
+	}
+
+	// Verify all fields are preserved
+	if cfg.Delegates["coding"] != "@crush" {
+		t.Errorf("coding = %q, want @crush", cfg.Delegates["coding"])
+	}
+	if cfg.Agent != "@custom" {
+		t.Errorf("Agent = %q, want @custom", cfg.Agent)
+	}
+	if cfg.Model != "gpt-4" {
+		t.Errorf("Model = %q, want gpt-4", cfg.Model)
+	}
+	if cfg.Mounts["."] != "readwrite" {
+		t.Errorf("Expected '.' mount to be readwrite, got %s", cfg.Mounts["."])
+	}
+}

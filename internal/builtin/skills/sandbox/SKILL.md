@@ -48,26 +48,117 @@ cat /etc/os-release 2>/dev/null || echo "Not in container"
 mount | grep virtiofs
 ```
 
-## Working with Mounts
+## Directory Structure
 
-Sandbox containers have specific mount points:
+The sandbox provides a consistent directory structure for all agents:
 
-| Mount | Purpose | Access |
-|-------|---------|--------|
-| `/workspace` | Current project directory | Read-write |
-| `/data` | Shared data directory | Varies |
-| `/tmp` | Temporary files | Read-write |
+| Path | Purpose | Permissions |
+|------|---------|-------------|
+| `/home/{agent}/` | Your home directory | Private to agent |
+| `/shared/` | Shared files between all agents | World-writable (sticky bit) |
+| `/workspaces/{session-id}/` | Current session workspace | Session-specific |
+| `/mnt/host/` | Mounted host files | Read-only or read-write |
+| `/var/log/irc/` | IRC channel logs | Read-only |
 
-### Checking Available Mounts
+### Session Workspace Subdirectories
+
+Each session workspace (`/workspaces/{session-id}/`) contains:
+
+| Subdirectory | Purpose |
+|--------------|---------|
+| `mounted/` | Files mounted from host project |
+| `scratch/` | Temporary working files |
+| `shared/` | Session-scoped shared files |
+
+### Checking Available Paths
 
 ```bash
-# List mounted directories
-df -h
+# Your home directory
+echo $HOME
+ls -la ~
 
-# Check specific paths
-ls -la /workspace
-ls -la /data 2>/dev/null
+# Session workspace
+echo $WORKSPACE
+ls -la $WORKSPACE
+
+# Shared files
+ls -la /shared/
+
+# Host mounts
+ls -la /mnt/host/
 ```
+
+## Environment Variables
+
+The sandbox sets these environment variables for each agent:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `WORKSPACE` | Current session workspace path | `/workspaces/abc123/` |
+| `SESSION_ID` | Current session identifier | `abc123` |
+| `AGENT` | Your agent handle | `ayo` |
+| `HOME` | Your home directory | `/home/ayo` |
+
+### Using Environment Variables
+
+```bash
+# Check your identity
+echo "I am agent: $AGENT"
+
+# Work in session workspace
+cd $WORKSPACE
+mkdir -p scratch
+touch scratch/temp.txt
+
+# Create output in shared area
+echo "result" > $WORKSPACE/shared/output.json
+```
+
+## File Sharing Between Agents
+
+Agents can share files with each other using the shared directories.
+
+### Permanent Sharing (across sessions)
+
+For files that should persist and be accessible to all agents:
+
+```bash
+# Copy file to global shared directory
+cp myfile.txt /shared/
+
+# Other agents can access it
+cat /shared/myfile.txt
+```
+
+### Session Sharing (within session)
+
+For files specific to the current session:
+
+```bash
+# Copy to session shared directory
+cp myfile.txt $WORKSPACE/shared/
+
+# Notify other agents via IRC
+msg '#general' "File ready at $WORKSPACE/shared/myfile.txt"
+```
+
+### Best Practices for File Sharing
+
+1. **Use descriptive names** - Include your agent handle or purpose
+2. **Clean up when done** - Remove files no longer needed
+3. **Notify via IRC** - Let other agents know when files are ready
+4. **Use atomic writes** - Write to temp file, then rename
+
+```bash
+# Atomic write pattern
+echo '{"status": "complete"}' > /shared/result.tmp
+mv /shared/result.tmp /shared/result.json
+msg '#general' "Results available at /shared/result.json"
+```
+
+## Working with Host Mounts
+
+Mounted host directories appear under `/mnt/host/` or in your session workspace:
 
 ## Handling Missing Tools
 
@@ -168,3 +259,89 @@ ping -c 1 8.8.8.8 2>&1 || echo "No network"
 # Check DNS
 nslookup google.com 2>&1 || echo "DNS unavailable"
 ```
+
+## Inter-Agent Communication (IRC)
+
+The sandbox includes an ngircd IRC server for agent-to-agent communication.
+Your IRC nickname is automatically set to your agent handle (`$AGENT`).
+
+### IRC Helper Scripts
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `msg` | `msg <target> <message>` | Send message to channel or agent |
+| `irc-log` | `irc-log [channel] [lines]` | Read channel log history |
+| `irc-join` | `irc-join <channel>` | Join an IRC channel |
+| `irc-nick` | `irc-nick <nickname>` | Set your IRC nickname |
+
+### Sending Messages
+
+```bash
+# Broadcast to all agents on #general
+msg '#general' "Task completed successfully"
+
+# Send private message to another agent
+msg '@crush' "Can you review my changes?"
+
+# Share a file notification
+msg '#general' "Output ready at /shared/results.json"
+```
+
+### Reading Messages
+
+```bash
+# Read last 20 messages from #general (default)
+irc-log general
+
+# Read last 50 messages
+irc-log general 50
+
+# Check session channel
+irc-log "session-$SESSION_ID" 100
+```
+
+### Joining Channels
+
+```bash
+# Join a project-specific channel
+irc-join project-alpha
+
+# Join with # prefix (both work)
+irc-join '#project-beta'
+```
+
+### Default Channels
+
+- `#general` - Main channel for all agents (always join this)
+- `#session-{id}` - Session-specific channels
+
+### Coordination Patterns
+
+**Request/Response:**
+```bash
+# Agent A: Request help
+msg '#general' "REQUEST: Need code review for /shared/patch.diff"
+
+# Agent B: Acknowledge and respond
+msg '#general' "ACK: Reviewing patch.diff now"
+# ... review code ...
+msg '#general' "DONE: Review complete, comments in /shared/review.txt"
+```
+
+**File Handoff:**
+```bash
+# Producer agent
+cp output.json /shared/analysis-results.json
+msg '#general' "READY: Analysis results at /shared/analysis-results.json"
+
+# Consumer agent (after reading irc-log)
+cat /shared/analysis-results.json
+msg '#general' "ACK: Received analysis results"
+```
+
+### IRC Server Details
+
+- **Host:** `localhost`
+- **Port:** `6667`
+- **Protocol:** IRC (RFC 1459)
+- **Max Nick Length:** 32 characters

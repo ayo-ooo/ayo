@@ -186,6 +186,101 @@ func (c *Client) SandboxStatus(ctx context.Context) (*SandboxStatusResult, error
 	return &result, nil
 }
 
+// SessionList returns all active agent sessions.
+func (c *Client) SessionList(ctx context.Context) (*SessionListResult, error) {
+	var result SessionListResult
+	if err := c.call(ctx, MethodSessionList, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SessionStart starts a new session for an agent.
+func (c *Client) SessionStart(ctx context.Context, agentHandle string, triggerID, sessionID string) (*SessionStartResult, error) {
+	params := SessionStartParams{
+		AgentHandle: agentHandle,
+		TriggerID:   triggerID,
+		SessionID:   sessionID,
+	}
+	var result SessionStartResult
+	if err := c.call(ctx, MethodSessionStart, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SessionStop stops a session.
+func (c *Client) SessionStop(ctx context.Context, sessionID string) error {
+	params := SessionStopParams{SessionID: sessionID}
+	return c.call(ctx, MethodSessionStop, params, nil)
+}
+
+// AgentWake wakes up (starts a session for) an agent.
+func (c *Client) AgentWake(ctx context.Context, handle string) (*AgentWakeResult, error) {
+	params := AgentWakeParams{Handle: handle}
+	var result AgentWakeResult
+	if err := c.call(ctx, MethodAgentWake, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// AgentSleep puts an agent to sleep (stops its session).
+func (c *Client) AgentSleep(ctx context.Context, handle string) error {
+	params := AgentSleepParams{Handle: handle}
+	return c.call(ctx, MethodAgentSleep, params, nil)
+}
+
+// AgentStatus returns the status of an agent's session.
+func (c *Client) AgentStatus(ctx context.Context, handle string) (*AgentStatusResult, error) {
+	params := AgentStatusParams{Handle: handle}
+	var result AgentStatusResult
+	if err := c.call(ctx, MethodAgentStatus, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TriggerList returns all registered triggers.
+func (c *Client) TriggerList(ctx context.Context) (*TriggerListResult, error) {
+	var result TriggerListResult
+	if err := c.call(ctx, MethodTriggerList, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TriggerGet returns a trigger by ID.
+func (c *Client) TriggerGet(ctx context.Context, id string) (*TriggerGetResult, error) {
+	params := TriggerGetParams{ID: id}
+	var result TriggerGetResult
+	if err := c.call(ctx, MethodTriggerGet, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TriggerRegister registers a new trigger.
+func (c *Client) TriggerRegister(ctx context.Context, params TriggerRegisterParams) (*TriggerRegisterResult, error) {
+	var result TriggerRegisterResult
+	if err := c.call(ctx, MethodTriggerRegister, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TriggerRemove removes a trigger by ID.
+func (c *Client) TriggerRemove(ctx context.Context, id string) error {
+	params := TriggerRemoveParams{ID: id}
+	return c.call(ctx, MethodTriggerRemove, params, nil)
+}
+
+// TriggerTest fires a trigger manually for testing.
+func (c *Client) TriggerTest(ctx context.Context, id string) error {
+	params := TriggerTestParams{ID: id}
+	return c.call(ctx, MethodTriggerTest, params, nil)
+}
+
 // IsDaemonRunning checks if the daemon is running.
 func IsDaemonRunning() bool {
 	pidPath := DefaultPIDPath()

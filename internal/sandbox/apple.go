@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -28,17 +30,18 @@ type AppleProvider struct {
 }
 
 type appleSandbox struct {
-	id          string
-	name        string
-	containerID string
-	status      providers.SandboxStatus
-	createdAt   time.Time
-	pool        string
-	agents      []string
-	user        string // User account created in the sandbox
-	image       string
-	mounts      []providers.Mount
-	network     providers.NetworkConfig
+	id           string
+	name         string
+	containerID  string
+	status       providers.SandboxStatus
+	createdAt    time.Time
+	pool         string
+	agents       []string
+	user         string // User account created in the sandbox
+	image        string
+	mounts       []providers.Mount
+	network      providers.NetworkConfig
+	createdUsers map[string]bool // Tracks which agent users have been created
 }
 
 // NewAppleProvider creates a new Apple Container sandbox provider.
@@ -86,7 +89,7 @@ func (p *AppleProvider) Create(ctx context.Context, opts providers.SandboxCreate
 
 	image := opts.Image
 	if image == "" {
-		image = "docker.io/library/busybox:stable"
+		image = "docker.io/library/alpine:3.21"
 	}
 
 	debug.Log("creating apple container sandbox", "id", id, "name", name, "image", image)
@@ -107,6 +110,10 @@ func (p *AppleProvider) Create(ctx context.Context, opts providers.SandboxCreate
 	// Network mode - Apple Container uses --no-dns to disable network
 	if !opts.Network.Enabled {
 		args = append(args, "--no-dns")
+	} else {
+		// Use Cloudflare DNS for reliable resolution
+		// The default gateway DNS (192.168.64.1) often doesn't work
+		args = append(args, "--dns", "1.1.1.1")
 	}
 
 	// Resource limits
@@ -173,18 +180,37 @@ func (p *AppleProvider) Create(ctx context.Context, opts providers.SandboxCreate
 		}
 	}
 
+	// Create standard sandbox directory structure
+	if err := p.setupDirectories(ctx, containerID); err != nil {
+		debug.Log("directory setup failed", "error", err)
+		// Not fatal - directories can be created later
+	}
+
+	// Install and configure ngircd for inter-agent communication
+	if err := p.setupNgircd(ctx, containerID); err != nil {
+		debug.Log("ngircd setup failed", "error", err)
+		// Not fatal - sandbox can still function without IRC
+	}
+
+	// Install IRC helper scripts (msg, irc-log, irc-join, irc-nick)
+	if err := p.setupIRCHelpers(ctx, containerID); err != nil {
+		debug.Log("IRC helpers setup failed", "error", err)
+		// Not fatal - scripts are convenience utilities
+	}
+
 	sb := &appleSandbox{
-		id:          name, // Use name as ID for consistency with List()
-		name:        name,
-		containerID: containerID,
-		status:      providers.SandboxStatusRunning,
-		createdAt:   time.Now(),
-		pool:        opts.Pool,
-		agents:      make([]string, 0),
-		user:        opts.User,
-		image:       image,
-		mounts:      opts.Mounts,
-		network:     opts.Network,
+		id:           name, // Use name as ID for consistency with List()
+		name:         name,
+		containerID:  containerID,
+		status:       providers.SandboxStatusRunning,
+		createdAt:    time.Now(),
+		pool:         opts.Pool,
+		agents:       make([]string, 0),
+		user:         opts.User,
+		image:        image,
+		mounts:       opts.Mounts,
+		network:      opts.Network,
+		createdUsers: make(map[string]bool),
 	}
 	p.sandboxes[name] = sb // Key by name, not internal ID
 
@@ -515,6 +541,259 @@ func (p *AppleProvider) AssignAgent(id, agentHandle string) error {
 	return nil
 }
 
+// Stats returns resource usage statistics for a sandbox.
+func (p *AppleProvider) Stats(ctx context.Context, id string) (providers.SandboxStats, error) {
+	// Resolve container ID
+	containerID, err := p.resolveContainerID(ctx, id)
+	if err != nil {
+		return providers.SandboxStats{}, err
+	}
+
+	// Get uptime from in-memory cache if available
+	var uptime time.Duration
+	if sb, ok := p.sandboxes[id]; ok {
+		uptime = time.Since(sb.createdAt)
+	}
+
+	// Try to get stats from container runtime
+	// Apple Container supports `container stats <name>` for resource info
+	cmd := exec.CommandContext(ctx, "container", "stats", containerID, "--format", "json")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		debug.Log("container stats failed, returning basic stats", "id", id, "error", err)
+		// Return basic stats on error
+		return providers.SandboxStats{
+			Uptime: uptime,
+		}, nil
+	}
+
+	// Parse stats output (Apple Container JSON format)
+	var statsOutput struct {
+		CPUPercent  float64 `json:"cpuPercent"`
+		MemoryBytes int64   `json:"memoryBytes"`
+		MemoryLimit int64   `json:"memoryLimit"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &statsOutput); err != nil {
+		debug.Log("failed to parse stats JSON", "error", err)
+		return providers.SandboxStats{Uptime: uptime}, nil
+	}
+
+	return providers.SandboxStats{
+		CPUPercent:       statsOutput.CPUPercent,
+		MemoryUsageBytes: statsOutput.MemoryBytes,
+		MemoryLimitBytes: statsOutput.MemoryLimit,
+		Uptime:           uptime,
+	}, nil
+}
+
+// ngircdConfig is a minimal ngircd configuration for inter-agent communication.
+const ngircdConfig = `[Global]
+Name = ayo.sandbox
+Info = Ayo Sandbox IRC Server
+Ports = 6667
+Listen = 127.0.0.1
+
+[Limits]
+MaxConnections = 100
+MaxChannels = 50
+MaxNickLength = 32
+
+[Options]
+AllowRemoteOper = no
+ChrootDir =
+OperCanUseMode = yes
+OperChanPAutoOp = yes
+PredefChannelsOnly = no
+PAM = no
+
+[Channel]
+Name = #general
+Topic = General agent communication channel
+Modes = tn
+`
+
+// ircHelperScripts contains shell scripts for IRC communication.
+// These are installed in /usr/local/bin/ for easy agent access.
+var ircHelperScripts = map[string]string{
+	// msg - Send an IRC message to a channel or user
+	"msg": `#!/bin/sh
+# Usage: msg <target> <message>
+# target: #channel or @agent
+if [ $# -lt 2 ]; then
+  echo "Usage: msg <target> <message>" >&2
+  exit 1
+fi
+target="$1"; shift
+# Convert @user to plain user for PRIVMSG
+case "$target" in
+  @*) target="${target#@}" ;;
+esac
+printf 'PRIVMSG %s :%s\r\n' "$target" "$*" | nc -q0 localhost 6667
+`,
+
+	// irc-log - Read IRC logs for a channel
+	"irc-log": `#!/bin/sh
+# Usage: irc-log [channel] [lines]
+channel="${1:-general}"
+lines="${2:-20}"
+logfile="/var/log/irc/${channel}.log"
+if [ -f "$logfile" ]; then
+  tail -n "$lines" "$logfile"
+else
+  echo "No logs for channel: $channel" >&2
+  exit 1
+fi
+`,
+
+	// irc-join - Join an IRC channel
+	"irc-join": `#!/bin/sh
+# Usage: irc-join <channel>
+if [ $# -lt 1 ]; then
+  echo "Usage: irc-join <channel>" >&2
+  exit 1
+fi
+channel="$1"
+# Ensure channel starts with #
+case "$channel" in
+  \#*) ;;
+  *) channel="#$channel" ;;
+esac
+printf 'JOIN %s\r\n' "$channel" | nc -q0 localhost 6667
+`,
+
+	// irc-nick - Set IRC nickname
+	"irc-nick": `#!/bin/sh
+# Usage: irc-nick <nickname>
+if [ $# -lt 1 ]; then
+  echo "Usage: irc-nick <nickname>" >&2
+  exit 1
+fi
+nick="$1"
+printf 'NICK %s\r\nUSER %s 0 * :%s\r\n' "$nick" "$nick" "$nick" | nc -q0 localhost 6667
+`,
+}
+
+// setupDirectories creates the standard sandbox directory structure.
+func (p *AppleProvider) setupDirectories(ctx context.Context, containerID string) error {
+	debug.Log("setting up sandbox directories", "container", containerID)
+
+	// Create standard directories with appropriate permissions
+	dirs := []struct {
+		path string
+		mode string
+	}{
+		{"/shared", "1777"},           // Sticky bit, world-writable for cross-agent sharing
+		{"/workspaces", "755"},        // Session workspaces, root-owned
+		{"/var/log/irc", "755"},       // IRC logs
+		{"/mnt/host", "755"},          // Host filesystem mount point
+	}
+
+	for _, dir := range dirs {
+		if err := p.execSimple(ctx, containerID, "mkdir", "-p", dir.path); err != nil {
+			return fmt.Errorf("failed to create %s: %w", dir.path, err)
+		}
+		if err := p.execSimple(ctx, containerID, "chmod", dir.mode, dir.path); err != nil {
+			debug.Log("failed to chmod directory", "path", dir.path, "error", err)
+		}
+	}
+
+	debug.Log("sandbox directories setup complete", "container", containerID)
+	return nil
+}
+
+// setupNgircd installs and configures ngircd in the sandbox container.
+func (p *AppleProvider) setupNgircd(ctx context.Context, containerID string) error {
+	debug.Log("setting up ngircd", "container", containerID)
+
+	// Create IRC log directory
+	if err := p.execSimple(ctx, containerID, "mkdir", "-p", "/var/log/irc"); err != nil {
+		debug.Log("failed to create IRC log directory", "error", err)
+	}
+
+	// Update apk index and install ngircd and netcat (for IRC connectivity)
+	if err := p.execSimple(ctx, containerID, "apk", "update"); err != nil {
+		return fmt.Errorf("failed to update apk index: %w", err)
+	}
+	if err := p.execSimple(ctx, containerID, "apk", "add", "--no-cache", "ngircd", "netcat-openbsd"); err != nil {
+		return fmt.Errorf("failed to install ngircd: %w", err)
+	}
+
+	// Write ngircd config
+	// Using sh -c with heredoc to write the config file
+	configCmd := fmt.Sprintf("cat > /etc/ngircd/ngircd.conf << 'EOF'\n%sEOF", ngircdConfig)
+	if err := p.execShell(ctx, containerID, configCmd); err != nil {
+		return fmt.Errorf("failed to write ngircd config: %w", err)
+	}
+
+	// Start ngircd in the background
+	// ngircd -n runs in foreground, so we use nohup + & to background it
+	if err := p.execShell(ctx, containerID, "nohup ngircd -n > /var/log/irc/ngircd.log 2>&1 &"); err != nil {
+		return fmt.Errorf("failed to start ngircd: %w", err)
+	}
+
+	// Verify ngircd is running
+	if err := p.execSimple(ctx, containerID, "pgrep", "ngircd"); err != nil {
+		return fmt.Errorf("ngircd failed to start: %w", err)
+	}
+
+	debug.Log("ngircd setup complete", "container", containerID)
+	return nil
+}
+
+// setupIRCHelpers installs IRC helper scripts in /usr/local/bin/.
+func (p *AppleProvider) setupIRCHelpers(ctx context.Context, containerID string) error {
+	debug.Log("setting up IRC helper scripts", "container", containerID)
+
+	// Create /usr/local/bin if it doesn't exist
+	if err := p.execSimple(ctx, containerID, "mkdir", "-p", "/usr/local/bin"); err != nil {
+		return fmt.Errorf("failed to create /usr/local/bin: %w", err)
+	}
+
+	// Install each helper script
+	for name, content := range ircHelperScripts {
+		scriptPath := fmt.Sprintf("/usr/local/bin/%s", name)
+		// Write script content using heredoc
+		writeCmd := fmt.Sprintf("cat > %s << 'SCRIPT_EOF'\n%sSCRIPT_EOF", scriptPath, content)
+		if err := p.execShell(ctx, containerID, writeCmd); err != nil {
+			return fmt.Errorf("failed to write %s script: %w", name, err)
+		}
+		// Make executable
+		if err := p.execSimple(ctx, containerID, "chmod", "+x", scriptPath); err != nil {
+			return fmt.Errorf("failed to chmod %s: %w", name, err)
+		}
+		debug.Log("installed IRC helper script", "name", name, "path", scriptPath)
+	}
+
+	debug.Log("IRC helper scripts setup complete", "container", containerID)
+	return nil
+}
+
+// execSimple executes a simple command in the container.
+func (p *AppleProvider) execSimple(ctx context.Context, containerID string, cmdArgs ...string) error {
+	args := []string{"exec", containerID}
+	args = append(args, cmdArgs...)
+	cmd := exec.CommandContext(ctx, "container", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s: %s", err, stderr.String())
+	}
+	return nil
+}
+
+// execShell executes a shell command string in the container.
+func (p *AppleProvider) execShell(ctx context.Context, containerID string, command string) error {
+	args := []string{"exec", containerID, "sh", "-c", command}
+	cmd := exec.CommandContext(ctx, "container", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s: %s", err, stderr.String())
+	}
+	return nil
+}
+
 // isAppleContainerAvailable checks if Apple Container is available on the system.
 // Requires macOS 26+ on Apple Silicon.
 func isAppleContainerAvailable() bool {
@@ -541,6 +820,116 @@ func isAppleContainerAvailable() bool {
 	}
 
 	return true
+}
+
+// EnsureAgentUser ensures a Unix user exists for the agent in the sandbox.
+// If dotfilesPath is non-empty, copies dotfiles from that host directory to the user's home.
+func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHandle string, dotfilesPath string) error {
+	// Resolve container ID
+	containerID, err := p.resolveContainerID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Check if we've already created this user in this sandbox instance
+	sb, ok := p.sandboxes[id]
+	if ok && sb.createdUsers != nil && sb.createdUsers[agentHandle] {
+		debug.Log("agent user already tracked as created", "agent", agentHandle)
+		return nil
+	}
+
+	// Check if user already exists in container
+	if err := p.execSimple(ctx, containerID, "id", agentHandle); err == nil {
+		debug.Log("agent user already exists", "agent", agentHandle)
+		// Track that user exists
+		if ok && sb.createdUsers != nil {
+			sb.createdUsers[agentHandle] = true
+		}
+		return nil // User exists
+	}
+
+	debug.Log("creating agent user", "agent", agentHandle, "container", containerID)
+
+	// Create user with adduser (Alpine/BusyBox-compatible)
+	// -D: don't assign a password
+	// -s /bin/sh: set shell
+	// -h /home/{agent}: set home directory
+	if err := p.execSimple(ctx, containerID, "adduser", "-D", "-s", "/bin/sh", agentHandle); err != nil {
+		return fmt.Errorf("failed to create user %s: %w", agentHandle, err)
+	}
+
+	// Track that we created this user
+	if ok && sb.createdUsers != nil {
+		sb.createdUsers[agentHandle] = true
+	}
+
+	debug.Log("agent user created", "agent", agentHandle)
+
+	// Copy agent dotfiles if provided
+	if dotfilesPath != "" {
+		if err := p.copyDotfiles(ctx, containerID, agentHandle, dotfilesPath); err != nil {
+			debug.Log("failed to copy dotfiles", "agent", agentHandle, "error", err)
+			// Not fatal - user is still created
+		}
+	}
+
+	return nil
+}
+
+// copyDotfiles copies dotfiles from a host directory to the agent's home directory.
+func (p *AppleProvider) copyDotfiles(ctx context.Context, containerID, agentHandle, dotfilesPath string) error {
+	// Check if dotfiles directory exists on host
+	info, err := os.Stat(dotfilesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			debug.Log("no dotfiles directory", "path", dotfilesPath)
+			return nil // No dotfiles to copy
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("dotfiles path is not a directory: %s", dotfilesPath)
+	}
+
+	// Read dotfiles from host directory
+	entries, err := os.ReadDir(dotfilesPath)
+	if err != nil {
+		return fmt.Errorf("read dotfiles directory: %w", err)
+	}
+
+	homeDir := "/home/" + agentHandle
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // Skip subdirectories for now
+		}
+
+		srcPath := filepath.Join(dotfilesPath, entry.Name())
+		dstPath := homeDir + "/" + entry.Name()
+
+		// Read file content from host
+		content, err := os.ReadFile(srcPath)
+		if err != nil {
+			debug.Log("failed to read dotfile", "file", srcPath, "error", err)
+			continue
+		}
+
+		// Write file content to container using heredoc
+		writeCmd := fmt.Sprintf("cat > %s << 'DOTFILE_EOF'\n%sDOTFILE_EOF", dstPath, string(content))
+		if err := p.execShell(ctx, containerID, writeCmd); err != nil {
+			debug.Log("failed to write dotfile", "file", dstPath, "error", err)
+			continue
+		}
+
+		// Set ownership to the agent user
+		if err := p.execSimple(ctx, containerID, "chown", agentHandle+":"+agentHandle, dstPath); err != nil {
+			debug.Log("failed to chown dotfile", "file", dstPath, "error", err)
+		}
+
+		debug.Log("copied dotfile", "src", srcPath, "dst", dstPath)
+	}
+
+	return nil
 }
 
 // Verify AppleProvider implements SandboxProvider.

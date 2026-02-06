@@ -27,6 +27,8 @@ type noneSandbox struct {
 	createdAt time.Time
 	pool      string
 	agents    []string
+	user      string
+	mounts    []providers.Mount
 }
 
 // NewNoneProvider creates a new none sandbox provider.
@@ -56,6 +58,8 @@ func (p *NoneProvider) Create(ctx context.Context, opts providers.SandboxCreateO
 		createdAt: time.Now(),
 		pool:      opts.Pool,
 		agents:    make([]string, 0),
+		user:      opts.User,
+		mounts:    opts.Mounts,
 	}
 	p.sandboxes[id] = sb
 
@@ -209,6 +213,8 @@ func (p *NoneProvider) sandboxToProviders(sb *noneSandbox) providers.Sandbox {
 		Status:    sb.status,
 		Pool:      sb.pool,
 		Agents:    sb.agents,
+		User:      sb.user,
+		Mounts:    sb.mounts,
 		CreatedAt: sb.createdAt,
 	}
 }
@@ -220,6 +226,28 @@ func (p *NoneProvider) AssignAgent(id, agentHandle string) error {
 		return fmt.Errorf("sandbox not found: %s", id)
 	}
 	sb.agents = append(sb.agents, agentHandle)
+	return nil
+}
+
+// Stats returns resource usage statistics for a sandbox.
+// For NoneProvider, this returns zero stats since there's no actual container.
+func (p *NoneProvider) Stats(ctx context.Context, id string) (providers.SandboxStats, error) {
+	sb, ok := p.sandboxes[id]
+	if !ok {
+		return providers.SandboxStats{}, fmt.Errorf("sandbox not found: %s", id)
+	}
+
+	// Return basic stats with uptime calculated from creation time
+	uptime := time.Since(sb.createdAt)
+
+	return providers.SandboxStats{
+		Uptime: uptime,
+	}, nil
+}
+
+// EnsureAgentUser is a no-op for NoneProvider since there's no container.
+func (p *NoneProvider) EnsureAgentUser(_ context.Context, _ string, _ string, _ string) error {
+	// No-op: NoneProvider runs on host, no user isolation
 	return nil
 }
 

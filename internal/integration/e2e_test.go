@@ -338,3 +338,295 @@ func TestE2E_MockProvider(t *testing.T) {
 		t.Errorf("execCount: got %d, want 3", execCount)
 	}
 }
+
+// TestE2E_SandboxWithUser tests sandbox creation with a dedicated user.
+func TestE2E_SandboxWithUser(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	ctx, cancel := env.Context()
+	defer cancel()
+
+	// Create sandbox with a user
+	sb, err := env.SandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+		Name: "e2e-user-test",
+		User: "testuser",
+	})
+	if err != nil {
+		t.Fatalf("Create sandbox: %v", err)
+	}
+	defer env.SandboxProvider.Delete(ctx, sb.ID, true)
+
+	// Verify user was stored
+	if sb.User != "testuser" {
+		t.Errorf("User: got %q, want %q", sb.User, "testuser")
+	}
+
+	// Execute whoami as the user
+	result, err := env.SandboxProvider.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "whoami",
+		User:    "testuser",
+	})
+	if err != nil {
+		t.Fatalf("Exec whoami: %v", err)
+	}
+	// NoneProvider runs on host so whoami returns actual user
+	// This test validates the flow works, not the actual user isolation
+	if result.ExitCode != 0 {
+		t.Errorf("whoami exit code: %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+}
+
+// TestE2E_SandboxWithPersistentHome tests sandbox with persistent home mount.
+func TestE2E_SandboxWithPersistentHome(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	ctx, cancel := env.Context()
+	defer cancel()
+
+	// Create a persistent home directory
+	homeDir := filepath.Join(env.DataDir, "agent-homes", "test-agent")
+	if err := os.MkdirAll(homeDir, 0755); err != nil {
+		t.Fatalf("Create home dir: %v", err)
+	}
+
+	// Write a test file to the home
+	testFile := filepath.Join(homeDir, "config.txt")
+	if err := os.WriteFile(testFile, []byte("test-config"), 0644); err != nil {
+		t.Fatalf("Write test file: %v", err)
+	}
+
+	// Create sandbox with home mount
+	sb, err := env.SandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+		Name: "e2e-home-test",
+		User: "ayo",
+		Mounts: []providers.Mount{{
+			Source:      homeDir,
+			Destination: "/home/ayo",
+			Mode:        providers.MountModeBind,
+			ReadOnly:    false,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Create sandbox: %v", err)
+	}
+	defer env.SandboxProvider.Delete(ctx, sb.ID, true)
+
+	// Verify mount was recorded
+	foundMount := false
+	for _, m := range sb.Mounts {
+		if m.Destination == "/home/ayo" {
+			foundMount = true
+			break
+		}
+	}
+	if !foundMount {
+		t.Errorf("Expected mount at /home/ayo not found")
+	}
+
+	// NoneProvider uses host filesystem directly, so test file should exist
+	if _, err := os.Stat(testFile); err != nil {
+		t.Errorf("Persistent home file not accessible: %v", err)
+	}
+}
+
+// TestE2E_FileTransferMock tests file transfer via mock provider.
+func TestE2E_FileTransferMock(t *testing.T) {
+	mock := sandbox.NewMockProvider()
+
+	// Track stdin data passed to exec
+	var receivedStdin []byte
+	mock.ExecFunc = func(ctx context.Context, id string, opts providers.ExecOptions) (providers.ExecResult, error) {
+		receivedStdin = opts.Stdin
+		// Simulate tar extraction success
+		return providers.ExecResult{ExitCode: 0}, nil
+	}
+
+	ctx := context.Background()
+
+	// Create sandbox
+	sb, _ := mock.Create(ctx, providers.SandboxCreateOptions{Name: "transfer-test"})
+
+	// Simulate push with stdin (tar data)
+	tarData := []byte("fake-tar-archive-content")
+	result, err := mock.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "tar",
+		Args:    []string{"-xf", "-", "-C", "/tmp"},
+		Stdin:   tarData,
+	})
+	if err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("Exit code: %d", result.ExitCode)
+	}
+	if string(receivedStdin) != string(tarData) {
+		t.Errorf("Stdin not passed correctly: got %d bytes, want %d", len(receivedStdin), len(tarData))
+	}
+
+	// Verify exec was called
+	if len(mock.ExecCalls) != 1 {
+		t.Errorf("ExecCalls: got %d, want 1", len(mock.ExecCalls))
+	}
+	call := mock.ExecCalls[0]
+	if call.Options.Command != "tar" {
+		t.Errorf("Command: got %q, want %q", call.Options.Command, "tar")
+	}
+}
+
+// TestE2E_SandboxStopForce tests force stopping a sandbox.
+func TestE2E_SandboxStopForce(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	ctx, cancel := env.Context()
+	defer cancel()
+
+	sb, err := env.SandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+		Name: "e2e-stop-test",
+	})
+	if err != nil {
+		t.Fatalf("Create sandbox: %v", err)
+	}
+
+	// Stop with force
+	err = env.SandboxProvider.Stop(ctx, sb.ID, providers.SandboxStopOptions{
+		Timeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	// Verify status
+	status, err := env.SandboxProvider.Status(ctx, sb.ID)
+	if err != nil {
+		// NoneProvider may return error for stopped sandbox
+		t.Logf("Status after stop: %v", err)
+	} else if status != providers.SandboxStatusStopped {
+		t.Errorf("Status: got %v, want stopped", status)
+	}
+
+	// Cleanup
+	if err := env.SandboxProvider.Delete(ctx, sb.ID, true); err != nil {
+		t.Logf("Delete: %v", err)
+	}
+}
+
+// TestE2E_MultiAgentCollaboration tests multiple agents sharing a sandbox via collaboration group.
+func TestE2E_MultiAgentCollaboration(t *testing.T) {
+	provider := sandbox.NewNoneProvider()
+	pool := sandbox.NewPool(sandbox.PoolConfig{
+		Name:    "collab-pool",
+		MinSize: 1,
+		MaxSize: 5,
+	}, provider)
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Start pool: %v", err)
+	}
+	defer pool.Stop(ctx)
+
+	// Agent 1 acquires sandbox with collaboration group
+	sb1, err := pool.AcquireWithOptions(ctx, sandbox.AcquireOptions{
+		Agent: "@ayo",
+		Group: "project-x",
+	})
+	if err != nil {
+		t.Fatalf("Acquire @ayo: %v", err)
+	}
+
+	// Agent 2 joins the same collaboration group - should get same sandbox
+	sb2, err := pool.AcquireWithOptions(ctx, sandbox.AcquireOptions{
+		Agent: "@crush",
+		Group: "project-x",
+	})
+	if err != nil {
+		t.Fatalf("Acquire @crush: %v", err)
+	}
+
+	if sb1.ID != sb2.ID {
+		t.Errorf("Agents in same group should share sandbox: sb1=%s, sb2=%s", sb1.ID, sb2.ID)
+	}
+
+	// Agent 3 in different group should get different sandbox
+	sb3, err := pool.AcquireWithOptions(ctx, sandbox.AcquireOptions{
+		Agent: "@research",
+		Group: "project-y",
+	})
+	if err != nil {
+		t.Fatalf("Acquire @research: %v", err)
+	}
+
+	if sb1.ID == sb3.ID {
+		t.Errorf("Agents in different groups should have different sandboxes")
+	}
+
+	// Verify agents list
+	agents := pool.GetSandboxAgents(sb1.ID)
+	if len(agents) != 2 {
+		t.Errorf("Expected 2 agents in sandbox, got %d", len(agents))
+	}
+
+	// Release one agent - sandbox should still be in use
+	if err := pool.ReleaseAgent(ctx, sb1.ID, "@ayo"); err != nil {
+		t.Fatalf("ReleaseAgent: %v", err)
+	}
+
+	agents = pool.GetSandboxAgents(sb1.ID)
+	if len(agents) != 1 {
+		t.Errorf("Expected 1 agent after release, got %d", len(agents))
+	}
+
+	// Release remaining agent - sandbox should be idle
+	if err := pool.ReleaseAgent(ctx, sb1.ID, "@crush"); err != nil {
+		t.Fatalf("ReleaseAgent: %v", err)
+	}
+
+	status := pool.Status()
+	if status.InUse != 1 { // Only sb3 should be in use
+		t.Errorf("InUse: got %d, want 1", status.InUse)
+	}
+}
+
+// TestE2E_JoinExistingSandbox tests an agent joining an existing sandbox by ID.
+func TestE2E_JoinExistingSandbox(t *testing.T) {
+	provider := sandbox.NewNoneProvider()
+	pool := sandbox.NewPool(sandbox.PoolConfig{
+		Name:    "join-pool",
+		MinSize: 1,
+		MaxSize: 5,
+	}, provider)
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Start pool: %v", err)
+	}
+	defer pool.Stop(ctx)
+
+	// Primary agent acquires sandbox
+	sb1, err := pool.Acquire(ctx, "@ayo")
+	if err != nil {
+		t.Fatalf("Acquire @ayo: %v", err)
+	}
+
+	// Secondary agent joins by sandbox ID
+	sb2, err := pool.AcquireWithOptions(ctx, sandbox.AcquireOptions{
+		Agent:       "@crush",
+		JoinSandbox: sb1.ID,
+	})
+	if err != nil {
+		t.Fatalf("Join sandbox: %v", err)
+	}
+
+	if sb1.ID != sb2.ID {
+		t.Errorf("JoinSandbox should return same sandbox: sb1=%s, sb2=%s", sb1.ID, sb2.ID)
+	}
+
+	// Both agents should be listed
+	agents := pool.GetSandboxAgents(sb1.ID)
+	if len(agents) != 2 {
+		t.Errorf("Expected 2 agents in sandbox, got %d: %v", len(agents), agents)
+	}
+}

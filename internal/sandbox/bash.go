@@ -68,10 +68,14 @@ func (r BashResult) String() string {
 
 // Executor executes bash commands in a sandbox.
 type Executor struct {
-	provider  providers.SandboxProvider
-	sandboxID string
-	baseDir   string
-	user      string // User to run commands as (empty = root)
+	provider    providers.SandboxProvider
+	sandboxID   string
+	baseDir     string
+	user        string // User to run commands as (empty = root)
+	sessionID   string // Session ID for workspace creation
+	agentHandle string // Agent handle for env vars
+	workspaceDir string // Path to session workspace in sandbox
+	env          map[string]string // Environment variables to inject
 }
 
 // NewExecutor creates a new sandbox executor.
@@ -81,7 +85,83 @@ func NewExecutor(provider providers.SandboxProvider, sandboxID, baseDir, user st
 		sandboxID: sandboxID,
 		baseDir:   baseDir,
 		user:      user,
+		env:       make(map[string]string),
 	}
+}
+
+// SetSession configures the executor with session and agent information.
+// This sets up environment variables and prepares workspace creation.
+func (e *Executor) SetSession(sessionID, agentHandle string) {
+	e.sessionID = sessionID
+	e.agentHandle = agentHandle
+	if sessionID != "" {
+		e.workspaceDir = fmt.Sprintf("/workspaces/%s", sessionID)
+		e.env["WORKSPACE"] = e.workspaceDir
+		e.env["SESSION_ID"] = sessionID
+	}
+	if agentHandle != "" {
+		e.env["AGENT"] = agentHandle
+	}
+}
+
+// CreateSessionWorkspace creates the session workspace directory in the sandbox.
+// Call this after SetSession and before executing commands.
+func (e *Executor) CreateSessionWorkspace(ctx context.Context) error {
+	if e.workspaceDir == "" {
+		return nil // No workspace configured
+	}
+
+	// Create workspace directory structure
+	workspaceDirs := []string{
+		e.workspaceDir,
+		fmt.Sprintf("%s/mounted", e.workspaceDir),
+		fmt.Sprintf("%s/scratch", e.workspaceDir),
+		fmt.Sprintf("%s/shared", e.workspaceDir),
+	}
+
+	mkdirCmd := fmt.Sprintf("mkdir -p %s", joinPaths(workspaceDirs))
+	_, err := e.provider.Exec(ctx, e.sandboxID, providers.ExecOptions{
+		Command:    mkdirCmd,
+		WorkingDir: "/",
+		Timeout:    10 * time.Second,
+		User:       "root", // Use root to create dirs, then chown
+	})
+	if err != nil {
+		return fmt.Errorf("create workspace directories: %w", err)
+	}
+
+	// Chown to agent user if specified
+	if e.user != "" && e.user != "root" {
+		chownCmd := fmt.Sprintf("chown -R %s:%s %s", e.user, e.user, e.workspaceDir)
+		_, err := e.provider.Exec(ctx, e.sandboxID, providers.ExecOptions{
+			Command:    chownCmd,
+			WorkingDir: "/",
+			Timeout:    10 * time.Second,
+			User:       "root",
+		})
+		if err != nil {
+			return fmt.Errorf("chown workspace: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// WorkspaceDir returns the path to the session workspace in the sandbox.
+func (e *Executor) WorkspaceDir() string {
+	return e.workspaceDir
+}
+
+// joinPaths joins paths with spaces for shell command.
+func joinPaths(paths []string) string {
+	result := ""
+	for i, p := range paths {
+		if i > 0 {
+			result += " "
+		}
+		result += p
+	}
+	return result
 }
 
 // Exec executes a command in the sandbox.
@@ -105,6 +185,7 @@ func (e *Executor) Exec(ctx context.Context, params BashParams) (BashResult, err
 		WorkingDir: workingDir,
 		Timeout:    timeout,
 		User:       e.user,
+		Env:        e.env,
 	})
 	if err != nil {
 		return BashResult{}, fmt.Errorf("sandbox exec: %w", err)

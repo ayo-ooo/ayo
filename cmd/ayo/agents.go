@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,8 +13,13 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/daemon"
 )
+
+// Ensure cli package is used (globalOutput is defined in root.go)
+var _ = cli.Output{}
 
 func newAgentsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -46,6 +52,9 @@ For help designing agents, chat with @ayo:
 	cmd.AddCommand(showAgentCmd(cfgPath))
 	cmd.AddCommand(updateAgentsCmd(cfgPath))
 	cmd.AddCommand(rmAgentCmd(cfgPath))
+	cmd.AddCommand(statusAgentsCmd())
+	cmd.AddCommand(wakeAgentCmd())
+	cmd.AddCommand(sleepAgentCmd())
 
 	return cmd
 }
@@ -111,6 +120,35 @@ func listAgentsCmd(cfgPath *string) *cobra.Command {
 					} else {
 						userAgents = append(userAgents, agentInfo{h, desc})
 					}
+				}
+
+				// JSON output
+				if globalOutput.JSON {
+					type agentJSON struct {
+						Handle      string `json:"handle"`
+						Description string `json:"description,omitempty"`
+						Builtin     bool   `json:"builtin"`
+					}
+					var agents []agentJSON
+					for _, a := range userAgents {
+						agents = append(agents, agentJSON{Handle: a.handle, Description: a.desc, Builtin: false})
+					}
+					for _, a := range builtinAgents {
+						agents = append(agents, agentJSON{Handle: a.handle, Description: a.desc, Builtin: true})
+					}
+					globalOutput.PrintData(agents, "")
+					return nil
+				}
+
+				// Quiet mode: just list handles
+				if globalOutput.Quiet {
+					for _, a := range userAgents {
+						fmt.Println(a.handle)
+					}
+					for _, a := range builtinAgents {
+						fmt.Println(a.handle)
+					}
+					return nil
 				}
 
 				// Render function for an agent
@@ -581,6 +619,195 @@ Examples:
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "skip confirmation prompt")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without removing")
+
+	return cmd
+}
+
+func statusAgentsCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show active agent sessions",
+		Long: `List all active agent sessions managed by the daemon.
+
+Shows running agents with their status, start time, and last activity.
+
+Examples:
+  ayo agents status
+  ayo agents status --json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			client, err := daemon.ConnectOrStart(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			result, err := client.SessionList(ctx)
+			if err != nil {
+				return fmt.Errorf("list sessions: %w", err)
+			}
+
+			if jsonOutput {
+				return json.NewEncoder(os.Stdout).Encode(result.Sessions)
+			}
+
+			if len(result.Sessions) == 0 {
+				fmt.Println("No active agent sessions")
+				return nil
+			}
+
+			// Styles
+			purple := lipgloss.Color("#a78bfa")
+			cyan := lipgloss.Color("#67e8f9")
+			muted := lipgloss.Color("#6b7280")
+			subtle := lipgloss.Color("#374151")
+			green := lipgloss.Color("#34d399")
+			yellow := lipgloss.Color("#fbbf24")
+
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
+			dividerStyle := lipgloss.NewStyle().Foreground(subtle)
+			handleStyle := lipgloss.NewStyle().Foreground(cyan).Bold(true)
+			runningStyle := lipgloss.NewStyle().Foreground(green)
+			idleStyle := lipgloss.NewStyle().Foreground(yellow)
+			mutedStyle := lipgloss.NewStyle().Foreground(muted)
+
+			fmt.Println()
+			fmt.Println(headerStyle.Render("  Active Agent Sessions"))
+			fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
+			fmt.Println()
+
+			// Header row
+			fmt.Printf("  %-15s %-10s %-15s %-15s\n",
+				mutedStyle.Render("Agent"),
+				mutedStyle.Render("Status"),
+				mutedStyle.Render("Started"),
+				mutedStyle.Render("Last Active"))
+
+			for _, sess := range result.Sessions {
+				statusStr := sess.Status
+				var styledStatus string
+				switch sess.Status {
+				case "running":
+					styledStatus = runningStyle.Render(statusStr)
+				case "idle":
+					styledStatus = idleStyle.Render(statusStr)
+				default:
+					styledStatus = mutedStyle.Render(statusStr)
+				}
+
+				started := formatTimeAgo(sess.StartedAt)
+				lastActive := formatTimeAgo(sess.LastActive)
+
+				fmt.Printf("  %-15s %-10s %-15s %-15s\n",
+					handleStyle.Render(sess.AgentHandle),
+					styledStatus,
+					started,
+					lastActive)
+			}
+
+			fmt.Println()
+			fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
+			fmt.Println(mutedStyle.Render(fmt.Sprintf("  %d active sessions", len(result.Sessions))))
+			fmt.Println()
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+
+	return cmd
+}
+
+func wakeAgentCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "wake @handle",
+		Short: "Start an agent session",
+		Long: `Wake up an agent by starting a new session.
+
+If the agent already has an active session, returns the existing session.
+If the daemon is not running, it will be started automatically.
+
+Examples:
+  ayo agents wake @ayo
+  ayo agents wake @research --json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			handle := agent.NormalizeHandle(args[0])
+			ctx := cmd.Context()
+
+			client, err := daemon.ConnectOrStart(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			result, err := client.AgentWake(ctx, handle)
+			if err != nil {
+				return fmt.Errorf("wake agent: %w", err)
+			}
+
+			if jsonOutput {
+				return json.NewEncoder(os.Stdout).Encode(result.Session)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render(fmt.Sprintf("✓ Agent %s is awake", handle)))
+			fmt.Printf("  Session: %s\n", result.Session.ID)
+			fmt.Printf("  Status:  %s\n", result.Session.Status)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+
+	return cmd
+}
+
+func sleepAgentCmd() *cobra.Command {
+	var quiet bool
+
+	cmd := &cobra.Command{
+		Use:   "sleep @handle",
+		Short: "Stop an agent session",
+		Long: `Put an agent to sleep by stopping its session.
+
+The agent can be woken again with 'ayo agents wake'.
+
+Examples:
+  ayo agents sleep @crush
+  ayo agents sleep @research --quiet`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			handle := agent.NormalizeHandle(args[0])
+			ctx := cmd.Context()
+
+			client, err := daemon.ConnectOrStart(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.AgentSleep(ctx, handle); err != nil {
+				return fmt.Errorf("sleep agent: %w", err)
+			}
+
+			if !quiet {
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Println(successStyle.Render(fmt.Sprintf("✓ Agent %s is asleep", handle)))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress output")
 
 	return cmd
 }

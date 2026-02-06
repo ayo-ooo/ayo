@@ -416,6 +416,56 @@ func (p *LinuxProvider) AssignAgent(id, agentHandle string) error {
 	return nil
 }
 
+// Stats returns resource usage statistics for a sandbox.
+func (p *LinuxProvider) Stats(ctx context.Context, id string) (providers.SandboxStats, error) {
+	sb, ok := p.sandboxes[id]
+	if !ok {
+		return providers.SandboxStats{}, fmt.Errorf("sandbox not found: %s", id)
+	}
+
+	uptime := time.Since(sb.createdAt)
+
+	// Try to read cgroup stats if the machine is running
+	// systemd-nspawn creates a machine scope under /sys/fs/cgroup/machine.slice/
+	cgroupPath := fmt.Sprintf("/sys/fs/cgroup/machine.slice/machine-%s.scope", sb.name)
+
+	var stats providers.SandboxStats
+	stats.Uptime = uptime
+
+	// Read memory stats
+	memCurrent, err := os.ReadFile(filepath.Join(cgroupPath, "memory.current"))
+	if err == nil {
+		var memBytes int64
+		fmt.Sscanf(string(memCurrent), "%d", &memBytes)
+		stats.MemoryUsageBytes = memBytes
+	}
+
+	memMax, err := os.ReadFile(filepath.Join(cgroupPath, "memory.max"))
+	if err == nil && string(memMax) != "max\n" {
+		var memLimit int64
+		fmt.Sscanf(string(memMax), "%d", &memLimit)
+		stats.MemoryLimitBytes = memLimit
+	}
+
+	// Read CPU stats (simplified - would need more parsing for accurate percentage)
+	cpuStat, err := os.ReadFile(filepath.Join(cgroupPath, "cpu.stat"))
+	if err == nil {
+		debug.Log("cpu stats", "raw", string(cpuStat))
+		// CPU percentage would require sampling over time, so we leave it at 0
+	}
+
+	// Count processes
+	cgroupProcs, err := os.ReadFile(filepath.Join(cgroupPath, "cgroup.procs"))
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(cgroupProcs)), "\n")
+		if lines[0] != "" {
+			stats.ProcessCount = len(lines)
+		}
+	}
+
+	return stats, nil
+}
+
 // isLinuxContainerAvailable checks if systemd-nspawn is available on the system.
 func isLinuxContainerAvailable() bool {
 	// Check if we're on Linux
@@ -448,6 +498,97 @@ func defaultRootfsDir() string {
 
 	// Fallback to system machines directory
 	return "/var/lib/machines/ayo-sandbox"
+}
+
+// EnsureAgentUser ensures a Unix user exists for the agent in the sandbox.
+// If dotfilesPath is non-empty, copies dotfiles from that host directory to the user's home.
+func (p *LinuxProvider) EnsureAgentUser(ctx context.Context, id string, agentHandle string, dotfilesPath string) error {
+	sb, ok := p.sandboxes[id]
+	if !ok {
+		return fmt.Errorf("sandbox not found: %s", id)
+	}
+
+	// Check if user already exists using machinectl shell
+	checkCmd := exec.CommandContext(ctx, "machinectl", "shell", sb.name, "/usr/bin/id", agentHandle)
+	if err := checkCmd.Run(); err == nil {
+		return nil // User exists
+	}
+
+	// Create user using machinectl shell
+	createCmd := exec.CommandContext(ctx, "machinectl", "shell", sb.name,
+		"/usr/sbin/adduser", "-D", "-s", "/bin/sh", agentHandle)
+	if err := createCmd.Run(); err != nil {
+		return fmt.Errorf("failed to create user %s: %w", agentHandle, err)
+	}
+
+	// Copy dotfiles if provided
+	if dotfilesPath != "" {
+		if err := p.copyDotfiles(ctx, sb.name, agentHandle, dotfilesPath); err != nil {
+			debug.Log("failed to copy dotfiles", "agent", agentHandle, "error", err)
+			// Not fatal - user is still created
+		}
+	}
+
+	return nil
+}
+
+// copyDotfiles copies dotfiles from a host directory to the agent's home directory.
+func (p *LinuxProvider) copyDotfiles(ctx context.Context, machineName, agentHandle, dotfilesPath string) error {
+	// Check if dotfiles directory exists on host
+	info, err := os.Stat(dotfilesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			debug.Log("no dotfiles directory", "path", dotfilesPath)
+			return nil // No dotfiles to copy
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("dotfiles path is not a directory: %s", dotfilesPath)
+	}
+
+	// Read dotfiles from host directory
+	entries, err := os.ReadDir(dotfilesPath)
+	if err != nil {
+		return fmt.Errorf("read dotfiles directory: %w", err)
+	}
+
+	homeDir := "/home/" + agentHandle
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // Skip subdirectories for now
+		}
+
+		srcPath := filepath.Join(dotfilesPath, entry.Name())
+		dstPath := homeDir + "/" + entry.Name()
+
+		// Read file content from host
+		content, err := os.ReadFile(srcPath)
+		if err != nil {
+			debug.Log("failed to read dotfile", "file", srcPath, "error", err)
+			continue
+		}
+
+		// Write file content to container using machinectl shell with heredoc
+		writeCmd := fmt.Sprintf("cat > %s << 'DOTFILE_EOF'\n%sDOTFILE_EOF", dstPath, string(content))
+		cmd := exec.CommandContext(ctx, "machinectl", "shell", machineName, "/bin/sh", "-c", writeCmd)
+		if err := cmd.Run(); err != nil {
+			debug.Log("failed to write dotfile", "file", dstPath, "error", err)
+			continue
+		}
+
+		// Set ownership to the agent user
+		chownCmd := exec.CommandContext(ctx, "machinectl", "shell", machineName,
+			"/bin/chown", agentHandle+":"+agentHandle, dstPath)
+		if err := chownCmd.Run(); err != nil {
+			debug.Log("failed to chown dotfile", "file", dstPath, "error", err)
+		}
+
+		debug.Log("copied dotfile", "src", srcPath, "dst", dstPath)
+	}
+
+	return nil
 }
 
 // Verify LinuxProvider implements SandboxProvider.

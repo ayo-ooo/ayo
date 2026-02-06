@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/version"
 )
+
+// Ensure cli package is used
+var _ = cli.Output{}
 
 func newStatusCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -19,6 +25,11 @@ func newStatusCmd(cfgPath *string) *cobra.Command {
 		Long:  "Display the current status of the ayo daemon, sandbox pool, and related services.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			// Check for JSON output early
+			if globalOutput.JSON {
+				return statusJSON(ctx)
+			}
 
 			// Styles
 			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
@@ -127,4 +138,44 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func statusJSON(ctx context.Context) error {
+	type statusOutput struct {
+		CLIVersion    string `json:"cli_version"`
+		DaemonRunning bool   `json:"daemon_running"`
+		DaemonVersion string `json:"daemon_version,omitempty"`
+		DaemonPID     int    `json:"daemon_pid,omitempty"`
+		Uptime        int64  `json:"uptime_seconds,omitempty"`
+		MemoryBytes   int64  `json:"memory_bytes,omitempty"`
+		SandboxTotal  int    `json:"sandbox_total,omitempty"`
+		SandboxIdle   int    `json:"sandbox_idle,omitempty"`
+		SandboxInUse  int    `json:"sandbox_in_use,omitempty"`
+	}
+
+	out := statusOutput{
+		CLIVersion:    version.Version,
+		DaemonRunning: daemon.IsDaemonRunning(),
+	}
+
+	if out.DaemonRunning {
+		client := daemon.NewClient()
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		if err := client.Connect(ctx); err == nil {
+			defer client.Close()
+			if daemonStatus, err := client.Status(ctx); err == nil {
+				out.DaemonVersion = daemonStatus.Version
+				out.DaemonPID = daemonStatus.PID
+				out.Uptime = daemonStatus.Uptime
+				out.MemoryBytes = daemonStatus.MemoryUsage
+				out.SandboxTotal = daemonStatus.Sandboxes.Total
+				out.SandboxIdle = daemonStatus.Sandboxes.Idle
+				out.SandboxInUse = daemonStatus.Sandboxes.InUse
+			}
+		}
+	}
+
+	return json.NewEncoder(os.Stdout).Encode(out)
 }

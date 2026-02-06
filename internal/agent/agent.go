@@ -71,6 +71,12 @@ type SandboxConfig struct {
 	// If empty, commands run as root (default).
 	User string `json:"user,omitempty"`
 
+	// PersistHome enables persistent home directory for the agent.
+	// When true, the agent's home directory is mounted from the host at
+	// ~/.local/share/ayo/agent-homes/{handle}, preserving files across sessions.
+	// Requires User to be set. Defaults to false.
+	PersistHome *bool `json:"persist_home,omitempty"`
+
 	// Languages specifies the language runtimes needed in the sandbox.
 	// Supported values: "go", "python", "node", "ruby", "rust", "c", "cpp"
 	// The sandbox image will be configured with these runtimes.
@@ -203,6 +209,16 @@ func (c SandboxConfig) NetworkEnabled() bool {
 	return *c.Network
 }
 
+// PersistHomeEnabled returns true if persistent home directory is enabled.
+// Defaults to true if not explicitly set.
+// Requires User to be set to have any effect.
+func (c SandboxConfig) PersistHomeEnabled() bool {
+	if c.PersistHome == nil {
+		return true // Default to persistent home
+	}
+	return *c.PersistHome
+}
+
 // MountReadOnly returns true if a mount should be read-only.
 // Defaults to true for safety if not explicitly set.
 func (m SandboxMountConfig) MountReadOnly() bool {
@@ -210,6 +226,17 @@ func (m SandboxMountConfig) MountReadOnly() bool {
 		return true
 	}
 	return *m.ReadOnly
+}
+
+// SandboxUser returns the effective sandbox user for an agent.
+// If User is explicitly set, returns that. Otherwise defaults to the agent handle
+// (with @ prefix stripped).
+func (c SandboxConfig) SandboxUser(agentHandle string) string {
+	if c.User != "" {
+		return c.User
+	}
+	// Default to agent handle without @ prefix
+	return strings.TrimPrefix(agentHandle, "@")
 }
 
 type Agent struct {

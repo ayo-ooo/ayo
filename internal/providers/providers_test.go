@@ -189,6 +189,18 @@ func (m *MockSandboxProvider) Status(ctx context.Context, id string) (SandboxSta
 	return SandboxStatusFailed, nil
 }
 
+func (m *MockSandboxProvider) Stats(ctx context.Context, id string) (SandboxStats, error) {
+	return SandboxStats{
+		CPUPercent:       5.0,
+		MemoryUsageBytes: 50 * 1024 * 1024,
+		Uptime:           time.Minute,
+	}, nil
+}
+
+func (m *MockSandboxProvider) EnsureAgentUser(ctx context.Context, id, agentHandle, dotfilesPath string) error {
+	return nil
+}
+
 // MockEmbeddingProvider is a test implementation of EmbeddingProvider.
 type MockEmbeddingProvider struct {
 	name       string

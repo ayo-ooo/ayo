@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
@@ -37,6 +38,7 @@ type Runner struct {
 	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
 	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
+	sessionMounts    []string                 // session-scoped mounts from CLI
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -78,6 +80,7 @@ type RunnerOptions struct {
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
 	StreamWriter     StreamWriter               // Unified stream writer interface
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
+	SessionMounts    []string                   // Session-scoped mounts from CLI --mount flags
 }
 
 // NewRunner creates a runner with all options.
@@ -94,6 +97,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		memoryQueue:      opts.MemoryQueue,
 		streamWriter:     opts.StreamWriter,
 		sandboxProvider:  opts.SandboxProvider,
+		sessionMounts:    opts.SessionMounts,
 	}, nil
 }
 
@@ -126,6 +130,11 @@ func (r *Runner) StartMemoryQueue() {
 	if r.memoryQueue != nil {
 		r.memoryQueue.Start()
 	}
+}
+
+// SessionMounts returns the session-scoped mounts from CLI flags.
+func (r *Runner) SessionMounts() []string {
+	return r.sessionMounts
 }
 
 
@@ -756,25 +765,84 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		// Sanitize handle for container name (remove @ and other invalid chars)
 		safeName := strings.TrimPrefix(ag.Handle, "@")
 		safeName = strings.ReplaceAll(safeName, ".", "-")
-		sandboxUser := ag.Config.Sandbox.User
-		sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
-			Name:  fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
-			Image: ag.Config.Sandbox.SandboxImage(),
-			User:  sandboxUser,
-			Mounts: []providers.Mount{{
-				Source:      baseDir,
-				Destination: baseDir,
+		// Use SandboxUser() to get effective user (explicit or derived from handle)
+		sandboxUser := ag.Config.Sandbox.SandboxUser(ag.Handle)
+
+		// Build mount list
+		mounts := []providers.Mount{{
+			Source:      baseDir,
+			Destination: baseDir,
+			Mode:        providers.MountModeVirtioFS,
+			ReadOnly:    false,
+		}}
+
+		// Add persistent home directory mount if enabled
+		if ag.Config.Sandbox.PersistHomeEnabled() && sandboxUser != "" {
+			hostHomeDir, homeErr := paths.EnsureAgentHomeDir(ag.Handle)
+			if homeErr != nil {
+				return nil, nil, "", fmt.Errorf("create agent home directory: %w", homeErr)
+			}
+			containerHomeDir := fmt.Sprintf("/home/%s", sandboxUser)
+			mounts = append(mounts, providers.Mount{
+				Source:      hostHomeDir,
+				Destination: containerHomeDir,
 				Mode:        providers.MountModeVirtioFS,
 				ReadOnly:    false,
-			}},
+			})
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Mounting persistent home %s -> %s\n", hostHomeDir, containerHomeDir)
+			}
+		}
+
+		sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+			Name:   fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
+			Image:  ag.Config.Sandbox.SandboxImage(),
+			User:   sandboxUser,
+			Mounts: mounts,
 		})
 		if createErr != nil {
 			return nil, nil, "", fmt.Errorf("create sandbox: %w", createErr)
 		}
 		sandboxID = sb.ID
+
+		// Ensure agent user exists in sandbox before any tool execution
+		// Build dotfiles path from agent directory if it exists
+		var dotfilesPath string
+		if ag.Dir != "" {
+			candidatePath := filepath.Join(ag.Dir, "sandbox", "dotfiles")
+			if info, err := os.Stat(candidatePath); err == nil && info.IsDir() {
+				dotfilesPath = candidatePath
+			}
+		}
+		if err := r.sandboxProvider.EnsureAgentUser(ctx, sandboxID, sandboxUser, dotfilesPath); err != nil {
+			// Clean up sandbox on failure
+			_ = r.sandboxProvider.Delete(context.Background(), sandboxID, true)
+			return nil, nil, "", fmt.Errorf("ensure agent user: %w", err)
+		}
+		if r.debug && dotfilesPath != "" {
+			fmt.Fprintf(os.Stderr, "[sandbox] Copied dotfiles from %s\n", dotfilesPath)
+		}
+
 		sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, sandboxUser)
+		
+		// Set up session workspace with environment variables
+		sessionID := GetSessionIDFromContext(ctx)
+		sandboxExecutor.SetSession(sessionID, ag.Handle)
+		
+		// Create the workspace directory structure if session ID is available
+		if sessionID != "" {
+			if err := sandboxExecutor.CreateSessionWorkspace(ctx); err != nil {
+				// Log warning but don't fail - workspace is optional
+				if r.debug {
+					fmt.Fprintf(os.Stderr, "[sandbox] Warning: failed to create workspace: %v\n", err)
+				}
+			} else if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Created workspace at %s\n", sandboxExecutor.WorkspaceDir())
+			}
+		}
+		
 		if r.debug {
-			fmt.Fprintf(os.Stderr, "[sandbox] Created sandbox %s for %s\n", sandboxID, ag.Handle)
+			fmt.Fprintf(os.Stderr, "[sandbox] Created sandbox %s for %s (user=%s)\n", sandboxID, ag.Handle, sandboxUser)
 		}
 	} else if ag.Config.SandboxEnabled() && r.sandboxProvider == nil {
 		if r.debug {

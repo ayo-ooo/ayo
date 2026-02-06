@@ -172,6 +172,15 @@ type SandboxProvider interface {
 
 	// Status returns the current state of a sandbox.
 	Status(ctx context.Context, id string) (SandboxStatus, error)
+
+	// Stats returns resource usage statistics for a sandbox.
+	Stats(ctx context.Context, id string) (SandboxStats, error)
+
+	// EnsureAgentUser ensures a Unix user exists for the agent in the sandbox.
+	// Creates the user and home directory if they don't exist.
+	// If dotfilesPath is non-empty, copies dotfiles from that host directory
+	// to the user's home directory (e.g., .bashrc, .profile).
+	EnsureAgentUser(ctx context.Context, id string, agentHandle string, dotfilesPath string) error
 }
 
 // Sandbox represents a container instance.
@@ -284,6 +293,33 @@ type ExecResult struct {
 	TimedOut  bool
 	Truncated bool
 	Duration  time.Duration
+}
+
+// SandboxStats contains resource usage statistics for a sandbox.
+type SandboxStats struct {
+	// CPU usage as a percentage (0-100 per CPU core)
+	CPUPercent float64
+
+	// Memory usage in bytes
+	MemoryUsageBytes int64
+
+	// Memory limit in bytes (0 if unlimited)
+	MemoryLimitBytes int64
+
+	// Disk usage in bytes
+	DiskUsageBytes int64
+
+	// Network bytes received
+	NetworkRxBytes int64
+
+	// Network bytes transmitted
+	NetworkTxBytes int64
+
+	// Number of running processes
+	ProcessCount int
+
+	// Uptime since container start
+	Uptime time.Duration
 }
 
 // EmbeddingProvider defines the interface for vector embedding generation.

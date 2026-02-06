@@ -33,6 +33,7 @@ type poolEntry struct {
 	sandbox   providers.Sandbox
 	inUse     bool
 	agents    []string
+	group     string // Collaboration group name (agents in same group share sandbox)
 }
 
 // NewPool creates a new sandbox pool.
@@ -84,13 +85,40 @@ func (p *Pool) Stop(ctx context.Context) error {
 // Acquire gets an available sandbox from the pool.
 // If no sandbox is available and max not reached, creates a new one.
 func (p *Pool) Acquire(ctx context.Context, agentHandle string) (providers.Sandbox, error) {
+	return p.AcquireWithOptions(ctx, AcquireOptions{Agent: agentHandle})
+}
+
+// AcquireWithOptions gets a sandbox with advanced options for collaboration.
+func (p *Pool) AcquireWithOptions(ctx context.Context, opts AcquireOptions) (providers.Sandbox, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// If joining a specific sandbox, find it
+	if opts.JoinSandbox != "" {
+		entry, ok := p.sandboxes[opts.JoinSandbox]
+		if !ok {
+			return providers.Sandbox{}, fmt.Errorf("sandbox not found: %s", opts.JoinSandbox)
+		}
+		// Add this agent to the sandbox
+		entry.agents = append(entry.agents, opts.Agent)
+		return entry.sandbox, nil
+	}
+
+	// If in a collaboration group, look for existing sandbox in that group
+	if opts.Group != "" {
+		for _, entry := range p.sandboxes {
+			if entry.group == opts.Group {
+				// Add this agent to the group's sandbox
+				entry.agents = append(entry.agents, opts.Agent)
+				return entry.sandbox, nil
+			}
+		}
+	}
 
 	// First, try to find an existing sandbox for this agent
 	for _, entry := range p.sandboxes {
 		for _, a := range entry.agents {
-			if a == agentHandle {
+			if a == opts.Agent {
 				return entry.sandbox, nil
 			}
 		}
@@ -100,7 +128,10 @@ func (p *Pool) Acquire(ctx context.Context, agentHandle string) (providers.Sandb
 	for _, entry := range p.sandboxes {
 		if !entry.inUse {
 			entry.inUse = true
-			entry.agents = append(entry.agents, agentHandle)
+			entry.agents = append(entry.agents, opts.Agent)
+			if opts.Group != "" {
+				entry.group = opts.Group
+			}
 			return entry.sandbox, nil
 		}
 	}
@@ -119,7 +150,10 @@ func (p *Pool) Acquire(ctx context.Context, agentHandle string) (providers.Sandb
 	for _, entry := range p.sandboxes {
 		if !entry.inUse {
 			entry.inUse = true
-			entry.agents = append(entry.agents, agentHandle)
+			entry.agents = append(entry.agents, opts.Agent)
+			if opts.Group != "" {
+				entry.group = opts.Group
+			}
 			return entry.sandbox, nil
 		}
 	}
@@ -139,6 +173,7 @@ func (p *Pool) Release(ctx context.Context, sandboxID string) error {
 
 	entry.inUse = false
 	entry.agents = nil
+	entry.group = ""
 
 	// Check if we have too many idle sandboxes
 	if p.config.MinSize > 0 {
@@ -158,6 +193,50 @@ func (p *Pool) Release(ctx context.Context, sandboxID string) error {
 	}
 
 	return nil
+}
+
+// ReleaseAgent removes an agent from a sandbox without releasing the sandbox.
+// The sandbox is only released when all agents have left.
+func (p *Pool) ReleaseAgent(ctx context.Context, sandboxID, agentHandle string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	entry, ok := p.sandboxes[sandboxID]
+	if !ok {
+		return fmt.Errorf("sandbox not found: %s", sandboxID)
+	}
+
+	// Remove the agent from the list
+	newAgents := make([]string, 0, len(entry.agents))
+	for _, a := range entry.agents {
+		if a != agentHandle {
+			newAgents = append(newAgents, a)
+		}
+	}
+	entry.agents = newAgents
+
+	// If no agents left, release the sandbox
+	if len(entry.agents) == 0 {
+		entry.inUse = false
+		entry.group = ""
+	}
+
+	return nil
+}
+
+// GetSandboxAgents returns the list of agents currently using a sandbox.
+func (p *Pool) GetSandboxAgents(sandboxID string) []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	entry, ok := p.sandboxes[sandboxID]
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, len(entry.agents))
+	copy(result, entry.agents)
+	return result
 }
 
 // Exec executes a command in a sandbox.
@@ -202,6 +281,20 @@ type PoolStatus struct {
 	Total    int
 	InUse    int
 	Idle     int
+}
+
+// AcquireOptions configures sandbox acquisition.
+type AcquireOptions struct {
+	// Agent is the agent handle acquiring the sandbox.
+	Agent string
+
+	// Group specifies a collaboration group. Agents in the same group share sandboxes.
+	// If empty, the agent gets its own sandbox.
+	Group string
+
+	// JoinSandbox specifies an existing sandbox ID to join.
+	// Takes precedence over Group if specified.
+	JoinSandbox string
 }
 
 func (p *Pool) createSandbox(ctx context.Context) error {

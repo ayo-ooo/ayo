@@ -76,6 +76,8 @@ func TestError_Error(t *testing.T) {
 func TestServer_StartStop(t *testing.T) {
 	cfg := DefaultServerConfig()
 	cfg.SocketPath = t.TempDir() + "/test.sock"
+	// Don't create containers at startup to make test fast
+	cfg.PoolConfig.MinSize = 0
 
 	server, err := NewServer(cfg)
 	if err != nil {

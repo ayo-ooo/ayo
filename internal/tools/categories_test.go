@@ -176,3 +176,59 @@ func TestListCategories(t *testing.T) {
 		t.Error("ListCategories should return a copy, not the original map")
 	}
 }
+
+func TestGetExecutionContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		expected ExecutionContext
+	}{
+		{"memory is host", "memory", ExecHost},
+		{"agent_call is host", "agent_call", ExecHost},
+		{"delegate is host", "delegate", ExecHost},
+		{"todo is host", "todo", ExecHost},
+		{"bash is sandbox", "bash", ExecSandbox},
+		{"file_request is bridge", "file_request", ExecBridge},
+		{"publish is bridge", "publish", ExecBridge},
+		{"unknown defaults to sandbox", "unknown_tool", ExecSandbox},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetExecutionContext(tt.toolName)
+			if got != tt.expected {
+				t.Errorf("GetExecutionContext(%q) = %q, want %q", tt.toolName, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsHostTool(t *testing.T) {
+	if !IsHostTool("memory") {
+		t.Error("memory should be host tool")
+	}
+	if IsHostTool("bash") {
+		t.Error("bash should not be host tool")
+	}
+}
+
+func TestIsSandboxTool(t *testing.T) {
+	if !IsSandboxTool("bash") {
+		t.Error("bash should be sandbox tool")
+	}
+	if IsSandboxTool("memory") {
+		t.Error("memory should not be sandbox tool")
+	}
+}
+
+func TestIsBridgeTool(t *testing.T) {
+	if !IsBridgeTool("file_request") {
+		t.Error("file_request should be bridge tool")
+	}
+	if !IsBridgeTool("publish") {
+		t.Error("publish should be bridge tool")
+	}
+	if IsBridgeTool("bash") {
+		t.Error("bash should not be bridge tool")
+	}
+}

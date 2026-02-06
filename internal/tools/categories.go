@@ -5,6 +5,64 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 )
 
+// ExecutionContext specifies where a tool should execute.
+type ExecutionContext string
+
+const (
+	// ExecHost means the tool executes on the host machine.
+	// Examples: memory search, agent_call, filesystem browsing.
+	ExecHost ExecutionContext = "host"
+
+	// ExecSandbox means the tool executes inside the sandbox.
+	// Examples: bash, code execution.
+	ExecSandbox ExecutionContext = "sandbox"
+
+	// ExecBridge means the tool needs access to both host and sandbox.
+	// Examples: file_request (host->sandbox), publish (sandbox->host).
+	ExecBridge ExecutionContext = "bridge"
+)
+
+// ToolExecContext maps tool names to their execution context.
+// Tools not listed default to ExecSandbox when a sandbox is available.
+var ToolExecContext = map[string]ExecutionContext{
+	// Host-side tools - these access host services or filesystem
+	"memory":     ExecHost,
+	"agent_call": ExecHost,
+	"delegate":   ExecHost,
+	"todo":       ExecHost,
+
+	// Sandbox tools - these execute commands inside the sandbox
+	"bash": ExecSandbox,
+
+	// Bridge tools - these need access to both host and sandbox
+	"file_request": ExecBridge,
+	"publish":      ExecBridge,
+}
+
+// GetExecutionContext returns the execution context for a tool.
+// If the tool is not explicitly mapped, returns ExecSandbox as default.
+func GetExecutionContext(toolName string) ExecutionContext {
+	if ctx, ok := ToolExecContext[toolName]; ok {
+		return ctx
+	}
+	return ExecSandbox
+}
+
+// IsHostTool returns true if the tool should execute on the host.
+func IsHostTool(toolName string) bool {
+	return GetExecutionContext(toolName) == ExecHost
+}
+
+// IsSandboxTool returns true if the tool should execute in the sandbox.
+func IsSandboxTool(toolName string) bool {
+	return GetExecutionContext(toolName) == ExecSandbox
+}
+
+// IsBridgeTool returns true if the tool needs both host and sandbox access.
+func IsBridgeTool(toolName string) bool {
+	return GetExecutionContext(toolName) == ExecBridge
+}
+
 // Category represents a semantic tool slot that can be filled by different implementations.
 // Categories allow users to swap implementations without changing agent configurations.
 type Category string

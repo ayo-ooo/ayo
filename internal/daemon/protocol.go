@@ -110,6 +110,21 @@ const (
 	MethodSandboxRelease = "sandbox.release"
 	MethodSandboxExec    = "sandbox.exec"
 	MethodSandboxStatus  = "sandbox.status"
+
+	// Session management methods
+	MethodSessionList  = "session.list"
+	MethodSessionStart = "session.start"
+	MethodSessionStop  = "session.stop"
+	MethodAgentWake    = "agent.wake"
+	MethodAgentSleep   = "agent.sleep"
+	MethodAgentStatus  = "agent.status"
+
+	// Trigger management methods
+	MethodTriggerList     = "trigger.list"
+	MethodTriggerGet      = "trigger.get"
+	MethodTriggerRegister = "trigger.register"
+	MethodTriggerRemove   = "trigger.remove"
+	MethodTriggerTest     = "trigger.test"
 )
 
 // Request/Response types for each method
@@ -172,4 +187,147 @@ type SandboxStatusResult struct {
 	Total int `json:"total"`
 	Idle  int `json:"idle"`
 	InUse int `json:"in_use"`
+}
+
+// Session management types
+
+// SessionListResult is the response to session.list.
+type SessionListResult struct {
+	Sessions []SessionInfo `json:"sessions"`
+}
+
+// SessionInfo represents an active agent session.
+type SessionInfo struct {
+	ID          string `json:"id"`
+	AgentHandle string `json:"agent_handle"`
+	StartedAt   int64  `json:"started_at"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	Status      string `json:"status"` // running, idle, stopped
+	LastActive  int64  `json:"last_active"`
+	SessionID   string `json:"session_id,omitempty"`
+}
+
+// SessionStartParams is the request for session.start.
+type SessionStartParams struct {
+	AgentHandle string `json:"agent_handle"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"` // Resume existing session
+}
+
+// SessionStartResult is the response to session.start.
+type SessionStartResult struct {
+	Session SessionInfo `json:"session"`
+}
+
+// SessionStopParams is the request for session.stop.
+type SessionStopParams struct {
+	SessionID string `json:"session_id"`
+}
+
+// AgentWakeParams is the request for agent.wake.
+type AgentWakeParams struct {
+	Handle    string `json:"handle"`
+	TriggerID string `json:"trigger_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // Resume existing session
+}
+
+// AgentWakeResult is the response to agent.wake.
+type AgentWakeResult struct {
+	Session SessionInfo `json:"session"`
+}
+
+// AgentSleepParams is the request for agent.sleep.
+type AgentSleepParams struct {
+	Handle string `json:"handle"`
+}
+
+// AgentStatusParams is the request for agent.status.
+type AgentStatusParams struct {
+	Handle string `json:"handle"`
+}
+
+// AgentStatusResult is the response to agent.status.
+type AgentStatusResult struct {
+	Active     bool         `json:"active"`
+	Handle     string       `json:"handle"`
+	Session    *SessionInfo `json:"session,omitempty"`
+	StartedAt  int64        `json:"started_at,omitempty"`
+	LastActive int64        `json:"last_active,omitempty"`
+}
+
+// Trigger management types
+
+// TriggerInfo represents a trigger for RPC responses.
+type TriggerInfo struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"` // "cron", "watch", or "webhook"
+	Agent   string `json:"agent"`
+	Prompt  string `json:"prompt,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Enabled bool   `json:"enabled"`
+
+	// Cron-specific
+	Schedule string `json:"schedule,omitempty"`
+
+	// Watch-specific
+	Path      string   `json:"path,omitempty"`
+	Patterns  []string `json:"patterns,omitempty"`
+	Recursive bool     `json:"recursive,omitempty"`
+	Events    []string `json:"events,omitempty"`
+
+	// Webhook-specific
+	WebhookPath   string `json:"webhook_path,omitempty"`
+	WebhookSecret string `json:"webhook_secret,omitempty"`
+	WebhookFormat string `json:"webhook_format,omitempty"` // github, gitlab, generic
+}
+
+// TriggerListResult is the response to trigger.list.
+type TriggerListResult struct {
+	Triggers []TriggerInfo `json:"triggers"`
+}
+
+// TriggerGetParams is the request for trigger.get.
+type TriggerGetParams struct {
+	ID string `json:"id"`
+}
+
+// TriggerGetResult is the response to trigger.get.
+type TriggerGetResult struct {
+	Trigger TriggerInfo `json:"trigger"`
+}
+
+// TriggerRegisterParams is the request for trigger.register.
+type TriggerRegisterParams struct {
+	Type   string `json:"type"` // "cron", "watch", or "webhook"
+	Agent  string `json:"agent"`
+	Prompt string `json:"prompt,omitempty"`
+
+	// Cron-specific
+	Schedule string `json:"schedule,omitempty"`
+
+	// Watch-specific
+	Path      string   `json:"path,omitempty"`
+	Patterns  []string `json:"patterns,omitempty"`
+	Recursive bool     `json:"recursive,omitempty"`
+	Events    []string `json:"events,omitempty"`
+
+	// Webhook-specific
+	WebhookPath   string `json:"webhook_path,omitempty"`
+	WebhookSecret string `json:"webhook_secret,omitempty"`
+	WebhookFormat string `json:"webhook_format,omitempty"` // github, gitlab, generic
+}
+
+// TriggerRegisterResult is the response to trigger.register.
+type TriggerRegisterResult struct {
+	Trigger TriggerInfo `json:"trigger"`
+}
+
+// TriggerRemoveParams is the request for trigger.remove.
+type TriggerRemoveParams struct {
+	ID string `json:"id"`
+}
+
+// TriggerTestParams is the request for trigger.test.
+type TriggerTestParams struct {
+	ID string `json:"id"`
 }

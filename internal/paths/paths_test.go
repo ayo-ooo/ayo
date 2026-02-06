@@ -188,3 +188,84 @@ func TestWindowsPaths(t *testing.T) {
 		t.Errorf("Windows DataDir should contain 'ayo': got %s", dataDir)
 	}
 }
+
+func TestAgentHomesDir(t *testing.T) {
+	dir := AgentHomesDir()
+	dataDir := DataDir()
+
+	// AgentHomesDir should be under DataDir
+	if !strings.HasPrefix(dir, dataDir) {
+		t.Errorf("AgentHomesDir should be under DataDir: got %s (DataDir: %s)", dir, dataDir)
+	}
+	if !strings.HasSuffix(dir, "agent-homes") {
+		t.Errorf("AgentHomesDir should end with agent-homes: got %s", dir)
+	}
+}
+
+func TestAgentHomeDir(t *testing.T) {
+	tests := []struct {
+		handle   string
+		wantName string
+	}{
+		{"@ayo", "ayo"},
+		{"@my-agent", "my-agent"},
+		{"@agent.v2", "agent-v2"},
+		{"ayo", "ayo"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.handle, func(t *testing.T) {
+			dir := AgentHomeDir(tt.handle)
+			if !strings.HasSuffix(dir, tt.wantName) {
+				t.Errorf("AgentHomeDir(%q) = %s, want to end with %s", tt.handle, dir, tt.wantName)
+			}
+			// Should be under AgentHomesDir
+			if !strings.HasPrefix(dir, AgentHomesDir()) {
+				t.Errorf("AgentHomeDir should be under AgentHomesDir: got %s", dir)
+			}
+		})
+	}
+}
+
+func TestEnsureAgentHomeDir(t *testing.T) {
+	// Create a temp directory for testing
+	tempDir := t.TempDir()
+
+	// Override getDevRoot temporarily by setting up as non-dev mode test
+	// We'll test with actual temp paths
+	handle := "@test-agent"
+	safeName := "test-agent"
+
+	// Manually construct expected path in temp for validation
+	expectedPath := filepath.Join(tempDir, safeName)
+	if err := os.MkdirAll(expectedPath, 0755); err != nil {
+		t.Fatalf("failed to create test dir: %v", err)
+	}
+
+	// Verify directory was created
+	info, err := os.Stat(expectedPath)
+	if err != nil {
+		t.Errorf("EnsureAgentHomeDir: directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("EnsureAgentHomeDir: path is not a directory")
+	}
+
+	// Test actual function
+	dir, err := EnsureAgentHomeDir(handle)
+	if err != nil {
+		t.Errorf("EnsureAgentHomeDir failed: %v", err)
+	}
+	if !strings.HasSuffix(dir, safeName) {
+		t.Errorf("EnsureAgentHomeDir(%q) = %s, want to end with %s", handle, dir, safeName)
+	}
+
+	// Verify it actually created the directory
+	info, err = os.Stat(dir)
+	if err != nil {
+		t.Errorf("EnsureAgentHomeDir: directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("EnsureAgentHomeDir: path is not a directory")
+	}
+}

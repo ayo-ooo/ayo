@@ -22,6 +22,7 @@ type MockProvider struct {
 	// Configurable behavior
 	ExecFunc   func(ctx context.Context, id string, opts providers.ExecOptions) (providers.ExecResult, error)
 	CreateFunc func(ctx context.Context, opts providers.SandboxCreateOptions) (providers.Sandbox, error)
+	StatsFunc  func(ctx context.Context, id string) (providers.SandboxStats, error)
 	FailCreate bool
 	FailExec   bool
 	
@@ -207,6 +208,33 @@ func (p *MockProvider) AssignAgent(id, agentHandle string) error {
 	return nil
 }
 
+// Stats returns resource usage statistics for a mock sandbox.
+func (p *MockProvider) Stats(ctx context.Context, id string) (providers.SandboxStats, error) {
+	p.mu.Lock()
+	sb, ok := p.sandboxes[id]
+	if !ok {
+		p.mu.Unlock()
+		return providers.SandboxStats{}, ErrMockSandboxNotFound
+	}
+	
+	if p.StatsFunc != nil {
+		p.mu.Unlock()
+		return p.StatsFunc(ctx, id)
+	}
+	
+	uptime := time.Since(sb.createdAt)
+	p.mu.Unlock()
+	
+	// Return mock stats
+	return providers.SandboxStats{
+		CPUPercent:       5.0,
+		MemoryUsageBytes: 50 * 1024 * 1024, // 50 MB
+		MemoryLimitBytes: 512 * 1024 * 1024, // 512 MB
+		ProcessCount:     3,
+		Uptime:           uptime,
+	}, nil
+}
+
 // Reset clears all recorded calls and sandboxes.
 func (p *MockProvider) Reset() {
 	p.mu.Lock()
@@ -219,6 +247,7 @@ func (p *MockProvider) Reset() {
 	p.FailExec = false
 	p.ExecFunc = nil
 	p.CreateFunc = nil
+	p.StatsFunc = nil
 }
 
 // SandboxCount returns the number of active sandboxes.
@@ -247,6 +276,11 @@ func generateMockID() string {
 	defer mockIDMu.Unlock()
 	mockIDCounter++
 	return string(rune('a'-1+mockIDCounter%26)) + "000" + string(rune('0'+mockIDCounter%10))
+}
+
+// EnsureAgentUser is a no-op for MockProvider.
+func (p *MockProvider) EnsureAgentUser(_ context.Context, _ string, _ string, _ string) error {
+	return nil
 }
 
 // Verify MockProvider implements SandboxProvider.

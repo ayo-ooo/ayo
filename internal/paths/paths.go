@@ -12,6 +12,7 @@
 package paths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -370,6 +371,32 @@ func BuiltinPromptsDir() string {
 // Location: ~/.config/ayo/prompts or ./.config/ayo/prompts
 func UserPromptsDir() string {
 	return filepath.Join(ConfigDir(), "prompts")
+}
+
+// AgentHomesDir returns the directory for persistent agent home directories.
+// Dev mode: {repo}/.local/share/ayo/agent-homes
+// Production: ~/.local/share/ayo/agent-homes
+func AgentHomesDir() string {
+	return filepath.Join(DataDir(), "agent-homes")
+}
+
+// AgentHomeDir returns the persistent home directory for a specific agent.
+// The handle should include the @ prefix (e.g., "@ayo").
+// Returns: ~/.local/share/ayo/agent-homes/{handle} (with @ stripped)
+func AgentHomeDir(handle string) string {
+	safeName := strings.TrimPrefix(handle, "@")
+	safeName = strings.ReplaceAll(safeName, ".", "-")
+	return filepath.Join(AgentHomesDir(), safeName)
+}
+
+// EnsureAgentHomeDir creates the persistent home directory for an agent if it doesn't exist.
+// Returns the path to the directory.
+func EnsureAgentHomeDir(handle string) (string, error) {
+	dir := AgentHomeDir(handle)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("create agent home directory: %w", err)
+	}
+	return dir, nil
 }
 
 // FindPromptFile looks for a prompt file in priority order:

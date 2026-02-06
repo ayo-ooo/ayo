@@ -21,22 +21,27 @@ import (
 
 // Server is the daemon server that manages ayo resources.
 type Server struct {
-	listener    net.Listener
-	pool        *sandbox.Pool
-	provider    providers.SandboxProvider
-	startTime   time.Time
-	shutdownCh  chan struct{}
-	wg          sync.WaitGroup
-	connections atomic.Int32
-	mu          sync.RWMutex
-	running     bool
+	listener       net.Listener
+	pool           *sandbox.Pool
+	provider       providers.SandboxProvider
+	sessionManager *DaemonSessionManager
+	triggerEngine  *TriggerEngine
+	webhookServer  *WebhookServer
+	startTime      time.Time
+	shutdownCh     chan struct{}
+	wg             sync.WaitGroup
+	connections    atomic.Int32
+	mu             sync.RWMutex
+	running        bool
 }
 
 // ServerConfig configures the daemon server.
 type ServerConfig struct {
-	SocketPath   string
-	PoolConfig   sandbox.PoolConfig
-	IdleTimeout  time.Duration
+	SocketPath      string
+	PoolConfig      sandbox.PoolConfig
+	IdleTimeout     time.Duration
+	WebhookBindAddr string // optional, defaults to "127.0.0.1:0"
+	WebhookSecret   string // optional HMAC secret for webhooks
 }
 
 // DefaultServerConfig returns the default server configuration.
@@ -73,11 +78,29 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	// Create pool
 	pool := sandbox.NewPool(cfg.PoolConfig, provider)
 
-	return &Server{
-		provider:   provider,
-		pool:       pool,
-		shutdownCh: make(chan struct{}),
-	}, nil
+	// Create session manager
+	sessionManager := NewDaemonSessionManager(cfg.IdleTimeout)
+
+	server := &Server{
+		provider:       provider,
+		pool:           pool,
+		sessionManager: sessionManager,
+		shutdownCh:     make(chan struct{}),
+	}
+
+	// Create trigger engine with callback to spawn sessions
+	server.triggerEngine = NewTriggerEngine(TriggerEngineConfig{
+		Callback: server.handleTriggerEvent,
+	})
+
+	// Create webhook server
+	server.webhookServer = NewWebhookServer(WebhookServerConfig{
+		BindAddr: cfg.WebhookBindAddr,
+		Secret:   cfg.WebhookSecret,
+		Callback: server.handleTriggerEvent,
+	})
+
+	return server, nil
 }
 
 // Start starts the daemon server.
@@ -119,6 +142,21 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("start pool: %w", err)
 	}
 
+	// Start session manager
+	s.sessionManager.Start()
+
+	// Start trigger engine
+	if err := s.triggerEngine.Start(ctx); err != nil {
+		s.listener.Close()
+		return fmt.Errorf("start trigger engine: %w", err)
+	}
+
+	// Start webhook server
+	if err := s.webhookServer.Start(ctx); err != nil {
+		s.listener.Close()
+		return fmt.Errorf("start webhook server: %w", err)
+	}
+
 	// Write PID file
 	if err := s.writePIDFile(); err != nil {
 		s.listener.Close()
@@ -148,6 +186,21 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Close listener
 	if s.listener != nil {
 		s.listener.Close()
+	}
+
+	// Stop session manager
+	if s.sessionManager != nil {
+		s.sessionManager.Stop()
+	}
+
+	// Stop trigger engine
+	if s.triggerEngine != nil {
+		s.triggerEngine.Stop(ctx)
+	}
+
+	// Stop webhook server
+	if s.webhookServer != nil {
+		s.webhookServer.Stop(ctx)
 	}
 
 	// Stop sandbox pool
@@ -180,6 +233,24 @@ func (s *Server) Addr() net.Addr {
 		return nil
 	}
 	return s.listener.Addr()
+}
+
+// TriggerEngine returns the trigger engine.
+func (s *Server) TriggerEngine() *TriggerEngine {
+	return s.triggerEngine
+}
+
+// WebhookServer returns the webhook server.
+func (s *Server) WebhookServer() *WebhookServer {
+	return s.webhookServer
+}
+
+// WebhookPort returns the port the webhook server is listening on.
+func (s *Server) WebhookPort() int {
+	if s.webhookServer == nil {
+		return 0
+	}
+	return s.webhookServer.Port()
 }
 
 func (s *Server) acceptLoop(ctx context.Context) {
@@ -266,6 +337,28 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleSandboxExec(ctx, req)
 	case MethodSandboxStatus:
 		return s.handleSandboxStatus(req)
+	case MethodSessionList:
+		return s.handleSessionList(req)
+	case MethodSessionStart:
+		return s.handleSessionStart(req)
+	case MethodSessionStop:
+		return s.handleSessionStop(req)
+	case MethodAgentWake:
+		return s.handleAgentWake(req)
+	case MethodAgentSleep:
+		return s.handleAgentSleep(req)
+	case MethodAgentStatus:
+		return s.handleAgentStatus(req)
+	case MethodTriggerList:
+		return s.handleTriggerList(req)
+	case MethodTriggerGet:
+		return s.handleTriggerGet(req)
+	case MethodTriggerRegister:
+		return s.handleTriggerRegister(req)
+	case MethodTriggerRemove:
+		return s.handleTriggerRemove(req)
+	case MethodTriggerTest:
+		return s.handleTriggerTest(req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}
@@ -400,6 +493,101 @@ func (s *Server) handleSandboxStatus(req *Request) *Response {
 	return resp
 }
 
+// Session management handlers
+
+func (s *Server) handleSessionList(req *Request) *Response {
+	sessions := s.sessionManager.List()
+	result := SessionListResult{Sessions: sessions}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSessionStart(req *Request) *Response {
+	var params SessionStartParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	session := s.sessionManager.Wake(params.AgentHandle, params.TriggerID, params.SessionID)
+	result := SessionStartResult{Session: session}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSessionStop(req *Request) *Response {
+	var params SessionStopParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	if err := s.sessionManager.StopSession(params.SessionID); err != nil {
+		if rpcErr, ok := err.(*Error); ok {
+			return NewErrorResponse(rpcErr, req.ID)
+		}
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleAgentWake(req *Request) *Response {
+	var params AgentWakeParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	session := s.sessionManager.Wake(params.Handle, params.TriggerID, params.SessionID)
+	result := AgentWakeResult{Session: session}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleAgentSleep(req *Request) *Response {
+	var params AgentSleepParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	if err := s.sessionManager.Sleep(params.Handle); err != nil {
+		if rpcErr, ok := err.(*Error); ok {
+			return NewErrorResponse(rpcErr, req.ID)
+		}
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleAgentStatus(req *Request) *Response {
+	var params AgentStatusParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	sess, err := s.sessionManager.GetByAgent(params.Handle)
+	if err != nil {
+		// Not an error - just means no active session
+		result := AgentStatusResult{
+			Active: false,
+			Handle: params.Handle,
+		}
+		resp, _ := NewResponse(result, req.ID)
+		return resp
+	}
+
+	result := AgentStatusResult{
+		Active:     true,
+		Handle:     sess.AgentHandle,
+		Session:    sess,
+		StartedAt:  sess.StartedAt,
+		LastActive: sess.LastActive,
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
 func (s *Server) writePIDFile() error {
 	pidPath := DefaultPIDPath()
 	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
@@ -429,4 +617,173 @@ func selectSandboxProvider() providers.SandboxProvider {
 
 	// Fall back to none provider (no isolation)
 	return sandbox.NewNoneProvider()
+}
+
+// handleTriggerEvent handles a trigger event by waking the agent and injecting context.
+func (s *Server) handleTriggerEvent(event TriggerEvent) {
+	// Wake the agent with trigger context
+	s.sessionManager.Wake(event.Agent, event.TriggerID, "")
+
+	// TODO: In the future, we could inject the prompt and context into the agent session
+	// For now, just log that the trigger fired
+}
+
+// Trigger management handlers
+
+func (s *Server) handleTriggerList(req *Request) *Response {
+	triggers := s.triggerEngine.List()
+	infos := make([]TriggerInfo, len(triggers))
+	for i, t := range triggers {
+		infos[i] = triggerToInfo(t)
+	}
+
+	result := TriggerListResult{Triggers: infos}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerGet(req *Request) *Response {
+	var params TriggerGetParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	trigger, err := s.triggerEngine.Get(params.ID)
+	if err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	result := TriggerGetResult{Trigger: triggerToInfo(trigger)}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerRegister(req *Request) *Response {
+	var params TriggerRegisterParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	// Validate type
+	if params.Type != "cron" && params.Type != "watch" && params.Type != "webhook" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "type must be 'cron', 'watch', or 'webhook'"), req.ID)
+	}
+
+	// Validate agent
+	if params.Agent == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "agent is required"), req.ID)
+	}
+
+	// Create trigger
+	trigger := &Trigger{
+		ID:      GenerateTriggerID(),
+		Type:    TriggerType(params.Type),
+		Agent:   params.Agent,
+		Prompt:  params.Prompt,
+		Source:  "cli",
+		Enabled: true,
+		Config: TriggerConfig{
+			Schedule:      params.Schedule,
+			Path:          params.Path,
+			Patterns:      params.Patterns,
+			Recursive:     params.Recursive,
+			Events:        params.Events,
+			WebhookPath:   params.WebhookPath,
+			WebhookSecret: params.WebhookSecret,
+			WebhookFormat: params.WebhookFormat,
+		},
+	}
+
+	if err := s.triggerEngine.Register(trigger); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	// If it's a webhook trigger, also register with webhook server
+	if trigger.Type == TriggerTypeWebhook && s.webhookServer != nil {
+		webhookTrigger := &WebhookTrigger{
+			ID:     trigger.ID,
+			Path:   trigger.Config.WebhookPath,
+			Agent:  trigger.Agent,
+			Prompt: trigger.Prompt,
+			Secret: trigger.Config.WebhookSecret,
+			Format: trigger.Config.WebhookFormat,
+		}
+		if err := s.webhookServer.Register(webhookTrigger); err != nil {
+			// Unregister from trigger engine on failure
+			s.triggerEngine.Unregister(trigger.ID)
+			return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+		}
+	}
+
+	result := TriggerRegisterResult{Trigger: triggerToInfo(trigger)}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerRemove(req *Request) *Response {
+	var params TriggerRemoveParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	// Check if it's a webhook trigger to also unregister from webhook server
+	trigger, _ := s.triggerEngine.Get(params.ID)
+	if trigger != nil && trigger.Type == TriggerTypeWebhook && s.webhookServer != nil {
+		s.webhookServer.Unregister(trigger.Config.WebhookPath)
+	}
+
+	if err := s.triggerEngine.Unregister(params.ID); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerTest(req *Request) *Response {
+	var params TriggerTestParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	trigger, err := s.triggerEngine.Get(params.ID)
+	if err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	// Fire the trigger manually
+	event := TriggerEvent{
+		TriggerID: trigger.ID,
+		FiredAt:   time.Now(),
+		Context:   map[string]any{"test": true},
+		Agent:     trigger.Agent,
+		Prompt:    trigger.Prompt,
+	}
+
+	if s.triggerEngine.callback != nil {
+		go s.triggerEngine.callback(event)
+	}
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+// triggerToInfo converts an internal Trigger to a TriggerInfo for RPC.
+func triggerToInfo(t *Trigger) TriggerInfo {
+	return TriggerInfo{
+		ID:            t.ID,
+		Type:          string(t.Type),
+		Agent:         t.Agent,
+		Prompt:        t.Prompt,
+		Source:        t.Source,
+		Enabled:       t.Enabled,
+		Schedule:      t.Config.Schedule,
+		Path:          t.Config.Path,
+		Patterns:      t.Config.Patterns,
+		Recursive:     t.Config.Recursive,
+		Events:        t.Config.Events,
+		WebhookPath:   t.Config.WebhookPath,
+		WebhookSecret: t.Config.WebhookSecret,
+		WebhookFormat: t.Config.WebhookFormat,
+	}
 }

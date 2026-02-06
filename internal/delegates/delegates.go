@@ -39,6 +39,13 @@ type DirectoryConfig struct {
 
 	// Agent specifies the default agent for this directory.
 	Agent string `json:"agent,omitempty"`
+
+	// Mounts declares filesystem paths to mount into the sandbox.
+	// Keys are paths (relative to config file, ~/, or absolute).
+	// Values are modes: "readonly" or "readwrite".
+	// Note: Project mounts can only RESTRICT access, not grant new access.
+	// Paths must also exist in mounts.json or be passed via --mount.
+	Mounts map[string]string `json:"mounts,omitempty"`
 }
 
 // Resolution contains the result of resolving a delegation.

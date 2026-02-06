@@ -23,9 +23,13 @@ import (
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/ui"
 	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
+
+// Global output flags accessible to all subcommands
+var globalOutput cli.Output
 
 func newRootCmd() *cobra.Command {
 	var cfgPath string
@@ -34,6 +38,7 @@ func newRootCmd() *cobra.Command {
 	var modelOverride string
 	var sessionID string
 	var continueSession bool
+	var sessionMounts []string
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -194,6 +199,7 @@ Examples:
 					SmallModel:       smallModelSvc,
 					MemoryQueue:      memQueue,
 					SandboxProvider:  selectSandboxProvider(),
+					SessionMounts:    sessionMounts,
 				})
 				if err != nil {
 					return err
@@ -284,11 +290,14 @@ Examples:
 	}
 
 	cmd.PersistentFlags().StringVar(&cfgPath, "config", defaultConfigPath(), "path to config file")
+	cmd.PersistentFlags().BoolVar(&globalOutput.JSON, "json", false, "output in JSON format")
+	cmd.PersistentFlags().BoolVarP(&globalOutput.Quiet, "quiet", "q", false, "minimal output, suppress informational messages")
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
 	cmd.Flags().BoolVar(&debugFlag, "debug", false, "show debug output including raw tool payloads")
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
 	cmd.Flags().BoolVarP(&continueSession, "continue", "c", false, "continue the most recent session")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a specific session by ID")
+	cmd.Flags().StringSliceVar(&sessionMounts, "mount", nil, "mount a directory for this session (can be repeated)")
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))
@@ -304,6 +313,11 @@ Examples:
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
 	cmd.AddCommand(newSandboxCmd())
+	cmd.AddCommand(newMessagesCmd())
+	cmd.AddCommand(newMountCmd())
+	cmd.AddCommand(newBackupCmd())
+	cmd.AddCommand(newSyncCmd())
+	cmd.AddCommand(newTriggersCmd())
 
 	return cmd
 }

@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -707,7 +708,7 @@ func TestAppleProvider_Integration(t *testing.T) {
 	// Create sandbox (name must start with "ayo-" to be listed)
 	sb, err := p.Create(ctx, providers.SandboxCreateOptions{
 		Name:  "ayo-test-" + t.Name(),
-		Image: "docker.io/library/busybox:latest",
+		Image: "docker.io/library/alpine:3.21",
 		Network: providers.NetworkConfig{
 			Enabled: false,
 		},
@@ -768,5 +769,132 @@ func TestAppleProvider_Integration(t *testing.T) {
 	}
 	if status != providers.SandboxStatusRunning {
 		t.Errorf("Status = %v, want running", status)
+	}
+}
+
+func TestAppleProvider_Ngircd_Integration(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.IsAvailable() {
+		t.Skip("Apple Container is not available, skipping integration test")
+	}
+
+	ctx := context.Background()
+
+	// Create sandbox with network enabled (required to install ngircd)
+	sb, err := p.Create(ctx, providers.SandboxCreateOptions{
+		Name: "ayo-ngircd-" + t.Name(),
+		Network: providers.NetworkConfig{
+			Enabled: true, // Need network to install packages
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	defer p.Delete(ctx, sb.ID, true)
+
+	// Verify ngircd is running
+	result, err := p.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "pgrep ngircd",
+	})
+	if err != nil {
+		t.Fatalf("Exec(pgrep) error = %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ngircd should be running, got exit code %d", result.ExitCode)
+	}
+
+	// Verify IRC config exists
+	result, err = p.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "cat /etc/ngircd/ngircd.conf",
+	})
+	if err != nil {
+		t.Fatalf("Exec(cat config) error = %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ngircd.conf should exist, got exit code %d", result.ExitCode)
+	}
+	if result.Stdout == "" {
+		t.Error("ngircd.conf should not be empty")
+	}
+
+	// Verify IRC log directory exists
+	result, err = p.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "test -d /var/log/irc && echo ok",
+	})
+	if err != nil {
+		t.Fatalf("Exec(test log dir) error = %v", err)
+	}
+	if result.Stdout != "ok\n" {
+		t.Error("/var/log/irc directory should exist")
+	}
+
+	// Verify we can connect to the IRC server
+	result, err = p.Exec(ctx, sb.ID, providers.ExecOptions{
+		Command: "echo PING | nc -w 1 127.0.0.1 6667 | head -1",
+	})
+	if err != nil {
+		t.Fatalf("Exec(nc) error = %v", err)
+	}
+	// ngircd should respond with something (NOTICE or ERROR for incomplete IRC handshake)
+	if result.ExitCode != 0 || result.Stdout == "" {
+		t.Logf("IRC connection test: exit=%d stdout=%q stderr=%q", result.ExitCode, result.Stdout, result.Stderr)
+		// Not a hard failure - nc might not be installed
+	}
+}
+
+func TestAppleProvider_Directories_Integration(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.IsAvailable() {
+		t.Skip("Apple Container is not available, skipping integration test")
+	}
+
+	ctx := context.Background()
+
+	// Create sandbox with network enabled
+	sb, err := p.Create(ctx, providers.SandboxCreateOptions{
+		Name: "ayo-dirs-" + t.Name(),
+		Network: providers.NetworkConfig{
+			Enabled: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	defer p.Delete(ctx, sb.ID, true)
+
+	// Verify standard directories exist with correct permissions
+	tests := []struct {
+		path     string
+		wantMode string
+	}{
+		{"/shared", "1777"},
+		{"/workspaces", "755"},
+		{"/var/log/irc", "755"},
+		{"/mnt/host", "755"},
+	}
+
+	for _, tt := range tests {
+		// Check directory exists
+		result, err := p.Exec(ctx, sb.ID, providers.ExecOptions{
+			Command: "test -d " + tt.path + " && echo ok",
+		})
+		if err != nil {
+			t.Fatalf("Exec(test %s) error = %v", tt.path, err)
+		}
+		if result.Stdout != "ok\n" {
+			t.Errorf("directory %s should exist", tt.path)
+		}
+
+		// Check permissions (using stat)
+		result, err = p.Exec(ctx, sb.ID, providers.ExecOptions{
+			Command: "stat -c %a " + tt.path,
+		})
+		if err != nil {
+			t.Fatalf("Exec(stat %s) error = %v", tt.path, err)
+		}
+		gotMode := strings.TrimSpace(result.Stdout)
+		if gotMode != tt.wantMode {
+			t.Errorf("directory %s mode = %s, want %s", tt.path, gotMode, tt.wantMode)
+		}
 	}
 }

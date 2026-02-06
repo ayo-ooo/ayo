@@ -892,3 +892,42 @@ func TestSandboxConfig_Languages(t *testing.T) {
 		t.Errorf("Languages should have 2 elements, got %d", len(cfg.Languages))
 	}
 }
+
+func TestSandboxConfig_PersistHome(t *testing.T) {
+	cfg := SandboxConfig{}
+	// Default should be true (changed from false for sandbox-by-default)
+	if !cfg.PersistHomeEnabled() {
+		t.Error("PersistHomeEnabled should default to true")
+	}
+
+	// Explicitly enabled
+	trueVal := true
+	cfg.PersistHome = &trueVal
+	if !cfg.PersistHomeEnabled() {
+		t.Error("PersistHomeEnabled should return true when enabled")
+	}
+
+	// Explicitly disabled
+	falseVal := false
+	cfg.PersistHome = &falseVal
+	if cfg.PersistHomeEnabled() {
+		t.Error("PersistHomeEnabled should return false when disabled")
+	}
+}
+
+func TestSandboxConfig_SandboxUser(t *testing.T) {
+	// Empty config defaults to agent handle
+	cfg := SandboxConfig{}
+	if user := cfg.SandboxUser("@ayo"); user != "ayo" {
+		t.Errorf("SandboxUser should default to 'ayo', got %q", user)
+	}
+	if user := cfg.SandboxUser("@crush"); user != "crush" {
+		t.Errorf("SandboxUser should default to 'crush', got %q", user)
+	}
+
+	// Explicit user overrides default
+	cfg.User = "custom"
+	if user := cfg.SandboxUser("@ayo"); user != "custom" {
+		t.Errorf("SandboxUser should return explicit user 'custom', got %q", user)
+	}
+}

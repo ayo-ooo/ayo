@@ -24,6 +24,7 @@ require (
 require (
 	github.com/charmbracelet/huh/spinner v0.0.0-20251215014908-6f7d32faaff3
 	github.com/charmbracelet/x/editor v0.2.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kaptinlin/jsonschema v0.6.9
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/ncruces/go-sqlite3 v0.30.5
@@ -111,6 +112,7 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/openai/openai-go/v2 v2.7.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect

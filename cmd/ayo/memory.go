@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
@@ -22,6 +23,9 @@ import (
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
+
+// Ensure cli package is used
+var _ = cli.Output{}
 
 func newMemoryCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -60,7 +64,6 @@ func newMemoryListCmd() *cobra.Command {
 	var agentFilter string
 	var categoryFilter string
 	var limit int64
-	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -90,12 +93,22 @@ func newMemoryListCmd() *cobra.Command {
 				memories = filtered
 			}
 
-			if jsonOutput {
+			if globalOutput.JSON {
 				return writeJSON(memoriesToJSON(memories))
 			}
 
 			if len(memories) == 0 {
-				fmt.Println("No memories found")
+				if !globalOutput.Quiet {
+					fmt.Println("No memories found")
+				}
+				return nil
+			}
+
+			// Quiet mode: just list IDs
+			if globalOutput.Quiet {
+				for _, m := range memories {
+					fmt.Println(m.ID)
+				}
 				return nil
 			}
 
@@ -148,7 +161,6 @@ func newMemoryListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Filter by agent handle")
 	cmd.Flags().StringVarP(&categoryFilter, "category", "c", "", "Filter by category")
 	cmd.Flags().Int64VarP(&limit, "limit", "n", 50, "Maximum number of memories to show")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
@@ -157,7 +169,6 @@ func newMemorySearchCmd() *cobra.Command {
 	var agentFilter string
 	var threshold float64
 	var limit int
-	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -190,12 +201,22 @@ func newMemorySearchCmd() *cobra.Command {
 				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if jsonOutput {
+			if globalOutput.JSON {
 				return writeJSON(searchResultsToJSON(results))
 			}
 
 			if len(results) == 0 {
-				fmt.Println("No memories found matching the query")
+				if !globalOutput.Quiet {
+					fmt.Println("No memories found matching the query")
+				}
+				return nil
+			}
+
+			// Quiet mode: just list IDs
+			if globalOutput.Quiet {
+				for _, r := range results {
+					fmt.Println(r.Memory.ID)
+				}
 				return nil
 			}
 
@@ -240,14 +261,11 @@ func newMemorySearchCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Filter by agent handle")
 	cmd.Flags().Float64VarP(&threshold, "threshold", "t", 0.3, "Minimum similarity threshold (0-1)")
 	cmd.Flags().IntVarP(&limit, "limit", "n", 10, "Maximum number of results")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
 
 func newMemoryShowCmd() *cobra.Command {
-	var jsonOutput bool
-
 	cmd := &cobra.Command{
 		Use:   "show [id]",
 		Short: "Show memory details",
@@ -276,7 +294,7 @@ func newMemoryShowCmd() *cobra.Command {
 				}
 			}
 
-			if jsonOutput {
+			if globalOutput.JSON {
 				return writeJSON(memoryToJSON(mem))
 			}
 
@@ -318,8 +336,6 @@ func newMemoryShowCmd() *cobra.Command {
 			return nil
 		},
 	}
-
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	return cmd
 }
