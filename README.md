@@ -305,8 +305,7 @@ Configure an agent for sandbox execution in its `config.json`:
 {
   "sandbox": {
     "enabled": true,
-    "provider": "docker",
-    "image": "golang:1.22",
+    "image": "busybox:stable",
     "mounts": [
       {"host": ".", "container": "/workspace", "readonly": false}
     ],
@@ -319,9 +318,9 @@ Configure an agent for sandbox execution in its `config.json`:
 
 | Provider | Status | Requirements |
 |----------|--------|--------------|
-| Docker | Available | Docker installed |
-| Lima | Available | Lima installed (macOS) |
-| Apple Container | Planned | macOS 15+ |
+| Apple Container | Available | macOS 26+, Apple Silicon |
+| systemd-nspawn | Available | Linux with systemd |
+| None | Available | Fallback (no isolation) |
 
 ### How It Works
 

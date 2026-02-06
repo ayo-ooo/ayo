@@ -13,7 +13,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/skills"
 )
 
 func newAgentsCmd(cfgPath *string) *cobra.Command {
@@ -46,6 +45,7 @@ For help designing agents, chat with @ayo:
 	cmd.AddCommand(createAgentCmd(cfgPath))
 	cmd.AddCommand(showAgentCmd(cfgPath))
 	cmd.AddCommand(updateAgentsCmd(cfgPath))
+	cmd.AddCommand(rmAgentCmd(cfgPath))
 
 	return cmd
 }
@@ -287,24 +287,8 @@ Examples:
 					}
 				}
 
-				// Default tools
-				if len(tools) == 0 {
-					tools = []string{"bash"}
-				}
-
-				// Merge required skills based on selected tools
-				requiredSkills := skills.GetRequiredSkillsForTools(tools)
-				if len(requiredSkills) > 0 {
-					skillSet := make(map[string]struct{}, len(skills_))
-					for _, s := range skills_ {
-						skillSet[s] = struct{}{}
-					}
-					for _, s := range requiredSkills {
-						if _, exists := skillSet[s]; !exists {
-							skills_ = append(skills_, s)
-						}
-					}
-				}
+				// Tools and skills are empty by default - user must explicitly add them
+				// No automatic defaults
 
 				agCfg := agent.Config{
 					Model:               model,
@@ -499,6 +483,104 @@ func updateAgentsCmd(cfgPath *string) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite without checking for modifications")
+
+	return cmd
+}
+
+func rmAgentCmd(cfgPath *string) *cobra.Command {
+	var (
+		force   bool
+		dryRun  bool
+	)
+
+	cmd := &cobra.Command{
+		Use:     "rm @handle",
+		Aliases: []string{"remove", "delete"},
+		Short:   "Remove an agent",
+		Long: `Remove a user-defined agent.
+
+Built-in agents cannot be removed. Use with caution - this permanently
+deletes the agent directory including config.json, system.md, and any
+agent-specific skills.
+
+Examples:
+  # Remove with confirmation prompt
+  ayo agents rm @myagent
+
+  # Skip confirmation (dangerous)
+  ayo agents rm @myagent --force
+
+  # Preview what would be deleted
+  ayo agents rm @myagent --dry-run`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			handle := agent.NormalizeHandle(args[0])
+
+			return withConfig(cfgPath, func(cfg config.Config) error {
+				// Check if agent exists
+				ag, err := agent.Load(cfg, handle)
+				if err != nil {
+					return fmt.Errorf("agent not found: %s", handle)
+				}
+
+				// Prevent removing built-in agents
+				if ag.BuiltIn {
+					return fmt.Errorf("cannot remove built-in agent %s", handle)
+				}
+
+				// Get agent directory
+				agentDir := ag.Dir
+
+				// Dry run mode
+				if dryRun {
+					fmt.Println("Would remove:")
+					fmt.Printf("  %s\n", agentDir)
+					
+					// List contents
+					entries, _ := os.ReadDir(agentDir)
+					for _, e := range entries {
+						fmt.Printf("    - %s\n", e.Name())
+					}
+					return nil
+				}
+
+				// Confirmation prompt (unless --force)
+				if !force {
+					fmt.Printf("Remove agent %s?\n", handle)
+					fmt.Printf("  Location: %s\n", agentDir)
+					
+					// List what will be deleted
+					entries, _ := os.ReadDir(agentDir)
+					if len(entries) > 0 {
+						fmt.Println("  Contents:")
+						for _, e := range entries {
+							fmt.Printf("    - %s\n", e.Name())
+						}
+					}
+					
+					fmt.Print("\nType the agent handle to confirm: ")
+					var confirm string
+					fmt.Scanln(&confirm)
+					
+					if confirm != handle {
+						return fmt.Errorf("confirmation failed: expected %s, got %s", handle, confirm)
+					}
+				}
+
+				// Remove the agent directory
+				if err := os.RemoveAll(agentDir); err != nil {
+					return fmt.Errorf("remove agent: %w", err)
+				}
+
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Println(successStyle.Render("✓ Removed agent: " + handle))
+				return nil
+			})
+		},
+	}
+
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "skip confirmation prompt")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without removing")
 
 	return cmd
 }

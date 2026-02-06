@@ -823,13 +823,23 @@ func TestLoadWithGuardrailsDisabled(t *testing.T) {
 
 func TestSandboxConfig_Enabled(t *testing.T) {
 	cfg := Config{}
-	if cfg.SandboxEnabled() {
-		t.Error("SandboxEnabled should default to false")
+	// Default is now true (sandbox by default)
+	if !cfg.SandboxEnabled() {
+		t.Error("SandboxEnabled should default to true")
 	}
 
-	cfg.Sandbox.Enabled = true
+	// Explicitly disabled
+	disabled := false
+	cfg.Sandbox.Enabled = &disabled
+	if cfg.SandboxEnabled() {
+		t.Error("SandboxEnabled should return false when explicitly disabled")
+	}
+	
+	// Explicitly enabled
+	enabled := true
+	cfg.Sandbox.Enabled = &enabled
 	if !cfg.SandboxEnabled() {
-		t.Error("SandboxEnabled should return true when enabled")
+		t.Error("SandboxEnabled should return true when explicitly enabled")
 	}
 }
 

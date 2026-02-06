@@ -11,13 +11,10 @@ NC='\033[0m' # No Color
 # Required Ollama models
 REQUIRED_MODELS=("ministral-3:3b" "nomic-embed-text")
 
-# Docker images for sandbox
-SANDBOX_BASE_IMAGE="busybox:stable"
-SANDBOX_EXTENDED_IMAGE="ayo-sandbox:latest"
-
-# Apple Container (macOS 15+)
-APPLE_CONTAINER_MIN_VERSION="15.0"
-APPLE_CONTAINER_PKG_URL="https://github.com/apple/container/releases"
+# Apple Container (macOS 26+)
+APPLE_CONTAINER_MIN_VERSION="26.0"
+APPLE_CONTAINER_RELEASES_URL="https://github.com/apple/container/releases"
+APPLE_CONTAINER_API_URL="https://api.github.com/repos/apple/container/releases/latest"
 
 # Flags
 CLEAN=false
@@ -317,69 +314,14 @@ setup_ollama() {
     pull_models
 }
 
-# Check if Docker is available
-check_docker() {
-    command -v docker &> /dev/null && docker info &> /dev/null
-}
-
-# Check if a Docker image is available locally
-has_docker_image() {
-    local image="$1"
-    docker images -q "$image" 2>/dev/null | grep -q .
-}
-
-# Setup Docker sandbox images
-setup_docker() {
-    header "Sandbox Setup"
-    
-    if ! check_docker; then
-        warn "Docker not available - sandbox will run on host"
-        echo "Install Docker Desktop to enable sandboxed execution:"
-        echo "  https://docs.docker.com/get-docker/"
-        return 0
-    fi
-    
-    success "Docker available"
-    
-    # Pull base image
-    if has_docker_image "$SANDBOX_BASE_IMAGE"; then
-        success "$SANDBOX_BASE_IMAGE already available"
-    else
-        info "Pulling $SANDBOX_BASE_IMAGE..."
-        if spin "Pulling $SANDBOX_BASE_IMAGE..." docker pull "$SANDBOX_BASE_IMAGE"; then
-            success "$SANDBOX_BASE_IMAGE ready"
-        else
-            warn "Failed to pull $SANDBOX_BASE_IMAGE"
-        fi
-    fi
-    
-    # Check for extended image or build it
-    if has_docker_image "$SANDBOX_EXTENDED_IMAGE"; then
-        success "$SANDBOX_EXTENDED_IMAGE already available"
-    else
-        # Check if we have the Dockerfile to build it
-        local dockerfile="internal/sandbox/images/Dockerfile"
-        if [[ -f "$dockerfile" ]]; then
-            info "Building $SANDBOX_EXTENDED_IMAGE..."
-            if spin "Building $SANDBOX_EXTENDED_IMAGE..." docker build -t "$SANDBOX_EXTENDED_IMAGE" -f "$dockerfile" .; then
-                success "$SANDBOX_EXTENDED_IMAGE built"
-            else
-                warn "Failed to build $SANDBOX_EXTENDED_IMAGE - using base image"
-            fi
-        else
-            info "$SANDBOX_EXTENDED_IMAGE not found - using base image"
-        fi
-    fi
-}
-
-# Check if running macOS 15+ (Sequoia)
+# Check if running macOS 26+ (Tahoe)
 check_macos_version() {
     if [[ "$(uname -s)" != "Darwin" ]]; then
         return 1
     fi
     
     local version=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
-    [[ "$version" -ge 15 ]]
+    [[ "$version" -ge 26 ]]
 }
 
 # Check if Apple Container is installed
@@ -392,7 +334,80 @@ check_apple_container_running() {
     container system status &>/dev/null
 }
 
-# Setup Apple Container (macOS 15+ only)
+# Get latest Apple Container release info from GitHub API
+get_apple_container_release() {
+    local release_json
+    release_json=$(curl -sL "$APPLE_CONTAINER_API_URL" 2>/dev/null)
+    
+    if [[ -z "$release_json" || "$release_json" == *"rate limit"* ]]; then
+        return 1
+    fi
+    
+    echo "$release_json"
+}
+
+# Extract download URL for signed pkg from release JSON
+get_apple_container_pkg_url() {
+    local release_json="$1"
+    # Use grep/sed to extract the signed pkg URL (works without jq)
+    echo "$release_json" | grep -o '"browser_download_url": "[^"]*container-installer-signed\.pkg"' | head -1 | sed 's/.*": "//;s/"$//'
+}
+
+# Extract version from release JSON
+get_apple_container_version() {
+    local release_json="$1"
+    echo "$release_json" | grep -o '"tag_name": "[^"]*"' | head -1 | sed 's/.*": "//;s/"$//'
+}
+
+# Get installed Apple Container version
+get_installed_apple_container_version() {
+    if ! command -v container &> /dev/null; then
+        echo ""
+        return
+    fi
+    container --version 2>/dev/null | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1
+}
+
+# Install Apple Container from pkg
+install_apple_container() {
+    local pkg_url="$1"
+    local version="$2"
+    
+    info "Downloading Apple Container $version..."
+    
+    local temp_pkg
+    temp_pkg=$(mktemp).pkg
+    
+    if ! curl -sL -o "$temp_pkg" "$pkg_url"; then
+        error "Failed to download Apple Container"
+        rm -f "$temp_pkg"
+        return 1
+    fi
+    
+    info "Installing Apple Container (requires admin password)..."
+    
+    # Use osascript for GUI password prompt if available, otherwise sudo
+    if [[ -n "$DISPLAY" ]] || [[ "$(uname -s)" == "Darwin" ]]; then
+        # macOS - try GUI prompt first for better UX
+        if ! sudo installer -pkg "$temp_pkg" -target / 2>/dev/null; then
+            error "Installation failed. You may need to allow the installer in System Settings > Privacy & Security."
+            rm -f "$temp_pkg"
+            return 1
+        fi
+    else
+        if ! sudo installer -pkg "$temp_pkg" -target /; then
+            error "Installation failed"
+            rm -f "$temp_pkg"
+            return 1
+        fi
+    fi
+    
+    rm -f "$temp_pkg"
+    success "Apple Container $version installed"
+    return 0
+}
+
+# Setup Apple Container (macOS 26+ only)
 setup_apple_container() {
     # Only run on macOS
     if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -401,13 +416,15 @@ setup_apple_container() {
     
     # Check macOS version
     if ! check_macos_version; then
-        info "Apple Container requires macOS 15+ (current: $(sw_vers -productVersion 2>/dev/null || echo 'unknown'))"
+        info "Apple Container requires macOS 26+ (current: $(sw_vers -productVersion 2>/dev/null || echo 'unknown'))"
+        info "Sandbox will run on host without isolation."
         return 0
     fi
     
     # Check for Apple Silicon
     if [[ "$(uname -m)" != "arm64" ]]; then
         info "Apple Container requires Apple Silicon"
+        info "Sandbox will run on host without isolation."
         return 0
     fi
     
@@ -415,31 +432,53 @@ setup_apple_container() {
     
     if has_gum; then
         gum format << EOF
-**Apple Container** provides native Linux container support on macOS 15+.
+**Apple Container** provides native Linux container support on macOS 26+.
 
-Benefits over Docker:
+This is the **only** supported sandbox provider on macOS:
 * Native virtualization (faster startup)
 * Lower resource usage
 * Optimized for Apple Silicon
 * virtiofs for fast file sharing
 
-This is optional - Docker works great too!
+Without Apple Container, commands will run directly on the host.
 EOF
     else
-        echo "Apple Container provides native Linux container support on macOS 15+."
+        echo "Apple Container provides native Linux container support on macOS 26+."
         echo ""
-        echo "Benefits over Docker:"
+        echo "This is the only supported sandbox provider on macOS:"
         echo "  - Native virtualization (faster startup)"
         echo "  - Lower resource usage"
         echo "  - Optimized for Apple Silicon"
         echo "  - virtiofs for fast file sharing"
         echo ""
-        echo "This is optional - Docker works great too!"
+        echo "Without Apple Container, commands will run directly on the host."
     fi
     echo ""
     
-    if check_apple_container; then
-        success "Apple Container already installed"
+    # Check if already installed
+    local installed_version
+    installed_version=$(get_installed_apple_container_version)
+    
+    if [[ -n "$installed_version" ]]; then
+        success "Apple Container $installed_version already installed"
+        
+        # Check for updates
+        local release_json
+        release_json=$(get_apple_container_release)
+        if [[ -n "$release_json" ]]; then
+            local latest_version
+            latest_version=$(get_apple_container_version "$release_json")
+            if [[ -n "$latest_version" && "$latest_version" != "$installed_version" ]]; then
+                info "Update available: $installed_version -> $latest_version"
+                if confirm "Update Apple Container to $latest_version?"; then
+                    local pkg_url
+                    pkg_url=$(get_apple_container_pkg_url "$release_json")
+                    if [[ -n "$pkg_url" ]]; then
+                        install_apple_container "$pkg_url" "$latest_version"
+                    fi
+                fi
+            fi
+        fi
         
         # Check if service is running
         if check_apple_container_running; then
@@ -459,14 +498,50 @@ EOF
     
     # Apple Container not installed - offer to install
     echo ""
-    info "Apple Container is not installed."
-    echo "Download the installer from: $APPLE_CONTAINER_PKG_URL"
-    echo ""
     
-    if confirm "Open the download page in your browser?"; then
-        open "$APPLE_CONTAINER_PKG_URL"
-        echo ""
-        info "After installing, run: container system start"
+    # Get release info
+    local release_json
+    release_json=$(get_apple_container_release)
+    
+    if [[ -z "$release_json" ]]; then
+        warn "Could not fetch Apple Container release info"
+        info "Install manually from: $APPLE_CONTAINER_RELEASES_URL"
+        if confirm "Open the download page in your browser?"; then
+            open "$APPLE_CONTAINER_RELEASES_URL"
+        fi
+        return 0
+    fi
+    
+    local latest_version
+    latest_version=$(get_apple_container_version "$release_json")
+    local pkg_url
+    pkg_url=$(get_apple_container_pkg_url "$release_json")
+    
+    if [[ -z "$pkg_url" ]]; then
+        warn "Could not find Apple Container installer"
+        info "Install manually from: $APPLE_CONTAINER_RELEASES_URL"
+        if confirm "Open the download page in your browser?"; then
+            open "$APPLE_CONTAINER_RELEASES_URL"
+        fi
+        return 0
+    fi
+    
+    info "Latest version: $latest_version"
+    
+    if confirm "Install Apple Container $latest_version?"; then
+        if install_apple_container "$pkg_url" "$latest_version"; then
+            # Start the service
+            info "Starting Apple Container service..."
+            if container system start; then
+                success "Apple Container service started"
+            else
+                warn "Failed to start service. Run: container system start"
+            fi
+        fi
+    else
+        warn "Skipping Apple Container installation"
+        info "Sandbox will run on host without isolation."
+        info "Install later from: $APPLE_CONTAINER_RELEASES_URL"
     fi
 }
 
@@ -483,6 +558,8 @@ main() {
     local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     local dirty=$(git status --porcelain 2>/dev/null)
     local behind_ahead=$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null || echo "0 0")
+    local is_dirty="no"
+    [[ -n "$dirty" ]] && is_dirty="yes"
     
     if [[ "$branch" == "main" && -z "$dirty" && "$behind_ahead" == "0	0" ]]; then
         # Clean main branch in sync with origin - install to standard location
@@ -497,7 +574,7 @@ main() {
         fi
     else
         # Any other state - install to local .local/bin
-        info "Installing to .local/bin/ (branch: $branch, dirty: ${dirty:+yes}${dirty:-no})..."
+        info "Installing to .local/bin/ (branch: $branch, dirty: $is_dirty)..."
         mkdir -p .local/bin
         spin "Building ayo..." env GOBIN="$(pwd)/.local/bin" go install ./cmd/ayo
         success "ayo installed to .local/bin/"
@@ -512,10 +589,7 @@ main() {
     # Setup Ollama for local AI features
     setup_ollama
     
-    # Setup Docker sandbox images
-    setup_docker
-    
-    # Setup Apple Container on macOS 15+
+    # Setup Apple Container on macOS 26+
     setup_apple_container
     
     # Final summary
@@ -534,17 +608,13 @@ main() {
         warn "Ollama not running - memory features disabled"
     fi
     
-    if check_docker; then
-        if has_docker_image "$SANDBOX_BASE_IMAGE"; then
-            success "Sandbox image ready"
-        else
-            warn "Sandbox image not pulled - sandbox will be slow on first use"
-        fi
-    fi
-    
     # Check Apple Container on macOS
-    if [[ "$(uname -s)" == "Darwin" ]] && check_apple_container; then
-        success "Apple Container available (native virtualization)"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if check_apple_container && check_apple_container_running; then
+            success "Apple Container available (native virtualization)"
+        else
+            warn "Sandbox will run on host (Apple Container not available)"
+        fi
     fi
     
     echo ""

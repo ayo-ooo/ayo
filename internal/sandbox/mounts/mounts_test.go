@@ -178,57 +178,6 @@ func TestIsVirtioFSAvailable(t *testing.T) {
 	_ = IsVirtioFSAvailable()
 }
 
-func TestDockerMountArgs(t *testing.T) {
-	tests := []struct {
-		name  string
-		mount providers.Mount
-		want  []string
-	}{
-		{
-			name: "bind mount",
-			mount: providers.Mount{
-				Source:      "/host/path",
-				Destination: "/container/path",
-				Mode:        providers.MountModeBind,
-			},
-			want: []string{"-v", "/host/path:/container/path"},
-		},
-		{
-			name: "readonly bind",
-			mount: providers.Mount{
-				Source:      "/host/path",
-				Destination: "/container/path",
-				Mode:        providers.MountModeBind,
-				ReadOnly:    true,
-			},
-			want: []string{"-v", "/host/path:/container/path:ro"},
-		},
-		{
-			name: "tmpfs",
-			mount: providers.Mount{
-				Destination: "/tmp/cache",
-				Mode:        providers.MountModeTmpfs,
-			},
-			want: []string{"--mount", "type=tmpfs,destination=/tmp/cache"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := DockerMountArgs(tt.mount)
-			if len(got) != len(tt.want) {
-				t.Errorf("DockerMountArgs() = %v, want %v", got, tt.want)
-				return
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("DockerMountArgs()[%d] = %s, want %s", i, got[i], tt.want[i])
-				}
-			}
-		})
-	}
-}
-
 func TestAppleContainerMountArgs(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -274,6 +223,57 @@ func TestAppleContainerMountArgs(t *testing.T) {
 			for i := range got {
 				if got[i] != tt.want[i] {
 					t.Errorf("AppleContainerMountArgs()[%d] = %s, want %s", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestLinuxMountArgs(t *testing.T) {
+	tests := []struct {
+		name  string
+		mount providers.Mount
+		want  []string
+	}{
+		{
+			name: "bind mount",
+			mount: providers.Mount{
+				Source:      "/host/path",
+				Destination: "/container/path",
+				Mode:        providers.MountModeBind,
+			},
+			want: []string{"--bind=/host/path:/container/path"},
+		},
+		{
+			name: "readonly bind",
+			mount: providers.Mount{
+				Source:      "/host/path",
+				Destination: "/container/path",
+				Mode:        providers.MountModeBind,
+				ReadOnly:    true,
+			},
+			want: []string{"--bind-ro=/host/path:/container/path"},
+		},
+		{
+			name: "tmpfs",
+			mount: providers.Mount{
+				Destination: "/tmp/cache",
+				Mode:        providers.MountModeTmpfs,
+			},
+			want: []string{"--tmpfs=/tmp/cache"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := LinuxMountArgs(tt.mount)
+			if len(got) != len(tt.want) {
+				t.Errorf("LinuxMountArgs() = %v, want %v", got, tt.want)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("LinuxMountArgs()[%d] = %s, want %s", i, got[i], tt.want[i])
 				}
 			}
 		})

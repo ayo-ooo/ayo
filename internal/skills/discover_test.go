@@ -26,6 +26,7 @@ func TestDiscoverAll(t *testing.T) {
 		AgentSkillsDir: agentDir,
 		UserSharedDir:  userDir,
 		BuiltinDir:     builtinDir,
+		IncludeSkills:  []string{"agent-skill", "user-skill", "builtin-skill", "common-skill"},
 		IgnorePlugins:  true,
 	})
 
@@ -80,6 +81,7 @@ func TestDiscoverAllWithExcludeFilter(t *testing.T) {
 
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: root,
+		IncludeSkills: []string{"skill-a", "skill-b", "skill-c"},
 		ExcludeSkills: []string{"skill-b"},
 		IgnorePlugins: true,
 	})
@@ -105,6 +107,7 @@ func TestDiscoverAllIgnoreBuiltin(t *testing.T) {
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: userDir,
 		BuiltinDir:    builtinDir,
+		IncludeSkills: []string{"user-skill", "builtin-skill"},
 		IgnoreBuiltin: true,
 		IgnorePlugins: true,
 	})
@@ -129,6 +132,7 @@ func TestDiscoverAllIgnoreShared(t *testing.T) {
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: userDir,
 		BuiltinDir:    builtinDir,
+		IncludeSkills: []string{"user-skill", "builtin-skill"},
 		IgnoreShared:  true,
 		IgnorePlugins: true,
 	})
@@ -150,6 +154,7 @@ func TestDiscoverAllSortsByName(t *testing.T) {
 
 	result := DiscoverAll(DiscoveryOptions{
 		UserSharedDir: root,
+		IncludeSkills: []string{"alpha", "beta", "zebra"},
 		IgnorePlugins: true,
 	})
 
@@ -174,6 +179,7 @@ func TestDiscoverForAgent(t *testing.T) {
 	mustWriteSkill(t, filepath.Join(userDir, "user-skill"), "user-skill", "user")
 
 	result := DiscoverForAgent(agentDir, []string{userDir}, DiscoveryFilterConfig{
+		IncludeSkills: []string{"agent-skill", "user-skill"},
 		IgnorePlugins: true,
 	})
 
@@ -188,10 +194,16 @@ func TestFilterSkillsEmpty(t *testing.T) {
 		{Name: "b"},
 	}
 
-	// No filters - should return all
+	// No include list - should return empty (explicit opt-in required)
 	filtered := filterSkills(skills, nil, nil)
+	if len(filtered) != 0 {
+		t.Errorf("expected 0 skills with empty include, got %d", len(filtered))
+	}
+
+	// With include list - should return those skills
+	filtered = filterSkills(skills, []string{"a", "b"}, nil)
 	if len(filtered) != 2 {
-		t.Errorf("expected 2 skills, got %d", len(filtered))
+		t.Errorf("expected 2 skills with include list, got %d", len(filtered))
 	}
 }
 

@@ -145,34 +145,6 @@ func IsVirtioFSAvailable() bool {
 	return false
 }
 
-// DockerMountArgs converts a mount to Docker CLI arguments.
-func DockerMountArgs(mount providers.Mount) []string {
-	var args []string
-
-	switch mount.Mode {
-	case providers.MountModeBind, providers.MountModeVirtioFS:
-		// Docker uses bind mounts; virtiofs is handled internally
-		mountOpt := mount.Source + ":" + mount.Destination
-		if mount.ReadOnly {
-			mountOpt += ":ro"
-		}
-		args = append(args, "-v", mountOpt)
-
-	case providers.MountModeTmpfs:
-		args = append(args, "--mount", fmt.Sprintf("type=tmpfs,destination=%s", mount.Destination))
-
-	case providers.MountModeOverlay:
-		// Overlay not directly supported via CLI; use bind as fallback
-		mountOpt := mount.Source + ":" + mount.Destination
-		if mount.ReadOnly {
-			mountOpt += ":ro"
-		}
-		args = append(args, "-v", mountOpt)
-	}
-
-	return args
-}
-
 // AppleContainerMountArgs converts a mount to Apple Container CLI arguments.
 func AppleContainerMountArgs(mount providers.Mount) []string {
 	var args []string
@@ -197,6 +169,35 @@ func AppleContainerMountArgs(mount providers.Mount) []string {
 			mountOpt += ":ro"
 		}
 		args = append(args, "--volume", mountOpt)
+	}
+
+	return args
+}
+
+// LinuxMountArgs converts a mount to systemd-nspawn CLI arguments.
+func LinuxMountArgs(mount providers.Mount) []string {
+	var args []string
+
+	switch mount.Mode {
+	case providers.MountModeBind, providers.MountModeVirtioFS:
+		// systemd-nspawn uses --bind for read-write, --bind-ro for read-only
+		if mount.ReadOnly {
+			args = append(args, fmt.Sprintf("--bind-ro=%s:%s", mount.Source, mount.Destination))
+		} else {
+			args = append(args, fmt.Sprintf("--bind=%s:%s", mount.Source, mount.Destination))
+		}
+
+	case providers.MountModeTmpfs:
+		// systemd-nspawn supports tmpfs via --tmpfs
+		args = append(args, fmt.Sprintf("--tmpfs=%s", mount.Destination))
+
+	case providers.MountModeOverlay:
+		// Fallback to bind for overlay
+		if mount.ReadOnly {
+			args = append(args, fmt.Sprintf("--bind-ro=%s:%s", mount.Source, mount.Destination))
+		} else {
+			args = append(args, fmt.Sprintf("--bind=%s:%s", mount.Source, mount.Destination))
+		}
 	}
 
 	return args

@@ -44,6 +44,7 @@ Discovery priority (first found wins):
 	cmd.AddCommand(runFlowCmd(cfgPath))
 	cmd.AddCommand(validateFlowCmd())
 	cmd.AddCommand(newFlowCmd())
+	cmd.AddCommand(rmFlowCmd())
 	cmd.AddCommand(historyFlowsCmd(cfgPath))
 	cmd.AddCommand(replayFlowCmd(cfgPath))
 
@@ -1051,6 +1052,134 @@ func replayFlowCmd(cfgPath *string) *cobra.Command {
 
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "Timeout in seconds (default 5 minutes)")
 	cmd.Flags().BoolVar(&noHistory, "no-history", false, "Don't record replay in history")
+
+	return cmd
+}
+
+func rmFlowCmd() *cobra.Command {
+	var (
+		force  bool
+		dryRun bool
+	)
+
+	cmd := &cobra.Command{
+		Use:     "rm <name>",
+		Aliases: []string{"remove", "delete"},
+		Short:   "Remove a flow",
+		Long: `Remove a user-defined flow.
+
+Built-in flows cannot be removed. Use with caution - this permanently
+deletes the flow file (and associated schemas for packaged flows).
+
+Examples:
+  # Remove with confirmation prompt
+  ayo flows rm my-flow
+
+  # Skip confirmation (dangerous)
+  ayo flows rm my-flow --force
+
+  # Preview what would be deleted
+  ayo flows rm my-flow --dry-run`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+
+			// Discover all flows
+			dirs := paths.FlowsDirs()
+			discovered, err := flows.Discover(dirs)
+			if err != nil {
+				return fmt.Errorf("discover flows: %w", err)
+			}
+
+			// Find the flow
+			var flow *flows.Flow
+			for _, f := range discovered {
+				if f.Name == name {
+					flow = &f
+					break
+				}
+			}
+
+			if flow == nil {
+				return fmt.Errorf("flow not found: %s", name)
+			}
+
+			// Prevent removing built-in flows
+			if flow.Source == flows.FlowSourceBuiltin {
+				return fmt.Errorf("cannot remove built-in flow %s", name)
+			}
+
+			// Determine what to delete
+			var toDelete string
+			var isDir bool
+			if flow.Dir != "" && flow.Dir != filepath.Dir(flow.Path) {
+				// Packaged flow - delete the directory
+				toDelete = flow.Dir
+				isDir = true
+			} else {
+				// Simple flow - delete just the file
+				toDelete = flow.Path
+				isDir = false
+			}
+
+			// Dry run mode
+			if dryRun {
+				fmt.Println("Would remove:")
+				fmt.Printf("  %s\n", toDelete)
+
+				if isDir {
+					entries, _ := os.ReadDir(toDelete)
+					for _, e := range entries {
+						fmt.Printf("    - %s\n", e.Name())
+					}
+				}
+				return nil
+			}
+
+			// Confirmation prompt (unless --force)
+			if !force {
+				fmt.Printf("Remove flow %s?\n", name)
+				fmt.Printf("  Source: %s\n", flow.Source)
+				fmt.Printf("  Location: %s\n", toDelete)
+
+				if isDir {
+					entries, _ := os.ReadDir(toDelete)
+					if len(entries) > 0 {
+						fmt.Println("  Contents:")
+						for _, e := range entries {
+							fmt.Printf("    - %s\n", e.Name())
+						}
+					}
+				}
+
+				fmt.Print("\nType the flow name to confirm: ")
+				var confirm string
+				fmt.Scanln(&confirm)
+
+				if confirm != name {
+					return fmt.Errorf("confirmation failed: expected %s, got %s", name, confirm)
+				}
+			}
+
+			// Remove the flow
+			var removeErr error
+			if isDir {
+				removeErr = os.RemoveAll(toDelete)
+			} else {
+				removeErr = os.Remove(toDelete)
+			}
+			if removeErr != nil {
+				return fmt.Errorf("remove flow: %w", removeErr)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render("✓ Removed flow: " + name))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "skip confirmation prompt")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without removing")
 
 	return cmd
 }

@@ -288,12 +288,20 @@ func validateSkillCmd() *cobra.Command {
 }
 
 func createSkillCmd(cfgPath *string) *cobra.Command {
-	var shared bool
+	var (
+		local     bool
+		agentName string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a new skill from template",
-		Args:  cobra.ExactArgs(1),
+		Long: `Create a new skill from template.
+
+By default, skills are created in the shared skills directory (~/.config/ayo/skills/).
+Use --local to create in the current directory (project-local skill).
+Use --agent to create an agent-specific skill in the agent's skills/ directory.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
@@ -302,18 +310,38 @@ func createSkillCmd(cfgPath *string) *cobra.Command {
 				return fmt.Errorf("invalid skill name: %s", errors[0])
 			}
 
+			// Validate mutually exclusive flags
+			if local && agentName != "" {
+				return fmt.Errorf("cannot use both --local and --agent flags")
+			}
+
 			return withConfig(cfgPath, func(cfg config.Config) error {
 				var skillDir string
-				if shared {
-					// --shared: create in skills directory
-					skillDir = filepath.Join(cfg.SkillsDir, name)
-				} else {
-					// Default: use current directory
+				switch {
+				case agentName != "":
+					// --agent: create in agent's skills directory
+					handle := agentName
+					if !strings.HasPrefix(handle, "@") {
+						handle = "@" + handle
+					}
+
+					// Find the agent
+					agentDir := filepath.Join(cfg.AgentsDir, handle)
+					if _, err := os.Stat(agentDir); os.IsNotExist(err) {
+						return fmt.Errorf("agent not found: %s", handle)
+					}
+
+					skillDir = filepath.Join(agentDir, "skills", name)
+				case local:
+					// --local: create in current directory
 					cwd, err := os.Getwd()
 					if err != nil {
 						return err
 					}
 					skillDir = filepath.Join(cwd, name)
+				default:
+					// Default: create in shared skills directory
+					skillDir = filepath.Join(cfg.SkillsDir, name)
 				}
 
 				// Check if already exists
@@ -365,7 +393,8 @@ Show example interactions.
 		},
 	}
 
-	cmd.Flags().BoolVar(&shared, "shared", false, "create in shared skills directory")
+	cmd.Flags().BoolVar(&local, "local", false, "create in current directory (project-local)")
+	cmd.Flags().StringVarP(&agentName, "agent", "a", "", "create as agent-specific skill")
 
 	return cmd
 }

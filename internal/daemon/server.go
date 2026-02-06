@@ -67,8 +67,8 @@ func DefaultPIDPath() string {
 
 // NewServer creates a new daemon server.
 func NewServer(cfg ServerConfig) (*Server, error) {
-	// Create sandbox provider (none provider for now)
-	provider := sandbox.NewNoneProvider()
+	// Select the best available sandbox provider
+	provider := selectSandboxProvider()
 
 	// Create pool
 	pool := sandbox.NewPool(cfg.PoolConfig, provider)
@@ -403,4 +403,30 @@ func (s *Server) handleSandboxStatus(req *Request) *Response {
 func (s *Server) writePIDFile() error {
 	pidPath := DefaultPIDPath()
 	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+}
+
+// selectSandboxProvider returns the best available sandbox provider for the current platform.
+// Priority:
+// 1. Apple Container (macOS 26+ on Apple Silicon)
+// 2. systemd-nspawn (Linux with systemd)
+// 3. None (host execution, no isolation)
+func selectSandboxProvider() providers.SandboxProvider {
+	// Try Apple Container on macOS
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		appleProvider := sandbox.NewAppleProvider()
+		if appleProvider.IsAvailable() {
+			return appleProvider
+		}
+	}
+
+	// Try systemd-nspawn on Linux
+	if runtime.GOOS == "linux" {
+		linuxProvider := sandbox.NewLinuxProvider()
+		if linuxProvider.IsAvailable() {
+			return linuxProvider
+		}
+	}
+
+	// Fall back to none provider (no isolation)
+	return sandbox.NewNoneProvider()
 }

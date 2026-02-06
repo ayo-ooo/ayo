@@ -12,6 +12,56 @@ import (
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 )
 
+// ModelType represents the type of model (large for main inference, small for fast tasks).
+type ModelType string
+
+const (
+	// ModelTypeLarge is the primary model for main inference tasks.
+	ModelTypeLarge ModelType = "large"
+	// ModelTypeSmall is a fast/cheap model for internal tasks (titles, memory extraction).
+	ModelTypeSmall ModelType = "small"
+)
+
+// SelectedModel represents a fully configured model selection.
+// This allows specifying provider, model ID, and model-specific parameters.
+type SelectedModel struct {
+	// Model is the model ID (e.g., "claude-sonnet-4-5-20250929", "gpt-4o").
+	Model string `json:"model"`
+
+	// Provider is the provider ID (e.g., "anthropic", "openai").
+	// If empty, the model ID is used to find a matching provider.
+	Provider string `json:"provider,omitempty"`
+
+	// ReasoningEffort controls reasoning depth for models that support it (OpenAI o1/o3).
+	// Valid values: "low", "medium", "high".
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+
+	// Think enables extended thinking mode for Anthropic Claude models.
+	Think bool `json:"think,omitempty"`
+
+	// MaxTokens overrides the default max tokens for this model.
+	MaxTokens int64 `json:"max_tokens,omitempty"`
+
+	// Temperature controls randomness (0.0-2.0). If nil, uses model default.
+	Temperature *float64 `json:"temperature,omitempty"`
+
+	// TopP controls nucleus sampling. If nil, uses model default.
+	TopP *float64 `json:"top_p,omitempty"`
+}
+
+// IsEmpty returns true if the model is not configured.
+func (m SelectedModel) IsEmpty() bool {
+	return m.Model == ""
+}
+
+// String returns a human-readable representation of the model.
+func (m SelectedModel) String() string {
+	if m.Provider != "" {
+		return m.Provider + "/" + m.Model
+	}
+	return m.Model
+}
+
 // Config represents the CLI configuration for ayo.
 type Config struct {
 	Schema         string           `json:"$schema,omitempty"`
@@ -19,9 +69,16 @@ type Config struct {
 	SystemPrefix   string           `json:"system_prefix,omitempty"`
 	SystemSuffix   string           `json:"system_suffix,omitempty"`
 	SkillsDir      string           `json:"skills_dir,omitempty"`
-	DefaultModel   string           `json:"default_model,omitempty"`
-	SmallModel     string           `json:"small_model,omitempty"`
 	EmbeddingModel string           `json:"embedding_model,omitempty"`
+
+	// Models configures the large and small models with their parameters.
+	// This is the preferred way to configure models.
+	Models map[ModelType]SelectedModel `json:"models,omitempty"`
+
+	// DefaultModel is the legacy field for the primary model (deprecated, use Models["large"]).
+	DefaultModel string `json:"default_model,omitempty"`
+	// SmallModel is the legacy field for the small/fast model (deprecated, use Models["small"]).
+	SmallModel string `json:"small_model,omitempty"`
 	OllamaHost     string           `json:"ollama_host,omitempty"`
 	CatwalkBaseURL string           `json:"catwalk_base_url,omitempty"`
 	Provider       catwalk.Provider `json:"provider,omitempty"`

@@ -693,10 +693,67 @@ Ayo uses two directories:
   "skills_dir": "~/.config/ayo/skills",
   "system_prefix": "~/.config/ayo/prompts/prefix.md",
   "system_suffix": "~/.config/ayo/prompts/suffix.md",
-  "default_model": "gpt-5.2",
+  "models": {
+    "large": {
+      "model": "claude-sonnet-4-5-20250929",
+      "provider": "anthropic",
+      "max_tokens": 16000
+    },
+    "small": {
+      "model": "ministral-3:3b",
+      "provider": "ollama"
+    }
+  },
   "provider": {}
 }
 ```
+
+### Model Configuration
+
+Ayo uses two model types:
+
+| Type | Purpose | Default |
+|------|---------|---------|
+| `large` | Primary inference (chat, code gen) | Auto-detected from provider credentials |
+| `small` | Fast tasks (titles, memory extraction) | `ollama/ministral-3:3b` |
+
+**New format (recommended):**
+```json
+{
+  "models": {
+    "large": {
+      "model": "claude-sonnet-4-5-20250929",
+      "provider": "anthropic",
+      "max_tokens": 16000,
+      "temperature": 0.7
+    },
+    "small": {
+      "model": "gpt-4o-mini",
+      "provider": "openai"
+    }
+  }
+}
+```
+
+**Legacy format (still supported):**
+```json
+{
+  "default_model": "claude-sonnet-4-5-20250929",
+  "small_model": "ollama/ministral-3:3b"
+}
+```
+
+**SelectedModel fields:**
+
+| Field | Description |
+|-------|-------------|
+| `model` | Model ID (required) |
+| `provider` | Provider ID (optional, inferred from model) |
+| `max_tokens` | Override max tokens |
+| `temperature` | Sampling temperature (0.0-2.0) |
+| `top_p` | Nucleus sampling |
+| `reasoning_effort` | For o1/o3 models: "low", "medium", "high" |
+| `think` | Enable extended thinking (Anthropic) |
 
 ## Directory Structure
 
@@ -796,7 +853,12 @@ ayo sessions list -a @ayo   # Filter by agent
 ayo sessions show <id>      # Show session details and messages
 ayo sessions continue       # Continue a session (interactive picker)
 ayo sessions continue <id>  # Continue a specific session
+ayo sessions continue -l    # Continue most recent session
 ayo sessions delete <id>    # Delete a session
+
+# Continue session shortcuts (from root command)
+ayo -c "follow up"          # Continue most recent session
+ayo -s abc123 "follow up"   # Continue specific session by ID
 
 # Memory management
 ayo memory list             # List all memories
@@ -817,6 +879,7 @@ ayo flows list              # List available flows
 ayo flows show <name>       # Show flow details
 ayo flows run <name> [input] # Execute a flow
 ayo flows new <name>        # Create new flow
+ayo flows rm <name>         # Remove a flow
 ayo flows validate <path>   # Validate flow file
 ayo flows history           # Show flow run history
 ayo flows replay <run-id>   # Replay a flow run
@@ -1195,8 +1258,9 @@ ayo skills list                  # List all available skills
 ayo skills list --source=built-in # Filter by source
 ayo skills show <name>           # Show skill details
 ayo skills validate <path>       # Validate a skill directory
-ayo skills create <name>         # Create new skill from template
-ayo skills create <name> --shared # Create in shared skills directory
+ayo skills create <name>         # Create in shared skills directory (default)
+ayo skills create <name> --local # Create in current directory
+ayo skills create <name> -a @agent # Create as agent-specific skill
 ```
 
 #### Built-in Skills

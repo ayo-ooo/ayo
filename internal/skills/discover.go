@@ -105,7 +105,13 @@ func DiscoverAll(opts DiscoveryOptions) DiscoveryResult {
 }
 
 // filterSkills applies include/exclude filters to a skill list.
+// If include list is empty, no skills are returned (agents must explicitly list skills).
 func filterSkills(skills []Metadata, include, exclude []string) []Metadata {
+	// If no include list, return empty (explicit opt-in required)
+	if len(include) == 0 {
+		return nil
+	}
+
 	// Build lookup maps
 	includeSet := make(map[string]bool)
 	for _, name := range include {
@@ -123,8 +129,8 @@ func filterSkills(skills []Metadata, include, exclude []string) []Metadata {
 			continue
 		}
 
-		// If include list is specified, only include those
-		if len(includeSet) > 0 && !includeSet[skill.Name] {
+		// Only include skills explicitly listed
+		if !includeSet[skill.Name] {
 			continue
 		}
 

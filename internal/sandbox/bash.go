@@ -71,14 +71,16 @@ type Executor struct {
 	provider  providers.SandboxProvider
 	sandboxID string
 	baseDir   string
+	user      string // User to run commands as (empty = root)
 }
 
 // NewExecutor creates a new sandbox executor.
-func NewExecutor(provider providers.SandboxProvider, sandboxID, baseDir string) *Executor {
+func NewExecutor(provider providers.SandboxProvider, sandboxID, baseDir, user string) *Executor {
 	return &Executor{
 		provider:  provider,
 		sandboxID: sandboxID,
 		baseDir:   baseDir,
+		user:      user,
 	}
 }
 
@@ -102,6 +104,7 @@ func (e *Executor) Exec(ctx context.Context, params BashParams) (BashResult, err
 		Command:    params.Command,
 		WorkingDir: workingDir,
 		Timeout:    timeout,
+		User:       e.user,
 	})
 	if err != nil {
 		return BashResult{}, fmt.Errorf("sandbox exec: %w", err)

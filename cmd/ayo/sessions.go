@@ -442,6 +442,7 @@ Supports session ID prefix matching and title search.`,
 				FormationService: formSvc,
 				SmallModel:       smallModelSvc,
 				MemoryQueue:      memQueue,
+				SandboxProvider:  selectSandboxProvider(),
 			})
 			if err != nil {
 				return err

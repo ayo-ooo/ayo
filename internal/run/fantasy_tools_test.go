@@ -128,7 +128,7 @@ func TestNewFantasyToolSet_WithSandboxExecutor(t *testing.T) {
 	}
 	defer provider.Delete(nil, sb.ID, true)
 
-	executor := sandbox.NewExecutor(provider, sb.ID, t.TempDir())
+	executor := sandbox.NewExecutor(provider, sb.ID, t.TempDir(), "")
 
 	ts := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools:    []string{"bash"},

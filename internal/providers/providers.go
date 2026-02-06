@@ -182,6 +182,7 @@ type Sandbox struct {
 	Status    SandboxStatus
 	Pool      string   // Pool this sandbox belongs to
 	Agents    []string // Agent handles assigned to this sandbox
+	User      string   // User account created in the sandbox (empty = root)
 	CreatedAt time.Time
 	Mounts    []Mount
 	Resources Resources
@@ -206,6 +207,17 @@ type SandboxCreateOptions struct {
 	Resources Resources
 	Network   NetworkConfig
 	Labels    map[string]string
+
+	// User specifies the username to create and run as inside the sandbox.
+	// If specified, a user account will be created at startup with UID 1000
+	// and a home directory at /home/{user}.
+	// If empty, commands run as root.
+	User string
+
+	// SetupCommands are run as root after container creation but before
+	// the sandbox is considered ready. Used for user creation, package
+	// installation, etc.
+	SetupCommands [][]string
 }
 
 // SandboxStopOptions configures sandbox stopping.

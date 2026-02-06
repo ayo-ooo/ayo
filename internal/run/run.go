@@ -16,6 +16,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
+	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
@@ -34,6 +36,7 @@ type Runner struct {
 	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
 	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
+	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -74,6 +77,7 @@ type RunnerOptions struct {
 	OnAsyncStatus    func(uipkg.AsyncStatusMsg) // Callback for async operation status updates
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
 	StreamWriter     StreamWriter               // Unified stream writer interface
+	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
 }
 
 // NewRunner creates a runner with all options.
@@ -89,6 +93,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		onAsyncStatus:    opts.OnAsyncStatus,
 		memoryQueue:      opts.MemoryQueue,
 		streamWriter:     opts.StreamWriter,
+		sandboxProvider:  opts.SandboxProvider,
 	}, nil
 }
 
@@ -581,9 +586,16 @@ func (r *Runner) runChatWithHistory(ctx context.Context, ag agent.Agent, msgs []
 	prompt, historyMsgs := extractPromptAndHistory(msgs)
 
 	// Build Fantasy agent with tools
-	fantasyAgent, model, err := r.buildFantasyAgent(ctx, ag)
+	fantasyAgent, model, sandboxID, err := r.buildFantasyAgent(ctx, ag)
 	if err != nil {
 		return "", nil, err
+	}
+	
+	// Ensure sandbox cleanup if one was created
+	if sandboxID != "" && r.sandboxProvider != nil {
+		defer func() {
+			_ = r.sandboxProvider.Delete(context.Background(), sandboxID, true)
+		}()
 	}
 
 	// Use custom stream writer if provided, otherwise use default print writer
@@ -726,14 +738,58 @@ func extractPromptAndHistory(msgs []fantasy.Message) (string, []fantasy.Message)
 }
 
 // buildFantasyAgent creates a Fantasy agent with tools for the given agent configuration.
-func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy.Agent, fantasy.LanguageModel, error) {
+// Returns the agent, model, sandbox ID (if created), and any error.
+// The caller is responsible for cleaning up the sandbox if sandboxID is non-empty.
+func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy.Agent, fantasy.LanguageModel, string, error) {
 	model, err := NewLanguageModel(ctx, r.config.Provider, ag.Model)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create language model: %w", err)
+		return nil, nil, "", fmt.Errorf("create language model: %w", err)
 	}
 
 	baseDir, _ := os.Getwd()
-	tools := NewFantasyToolSetWithOptions(ag.Config.AllowedTools, baseDir, r.memoryQueue, r.depth, ag.Config.DisableTodo)
+	
+	// Check if agent has sandbox enabled and we have a provider
+	var sandboxExecutor *sandbox.Executor
+	var sandboxID string
+	if ag.Config.SandboxEnabled() && r.sandboxProvider != nil {
+		// Create sandbox for this agent
+		// Sanitize handle for container name (remove @ and other invalid chars)
+		safeName := strings.TrimPrefix(ag.Handle, "@")
+		safeName = strings.ReplaceAll(safeName, ".", "-")
+		sandboxUser := ag.Config.Sandbox.User
+		sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+			Name:  fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
+			Image: ag.Config.Sandbox.SandboxImage(),
+			User:  sandboxUser,
+			Mounts: []providers.Mount{{
+				Source:      baseDir,
+				Destination: baseDir,
+				Mode:        providers.MountModeVirtioFS,
+				ReadOnly:    false,
+			}},
+		})
+		if createErr != nil {
+			return nil, nil, "", fmt.Errorf("create sandbox: %w", createErr)
+		}
+		sandboxID = sb.ID
+		sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, sandboxUser)
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[sandbox] Created sandbox %s for %s\n", sandboxID, ag.Handle)
+		}
+	} else if ag.Config.SandboxEnabled() && r.sandboxProvider == nil {
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[sandbox] Agent %s has sandbox enabled but no provider available\n", ag.Handle)
+		}
+	}
+	
+	tools := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools:    ag.Config.AllowedTools,
+		BaseDir:         baseDir,
+		MemoryQueue:     r.memoryQueue,
+		Depth:           r.depth,
+		DisableTodo:     ag.Config.DisableTodo,
+		SandboxExecutor: sandboxExecutor,
+	})
 
 	fantasyAgent := fantasy.NewAgent(
 		model,
@@ -741,7 +797,7 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		fantasy.WithTools(tools.Tools()...),
 	)
 
-	return fantasyAgent, model, nil
+	return fantasyAgent, model, sandboxID, nil
 }
 
 // generateSessionTitle creates a simple fallback title from the prompt.

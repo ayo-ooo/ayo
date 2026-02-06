@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -14,6 +16,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/version"
 )
 
@@ -136,23 +140,32 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 					}
 					check("Embedding Model:", hasEmbedding, embModel)
 
-					smallModel := cfg.SmallModel
-					if smallModel == "" {
-						smallModel = "ministral-3:3b"
+					// Small model check - only validate in Ollama if it's an Ollama model
+					small := cfg.GetSmallModel()
+					smallModel := small.String()
+					
+					// Check if this is an Ollama model (has ollama provider or ollama/ prefix)
+					isOllamaModel := small.Provider == "ollama" || strings.HasPrefix(smallModel, "ollama/")
+					displayModel := smallModel
+					if isOllamaModel {
+						// Strip ollama/ prefix for display and lookup
+						displayModel = strings.TrimPrefix(smallModel, "ollama/")
 					}
-					// Strip provider prefix (e.g., "ollama/") if present
-					if strings.Contains(smallModel, "/") {
-						parts := strings.SplitN(smallModel, "/", 2)
-						smallModel = parts[len(parts)-1]
-					}
-					hasSmall := false
-					for _, m := range models {
-						if strings.HasPrefix(m.Name, smallModel) || strings.Contains(m.Name, smallModel) {
-							hasSmall = true
-							break
+					
+					if isOllamaModel {
+						// Validate Ollama model exists
+						hasSmall := false
+						for _, m := range models {
+							if strings.HasPrefix(m.Name, displayModel) || strings.Contains(m.Name, displayModel) {
+								hasSmall = true
+								break
+							}
 						}
+						check("Small Model:", hasSmall, displayModel+" (ollama)")
+					} else {
+						// Non-Ollama model - just report it's configured
+						check("Small Model:", true, smallModel+" (cloud)")
 					}
-					check("Small Model:", hasSmall, smallModel)
 				}
 			} else {
 				warn("Service:", "not running - memory features will be disabled")
@@ -186,14 +199,67 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 
 			// Check config
 			fmt.Println(headerStyle.Render("  Configuration"))
-			if configExists {
-				if cfg.DefaultModel != "" {
-					check("Default Model:", true, cfg.DefaultModel)
-				} else {
-					warn("Default Model:", "not set")
-				}
+			largeModel := cfg.GetLargeModel()
+			smallModelCfg := cfg.GetSmallModel()
+			
+			if !largeModel.IsEmpty() {
+				check("Large Model:", true, largeModel.String())
 			} else {
-				warn("Config:", "not found - using defaults")
+				warn("Large Model:", "not configured")
+			}
+			
+			if !smallModelCfg.IsEmpty() {
+				check("Small Model:", true, smallModelCfg.String())
+			} else {
+				warn("Small Model:", "not configured")
+			}
+			fmt.Println()
+
+			// Check sandbox
+			fmt.Println(headerStyle.Render("  Sandbox"))
+			sandboxProvider := selectSandboxProvider()
+			if sandboxProvider == nil {
+				warn("Provider:", "none available")
+			} else {
+				check("Provider:", true, sandboxProvider.Name())
+
+				// Test sandbox if verbose
+				if verbose {
+					fmt.Println("  Testing sandbox execution...")
+					testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+					defer cancel()
+
+					// Create a test sandbox
+					sb, createErr := sandboxProvider.Create(testCtx, providers.SandboxCreateOptions{
+						Name: "ayo-doctor-test",
+					})
+					if createErr != nil {
+						check("Create:", false, createErr.Error())
+					} else {
+						check("Create:", true, sb.ID)
+
+						// Execute a simple command
+						result, execErr := sandboxProvider.Exec(testCtx, sb.ID, providers.ExecOptions{
+							Command: "echo",
+							Args:    []string{"hello from sandbox"},
+						})
+						if execErr != nil {
+							check("Exec:", false, execErr.Error())
+						} else {
+							output := strings.TrimSpace(result.Stdout)
+							check("Exec:", result.ExitCode == 0, fmt.Sprintf("exit=%d output=%q", result.ExitCode, output))
+						}
+
+						// Cleanup
+						if delErr := sandboxProvider.Delete(testCtx, sb.ID, true); delErr != nil {
+							warn("Cleanup:", delErr.Error())
+						} else {
+							check("Cleanup:", true, "removed test sandbox")
+						}
+					}
+				} else {
+					fmt.Println("  Run with -v to test sandbox execution")
+				}
 			}
 			fmt.Println()
 
@@ -232,4 +298,21 @@ func fileExists(path string) bool {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// selectSandboxProvider returns the appropriate sandbox provider for the current platform.
+func selectSandboxProvider() providers.SandboxProvider {
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		provider := sandbox.NewAppleProvider()
+		if provider.IsAvailable() {
+			return provider
+		}
+	}
+	if runtime.GOOS == "linux" {
+		provider := sandbox.NewLinuxProvider()
+		if provider.IsAvailable() {
+			return provider
+		}
+	}
+	return nil
 }

@@ -61,9 +61,15 @@ type Config struct {
 // SandboxConfig configures the agent's sandbox environment.
 type SandboxConfig struct {
 	// Enabled determines if this agent runs in a sandbox.
-	// When false (default), commands execute directly on the host.
-	// When true, commands execute in an isolated container.
-	Enabled bool `json:"enabled,omitempty"`
+	// Defaults to true when a sandbox provider is available.
+	// Set to false to explicitly disable sandbox and run on host.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// User specifies the username to run as inside the sandbox.
+	// If specified, a user account will be created at sandbox startup
+	// with a home directory at /home/{user}.
+	// If empty, commands run as root (default).
+	User string `json:"user,omitempty"`
 
 	// Languages specifies the language runtimes needed in the sandbox.
 	// Supported values: "go", "python", "node", "ruby", "rust", "c", "cpp"
@@ -165,8 +171,12 @@ func (c Config) GuardrailsEnabled(handle string) bool {
 }
 
 // SandboxEnabled returns true if this agent should run in a sandbox.
+// Defaults to true (sandbox by default) unless explicitly disabled.
 func (c Config) SandboxEnabled() bool {
-	return c.Sandbox.Enabled
+	if c.Sandbox.Enabled == nil {
+		return true // Sandbox by default
+	}
+	return *c.Sandbox.Enabled
 }
 
 // SandboxImage returns the container image to use for this agent's sandbox.
@@ -460,10 +470,12 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 }
 
 func resolveModel(cfg config.Config, agentConfig Config) string {
+	// Agent-specific model takes priority
 	if agentConfig.Model != "" {
 		return agentConfig.Model
 	}
-	return cfg.DefaultModel
+	// Fall back to config's large model (handles new Models map and legacy DefaultModel)
+	return cfg.GetLargeModel().String()
 }
 
 func readOptional(path string) string {

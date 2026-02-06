@@ -2,12 +2,15 @@
 
 ## Overview
 
-The ayo sandbox uses a minimal busybox-based container image for agent execution.
+The ayo sandbox uses native container solutions for agent execution.
+On macOS 26+, this means Apple Container (github.com/apple/container).
+On Linux, native container solutions like LXC will be supported.
+
 This provides a lightweight, security-focused environment with essential POSIX tools.
 
 ## Base Image
 
-**Image**: `busybox:stable`
+**Image**: `busybox:stable` (from Docker Hub or compatible OCI registry)
 
 BusyBox provides a minimal Unix-like environment (~1.5MB) with essential utilities.
 It's used as the default sandbox image for speed and security.
@@ -56,25 +59,6 @@ BusyBox includes ~300+ applets. Key ones used by agents:
 - `date` - Date/time
 - `sleep` - Delays
 - `id`, `whoami` - User info
-
-## Extended Image: `ayo-sandbox:latest`
-
-For agents requiring more tools, ayo can build an extended image:
-
-```dockerfile
-FROM busybox:stable
-
-# Add curl for HTTP operations
-COPY --from=curlimages/curl:latest /usr/bin/curl /usr/bin/curl
-
-# Add jq for JSON processing  
-COPY --from=ghcr.io/jqlang/jq:latest /jq /usr/bin/jq
-
-# Create ayo user
-RUN adduser -D -u 1000 ayo
-USER ayo
-WORKDIR /workspace
-```
 
 ## Language Support
 
@@ -130,12 +114,10 @@ These are installed on first use via the daemon, creating agent-specific images.
 {
   "providers": {
     "sandbox": {
-      "name": "docker",
-      "config": {
-        "pool": {
-          "min_size": 1,
-          "max_size": 4
-        }
+      "type": "apple-container",
+      "pool": {
+        "min_size": 1,
+        "max_size": 4
       }
     }
   }
@@ -150,48 +132,55 @@ These are installed on first use via the daemon, creating agent-specific images.
 4. **Read-only mounts**: Sensitive directories mounted read-only
 5. **Ephemeral**: Containers are destroyed after use
 
-## Image Management
+## Sandbox Providers
 
-### Pulling Images
+### Apple Container (macOS 26+)
 
-The installer pulls required images:
+Apple Container uses the Virtualization.framework to run Linux containers natively on Apple Silicon.
 
+**Requirements:**
+- macOS 26 or later (Tahoe)
+- Apple Silicon (M1, M2, M3, or later)
+- Container service running: `container system start`
+
+**Commands:**
 ```bash
-# Base image (always pulled)
-docker pull busybox:stable
+# Start a sandbox container
+container run -d --name ayo-sandbox-{id} -v /project:/workspace busybox:stable sleep infinity
 
-# Extended image (if sandbox enabled)
-docker pull ayo-sandbox:latest
+# Execute command
+container exec ayo-sandbox-{id} sh -c "{command}"
+
+# Stop container
+container stop ayo-sandbox-{id}
+
+# Delete container
+container delete ayo-sandbox-{id}
 ```
 
-### Building Extended Image
+### None Provider (Fallback)
 
-```bash
-# Build locally
-docker build -t ayo-sandbox:latest -f internal/sandbox/Dockerfile .
+When no container provider is available, commands execute directly on the host.
+This provides no isolation but allows the sandbox system to function.
 
-# Or pull from registry
-docker pull ghcr.io/alexcabrera/ayo-sandbox:latest
-```
+## Provider Selection
 
-## Implementation Notes
+The sandbox provider is selected automatically based on:
 
-### Provider Selection
+1. Platform detection (macOS + Apple Silicon → Apple Container)
+2. Availability check (Is `container` command available? Is service running?)
+3. Fallback to `none` provider (host execution without isolation)
 
-The sandbox provider is selected based on:
+## Image Caching
 
-1. Config (`ayo.json` → `providers.sandbox.name`)
-2. Availability detection (Docker installed? macOS 15+?)
-3. Fallback to `none` provider (host execution)
-
-### Image Caching
-
-Images are cached locally by Docker. First sandbox creation may be slow
+Images are cached locally by the container runtime. First sandbox creation may be slow
 if images need to be pulled.
 
-### Container Lifecycle
+## Container Lifecycle
 
-1. **Create**: `docker run -d --name ayo-sandbox-{id} ...`
-2. **Exec**: `docker exec {container} sh -c "{command}"`
-3. **Stop**: `docker stop {container}`
-4. **Delete**: `docker rm {container}`
+### Apple Container
+
+1. **Create**: `container run -d --name ayo-sandbox-{id} -v ... busybox:stable sleep infinity`
+2. **Exec**: `container exec ayo-sandbox-{id} sh -c "{command}"`
+3. **Stop**: `container stop ayo-sandbox-{id}`
+4. **Delete**: `container delete ayo-sandbox-{id}`

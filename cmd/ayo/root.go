@@ -33,6 +33,7 @@ func newRootCmd() *cobra.Command {
 	var debugFlag bool
 	var modelOverride string
 	var sessionID string
+	var continueSession bool
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -47,7 +48,8 @@ Examples:
   ayo @myagent                  Start interactive chat with @myagent
   ayo @myagent "do something"   Run single prompt with @myagent
   ayo -a file.txt "analyze"     Attach file to prompt
-  ayo -s abc123 "follow up"     Continue a previous session`,
+  ayo -c "follow up"            Continue most recent session
+  ayo -s abc123 "follow up"     Continue a specific session by ID`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
@@ -191,6 +193,7 @@ Examples:
 					FormationService: formSvc,
 					SmallModel:       smallModelSvc,
 					MemoryQueue:      memQueue,
+					SandboxProvider:  selectSandboxProvider(),
 				})
 				if err != nil {
 					return err
@@ -237,9 +240,21 @@ Examples:
 					defer cancel()
 
 					var result run.TextResult
-					if sessionID != "" {
+					
+					// Determine session ID for continuation
+					effectiveSessionID := sessionID
+					if continueSession && effectiveSessionID == "" {
+						// --continue without -s: use the latest session
+						latestSess, err := getLatestSession(cmd.Context(), services)
+						if err != nil {
+							return fmt.Errorf("no sessions found to continue: %w", err)
+						}
+						effectiveSessionID = latestSess.ID
+					}
+					
+					if effectiveSessionID != "" {
 						// Continue existing session
-						result, err = runner.ContinueSessionWithPrompt(ctx, ag, sessionID, prompt, attachments)
+						result, err = runner.ContinueSessionWithPrompt(ctx, ag, effectiveSessionID, prompt, attachments)
 					} else {
 						// Start new session
 						result, err = runner.TextWithSession(ctx, ag, prompt, attachments)
@@ -272,7 +287,8 @@ Examples:
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
 	cmd.Flags().BoolVar(&debugFlag, "debug", false, "show debug output including raw tool payloads")
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
-	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a previous session by ID")
+	cmd.Flags().BoolVarP(&continueSession, "continue", "c", false, "continue the most recent session")
+	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a specific session by ID")
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))
@@ -287,6 +303,7 @@ Examples:
 	cmd.AddCommand(newDaemonCmd(&cfgPath))
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
+	cmd.AddCommand(newSandboxCmd())
 
 	return cmd
 }
@@ -363,4 +380,19 @@ func buildFreeformPreamble(jsonInput string) string {
 	preamble.WriteString("\n```")
 
 	return preamble.String()
+}
+
+// getLatestSession returns the most recent session from the database.
+func getLatestSession(ctx context.Context, services *session.Services) (session.Session, error) {
+	if services == nil {
+		return session.Session{}, errors.New("session storage not available")
+	}
+	sessions, err := services.Sessions.List(ctx, 1)
+	if err != nil {
+		return session.Session{}, err
+	}
+	if len(sessions) == 0 {
+		return session.Session{}, errors.New("no sessions found")
+	}
+	return sessions[0], nil
 }

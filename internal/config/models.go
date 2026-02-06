@@ -147,3 +147,78 @@ func GetDefaultSmallModelForConfiguredProvider() string {
 
 	return "ollama/ministral-3:3b" // ultimate fallback to local
 }
+
+// ResolveModelProvider parses a model string and returns provider and model ID.
+// Supports formats: "model-name" or "provider/model-name".
+// If no provider prefix is found, returns empty provider.
+func ResolveModelProvider(modelStr string) (provider, model string) {
+	if modelStr == "" {
+		return "", ""
+	}
+	if idx := strings.Index(modelStr, "/"); idx > 0 {
+		return modelStr[:idx], modelStr[idx+1:]
+	}
+	return "", modelStr
+}
+
+// GetLargeModel returns the configured large model from the config.
+// Resolution order:
+// 1. Config.Models[ModelTypeLarge] if set
+// 2. Config.DefaultModel (legacy) converted to SelectedModel
+// 3. Default from provider with credentials
+func (c Config) GetLargeModel() SelectedModel {
+	// Check typed Models map first
+	if c.Models != nil {
+		if m, ok := c.Models[ModelTypeLarge]; ok && !m.IsEmpty() {
+			return m
+		}
+	}
+
+	// Fall back to legacy DefaultModel field
+	if c.DefaultModel != "" {
+		provider, model := ResolveModelProvider(c.DefaultModel)
+		return SelectedModel{
+			Model:    model,
+			Provider: provider,
+		}
+	}
+
+	// Fall back to provider detection
+	modelStr := GetDefaultModelForConfiguredProvider()
+	provider, model := ResolveModelProvider(modelStr)
+	return SelectedModel{
+		Model:    model,
+		Provider: provider,
+	}
+}
+
+// GetSmallModel returns the configured small model from the config.
+// Resolution order:
+// 1. Config.Models[ModelTypeSmall] if set
+// 2. Config.SmallModel (legacy) converted to SelectedModel
+// 3. Default from provider with credentials (or Ollama fallback)
+func (c Config) GetSmallModel() SelectedModel {
+	// Check typed Models map first
+	if c.Models != nil {
+		if m, ok := c.Models[ModelTypeSmall]; ok && !m.IsEmpty() {
+			return m
+		}
+	}
+
+	// Fall back to legacy SmallModel field
+	if c.SmallModel != "" {
+		provider, model := ResolveModelProvider(c.SmallModel)
+		return SelectedModel{
+			Model:    model,
+			Provider: provider,
+		}
+	}
+
+	// Fall back to provider detection (prefers Ollama for local)
+	modelStr := GetDefaultSmallModelForConfiguredProvider()
+	provider, model := ResolveModelProvider(modelStr)
+	return SelectedModel{
+		Model:    model,
+		Provider: provider,
+	}
+}

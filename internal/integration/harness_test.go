@@ -73,23 +73,23 @@ func TestHarness_ExecNone(t *testing.T) {
 	}
 }
 
-func TestHarness_ExecDocker(t *testing.T) {
-	env := NewTestEnv(t).WithDocker()
+func TestHarness_ExecAppleContainer(t *testing.T) {
+	env := NewTestEnv(t).WithAppleContainer()
 	defer env.Cleanup()
 
 	ctx, cancel := env.Context()
 	defer cancel()
 
-	result, err := env.Exec(ctx, "echo hello from docker")
+	result, err := env.Exec(ctx, "echo hello from apple container")
 	if err != nil {
 		t.Fatalf("exec: %v", err)
 	}
 
 	if result.ExitCode != 0 {
-		t.Errorf("exit code: got %d, want 0", result.ExitCode)
+		t.Errorf("exit code: got %d, want 0, stderr: %q", result.ExitCode, result.Stderr)
 	}
-	if result.Stdout != "hello from docker\n" {
-		t.Errorf("stdout: got %q, want %q", result.Stdout, "hello from docker\n")
+	if result.Stdout != "hello from apple container\n" {
+		t.Errorf("stdout: got %q, want %q", result.Stdout, "hello from apple container\n")
 	}
 }
 
@@ -99,9 +99,34 @@ func TestHarness_SandboxConfig(t *testing.T) {
 		t.Errorf("provider: got %q, want %q", cfg.Provider, "none")
 	}
 
-	cfg = DockerSandboxConfig()
-	if cfg.Provider != "docker" {
-		t.Errorf("provider: got %q, want %q", cfg.Provider, "docker")
+	cfg = AppleContainerSandboxConfig()
+	if cfg.Provider != "apple-container" {
+		t.Errorf("provider: got %q, want %q", cfg.Provider, "apple-container")
+	}
+
+	cfg = LinuxSandboxConfig()
+	if cfg.Provider != "systemd-nspawn" {
+		t.Errorf("provider: got %q, want %q", cfg.Provider, "systemd-nspawn")
+	}
+}
+
+func TestHarness_ExecLinuxContainer(t *testing.T) {
+	env := NewTestEnv(t).WithLinuxContainer()
+	defer env.Cleanup()
+
+	ctx, cancel := env.Context()
+	defer cancel()
+
+	result, err := env.Exec(ctx, "echo hello from linux container")
+	if err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+
+	if result.ExitCode != 0 {
+		t.Errorf("exit code: got %d, want 0", result.ExitCode)
+	}
+	if result.Stdout != "hello from linux container\n" {
+		t.Errorf("stdout: got %q, want %q", result.Stdout, "hello from linux container\n")
 	}
 }
 

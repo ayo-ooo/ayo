@@ -68,17 +68,31 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	return env
 }
 
-// WithDocker configures the test environment to use Docker sandbox.
-// Skips the test if Docker is not available.
-func (e *TestEnv) WithDocker() *TestEnv {
+// WithAppleContainer configures the test environment to use Apple Container sandbox.
+// Skips the test if Apple Container is not available.
+func (e *TestEnv) WithAppleContainer() *TestEnv {
 	e.t.Helper()
 
-	docker := sandbox.NewDockerProvider()
-	if !docker.IsAvailable() {
-		e.t.Skip("Docker not available")
+	apple := sandbox.NewAppleProvider()
+	if !apple.IsAvailable() {
+		e.t.Skip("Apple Container not available (requires macOS 26+ on Apple Silicon)")
 	}
 
-	e.SandboxProvider = docker
+	e.SandboxProvider = apple
+	return e
+}
+
+// WithLinuxContainer configures the test environment to use Linux container sandbox.
+// Skips the test if systemd-nspawn is not available.
+func (e *TestEnv) WithLinuxContainer() *TestEnv {
+	e.t.Helper()
+
+	linux := sandbox.NewLinuxProvider()
+	if !linux.IsAvailable() {
+		e.t.Skip("Linux containers not available (requires Linux with systemd-nspawn)")
+	}
+
+	e.SandboxProvider = linux
 	return e
 }
 
@@ -132,20 +146,19 @@ description: ` + description + `
 
 // Exec executes a command in the sandbox and returns the result.
 func (e *TestEnv) Exec(ctx context.Context, command string) (providers.ExecResult, error) {
-	// Create a sandbox
+	// Create a sandbox (name must start with "ayo-" to be found by List)
 	sb, err := e.SandboxProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "test-" + e.t.Name(),
+		Name: "ayo-test-" + e.t.Name(),
 	})
 	if err != nil {
 		return providers.ExecResult{}, err
 	}
 	defer e.SandboxProvider.Delete(ctx, sb.ID, true)
 
-	// Execute command
+	// Execute command (don't set WorkingDir since baseDir isn't mounted in container)
 	return e.SandboxProvider.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command:    command,
-		Timeout:    30 * time.Second,
-		WorkingDir: e.baseDir,
+		Command: command,
+		Timeout: 30 * time.Second,
 	})
 }
 
@@ -161,8 +174,8 @@ func (e *TestEnv) Context() (context.Context, context.CancelFunc) {
 
 // SandboxConfig provides common sandbox test configurations.
 type SandboxConfig struct {
-	Provider string            // "none" or "docker"
-	Image    string            // Container image (for docker)
+	Provider string            // "none", "apple-container", or "systemd-nspawn"
+	Image    string            // Container image (for container providers)
 	Mounts   []providers.Mount // Mount points
 	Network  bool              // Enable networking
 }
@@ -176,11 +189,20 @@ func DefaultSandboxConfig() SandboxConfig {
 	}
 }
 
-// DockerSandboxConfig returns a Docker sandbox configuration.
-func DockerSandboxConfig() SandboxConfig {
+// AppleContainerSandboxConfig returns an Apple Container sandbox configuration.
+func AppleContainerSandboxConfig() SandboxConfig {
 	return SandboxConfig{
-		Provider: "docker",
+		Provider: "apple-container",
 		Image:    "busybox:stable",
+		Network:  true,
+	}
+}
+
+// LinuxSandboxConfig returns a Linux container sandbox configuration.
+func LinuxSandboxConfig() SandboxConfig {
+	return SandboxConfig{
+		Provider: "systemd-nspawn",
+		Image:    "",
 		Network:  true,
 	}
 }
