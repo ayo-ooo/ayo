@@ -56,6 +56,7 @@ Examples:
 	cmd.AddCommand(newSandboxPushCmd())
 	cmd.AddCommand(newSandboxPullCmd())
 	cmd.AddCommand(newSandboxLogsCmd())
+	cmd.AddCommand(newSandboxStartCmd())
 	cmd.AddCommand(newSandboxStopCmd())
 	cmd.AddCommand(newSandboxPruneCmd())
 	cmd.AddCommand(newSandboxStatsCmd())
@@ -548,6 +549,35 @@ Examples:
 
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow log output")
 	cmd.Flags().IntVarP(&tail, "tail", "n", 0, "Number of lines to show from end")
+
+	return cmd
+}
+
+func newSandboxStartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start <id>",
+		Short: "Start a stopped sandbox",
+		Long: `Start a stopped sandbox container.
+
+Examples:
+  ayo sandbox start abc123`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			provider := selectSandboxProvider()
+			if provider == nil {
+				return errors.New("no sandbox provider available on this platform")
+			}
+
+			sandboxID := args[0]
+
+			if err := provider.Start(cmd.Context(), sandboxID); err != nil {
+				return fmt.Errorf("failed to start sandbox: %w", err)
+			}
+
+			fmt.Printf("Sandbox %s started\n", sandboxID)
+			return nil
+		},
+	}
 
 	return cmd
 }

@@ -405,6 +405,7 @@ func (s *Server) handleShutdown(req *Request) *Response {
 	go func() {
 		time.Sleep(100 * time.Millisecond) // Let response be sent
 		s.Stop(context.Background())
+		os.Exit(0) // Exit the process after graceful shutdown
 	}()
 
 	return resp
