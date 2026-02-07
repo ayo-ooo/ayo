@@ -1,6 +1,6 @@
 ---
 id: ayo-nb7o
-status: open
+status: closed
 deps: [ayo-dwgv]
 links: []
 created: 2026-02-05T18:53:07Z

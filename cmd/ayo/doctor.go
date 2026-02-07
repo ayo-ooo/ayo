@@ -80,8 +80,8 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			dbExists := fileExists(paths.DatabasePath())
 			check("Database:", dbExists, paths.DatabasePath())
 
-			builtinExists := dirExists(paths.UserDataDir())
-			check("Data Directory:", builtinExists, paths.UserDataDir())
+			dataExists := dirExists(paths.DataDir())
+			check("Data Directory:", dataExists, paths.DataDir())
 			fmt.Println()
 
 			// Check Ollama

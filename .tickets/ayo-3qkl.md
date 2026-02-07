@@ -1,6 +1,6 @@
 ---
 id: ayo-3qkl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-05T18:51:26Z

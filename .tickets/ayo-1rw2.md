@@ -1,6 +1,6 @@
 ---
 id: ayo-1rw2
-status: open
+status: closed
 deps: [ayo-15ou]
 links: []
 created: 2026-02-05T18:52:32Z

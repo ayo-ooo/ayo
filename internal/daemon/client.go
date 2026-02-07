@@ -281,6 +281,28 @@ func (c *Client) TriggerTest(ctx context.Context, id string) error {
 	return c.call(ctx, MethodTriggerTest, params, nil)
 }
 
+// TriggerSetEnabled enables or disables a trigger.
+func (c *Client) TriggerSetEnabled(ctx context.Context, id string, enabled bool) error {
+	params := TriggerSetEnabledParams{ID: id, Enabled: enabled}
+	return c.call(ctx, MethodTriggerSetEnabled, params, nil)
+}
+
+// SandboxJoin adds an agent to an existing sandbox.
+func (c *Client) SandboxJoin(ctx context.Context, sandboxID, agent string) error {
+	params := SandboxJoinParams{SandboxID: sandboxID, Agent: agent}
+	return c.call(ctx, MethodSandboxJoin, params, nil)
+}
+
+// SandboxAgents returns the list of agents in a sandbox.
+func (c *Client) SandboxAgents(ctx context.Context, sandboxID string) ([]string, error) {
+	params := SandboxAgentsParams{SandboxID: sandboxID}
+	var result SandboxAgentsResult
+	if err := c.call(ctx, MethodSandboxAgents, params, &result); err != nil {
+		return nil, err
+	}
+	return result.Agents, nil
+}
+
 // IsDaemonRunning checks if the daemon is running.
 func IsDaemonRunning() bool {
 	pidPath := DefaultPIDPath()

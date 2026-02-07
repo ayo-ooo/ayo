@@ -1,6 +1,6 @@
 ---
 id: ayo-3lv4
-status: open
+status: closed
 deps: [ayo-41ms]
 links: []
 created: 2026-02-05T18:52:45Z

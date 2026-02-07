@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/catwalk/pkg/embedded"
+	"charm.land/catwalk/pkg/embedded"
 )
 
 type ModelChoice struct {

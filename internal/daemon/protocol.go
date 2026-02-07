@@ -110,6 +110,8 @@ const (
 	MethodSandboxRelease = "sandbox.release"
 	MethodSandboxExec    = "sandbox.exec"
 	MethodSandboxStatus  = "sandbox.status"
+	MethodSandboxJoin    = "sandbox.join"
+	MethodSandboxAgents  = "sandbox.agents"
 
 	// Session management methods
 	MethodSessionList  = "session.list"
@@ -120,11 +122,12 @@ const (
 	MethodAgentStatus  = "agent.status"
 
 	// Trigger management methods
-	MethodTriggerList     = "trigger.list"
-	MethodTriggerGet      = "trigger.get"
-	MethodTriggerRegister = "trigger.register"
-	MethodTriggerRemove   = "trigger.remove"
-	MethodTriggerTest     = "trigger.test"
+	MethodTriggerList       = "trigger.list"
+	MethodTriggerGet        = "trigger.get"
+	MethodTriggerRegister   = "trigger.register"
+	MethodTriggerRemove     = "trigger.remove"
+	MethodTriggerTest       = "trigger.test"
+	MethodTriggerSetEnabled = "trigger.set_enabled"
 )
 
 // Request/Response types for each method
@@ -187,6 +190,22 @@ type SandboxStatusResult struct {
 	Total int `json:"total"`
 	Idle  int `json:"idle"`
 	InUse int `json:"in_use"`
+}
+
+// SandboxJoinParams is the request for sandbox.join.
+type SandboxJoinParams struct {
+	SandboxID string `json:"sandbox_id"`
+	Agent     string `json:"agent"`
+}
+
+// SandboxAgentsParams is the request for sandbox.agents.
+type SandboxAgentsParams struct {
+	SandboxID string `json:"sandbox_id"`
+}
+
+// SandboxAgentsResult is the response to sandbox.agents.
+type SandboxAgentsResult struct {
+	Agents []string `json:"agents"`
 }
 
 // Session management types
@@ -330,4 +349,10 @@ type TriggerRemoveParams struct {
 // TriggerTestParams is the request for trigger.test.
 type TriggerTestParams struct {
 	ID string `json:"id"`
+}
+
+// TriggerSetEnabledParams is the request for trigger.set_enabled.
+type TriggerSetEnabledParams struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
 }

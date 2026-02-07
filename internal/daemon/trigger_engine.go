@@ -249,6 +249,60 @@ func (e *TriggerEngine) Get(id string) (*Trigger, error) {
 	return nil, fmt.Errorf("trigger not found: %s", id)
 }
 
+// SetEnabled enables or disables a trigger.
+func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	trigger, exists := e.triggers[id]
+	if !exists {
+		return fmt.Errorf("trigger not found: %s", id)
+	}
+
+	if trigger.Enabled == enabled {
+		return nil // No change needed
+	}
+
+	trigger.Enabled = enabled
+
+	if enabled {
+		// Re-register the trigger to activate it
+		switch trigger.Type {
+		case TriggerTypeCron:
+			return e.registerCronTrigger(trigger)
+		case TriggerTypeWatch:
+			return e.registerWatchTrigger(trigger)
+		}
+	} else {
+		// Unregister without removing from map
+		switch trigger.Type {
+		case TriggerTypeCron:
+			if entryID, ok := e.cronJobs[id]; ok {
+				e.cron.Remove(entryID)
+				delete(e.cronJobs, id)
+			}
+		case TriggerTypeWatch:
+			for dir, ids := range e.watchDirs {
+				newIDs := make([]string, 0, len(ids))
+				for _, tid := range ids {
+					if tid != id {
+						newIDs = append(newIDs, tid)
+					}
+				}
+				if len(newIDs) == 0 {
+					e.watcher.Remove(dir)
+					delete(e.watchDirs, dir)
+				} else {
+					e.watchDirs[dir] = newIDs
+				}
+			}
+		}
+	}
+
+	e.logger.Info("trigger enabled state changed", "id", id, "enabled", enabled)
+	return nil
+}
+
 func (e *TriggerEngine) registerCronTrigger(trigger *Trigger) error {
 	if trigger.Config.Schedule == "" {
 		return fmt.Errorf("cron trigger requires schedule")

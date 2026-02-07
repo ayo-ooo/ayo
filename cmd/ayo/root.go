@@ -308,16 +308,17 @@ Examples:
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
-	cmd.AddCommand(newStatusCmd(&cfgPath))
-	cmd.AddCommand(newDaemonCmd(&cfgPath))
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
-	cmd.AddCommand(newSandboxCmd())
+	cmd.AddCommand(newSandboxCmd(&cfgPath))
 	cmd.AddCommand(newMessagesCmd())
 	cmd.AddCommand(newMountCmd())
 	cmd.AddCommand(newBackupCmd())
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newTriggersCmd())
+
+	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
+	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))
 
 	return cmd
 }

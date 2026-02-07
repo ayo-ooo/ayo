@@ -16,38 +16,39 @@ import (
 func newMountCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mount",
-		Short: "Manage persistent filesystem access grants",
-		Long: `Manage persistent filesystem access grants for sandboxed agents.
+		Short: "Manage persistent filesystem access",
+		Long: `Manage persistent filesystem access for sandboxed agents.
 
 Grants persist across sessions and allow agents to access host filesystem paths.
 Project-level mounts (.ayo.json) and session mounts (--mount flag) can only 
 restrict access to paths already granted here - they cannot grant new access.
 
 Examples:
-  ayo mount .                      Grant readwrite access to current directory
-  ayo mount ~/Documents --readonly Grant readonly access to Documents
+  ayo mount add .                  Grant readwrite access to current directory
+  ayo mount add ~/Documents --ro   Grant readonly access to Documents
   ayo mount list                   List all grants
-  ayo mount revoke ~/Documents     Remove grant
-  ayo mount revoke --all           Remove all grants`,
+  ayo mount rm ~/Documents         Remove grant
+  ayo mount rm --all               Remove all grants`,
 	}
 
-	cmd.AddCommand(newMountGrantCmd())
+	cmd.AddCommand(newMountAddCmd())
 	cmd.AddCommand(newMountListCmd())
-	cmd.AddCommand(newMountRevokeCmd())
+	cmd.AddCommand(newMountRmCmd())
 
 	return cmd
 }
 
-func newMountGrantCmd() *cobra.Command {
+func newMountAddCmd() *cobra.Command {
 	var readonly bool
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
-		Use:   "grant <path>",
-		Short: "Grant filesystem access",
+		Use:     "add <path>",
+		Aliases: []string{"grant"},
+		Short:   "Grant filesystem access",
 		Long: `Grant persistent filesystem access for sandboxed agents.
 
-By default grants readwrite access. Use --readonly for read-only access.
+By default grants readwrite access. Use --ro for read-only access.
 Path can be relative, absolute, or use ~/. Paths are resolved to absolute paths.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -112,7 +113,7 @@ Path can be relative, absolute, or use ~/. Paths are resolved to absolute paths.
 		},
 	}
 
-	cmd.Flags().BoolVar(&readonly, "readonly", false, "grant read-only access")
+	cmd.Flags().BoolVar(&readonly, "ro", false, "grant read-only access")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 
 	return cmd
@@ -165,16 +166,17 @@ func newMountListCmd() *cobra.Command {
 	return cmd
 }
 
-func newMountRevokeCmd() *cobra.Command {
+func newMountRmCmd() *cobra.Command {
 	var revokeAll bool
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
-		Use:   "revoke [path]",
-		Short: "Revoke filesystem access",
-		Long: `Revoke persistent filesystem access.
+		Use:     "rm [path]",
+		Aliases: []string{"revoke"},
+		Short:   "Remove filesystem access",
+		Long: `Remove persistent filesystem access.
 
-Use --all to revoke all grants.`,
+Use --all to remove all grants.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load grants service

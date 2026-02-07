@@ -1,6 +1,6 @@
 ---
 id: ayo-q84j
-status: open
+status: closed
 deps: [ayo-1rw2]
 links: []
 created: 2026-02-05T18:52:50Z

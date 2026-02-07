@@ -52,6 +52,8 @@ Examples:
 	cmd.AddCommand(addTriggerCmd())
 	cmd.AddCommand(removeTriggerCmd())
 	cmd.AddCommand(testTriggerCmd())
+	cmd.AddCommand(enableTriggerCmd())
+	cmd.AddCommand(disableTriggerCmd())
 
 	return cmd
 }
@@ -413,6 +415,76 @@ Examples:
 
 			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 			fmt.Println(successStyle.Render("✓ Trigger fired: " + id))
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func enableTriggerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "enable <id>",
+		Short: "Enable a disabled trigger",
+		Long: `Enable a previously disabled trigger.
+
+The trigger will resume firing on its schedule or watch conditions.
+
+Examples:
+  ayo triggers enable trig_123456789`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := args[0]
+			ctx := cmd.Context()
+
+			client, err := daemon.ConnectOrStart(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.TriggerSetEnabled(ctx, id, true); err != nil {
+				return fmt.Errorf("enable trigger: %w", err)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render("✓ Trigger enabled: " + id))
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func disableTriggerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "disable <id>",
+		Short: "Disable a trigger",
+		Long: `Disable a trigger without removing it.
+
+The trigger will stop firing but can be re-enabled later.
+
+Examples:
+  ayo triggers disable trig_123456789`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := args[0]
+			ctx := cmd.Context()
+
+			client, err := daemon.ConnectOrStart(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.TriggerSetEnabled(ctx, id, false); err != nil {
+				return fmt.Errorf("disable trigger: %w", err)
+			}
+
+			warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+			fmt.Println(warnStyle.Render("⏸ Trigger disabled: " + id))
 
 			return nil
 		},

@@ -1,6 +1,6 @@
 ---
 id: ayo-z91f
-status: open
+status: closed
 deps: [ayo-12vf]
 links: []
 created: 2026-02-05T18:53:01Z

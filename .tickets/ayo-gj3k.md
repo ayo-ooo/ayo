@@ -1,6 +1,6 @@
 ---
 id: ayo-gj3k
-status: open
+status: closed
 deps: [ayo-nb7o]
 links: []
 created: 2026-02-05T18:53:14Z

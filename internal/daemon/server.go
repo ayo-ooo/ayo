@@ -337,6 +337,10 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleSandboxExec(ctx, req)
 	case MethodSandboxStatus:
 		return s.handleSandboxStatus(req)
+	case MethodSandboxJoin:
+		return s.handleSandboxJoin(ctx, req)
+	case MethodSandboxAgents:
+		return s.handleSandboxAgents(req)
 	case MethodSessionList:
 		return s.handleSessionList(req)
 	case MethodSessionStart:
@@ -359,6 +363,8 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleTriggerRemove(req)
 	case MethodTriggerTest:
 		return s.handleTriggerTest(req)
+	case MethodTriggerSetEnabled:
+		return s.handleTriggerSetEnabled(req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}
@@ -489,6 +495,40 @@ func (s *Server) handleSandboxStatus(req *Request) *Response {
 		Idle:  poolStatus.Idle,
 		InUse: poolStatus.InUse,
 	}
+
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSandboxJoin(ctx context.Context, req *Request) *Response {
+	var params SandboxJoinParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	_, err := s.pool.AcquireWithOptions(ctx, sandbox.AcquireOptions{
+		Agent:       params.Agent,
+		JoinSandbox: params.SandboxID,
+	})
+	if err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	// Create user account for the agent in the sandbox
+	_ = s.provider.EnsureAgentUser(ctx, params.SandboxID, params.Agent, "")
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleSandboxAgents(req *Request) *Response {
+	var params SandboxAgentsParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	agents := s.pool.GetSandboxAgents(params.SandboxID)
+	result := SandboxAgentsResult{Agents: agents}
 
 	resp, _ := NewResponse(result, req.ID)
 	return resp
@@ -763,6 +803,20 @@ func (s *Server) handleTriggerTest(req *Request) *Response {
 
 	if s.triggerEngine.callback != nil {
 		go s.triggerEngine.callback(event)
+	}
+
+	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerSetEnabled(req *Request) *Response {
+	var params TriggerSetEnabledParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	if err := s.triggerEngine.SetEnabled(params.ID, params.Enabled); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	resp, _ := NewResponse(struct{}{}, req.ID)

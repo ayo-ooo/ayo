@@ -4,9 +4,9 @@
 # =============================================================================
 #
 # DESCRIPTION:
-#   Gathers system-level diagnostic information about the host environment,
-#   Docker installation, and ayo configuration. This is the first script to
-#   run when diagnosing any ayo issue.
+#   Gathers system-level diagnostic information about the host environment
+#   and ayo configuration. This is the first script to run when diagnosing
+#   any ayo issue.
 #
 # USAGE:
 #   ./debug/system-info.sh [--json]
@@ -16,7 +16,7 @@
 #
 # OUTPUT:
 #   - OS and architecture
-#   - Docker version and status
+#   - Sandbox provider status
 #   - ayo version and config paths
 #   - Resource usage (memory, disk)
 #   - Environment variables relevant to ayo
@@ -29,6 +29,37 @@
 # =============================================================================
 
 set -euo pipefail
+
+# Detect dev mode: if running from project directory with .local/bin/ayo
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+DEV_MODE=false
+AYO_BINARY=""
+CONFIG_DIR=""
+DATA_DIR=""
+
+if [[ -x "$PROJECT_DIR/.local/bin/ayo" ]]; then
+    DEV_MODE=true
+    AYO_BINARY="$PROJECT_DIR/.local/bin/ayo"
+    CONFIG_DIR="$PROJECT_DIR/.config/ayo"
+    DATA_DIR="$PROJECT_DIR/.local/share/ayo"
+elif command -v ayo &>/dev/null; then
+    AYO_BINARY="$(which ayo)"
+    CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ayo"
+    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/ayo"
+fi
+
+# Detect sandbox provider
+SANDBOX_PROVIDER="none"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    if command -v container &>/dev/null; then
+        SANDBOX_PROVIDER="apple-container"
+    fi
+elif [[ "$(uname -s)" == "Linux" ]]; then
+    if command -v systemd-nspawn &>/dev/null; then
+        SANDBOX_PROVIDER="systemd-nspawn"
+    fi
+fi
 
 JSON_OUTPUT=false
 if [[ "${1:-}" == "--json" ]]; then
@@ -60,6 +91,7 @@ if $JSON_OUTPUT; then
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "source": "host",
   "script": "system-info.sh",
+  "dev_mode": $DEV_MODE,
   "system": {
     "os": "$(uname -s)",
     "os_version": "$(uname -r)",
@@ -67,18 +99,15 @@ if $JSON_OUTPUT; then
     "hostname": "$(hostname)",
     "user": "$(whoami)"
   },
-  "docker": {
-    "installed": $(command -v docker &>/dev/null && echo true || echo false),
-    "version": "$(docker --version 2>/dev/null | sed 's/Docker version //' | cut -d',' -f1 || echo 'N/A')",
-    "running": $(docker info &>/dev/null && echo true || echo false),
-    "containers_running": $(docker ps -q 2>/dev/null | wc -l | tr -d ' '),
-    "containers_total": $(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')
+  "sandbox": {
+    "provider": "$SANDBOX_PROVIDER",
+    "available": $([ "$SANDBOX_PROVIDER" != "none" ] && echo true || echo false)
   },
   "ayo": {
-    "version": "$(ayo --version 2>/dev/null | head -1 || echo 'N/A')",
-    "config_dir": "${XDG_CONFIG_HOME:-$HOME/.config}/ayo",
-    "data_dir": "${XDG_DATA_HOME:-$HOME/.local/share}/ayo",
-    "binary_path": "$(which ayo 2>/dev/null || echo 'N/A')"
+    "version": "$($AYO_BINARY --version 2>/dev/null | head -1 || echo 'N/A')",
+    "config_dir": "$CONFIG_DIR",
+    "data_dir": "$DATA_DIR",
+    "binary_path": "$AYO_BINARY"
   },
   "resources": {
     "memory_total_mb": $(sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024/1024)}' || free -m 2>/dev/null | awk '/Mem:/{print $2}' || echo 0),
@@ -91,6 +120,9 @@ else
     divider "SYSTEM DIAGNOSTIC INFO"
     echo "  Generated: $(date)"
     echo "  Source: HOST"
+    if $DEV_MODE; then
+        echo "  Mode: DEV (using project-local paths)"
+    fi
 
     section "Operating System"
     echo "  OS:           $(uname -s)"
@@ -99,28 +131,24 @@ else
     echo "  Hostname:     $(hostname)"
     echo "  User:         $(whoami)"
 
-    section "Docker Status"
-    if command -v docker &>/dev/null; then
-        echo "  Installed:    Yes"
-        echo "  Version:      $(docker --version | sed 's/Docker version //' | cut -d',' -f1)"
-        if docker info &>/dev/null; then
-            echo "  Running:      Yes"
-            echo "  Containers:   $(docker ps -q | wc -l | tr -d ' ') running / $(docker ps -aq | wc -l | tr -d ' ') total"
-        else
-            echo "  Running:      No (Docker daemon not responding)"
-        fi
+    section "Sandbox Provider"
+    echo "  Provider:     $SANDBOX_PROVIDER"
+    if [[ "$SANDBOX_PROVIDER" == "apple-container" ]]; then
+        echo "  Binary:       $(which container 2>/dev/null || echo 'not found')"
+    elif [[ "$SANDBOX_PROVIDER" == "systemd-nspawn" ]]; then
+        echo "  Binary:       $(which systemd-nspawn 2>/dev/null || echo 'not found')"
     else
-        echo "  Installed:    No"
+        echo "  Status:       No sandbox provider available"
     fi
 
     section "Ayo Installation"
-    if command -v ayo &>/dev/null; then
-        echo "  Version:      $(ayo --version 2>/dev/null | head -1 || echo 'unknown')"
-        echo "  Binary:       $(which ayo)"
-        echo "  Config Dir:   ${XDG_CONFIG_HOME:-$HOME/.config}/ayo"
-        echo "  Data Dir:     ${XDG_DATA_HOME:-$HOME/.local/share}/ayo"
+    if [[ -n "$AYO_BINARY" ]]; then
+        echo "  Version:      $($AYO_BINARY --version 2>/dev/null | head -1 || echo 'unknown')"
+        echo "  Binary:       $AYO_BINARY"
+        echo "  Config Dir:   $CONFIG_DIR"
+        echo "  Data Dir:     $DATA_DIR"
     else
-        echo "  Installed:    No (ayo not in PATH)"
+        echo "  Installed:    No (ayo not found)"
     fi
 
     section "Resource Usage"
@@ -135,7 +163,6 @@ else
     section "Environment Variables"
     echo "  AYO_CONFIG:   ${AYO_CONFIG:-<not set>}"
     echo "  AYO_DEBUG:    ${AYO_DEBUG:-<not set>}"
-    echo "  DOCKER_HOST:  ${DOCKER_HOST:-<not set>}"
     echo "  XDG_CONFIG:   ${XDG_CONFIG_HOME:-<not set>}"
     echo "  XDG_DATA:     ${XDG_DATA_HOME:-<not set>}"
 

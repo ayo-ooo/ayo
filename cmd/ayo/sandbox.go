@@ -14,10 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/alexcabrera/ayo/internal/cli"
+	"github.com/alexcabrera/ayo/internal/daemon"
+	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox/workingcopy"
 )
@@ -25,7 +28,7 @@ import (
 // Ensure cli package is used
 var _ = cli.Output{}
 
-func newSandboxCmd() *cobra.Command {
+func newSandboxCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sandbox",
 		Short: "Manage agent sandboxes",
@@ -35,19 +38,19 @@ Sandboxes are isolated Linux containers where agents execute commands.
 They provide security isolation and reproducible environments.
 
 Examples:
+  ayo sandbox service start           Start the sandbox service
+  ayo sandbox service status          Show service status
   ayo sandbox list                    List active sandboxes
-  ayo sandbox show <id>               Show sandbox details
-  ayo sandbox exec <id> <cmd>         Run command in sandbox
-  ayo sandbox shell <id>              Open shell in sandbox
+  ayo sandbox show [id]               Show sandbox details
+  ayo sandbox exec [id] <cmd>         Run command in sandbox
+  ayo sandbox login [id]              Open interactive shell
   ayo sandbox push <id> <src> <dest>  Copy file to sandbox
   ayo sandbox pull <id> <src> <dest>  Copy file from sandbox
-  ayo sandbox sync <id> <host-path>   Sync working copy back to host
-  ayo sandbox diff <id>               Show differences in working copy
-  ayo sandbox logs <id>               View sandbox logs
-  ayo sandbox stop <id>               Stop a sandbox
+  ayo sandbox stop [id]               Stop a sandbox
   ayo sandbox prune                   Remove stopped sandboxes`,
 	}
 
+	cmd.AddCommand(newSandboxServiceCmd(cfgPath))
 	cmd.AddCommand(newSandboxListCmd())
 	cmd.AddCommand(newSandboxShowCmd())
 	cmd.AddCommand(newSandboxExecCmd())
@@ -62,6 +65,8 @@ Examples:
 	cmd.AddCommand(newSandboxStatsCmd())
 	cmd.AddCommand(newSandboxSyncCmd())
 	cmd.AddCommand(newSandboxDiffCmd())
+	cmd.AddCommand(newSandboxJoinCmd())
+	cmd.AddCommand(newSandboxUsersCmd())
 
 	return cmd
 }
@@ -165,17 +170,27 @@ func newSandboxListCmd() *cobra.Command {
 }
 
 func newSandboxShowCmd() *cobra.Command {
+	var sandboxID string
+
 	cmd := &cobra.Command{
-		Use:   "show <id>",
+		Use:   "show",
 		Short: "Show sandbox details",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			sb, err := provider.Get(cmd.Context(), args[0])
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
+
+			sb, err := provider.Get(cmd.Context(), sandboxID)
 			if err != nil {
 				return fmt.Errorf("failed to get sandbox: %w", err)
 			}
@@ -217,34 +232,45 @@ func newSandboxShowCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
+
 	return cmd
 }
 
 func newSandboxExecCmd() *cobra.Command {
 	var user string
 	var workdir string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "exec <id> <command> [args...]",
+		Use:   "exec <command> [args...]",
 		Short: "Run command in sandbox",
 		Long: `Execute a command inside a running sandbox.
 
 Examples:
-  ayo sandbox exec abc123 ls -la
-  ayo sandbox exec abc123 --user ayo whoami
-  ayo sandbox exec abc123 --workdir /workspace pwd`,
-		Args: cobra.MinimumNArgs(2),
+  ayo sandbox exec ls -la
+  ayo sandbox exec --id abc123 ls -la
+  ayo sandbox exec --user ayo whoami
+  ayo sandbox exec --workdir /workspace pwd`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			sandboxID := args[0]
-			execCommand := args[1]
-			cmdArgs := []string{}
-			if len(args) > 2 {
-				cmdArgs = args[2:]
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
+
+			execCommand := args[0]
+			var cmdArgs []string
+			if len(args) > 1 {
+				cmdArgs = args[1:]
 			}
 
 			opts := providers.ExecOptions{
@@ -274,6 +300,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Run as specified user")
 	cmd.Flags().StringVarP(&workdir, "workdir", "w", "", "Working directory inside container")
 
@@ -282,9 +309,10 @@ Examples:
 
 func newSandboxShellCmd() *cobra.Command {
 	var asAgent string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "shell <id>",
+		Use:   "shell",
 		Short: "Open shell in sandbox",
 		Long: `Open an interactive shell inside a running sandbox.
 
@@ -292,16 +320,23 @@ Note: Due to Apple Container limitations, full TTY support may not be
 available. The shell will operate in line mode.
 
 Examples:
-  ayo sandbox shell abc123
-  ayo sandbox shell abc123 --as @ayo`,
-		Args: cobra.ExactArgs(1),
+  ayo sandbox shell
+  ayo sandbox shell --id abc123
+  ayo sandbox shell --as @ayo`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			sandboxID := args[0]
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
 
 			// Get sandbox info first
 			sb, err := provider.Get(cmd.Context(), sandboxID)
@@ -365,6 +400,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVar(&asAgent, "as", "", "Run shell as agent user (e.g., --as @ayo)")
 
 	return cmd
@@ -372,9 +408,10 @@ Examples:
 
 func newSandboxLoginCmd() *cobra.Command {
 	var asAgent string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "login [id]",
+		Use:   "login",
 		Short: "Open interactive shell in sandbox (human use only)",
 		Long: `Open an interactive shell inside a running sandbox with full PTY support.
 
@@ -385,46 +422,30 @@ handling.
 Note: This command is for human use only. Agents should use 'sandbox exec'
 or 'sandbox shell' instead.
 
-If no sandbox ID is provided, connects to the most recently created sandbox.
-
 Examples:
   ayo sandbox login                    Login to most recent sandbox as root
-  ayo sandbox login abc123             Login to sandbox abc123 as root
+  ayo sandbox login --id abc123        Login to sandbox abc123 as root
   ayo sandbox login --as @ayo          Login as @ayo user
-  ayo sandbox login abc123 --as @crush Login to abc123 as @crush user`,
-		Args: cobra.MaximumNArgs(1),
+  ayo sandbox login --id abc123 --as @crush`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			// Get sandbox list
-			sandboxes, err := provider.List(cmd.Context())
-			if err != nil {
-				return fmt.Errorf("failed to list sandboxes: %w", err)
-			}
-			if len(sandboxes) == 0 {
-				return errors.New("no sandboxes running")
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
 			}
 
-			// Find target sandbox
-			var target *providers.Sandbox
-			if len(args) == 0 {
-				// Use most recent sandbox
-				target = &sandboxes[len(sandboxes)-1]
-			} else {
-				sandboxID := args[0]
-				for i := range sandboxes {
-					sb := &sandboxes[i]
-					if sb.ID == sandboxID || strings.HasPrefix(sb.ID, sandboxID) || sb.Name == sandboxID || strings.HasPrefix(sb.Name, sandboxID) {
-						target = sb
-						break
-					}
-				}
-				if target == nil {
-					return fmt.Errorf("sandbox not found: %s", sandboxID)
-				}
+			// Get sandbox details
+			target, err := provider.Get(cmd.Context(), sandboxID)
+			if err != nil {
+				return fmt.Errorf("failed to get sandbox: %w", err)
 			}
 
 			// Check sandbox is running
@@ -484,6 +505,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVar(&asAgent, "as", "", "Login as agent user (e.g., --as @ayo)")
 
 	return cmd
@@ -516,20 +538,34 @@ func detectShell(ctx context.Context, provider providers.SandboxProvider, sandbo
 func newSandboxLogsCmd() *cobra.Command {
 	var follow bool
 	var tail int
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "logs <id>",
+		Use:   "logs",
 		Short: "View sandbox logs",
 		Long: `Fetch logs from a sandbox container.
 
 Note: Logs are retrieved via 'container logs' command.
 
 Examples:
-  ayo sandbox logs abc123
-  ayo sandbox logs abc123 --follow
-  ayo sandbox logs abc123 --tail 50`,
-		Args: cobra.ExactArgs(1),
+  ayo sandbox logs
+  ayo sandbox logs --id abc123
+  ayo sandbox logs --follow
+  ayo sandbox logs --tail 50`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sandboxID == "" {
+				provider := selectSandboxProvider()
+				if provider == nil {
+					return errors.New("no sandbox provider available on this platform")
+				}
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
+
 			// Use container CLI directly since provider interface doesn't have Logs
 			containerArgs := []string{"logs"}
 			if follow {
@@ -538,15 +574,16 @@ Examples:
 			if tail > 0 {
 				containerArgs = append(containerArgs, "--tail", fmt.Sprintf("%d", tail))
 			}
-			containerArgs = append(containerArgs, args[0])
+			containerArgs = append(containerArgs, sandboxID)
 
-			exec := exec.CommandContext(cmd.Context(), "container", containerArgs...)
-			exec.Stdout = os.Stdout
-			exec.Stderr = os.Stderr
-			return exec.Run()
+			execCmd := exec.CommandContext(cmd.Context(), "container", containerArgs...)
+			execCmd.Stdout = os.Stdout
+			execCmd.Stderr = os.Stderr
+			return execCmd.Run()
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow log output")
 	cmd.Flags().IntVarP(&tail, "tail", "n", 0, "Number of lines to show from end")
 
@@ -554,21 +591,30 @@ Examples:
 }
 
 func newSandboxStartCmd() *cobra.Command {
+	var sandboxID string
+
 	cmd := &cobra.Command{
-		Use:   "start <id>",
+		Use:   "start",
 		Short: "Start a stopped sandbox",
 		Long: `Start a stopped sandbox container.
 
 Examples:
-  ayo sandbox start abc123`,
-		Args: cobra.ExactArgs(1),
+  ayo sandbox start
+  ayo sandbox start --id abc123`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			sandboxID := args[0]
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox to start:")
+				if err != nil {
+					return err
+				}
+			}
 
 			if err := provider.Start(cmd.Context(), sandboxID); err != nil {
 				return fmt.Errorf("failed to start sandbox: %w", err)
@@ -579,30 +625,40 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
+
 	return cmd
 }
 
 func newSandboxStopCmd() *cobra.Command {
 	var force bool
 	var timeout int
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "stop <id>",
+		Use:   "stop",
 		Short: "Stop a running sandbox",
 		Long: `Stop a running sandbox container.
 
 Examples:
-  ayo sandbox stop abc123
-  ayo sandbox stop abc123 --force
-  ayo sandbox stop abc123 --timeout 30`,
-		Args: cobra.ExactArgs(1),
+  ayo sandbox stop
+  ayo sandbox stop --id abc123
+  ayo sandbox stop --force
+  ayo sandbox stop --timeout 30`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			sandboxID := args[0]
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox to stop:")
+				if err != nil {
+					return err
+				}
+			}
 
 			opts := providers.SandboxStopOptions{}
 			if force {
@@ -621,6 +677,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force kill immediately")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 10, "Seconds to wait before force kill")
 
@@ -630,6 +687,7 @@ Examples:
 func newSandboxPruneCmd() *cobra.Command {
 	var force bool
 	var all bool
+	var homes bool
 
 	cmd := &cobra.Command{
 		Use:   "prune",
@@ -639,7 +697,8 @@ func newSandboxPruneCmd() *cobra.Command {
 Examples:
   ayo sandbox prune
   ayo sandbox prune --force
-  ayo sandbox prune --all`,
+  ayo sandbox prune --all
+  ayo sandbox prune --homes   # Also remove persistent agent home directories`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
@@ -702,12 +761,51 @@ Examples:
 			}
 
 			fmt.Printf("Removed %d sandbox(es)\n", removed)
+
+			// Remove agent home directories if --homes
+			if homes {
+				homesDir := paths.AgentHomesDir()
+				entries, err := os.ReadDir(homesDir)
+				if err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("read agent homes directory: %w", err)
+				}
+
+				if len(entries) > 0 {
+					if !force {
+						fmt.Printf("\nThis will also remove %d agent home director(ies):\n", len(entries))
+						for _, e := range entries {
+							fmt.Printf("  - %s\n", e.Name())
+						}
+						fmt.Print("\nContinue? [y/N] ")
+
+						var response string
+						fmt.Scanln(&response)
+						if strings.ToLower(response) != "y" {
+							fmt.Println("Skipping home directories")
+							return nil
+						}
+					}
+
+					homesRemoved := 0
+					for _, e := range entries {
+						entryPath := filepath.Join(homesDir, e.Name())
+						if err := os.RemoveAll(entryPath); err != nil {
+							fmt.Fprintf(os.Stderr, "Warning: failed to remove %s: %v\n", entryPath, err)
+						} else {
+							homesRemoved++
+						}
+					}
+					fmt.Printf("Removed %d agent home director(ies)\n", homesRemoved)
+				}
+			}
+
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation prompt")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Also stop and remove running sandboxes")
+	cmd.Flags().BoolVar(&homes, "homes", false, "Also remove persistent agent home directories")
 
 	return cmd
 }
@@ -737,25 +835,34 @@ func formatAge(t time.Time) string {
 
 func newSandboxPushCmd() *cobra.Command {
 	var user string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "push <id> <local-path> <container-path>",
+		Use:   "push <local-path> <container-path>",
 		Short: "Copy file or directory to sandbox",
 		Long: `Copy a file or directory from the host to a sandbox container.
 
 Examples:
-  ayo sandbox push abc123 ./data.txt /tmp/data.txt
-  ayo sandbox push abc123 ./mydir /home/ayo/mydir
-  ayo sandbox push abc123 ./script.sh /home/ayo/script.sh --user ayo`,
-		Args: cobra.ExactArgs(3),
+  ayo sandbox push ./data.txt /tmp/data.txt
+  ayo sandbox push ./mydir /home/ayo/mydir --id abc123
+  ayo sandbox push ./script.sh /home/ayo/script.sh --user ayo`,
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sandboxID := args[0]
-			localPath := args[1]
-			containerPath := args[2]
+			localPath := args[0]
+			containerPath := args[1]
 
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
+			}
+
+			// Get sandbox ID from flag or picker
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
 			}
 
 			// Resolve sandbox ID
@@ -842,8 +949,24 @@ Examples:
 				return fmt.Errorf("close tar: %w", err)
 			}
 
-			// Extract in container
+			// Create destination directory in container if needed
 			destDir := filepath.Dir(containerPath)
+			if destDir != "/" && destDir != "." {
+				mkdirResult, err := provider.Exec(cmd.Context(), target.ID, providers.ExecOptions{
+					Command:    "mkdir",
+					Args:       []string{"-p", destDir},
+					User:       user,
+					WorkingDir: "/",
+				})
+				if err != nil {
+					return fmt.Errorf("create destination directory: %w", err)
+				}
+				if mkdirResult.ExitCode != 0 {
+					return fmt.Errorf("mkdir failed: %s", mkdirResult.Stderr)
+				}
+			}
+
+			// Extract in container
 			result, err := provider.Exec(cmd.Context(), target.ID, providers.ExecOptions{
 				Command:    "tar",
 				Args:       []string{"-xf", "-", "-C", destDir},
@@ -863,6 +986,7 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Run as specific user")
 
 	return cmd
@@ -870,25 +994,34 @@ Examples:
 
 func newSandboxPullCmd() *cobra.Command {
 	var user string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "pull <id> <container-path> <local-path>",
+		Use:   "pull <container-path> <local-path>",
 		Short: "Copy file or directory from sandbox",
 		Long: `Copy a file or directory from a sandbox container to the host.
 
 Examples:
-  ayo sandbox pull abc123 /tmp/output.txt ./output.txt
-  ayo sandbox pull abc123 /home/ayo/results ./results
-  ayo sandbox pull abc123 /var/log/app.log ./app.log --user root`,
-		Args: cobra.ExactArgs(3),
+  ayo sandbox pull /tmp/output.txt ./output.txt
+  ayo sandbox pull /home/ayo/results ./results --id abc123
+  ayo sandbox pull /var/log/app.log ./app.log --user root`,
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sandboxID := args[0]
-			containerPath := args[1]
-			localPath := args[2]
+			containerPath := args[0]
+			localPath := args[1]
 
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
+			}
+
+			// Get sandbox ID from flag or picker
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
 			}
 
 			// Resolve sandbox ID
@@ -973,14 +1106,17 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Run as specific user")
 
 	return cmd
 }
 
 func newSandboxStatsCmd() *cobra.Command {
+	var sandboxID string
+
 	cmd := &cobra.Command{
-		Use:   "stats <sandbox-id>",
+		Use:   "stats",
 		Short: "Show resource usage statistics for a sandbox",
 		Long: `Display resource usage statistics for a running sandbox.
 
@@ -988,16 +1124,22 @@ Shows CPU usage, memory consumption, disk usage, network I/O,
 process count, and uptime.
 
 Examples:
-  ayo sandbox stats abc123       Show stats for sandbox abc123
-  ayo sandbox stats ayo-sandbox  Show stats by name`,
-		Args: cobra.ExactArgs(1),
+  ayo sandbox stats
+  ayo sandbox stats --id abc123`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
 			if provider == nil {
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			id := args[0]
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
 
 			// Resolve sandbox ID
 			sandboxes, err := provider.List(cmd.Context())
@@ -1007,14 +1149,14 @@ Examples:
 
 			var target *providers.Sandbox
 			for _, sb := range sandboxes {
-				if sb.ID == id || strings.HasPrefix(sb.ID, id) || strings.HasPrefix(sb.Name, id) {
+				if sb.ID == sandboxID || strings.HasPrefix(sb.ID, sandboxID) || strings.HasPrefix(sb.Name, sandboxID) {
 					target = &sb
 					break
 				}
 			}
 
 			if target == nil {
-				return fmt.Errorf("sandbox not found: %s", id)
+				return fmt.Errorf("sandbox not found: %s", sandboxID)
 			}
 
 			stats, err := provider.Stats(cmd.Context(), target.ID)
@@ -1086,15 +1228,17 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
+
 	return cmd
 }
 
 func newSandboxSyncCmd() *cobra.Command {
-	var sandboxPath string
 	var dryRun bool
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "sync <sandbox-id> <host-path>",
+		Use:   "sync <sandbox-path> <host-path>",
 		Short: "Sync working copy from sandbox back to host",
 		Long: `Synchronize changes from a sandbox working copy back to the host filesystem.
 
@@ -1102,9 +1246,9 @@ This command copies modified files from the sandbox's working directory
 back to the original host project directory.
 
 Examples:
-  ayo sandbox sync abc123 /path/to/project           Sync from /workspace to project
-  ayo sandbox sync abc123 . --sandbox-path /app      Sync from /app to current dir
-  ayo sandbox sync abc123 . --dry-run                Preview changes without applying`,
+  ayo sandbox sync /workspace /path/to/project
+  ayo sandbox sync /app . --dry-run
+  ayo sandbox sync /workspace . --id abc123`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
@@ -1112,8 +1256,16 @@ Examples:
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			id := args[0]
+			sandboxPath := args[0]
 			hostPath := args[1]
+
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
 
 			// Resolve host path
 			absHostPath, err := filepath.Abs(hostPath)
@@ -1129,18 +1281,14 @@ Examples:
 
 			var target *providers.Sandbox
 			for _, sb := range sandboxes {
-				if sb.ID == id || strings.HasPrefix(sb.ID, id) || strings.HasPrefix(sb.Name, id) {
+				if sb.ID == sandboxID || strings.HasPrefix(sb.ID, sandboxID) || strings.HasPrefix(sb.Name, sandboxID) {
 					target = &sb
 					break
 				}
 			}
 
 			if target == nil {
-				return fmt.Errorf("sandbox not found: %s", id)
-			}
-
-			if sandboxPath == "" {
-				sandboxPath = "/workspace"
+				return fmt.Errorf("sandbox not found: %s", sandboxID)
 			}
 
 			// Create working copy for sync
@@ -1195,17 +1343,17 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&sandboxPath, "sandbox-path", "/workspace", "Path inside sandbox to sync from")
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview changes without applying")
 
 	return cmd
 }
 
 func newSandboxDiffCmd() *cobra.Command {
-	var sandboxPath string
+	var sandboxID string
 
 	cmd := &cobra.Command{
-		Use:   "diff <sandbox-id> <host-path>",
+		Use:   "diff <sandbox-path> <host-path>",
 		Short: "Show differences between sandbox and host",
 		Long: `Compare files in a sandbox working copy with the host filesystem.
 
@@ -1213,8 +1361,8 @@ Shows which files have been added, modified, or deleted in the sandbox
 compared to the host project.
 
 Examples:
-  ayo sandbox diff abc123 /path/to/project           Compare /workspace with project
-  ayo sandbox diff abc123 . --sandbox-path /app      Compare /app with current dir`,
+  ayo sandbox diff /workspace /path/to/project
+  ayo sandbox diff /app . --id abc123`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
@@ -1222,8 +1370,16 @@ Examples:
 				return errors.New("no sandbox provider available on this platform")
 			}
 
-			id := args[0]
+			sandboxPath := args[0]
 			hostPath := args[1]
+
+			if sandboxID == "" {
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
 
 			// Resolve host path
 			absHostPath, err := filepath.Abs(hostPath)
@@ -1239,18 +1395,14 @@ Examples:
 
 			var target *providers.Sandbox
 			for _, sb := range sandboxes {
-				if sb.ID == id || strings.HasPrefix(sb.ID, id) || strings.HasPrefix(sb.Name, id) {
+				if sb.ID == sandboxID || strings.HasPrefix(sb.ID, sandboxID) || strings.HasPrefix(sb.Name, sandboxID) {
 					target = &sb
 					break
 				}
 			}
 
 			if target == nil {
-				return fmt.Errorf("sandbox not found: %s", id)
-			}
-
-			if sandboxPath == "" {
-				sandboxPath = "/workspace"
+				return fmt.Errorf("sandbox not found: %s", sandboxID)
 			}
 
 			// Create working copy for diff
@@ -1297,7 +1449,153 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&sandboxPath, "sandbox-path", "/workspace", "Path inside sandbox to compare")
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 
 	return cmd
+}
+
+func newSandboxJoinCmd() *cobra.Command {
+	var sandboxID string
+
+	cmd := &cobra.Command{
+		Use:   "join <agent>",
+		Short: "Add an agent to a sandbox",
+		Long: `Add an agent to an existing sandbox for multi-agent collaboration.
+
+The agent will get its own user account in the sandbox but shares the workspace.
+
+Examples:
+  ayo sandbox join @reviewer
+  ayo sandbox join @tester --id abc123`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			agent := args[0]
+
+			if sandboxID == "" {
+				provider := selectSandboxProvider()
+				if provider == nil {
+					return errors.New("no sandbox provider available on this platform")
+				}
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
+
+			client, err := daemon.ConnectOrStart(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.SandboxJoin(cmd.Context(), sandboxID, agent); err != nil {
+				return fmt.Errorf("join sandbox: %w", err)
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render(fmt.Sprintf("✓ Agent %s joined sandbox %s", agent, sandboxID)))
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
+
+	return cmd
+}
+
+func newSandboxUsersCmd() *cobra.Command {
+	var sandboxID string
+
+	cmd := &cobra.Command{
+		Use:   "users",
+		Short: "List agents in a sandbox",
+		Long: `List all agents currently using a sandbox.
+
+Examples:
+  ayo sandbox users
+  ayo sandbox users --id abc123`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if sandboxID == "" {
+				provider := selectSandboxProvider()
+				if provider == nil {
+					return errors.New("no sandbox provider available on this platform")
+				}
+				var err error
+				sandboxID, err = pickSandbox(cmd.Context(), provider, "Select a sandbox:")
+				if err != nil {
+					return err
+				}
+			}
+
+			client, err := daemon.ConnectOrStart(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			agents, err := client.SandboxAgents(cmd.Context(), sandboxID)
+			if err != nil {
+				return fmt.Errorf("get sandbox agents: %w", err)
+			}
+
+			if len(agents) == 0 {
+				dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+				fmt.Println(dimStyle.Render("No agents in this sandbox"))
+				return nil
+			}
+
+			fmt.Printf("Agents in sandbox %s:\n", sandboxID)
+			for _, agent := range agents {
+				fmt.Printf("  %s\n", agent)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
+
+	return cmd
+}
+
+// pickSandbox selects a sandbox - auto-selects if only one, shows picker if multiple.
+// Returns the sandbox ID or an error if no sandboxes available or user cancelled.
+func pickSandbox(ctx context.Context, provider providers.SandboxProvider, title string) (string, error) {
+	sandboxes, err := provider.List(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to list sandboxes: %w", err)
+	}
+
+	if len(sandboxes) == 0 {
+		return "", errors.New("no active sandboxes")
+	}
+
+	// Auto-select if only one sandbox
+	if len(sandboxes) == 1 {
+		return sandboxes[0].ID, nil
+	}
+
+	// Build options for picker
+	options := make([]huh.Option[string], len(sandboxes))
+	for i, sb := range sandboxes {
+		age := formatAge(sb.CreatedAt)
+		status := string(sb.Status)
+		label := fmt.Sprintf("%s  %s  %s  %s", sb.ID, truncate(sb.Name, 25), status, age)
+		options[i] = huh.NewOption(label, sb.ID)
+	}
+
+	var selectedID string
+	err = huh.NewSelect[string]().
+		Title(title).
+		Options(options...).
+		Value(&selectedID).
+		Run()
+	if err != nil {
+		return "", err
+	}
+
+	return selectedID, nil
 }

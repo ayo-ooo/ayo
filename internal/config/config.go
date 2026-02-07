@@ -9,7 +9,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/paths"
 
-	"github.com/charmbracelet/catwalk/pkg/catwalk"
+	"charm.land/catwalk/pkg/catwalk"
 )
 
 // ModelType represents the type of model (large for main inference, small for fast tasks).

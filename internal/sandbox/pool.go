@@ -252,8 +252,11 @@ func (p *Pool) Exec(ctx context.Context, sandboxID string, opts providers.ExecOp
 	return p.provider.Exec(ctx, sandboxID, opts)
 }
 
-// Status returns pool status.
+// Status returns pool status after reconciling with container runtime.
 func (p *Pool) Status() PoolStatus {
+	// Reconcile first to ensure counts are accurate
+	p.Reconcile(context.Background())
+
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -272,6 +275,38 @@ func (p *Pool) Status() PoolStatus {
 	}
 
 	return status
+}
+
+// Reconcile validates sandboxes still exist in the container runtime and
+// removes any stale entries from the pool. This handles cases where
+// containers are deleted externally (e.g., via `container prune`).
+func (p *Pool) Reconcile(ctx context.Context) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.provider == nil || len(p.sandboxes) == 0 {
+		return
+	}
+
+	// Get actual containers from the runtime
+	actual, err := p.provider.List(ctx)
+	if err != nil {
+		// Can't reconcile if we can't query runtime, but don't fail
+		return
+	}
+
+	// Build a set of existing container IDs
+	exists := make(map[string]bool)
+	for _, sb := range actual {
+		exists[sb.ID] = true
+	}
+
+	// Remove pool entries for containers that no longer exist
+	for id := range p.sandboxes {
+		if !exists[id] {
+			delete(p.sandboxes, id)
+		}
+	}
 }
 
 // PoolStatus contains pool status information.

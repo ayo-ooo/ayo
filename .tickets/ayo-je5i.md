@@ -1,6 +1,6 @@
 ---
 id: ayo-je5i
-status: open
+status: closed
 deps: [ayo-q84j]
 links: []
 created: 2026-02-05T18:52:55Z

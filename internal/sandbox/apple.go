@@ -394,6 +394,11 @@ func (p *AppleProvider) Exec(ctx context.Context, id string, opts providers.Exec
 	// Build container exec command
 	args := []string{"exec"}
 
+	// Add -i flag for stdin support
+	if len(opts.Stdin) > 0 {
+		args = append(args, "-i")
+	}
+
 	// Working directory (Apple Container uses --workdir)
 	if opts.WorkingDir != "" {
 		args = append(args, "--workdir", opts.WorkingDir)
