@@ -8,6 +8,47 @@ import (
 	"database/sql"
 )
 
+type AgentCapability struct {
+	ID          string  `json:"id"`
+	AgentID     string  `json:"agent_id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Confidence  float64 `json:"confidence"`
+	Source      string  `json:"source"`
+	Embedding   []byte  `json:"embedding"`
+	InputHash   string  `json:"input_hash"`
+	CreatedAt   int64   `json:"created_at"`
+	UpdatedAt   int64   `json:"updated_at"`
+}
+
+type AgentRefinement struct {
+	ID             string `json:"id"`
+	AgentID        string `json:"agent_id"`
+	PreviousPrompt string `json:"previous_prompt"`
+	NewPrompt      string `json:"new_prompt"`
+	Reason         string `json:"reason"`
+	CreatedAt      int64  `json:"created_at"`
+}
+
+type AyoCreatedAgent struct {
+	AgentID           string         `json:"agent_id"`
+	AgentHandle       string         `json:"agent_handle"`
+	CreatedBy         string         `json:"created_by"`
+	CreationReason    sql.NullString `json:"creation_reason"`
+	OriginalPrompt    string         `json:"original_prompt"`
+	InvocationCount   int64          `json:"invocation_count"`
+	SuccessCount      int64          `json:"success_count"`
+	FailureCount      int64          `json:"failure_count"`
+	LastUsedAt        sql.NullInt64  `json:"last_used_at"`
+	RefinementCount   int64          `json:"refinement_count"`
+	CurrentPromptHash sql.NullString `json:"current_prompt_hash"`
+	Confidence        float64        `json:"confidence"`
+	IsArchived        int64          `json:"is_archived"`
+	PromotedTo        sql.NullString `json:"promoted_to"`
+	CreatedAt         int64          `json:"created_at"`
+	UpdatedAt         int64          `json:"updated_at"`
+}
+
 type FlowRun struct {
 	ID              string         `json:"id"`
 	FlowName        string         `json:"flow_name"`
@@ -83,4 +124,21 @@ type SessionEdge struct {
 	EdgeType         string         `json:"edge_type"`
 	TriggerMessageID sql.NullString `json:"trigger_message_id"`
 	CreatedAt        int64          `json:"created_at"`
+}
+
+type TriggerStat struct {
+	TriggerID           string        `json:"trigger_id"`
+	FlowName            string        `json:"flow_name"`
+	TriggerType         string        `json:"trigger_type"`
+	RunCount            int64         `json:"run_count"`
+	SuccessCount        int64         `json:"success_count"`
+	FailureCount        int64         `json:"failure_count"`
+	RunsBeforePermanent sql.NullInt64 `json:"runs_before_permanent"`
+	IsPermanent         int64         `json:"is_permanent"`
+	LastRunAt           sql.NullInt64 `json:"last_run_at"`
+	LastSuccessAt       sql.NullInt64 `json:"last_success_at"`
+	LastFailureAt       sql.NullInt64 `json:"last_failure_at"`
+	AvgDurationMs       sql.NullInt64 `json:"avg_duration_ms"`
+	CreatedAt           int64         `json:"created_at"`
+	UpdatedAt           int64         `json:"updated_at"`
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/delegates"
+	"github.com/alexcabrera/ayo/internal/guardrails"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
 )
@@ -23,11 +24,53 @@ import (
 // Schema is a type alias for the fantasy schema type.
 type Schema = schema.Schema
 
+// TrustLevel represents the trust level assigned to an agent.
+// It controls sandbox behavior, guardrails, and orchestration visibility.
+type TrustLevel string
+
+const (
+	// TrustLevelSandboxed is the default trust level. Agent runs in full sandbox
+	// with guardrails enabled. Can be orchestrated by @ayo.
+	TrustLevelSandboxed TrustLevel = "sandboxed"
+
+	// TrustLevelPrivileged allows host filesystem access via mount grants.
+	// Guardrails still enabled. Can be orchestrated by @ayo.
+	TrustLevelPrivileged TrustLevel = "privileged"
+
+	// TrustLevelUnrestricted runs without sandbox or guardrails.
+	// CANNOT be orchestrated by @ayo - invisible to capability discovery.
+	// Use with extreme caution.
+	TrustLevelUnrestricted TrustLevel = "unrestricted"
+)
+
+// IsValid returns true if the trust level is a recognized value.
+func (t TrustLevel) IsValid() bool {
+	switch t {
+	case TrustLevelSandboxed, TrustLevelPrivileged, TrustLevelUnrestricted, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the string representation of the trust level.
+func (t TrustLevel) String() string {
+	if t == "" {
+		return string(TrustLevelSandboxed)
+	}
+	return string(t)
+}
+
 type Config struct {
 	Model       string   `json:"model"`
 	SystemFile  string   `json:"system_file"`
 	Description string   `json:"description,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
+	
+	// TrustLevel controls sandbox behavior and orchestration visibility.
+	// Values: "sandboxed" (default), "privileged", "unrestricted"
+	// Unrestricted agents cannot be orchestrated by @ayo.
+	TrustLevel TrustLevel `json:"trust,omitempty"`
 	
 	// DisableTodo disables the built-in todo tool for this agent.
 	// By default, todo is always available to all agents.
@@ -38,6 +81,7 @@ type Config struct {
 	// When true (default), ayo applies safety guardrails to the agent's system prompt.
 	// Set to false to disable guardrails (dangerous - use with caution).
 	// Note: @ayo namespace agents always have guardrails enabled regardless of this setting.
+	// Note: Unrestricted trust level agents always have guardrails disabled.
 	Guardrails *bool `json:"guardrails,omitempty"`
 	
 	// Skill configuration
@@ -149,22 +193,17 @@ type RetrievalConfig struct {
 
 // GuardrailsPrompt is the hardcoded safety guardrails applied to agents.
 // This is injected at runtime when guardrails are enabled.
-const GuardrailsPrompt = `<guardrails>
-You are operating under ayo's safety guardrails. These rules are non-negotiable:
-
-1. **No malicious code**: Never create, modify, or assist with code designed to harm systems, steal data, or exploit vulnerabilities.
-2. **No credential exposure**: Never log, print, or expose secrets, API keys, passwords, or tokens.
-3. **Respect user intent**: Only perform actions the user has explicitly requested or that are clearly implied by their request.
-4. **Confirm destructive actions**: Before deleting files, dropping databases, or making irreversible changes, confirm with the user unless they've explicitly instructed you to proceed.
-5. **Stay in scope**: Don't access or modify files outside the current project unless explicitly asked.
-6. **Truthful limitations**: If you cannot do something, say so. Don't pretend to have capabilities you lack.
-
-These guardrails protect both the user and the systems you interact with.
-</guardrails>`
+// For backward compatibility, this re-exports the legacy guardrails from the guardrails package.
+var GuardrailsPrompt = guardrails.LegacyGuardrails
 
 // GuardrailsEnabled returns true if guardrails should be applied for this agent.
 // @ayo namespace agents always have guardrails enabled regardless of config.
+// Unrestricted trust level agents always have guardrails disabled.
 func (c Config) GuardrailsEnabled(handle string) bool {
+	// Unrestricted agents never have guardrails
+	if c.GetTrustLevel() == TrustLevelUnrestricted {
+		return false
+	}
 	// @ayo namespace always has guardrails - cannot be disabled
 	if IsReservedNamespace(handle) {
 		return true
@@ -176,13 +215,39 @@ func (c Config) GuardrailsEnabled(handle string) bool {
 	return *c.Guardrails
 }
 
+// GetTrustLevel returns the trust level for this agent, defaulting to sandboxed.
+func (c Config) GetTrustLevel() TrustLevel {
+	if c.TrustLevel == "" {
+		return TrustLevelSandboxed
+	}
+	return c.TrustLevel
+}
+
+// CanBeOrchestrated returns true if this agent can be orchestrated by @ayo.
+// Unrestricted agents are invisible to @ayo's capability discovery.
+func (c Config) CanBeOrchestrated() bool {
+	return c.GetTrustLevel() != TrustLevelUnrestricted
+}
+
 // SandboxEnabled returns true if this agent should run in a sandbox.
 // Defaults to true (sandbox by default) unless explicitly disabled.
+// Unrestricted trust level agents never run in sandbox.
+// Privileged trust level agents run in sandbox but with host mount access.
 func (c Config) SandboxEnabled() bool {
+	// Unrestricted agents never use sandbox
+	if c.TrustLevel == TrustLevelUnrestricted {
+		return false
+	}
 	if c.Sandbox.Enabled == nil {
 		return true // Sandbox by default
 	}
 	return *c.Sandbox.Enabled
+}
+
+// SandboxWithHostAccess returns true if this agent should have host filesystem access.
+// Only privileged agents get host mount grants.
+func (c Config) SandboxWithHostAccess() bool {
+	return c.GetTrustLevel() == TrustLevelPrivileged
 }
 
 // SandboxImage returns the container image to use for this agent's sandbox.
@@ -254,6 +319,16 @@ type Agent struct {
 	BuiltIn         bool
 	InputSchema     *schema.Schema // JSON schema for input validation (optional)
 	OutputSchema    *schema.Schema // JSON schema for output formatting (optional)
+}
+
+// TrustLevel returns the trust level for this agent.
+func (a Agent) TrustLevel() TrustLevel {
+	return a.Config.GetTrustLevel()
+}
+
+// CanBeOrchestrated returns true if this agent can be orchestrated by @ayo.
+func (a Agent) CanBeOrchestrated() bool {
+	return a.Config.CanBeOrchestrated()
 }
 
 func NormalizeHandle(handle string) string {

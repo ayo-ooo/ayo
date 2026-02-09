@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.archiveAyoAgentStmt, err = db.PrepareContext(ctx, archiveAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query ArchiveAyoAgent: %w", err)
+	}
 	if q.clearAllMemoriesStmt, err = db.PrepareContext(ctx, clearAllMemories); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearAllMemories: %w", err)
 	}
@@ -60,6 +63,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countSessionsBySourceStmt, err = db.PrepareContext(ctx, countSessionsBySource); err != nil {
 		return nil, fmt.Errorf("error preparing query CountSessionsBySource: %w", err)
 	}
+	if q.createAgentRefinementStmt, err = db.PrepareContext(ctx, createAgentRefinement); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateAgentRefinement: %w", err)
+	}
+	if q.createAyoAgentStmt, err = db.PrepareContext(ctx, createAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateAyoAgent: %w", err)
+	}
 	if q.createEdgeStmt, err = db.PrepareContext(ctx, createEdge); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateEdge: %w", err)
 	}
@@ -74,6 +83,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
+	}
+	if q.deleteAyoAgentStmt, err = db.PrepareContext(ctx, deleteAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteAyoAgent: %w", err)
 	}
 	if q.deleteEdgeStmt, err = db.PrepareContext(ctx, deleteEdge); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteEdge: %w", err)
@@ -102,6 +114,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAllActiveMemoriesWithEmbeddingsStmt, err = db.PrepareContext(ctx, getAllActiveMemoriesWithEmbeddings); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllActiveMemoriesWithEmbeddings: %w", err)
 	}
+	if q.getAyoAgentStmt, err = db.PrepareContext(ctx, getAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAyoAgent: %w", err)
+	}
+	if q.getAyoAgentByHandleStmt, err = db.PrepareContext(ctx, getAyoAgentByHandle); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAyoAgentByHandle: %w", err)
+	}
 	if q.getChildEdgesStmt, err = db.PrepareContext(ctx, getChildEdges); err != nil {
 		return nil, fmt.Errorf("error preparing query GetChildEdges: %w", err)
 	}
@@ -113,6 +131,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getLastFlowRunStmt, err = db.PrepareContext(ctx, getLastFlowRun); err != nil {
 		return nil, fmt.Errorf("error preparing query GetLastFlowRun: %w", err)
+	}
+	if q.getLatestRefinementStmt, err = db.PrepareContext(ctx, getLatestRefinement); err != nil {
+		return nil, fmt.Errorf("error preparing query GetLatestRefinement: %w", err)
 	}
 	if q.getMemoriesForSearchStmt, err = db.PrepareContext(ctx, getMemoriesForSearch); err != nil {
 		return nil, fmt.Errorf("error preparing query GetMemoriesForSearch: %w", err)
@@ -134,6 +155,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getSessionByPrefixStmt, err = db.PrepareContext(ctx, getSessionByPrefix); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSessionByPrefix: %w", err)
+	}
+	if q.listAgentRefinementsStmt, err = db.PrepareContext(ctx, listAgentRefinements); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAgentRefinements: %w", err)
+	}
+	if q.listArchivedAyoAgentsStmt, err = db.PrepareContext(ctx, listArchivedAyoAgents); err != nil {
+		return nil, fmt.Errorf("error preparing query ListArchivedAyoAgents: %w", err)
+	}
+	if q.listAyoAgentsStmt, err = db.PrepareContext(ctx, listAyoAgents); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAyoAgents: %w", err)
 	}
 	if q.listFlowRunsStmt, err = db.PrepareContext(ctx, listFlowRuns); err != nil {
 		return nil, fmt.Errorf("error preparing query ListFlowRuns: %w", err)
@@ -174,6 +204,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listSessionsBySourceStmt, err = db.PrepareContext(ctx, listSessionsBySource); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessionsBySource: %w", err)
 	}
+	if q.promoteAyoAgentStmt, err = db.PrepareContext(ctx, promoteAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query PromoteAyoAgent: %w", err)
+	}
 	if q.pruneFlowRunsByAgeStmt, err = db.PrepareContext(ctx, pruneFlowRunsByAge); err != nil {
 		return nil, fmt.Errorf("error preparing query PruneFlowRunsByAge: %w", err)
 	}
@@ -185,6 +218,21 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.supersedeMemoryStmt, err = db.PrepareContext(ctx, supersedeMemory); err != nil {
 		return nil, fmt.Errorf("error preparing query SupersedeMemory: %w", err)
+	}
+	if q.unarchiveAyoAgentStmt, err = db.PrepareContext(ctx, unarchiveAyoAgent); err != nil {
+		return nil, fmt.Errorf("error preparing query UnarchiveAyoAgent: %w", err)
+	}
+	if q.updateAyoAgentFailureStmt, err = db.PrepareContext(ctx, updateAyoAgentFailure); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateAyoAgentFailure: %w", err)
+	}
+	if q.updateAyoAgentInvocationStmt, err = db.PrepareContext(ctx, updateAyoAgentInvocation); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateAyoAgentInvocation: %w", err)
+	}
+	if q.updateAyoAgentPromptStmt, err = db.PrepareContext(ctx, updateAyoAgentPrompt); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateAyoAgentPrompt: %w", err)
+	}
+	if q.updateAyoAgentSuccessStmt, err = db.PrepareContext(ctx, updateAyoAgentSuccess); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateAyoAgentSuccess: %w", err)
 	}
 	if q.updateMemoryStmt, err = db.PrepareContext(ctx, updateMemory); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateMemory: %w", err)
@@ -206,6 +254,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.archiveAyoAgentStmt != nil {
+		if cerr := q.archiveAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing archiveAyoAgentStmt: %w", cerr)
+		}
+	}
 	if q.clearAllMemoriesStmt != nil {
 		if cerr := q.clearAllMemoriesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearAllMemoriesStmt: %w", cerr)
@@ -266,6 +319,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing countSessionsBySourceStmt: %w", cerr)
 		}
 	}
+	if q.createAgentRefinementStmt != nil {
+		if cerr := q.createAgentRefinementStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createAgentRefinementStmt: %w", cerr)
+		}
+	}
+	if q.createAyoAgentStmt != nil {
+		if cerr := q.createAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createAyoAgentStmt: %w", cerr)
+		}
+	}
 	if q.createEdgeStmt != nil {
 		if cerr := q.createEdgeStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createEdgeStmt: %w", cerr)
@@ -289,6 +352,11 @@ func (q *Queries) Close() error {
 	if q.createSessionStmt != nil {
 		if cerr := q.createSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createSessionStmt: %w", cerr)
+		}
+	}
+	if q.deleteAyoAgentStmt != nil {
+		if cerr := q.deleteAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteAyoAgentStmt: %w", cerr)
 		}
 	}
 	if q.deleteEdgeStmt != nil {
@@ -336,6 +404,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getAllActiveMemoriesWithEmbeddingsStmt: %w", cerr)
 		}
 	}
+	if q.getAyoAgentStmt != nil {
+		if cerr := q.getAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAyoAgentStmt: %w", cerr)
+		}
+	}
+	if q.getAyoAgentByHandleStmt != nil {
+		if cerr := q.getAyoAgentByHandleStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAyoAgentByHandleStmt: %w", cerr)
+		}
+	}
 	if q.getChildEdgesStmt != nil {
 		if cerr := q.getChildEdgesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getChildEdgesStmt: %w", cerr)
@@ -354,6 +432,11 @@ func (q *Queries) Close() error {
 	if q.getLastFlowRunStmt != nil {
 		if cerr := q.getLastFlowRunStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getLastFlowRunStmt: %w", cerr)
+		}
+	}
+	if q.getLatestRefinementStmt != nil {
+		if cerr := q.getLatestRefinementStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getLatestRefinementStmt: %w", cerr)
 		}
 	}
 	if q.getMemoriesForSearchStmt != nil {
@@ -389,6 +472,21 @@ func (q *Queries) Close() error {
 	if q.getSessionByPrefixStmt != nil {
 		if cerr := q.getSessionByPrefixStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getSessionByPrefixStmt: %w", cerr)
+		}
+	}
+	if q.listAgentRefinementsStmt != nil {
+		if cerr := q.listAgentRefinementsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAgentRefinementsStmt: %w", cerr)
+		}
+	}
+	if q.listArchivedAyoAgentsStmt != nil {
+		if cerr := q.listArchivedAyoAgentsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listArchivedAyoAgentsStmt: %w", cerr)
+		}
+	}
+	if q.listAyoAgentsStmt != nil {
+		if cerr := q.listAyoAgentsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAyoAgentsStmt: %w", cerr)
 		}
 	}
 	if q.listFlowRunsStmt != nil {
@@ -456,6 +554,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listSessionsBySourceStmt: %w", cerr)
 		}
 	}
+	if q.promoteAyoAgentStmt != nil {
+		if cerr := q.promoteAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing promoteAyoAgentStmt: %w", cerr)
+		}
+	}
 	if q.pruneFlowRunsByAgeStmt != nil {
 		if cerr := q.pruneFlowRunsByAgeStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing pruneFlowRunsByAgeStmt: %w", cerr)
@@ -474,6 +577,31 @@ func (q *Queries) Close() error {
 	if q.supersedeMemoryStmt != nil {
 		if cerr := q.supersedeMemoryStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing supersedeMemoryStmt: %w", cerr)
+		}
+	}
+	if q.unarchiveAyoAgentStmt != nil {
+		if cerr := q.unarchiveAyoAgentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing unarchiveAyoAgentStmt: %w", cerr)
+		}
+	}
+	if q.updateAyoAgentFailureStmt != nil {
+		if cerr := q.updateAyoAgentFailureStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateAyoAgentFailureStmt: %w", cerr)
+		}
+	}
+	if q.updateAyoAgentInvocationStmt != nil {
+		if cerr := q.updateAyoAgentInvocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateAyoAgentInvocationStmt: %w", cerr)
+		}
+	}
+	if q.updateAyoAgentPromptStmt != nil {
+		if cerr := q.updateAyoAgentPromptStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateAyoAgentPromptStmt: %w", cerr)
+		}
+	}
+	if q.updateAyoAgentSuccessStmt != nil {
+		if cerr := q.updateAyoAgentSuccessStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateAyoAgentSuccessStmt: %w", cerr)
 		}
 	}
 	if q.updateMemoryStmt != nil {
@@ -540,6 +668,7 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                                     DBTX
 	tx                                     *sql.Tx
+	archiveAyoAgentStmt                    *sql.Stmt
 	clearAllMemoriesStmt                   *sql.Stmt
 	clearMemoriesByAgentStmt               *sql.Stmt
 	completeFlowRunStmt                    *sql.Stmt
@@ -552,11 +681,14 @@ type Queries struct {
 	countSessionsStmt                      *sql.Stmt
 	countSessionsByAgentStmt               *sql.Stmt
 	countSessionsBySourceStmt              *sql.Stmt
+	createAgentRefinementStmt              *sql.Stmt
+	createAyoAgentStmt                     *sql.Stmt
 	createEdgeStmt                         *sql.Stmt
 	createFlowRunStmt                      *sql.Stmt
 	createMemoryStmt                       *sql.Stmt
 	createMessageStmt                      *sql.Stmt
 	createSessionStmt                      *sql.Stmt
+	deleteAyoAgentStmt                     *sql.Stmt
 	deleteEdgeStmt                         *sql.Stmt
 	deleteEdgesBySessionStmt               *sql.Stmt
 	deleteFlowRunStmt                      *sql.Stmt
@@ -566,10 +698,13 @@ type Queries struct {
 	deleteSessionStmt                      *sql.Stmt
 	forgetMemoryStmt                       *sql.Stmt
 	getAllActiveMemoriesWithEmbeddingsStmt *sql.Stmt
+	getAyoAgentStmt                        *sql.Stmt
+	getAyoAgentByHandleStmt                *sql.Stmt
 	getChildEdgesStmt                      *sql.Stmt
 	getFlowRunStmt                         *sql.Stmt
 	getFlowRunByPrefixStmt                 *sql.Stmt
 	getLastFlowRunStmt                     *sql.Stmt
+	getLatestRefinementStmt                *sql.Stmt
 	getMemoriesForSearchStmt               *sql.Stmt
 	getMemoryStmt                          *sql.Stmt
 	getMemoryHistoryStmt                   *sql.Stmt
@@ -577,6 +712,9 @@ type Queries struct {
 	getParentEdgesStmt                     *sql.Stmt
 	getSessionStmt                         *sql.Stmt
 	getSessionByPrefixStmt                 *sql.Stmt
+	listAgentRefinementsStmt               *sql.Stmt
+	listArchivedAyoAgentsStmt              *sql.Stmt
+	listAyoAgentsStmt                      *sql.Stmt
 	listFlowRunsStmt                       *sql.Stmt
 	listFlowRunsByNameStmt                 *sql.Stmt
 	listFlowRunsBySessionStmt              *sql.Stmt
@@ -590,10 +728,16 @@ type Queries struct {
 	listSessionsStmt                       *sql.Stmt
 	listSessionsByAgentStmt                *sql.Stmt
 	listSessionsBySourceStmt               *sql.Stmt
+	promoteAyoAgentStmt                    *sql.Stmt
 	pruneFlowRunsByAgeStmt                 *sql.Stmt
 	pruneFlowRunsByCountStmt               *sql.Stmt
 	searchSessionsByTitleStmt              *sql.Stmt
 	supersedeMemoryStmt                    *sql.Stmt
+	unarchiveAyoAgentStmt                  *sql.Stmt
+	updateAyoAgentFailureStmt              *sql.Stmt
+	updateAyoAgentInvocationStmt           *sql.Stmt
+	updateAyoAgentPromptStmt               *sql.Stmt
+	updateAyoAgentSuccessStmt              *sql.Stmt
 	updateMemoryStmt                       *sql.Stmt
 	updateMemoryAccessStmt                 *sql.Stmt
 	updateMessageStmt                      *sql.Stmt
@@ -605,6 +749,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                                     tx,
 		tx:                                     tx,
+		archiveAyoAgentStmt:                    q.archiveAyoAgentStmt,
 		clearAllMemoriesStmt:                   q.clearAllMemoriesStmt,
 		clearMemoriesByAgentStmt:               q.clearMemoriesByAgentStmt,
 		completeFlowRunStmt:                    q.completeFlowRunStmt,
@@ -617,11 +762,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		countSessionsStmt:                      q.countSessionsStmt,
 		countSessionsByAgentStmt:               q.countSessionsByAgentStmt,
 		countSessionsBySourceStmt:              q.countSessionsBySourceStmt,
+		createAgentRefinementStmt:              q.createAgentRefinementStmt,
+		createAyoAgentStmt:                     q.createAyoAgentStmt,
 		createEdgeStmt:                         q.createEdgeStmt,
 		createFlowRunStmt:                      q.createFlowRunStmt,
 		createMemoryStmt:                       q.createMemoryStmt,
 		createMessageStmt:                      q.createMessageStmt,
 		createSessionStmt:                      q.createSessionStmt,
+		deleteAyoAgentStmt:                     q.deleteAyoAgentStmt,
 		deleteEdgeStmt:                         q.deleteEdgeStmt,
 		deleteEdgesBySessionStmt:               q.deleteEdgesBySessionStmt,
 		deleteFlowRunStmt:                      q.deleteFlowRunStmt,
@@ -631,10 +779,13 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteSessionStmt:                      q.deleteSessionStmt,
 		forgetMemoryStmt:                       q.forgetMemoryStmt,
 		getAllActiveMemoriesWithEmbeddingsStmt: q.getAllActiveMemoriesWithEmbeddingsStmt,
+		getAyoAgentStmt:                        q.getAyoAgentStmt,
+		getAyoAgentByHandleStmt:                q.getAyoAgentByHandleStmt,
 		getChildEdgesStmt:                      q.getChildEdgesStmt,
 		getFlowRunStmt:                         q.getFlowRunStmt,
 		getFlowRunByPrefixStmt:                 q.getFlowRunByPrefixStmt,
 		getLastFlowRunStmt:                     q.getLastFlowRunStmt,
+		getLatestRefinementStmt:                q.getLatestRefinementStmt,
 		getMemoriesForSearchStmt:               q.getMemoriesForSearchStmt,
 		getMemoryStmt:                          q.getMemoryStmt,
 		getMemoryHistoryStmt:                   q.getMemoryHistoryStmt,
@@ -642,6 +793,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getParentEdgesStmt:                     q.getParentEdgesStmt,
 		getSessionStmt:                         q.getSessionStmt,
 		getSessionByPrefixStmt:                 q.getSessionByPrefixStmt,
+		listAgentRefinementsStmt:               q.listAgentRefinementsStmt,
+		listArchivedAyoAgentsStmt:              q.listArchivedAyoAgentsStmt,
+		listAyoAgentsStmt:                      q.listAyoAgentsStmt,
 		listFlowRunsStmt:                       q.listFlowRunsStmt,
 		listFlowRunsByNameStmt:                 q.listFlowRunsByNameStmt,
 		listFlowRunsBySessionStmt:              q.listFlowRunsBySessionStmt,
@@ -655,10 +809,16 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listSessionsStmt:                       q.listSessionsStmt,
 		listSessionsByAgentStmt:                q.listSessionsByAgentStmt,
 		listSessionsBySourceStmt:               q.listSessionsBySourceStmt,
+		promoteAyoAgentStmt:                    q.promoteAyoAgentStmt,
 		pruneFlowRunsByAgeStmt:                 q.pruneFlowRunsByAgeStmt,
 		pruneFlowRunsByCountStmt:               q.pruneFlowRunsByCountStmt,
 		searchSessionsByTitleStmt:              q.searchSessionsByTitleStmt,
 		supersedeMemoryStmt:                    q.supersedeMemoryStmt,
+		unarchiveAyoAgentStmt:                  q.unarchiveAyoAgentStmt,
+		updateAyoAgentFailureStmt:              q.updateAyoAgentFailureStmt,
+		updateAyoAgentInvocationStmt:           q.updateAyoAgentInvocationStmt,
+		updateAyoAgentPromptStmt:               q.updateAyoAgentPromptStmt,
+		updateAyoAgentSuccessStmt:              q.updateAyoAgentSuccessStmt,
 		updateMemoryStmt:                       q.updateMemoryStmt,
 		updateMemoryAccessStmt:                 q.updateMemoryAccessStmt,
 		updateMessageStmt:                      q.updateMessageStmt,

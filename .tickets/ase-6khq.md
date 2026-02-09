@@ -7,6 +7,7 @@ created: 2026-02-07T03:24:58Z
 type: epic
 priority: 2
 assignee: Alex Cabrera
+parent: ase-zlew
 ---
 # Trigger CLI Redesign
 

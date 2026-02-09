@@ -386,6 +386,13 @@ Examples:
 	// Guardrails
 	cmd.Flags().BoolVar(&noGuardrails, "no-guardrails", false, "disable safety guardrails (dangerous - use with caution)")
 
+	// Internal flags for @ayo agent creation (hidden)
+	// These are used when @ayo creates agents programmatically
+	cmd.Flags().String("created-by", "", "internal: agent that created this agent")
+	cmd.Flags().String("creation-reason", "", "internal: why this agent was created")
+	_ = cmd.Flags().MarkHidden("created-by")
+	_ = cmd.Flags().MarkHidden("creation-reason")
+
 	return cmd
 }
 
