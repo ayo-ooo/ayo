@@ -22,7 +22,7 @@ For each test section:
 3. [Sandbox Lifecycle](#3-sandbox-lifecycle)
 4. [Agent Execution in Sandbox](#4-agent-execution-in-sandbox)
 5. [Mount System](#5-mount-system)
-6. [Daemon Operations](#6-daemon-operations)
+6. [Service Operations](#6-service-operations)
 7. [Trigger System](#7-trigger-system)
 8. [Sessions and Persistence](#8-sessions-and-persistence)
 9. [IRC Inter-Agent Communication](#9-irc-inter-agent-communication)
@@ -38,12 +38,12 @@ For each test section:
 
 **Setup:**
 ```bash
-go build -o ayo ./cmd/ayo
+go build -o .local/bin/ayo ./cmd/ayo/...
 ```
 
 **Verification:**
-- Binary exists at `./ayo`
-- `./ayo --version` returns version string
+- Binary exists at `./.local/bin/ayo`
+- `./.local/bin/ayo --version` returns version string
 
 **Cleanup:** None
 
@@ -51,8 +51,8 @@ go build -o ayo ./cmd/ayo
 
 **Setup:**
 ```bash
-# Stop any running daemon
-ayo daemon stop 2>/dev/null || true
+# Stop any running service
+ayo sandbox service stop 2>/dev/null || true
 
 # Prune all sandboxes
 ayo sandbox prune --all --force 2>/dev/null || true
@@ -60,21 +60,25 @@ ayo sandbox prune --all --force 2>/dev/null || true
 
 **Verification:**
 - `ayo sandbox list` shows no sandboxes
-- `ayo status` shows daemon not running
+- `ayo status` shows service not running
 
 **Cleanup:** None (this IS cleanup)
 
-### 1.3 Verify Docker Available
+### 1.3 Verify Container Runtime Available
 
 **Setup:** None
 
 **Execution:**
 ```bash
-docker info >/dev/null 2>&1 && echo "Docker OK" || echo "Docker FAIL"
+# On macOS with Apple Container
+container --version >/dev/null 2>&1 && echo "Apple Container OK" || echo "Apple Container FAIL"
+
+# On Linux (if applicable)
+# systemctl status systemd-nspawn >/dev/null 2>&1 && echo "systemd-nspawn OK" || echo "systemd-nspawn FAIL"
 ```
 
 **Verification:**
-- Output is "Docker OK"
+- Output is "Apple Container OK" (on macOS)
 
 **Cleanup:** None
 
@@ -91,11 +95,11 @@ docker info >/dev/null 2>&1 && echo "Docker OK" || echo "Docker FAIL"
 
 **Verification:**
 - OS detected correctly
-- Docker shows as running
+- Container runtime shows as available
 - ayo version displayed
 - Config paths shown
 
-**Analysis:** Record OS, Docker version, ayo version for test report.
+**Analysis:** Record OS, container runtime version, ayo version for test report.
 
 ### 2.2 Doctor Check
 
@@ -115,7 +119,7 @@ ayo doctor
 **Analysis:**
 - Note any FAIL status
 - Note any unexpected WARN status
-- Verify sandbox provider is correct (apple-container or linux)
+- Verify sandbox provider is correct (apple-container or systemd-nspawn)
 
 ### 2.3 Doctor Verbose
 
@@ -131,6 +135,10 @@ ayo doctor -v
 ---
 
 ## 3. Sandbox Lifecycle
+
+**Note:** All sandbox commands accept an optional `--id <id>` flag. If omitted:
+- With 1 sandbox: auto-selects it
+- With multiple: shows interactive picker
 
 ### 3.1 List Sandboxes (Empty State)
 
@@ -177,7 +185,9 @@ ayo sandbox list
 
 **Execution:**
 ```bash
-ayo sandbox show <sandbox-id>
+ayo sandbox show
+# Or with explicit ID:
+ayo sandbox show --id <sandbox-id>
 ```
 
 **Verification:**
@@ -188,7 +198,7 @@ ayo sandbox show <sandbox-id>
 - Mounts section present
 
 **Analysis:**
-- Record image name (expected: alpine-based or busybox)
+- Record image name (expected: Alpine-based)
 - Record mount configuration
 - Note any unexpected values
 
@@ -196,7 +206,9 @@ ayo sandbox show <sandbox-id>
 
 **Execution:**
 ```bash
-ayo sandbox exec <sandbox-id> -- uname -a
+ayo sandbox exec uname -a
+# Or with explicit ID:
+ayo sandbox exec --id <sandbox-id> uname -a
 ```
 
 **Verification:**
@@ -207,8 +219,9 @@ ayo sandbox exec <sandbox-id> -- uname -a
 
 **Execution:**
 ```bash
-ayo sandbox exec <sandbox-id> -- whoami
-ayo sandbox exec <sandbox-id> -- id
+ayo sandbox exec whoami
+ayo sandbox exec --user ayo whoami
+ayo sandbox exec id
 ```
 
 **Verification:**
@@ -221,7 +234,9 @@ ayo sandbox exec <sandbox-id> -- id
 
 **Execution:**
 ```bash
-ayo sandbox stop <sandbox-id>
+ayo sandbox stop
+# Or with explicit ID:
+ayo sandbox stop --id <sandbox-id>
 ```
 
 **Verification:**
@@ -232,7 +247,7 @@ ayo sandbox stop <sandbox-id>
 
 **Execution:**
 ```bash
-ayo sandbox start <sandbox-id>
+ayo sandbox start --id <sandbox-id>
 ```
 
 **Verification:**
@@ -243,7 +258,7 @@ ayo sandbox start <sandbox-id>
 
 **Setup:**
 ```bash
-ayo sandbox stop <sandbox-id>
+ayo sandbox stop
 ```
 
 **Execution:**
@@ -296,7 +311,7 @@ ayo @ayo "create a file at /tmp/agent-test.txt with content 'test-content-12345'
 
 **Secondary Verification:**
 ```bash
-ayo sandbox exec <sandbox-id> -- cat /tmp/agent-test.txt
+ayo sandbox exec cat /tmp/agent-test.txt
 ```
 - Content matches "test-content-12345"
 
@@ -361,8 +376,8 @@ ayo @ayo "try to list /etc/shadow and report what happens"
 
 **Execution:**
 ```bash
-ayo sandbox exec <sandbox-id> -- cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "cgroup v2"
-ayo sandbox exec <sandbox-id> -- ulimit -a
+ayo sandbox exec cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "cgroup v2"
+ayo sandbox exec ulimit -a
 ```
 
 **Verification:**
@@ -386,15 +401,15 @@ ayo mount list
 
 ### 5.2 Add Mount (Read-Write)
 
-**Execution:**
-```bash
-ayo mount add /tmp/ayo-mount-test --reason "Agent testing"
-```
-
 **Setup (if needed):**
 ```bash
 mkdir -p /tmp/ayo-mount-test
 echo "host-file-content" > /tmp/ayo-mount-test/host-file.txt
+```
+
+**Execution:**
+```bash
+ayo mount add /tmp/ayo-mount-test
 ```
 
 **Verification:**
@@ -440,15 +455,15 @@ cat /tmp/ayo-mount-test/sandbox-file.txt
 
 ### 5.6 Add Mount (Read-Only)
 
-**Execution:**
-```bash
-ayo mount add /tmp/ayo-mount-readonly --readonly --reason "RO test"
-```
-
 **Setup:**
 ```bash
 mkdir -p /tmp/ayo-mount-readonly
 echo "readonly-content" > /tmp/ayo-mount-readonly/ro-file.txt
+```
+
+**Execution:**
+```bash
+ayo mount add /tmp/ayo-mount-readonly --ro
 ```
 
 **Verification:**
@@ -486,47 +501,49 @@ ayo mount rm /tmp/ayo-mount-readonly 2>/dev/null || true
 
 ---
 
-## 6. Daemon Operations
+## 6. Service Operations
 
-### 6.1 Start Daemon
+### 6.1 Start Service
 
-**Precondition:** Daemon not running
+**Precondition:** Service not running
 
 **Execution:**
 ```bash
-ayo daemon start
+ayo sandbox service start
 ```
 
 **Verification:**
 - Success message displayed
 - Process running in background
 
-### 6.2 Verify Daemon Status
+### 6.2 Verify Service Status
 
 **Execution:**
 ```bash
+ayo sandbox service status
+# Or:
 ayo status
 ```
 
 **Verification:**
 - CLI Version shown
-- Daemon: running
+- Service: running
 - PID displayed
 - Uptime shown
 
-### 6.3 Daemon Process Verification
+### 6.3 Service Process Verification
 
 **Execution:**
 ```bash
-pgrep -f "ayo daemon"
-ps aux | grep "ayo daemon"
+pgrep -f "ayo"
+ps aux | grep "ayo"
 ```
 
 **Verification:**
 - Process exists
-- Single daemon instance running
+- Single service instance running
 
-### 6.4 Daemon Socket Verification
+### 6.4 Service Socket Verification
 
 **Execution:**
 ```bash
@@ -537,50 +554,28 @@ ls -la /tmp/ayo/daemon.sock 2>/dev/null || ls -la ~/.local/share/ayo/daemon.sock
 - Socket file exists
 - Permissions are correct
 
-### 6.5 List Daemon Sessions
+### 6.5 Stop Service
 
 **Execution:**
 ```bash
-ayo daemon sessions
-```
-
-**Verification:**
-- Command executes without error
-- Shows sessions or "no sessions" message
-
-### 6.6 Daemon Logs
-
-**Execution:**
-```bash
-ayo daemon logs 2>/dev/null || ./debug/daemon-status.sh --logs
-```
-
-**Verification:**
-- Logs accessible
-- No error messages in recent logs
-
-### 6.7 Stop Daemon
-
-**Execution:**
-```bash
-ayo daemon stop
+ayo sandbox service stop
 ```
 
 **Verification:**
 - Confirmation message
-- `ayo status` shows daemon not running
-- `pgrep -f "ayo daemon"` returns nothing
+- `ayo status` shows service not running
+- `pgrep -f "ayo"` returns nothing (or only test process)
 
-### 6.8 Daemon Restart
+### 6.6 Service Restart
 
 **Execution:**
 ```bash
-ayo daemon start
-ayo daemon restart 2>/dev/null || (ayo daemon stop && ayo daemon start)
+ayo sandbox service start
+ayo sandbox service stop && ayo sandbox service start
 ```
 
 **Verification:**
-- Daemon restarts successfully
+- Service restarts successfully
 - New PID assigned
 
 ---
@@ -589,7 +584,7 @@ ayo daemon restart 2>/dev/null || (ayo daemon stop && ayo daemon start)
 
 ### 7.1 List Triggers (Empty)
 
-**Precondition:** Daemon running
+**Precondition:** Service running
 
 **Execution:**
 ```bash
@@ -793,13 +788,13 @@ ayo sessions delete --latest --force
 **Execution:**
 ```bash
 echo "remember test-persistence" | ayo @ayo
-ayo daemon stop 2>/dev/null || true
-ayo daemon start 2>/dev/null || true
+ayo sandbox service stop 2>/dev/null || true
+ayo sandbox service start 2>/dev/null || true
 ayo sessions list
 ```
 
 **Verification:**
-- Session persists after daemon restart
+- Session persists after service restart
 - Data stored in SQLite
 
 ---
@@ -812,7 +807,7 @@ ayo sessions list
 
 **Execution:**
 ```bash
-./debug/irc-status.sh 2>/dev/null || ayo sandbox exec <id> -- pgrep ngircd
+./debug/irc-status.sh 2>/dev/null || ayo sandbox exec pgrep ngircd
 ```
 
 **Verification:**
@@ -823,7 +818,7 @@ ayo sessions list
 
 **Execution:**
 ```bash
-ayo sandbox exec <id> -- cat /etc/ngircd.conf 2>/dev/null || echo "No ngircd config"
+ayo sandbox exec cat /etc/ngircd.conf 2>/dev/null || echo "No ngircd config"
 ```
 
 **Verification:**
@@ -834,7 +829,7 @@ ayo sandbox exec <id> -- cat /etc/ngircd.conf 2>/dev/null || echo "No ngircd con
 
 **Execution:**
 ```bash
-ayo sandbox exec <id> -- netstat -tlnp 2>/dev/null | grep 6667 || echo "Port 6667 not listening"
+ayo sandbox exec netstat -tlnp 2>/dev/null | grep 6667 || echo "Port 6667 not listening"
 ```
 
 **Verification:**
@@ -845,7 +840,7 @@ ayo sandbox exec <id> -- netstat -tlnp 2>/dev/null | grep 6667 || echo "Port 666
 
 **Execution:**
 ```bash
-ayo sandbox exec <id> -- cat /etc/passwd | grep agent-
+ayo sandbox exec cat /etc/passwd | grep agent-
 ```
 
 **Verification:**
@@ -918,17 +913,17 @@ ayo sync status 2>/dev/null || echo "Sync not available"
 
 **Setup:**
 ```bash
-ayo daemon stop
+ayo sandbox service stop
 # Leave socket file if exists
 ```
 
 **Execution:**
 ```bash
-ayo daemon start
+ayo sandbox service start
 ```
 
 **Verification:**
-- Daemon handles stale socket
+- Service handles stale socket
 - Starts successfully
 
 ### 11.2 Orphan Container Recovery
@@ -967,11 +962,11 @@ ayo doctor
 
 **Execution:**
 ```bash
-ayo daemon stop 2>/dev/null || true
+ayo sandbox service stop 2>/dev/null || true
 ```
 
 **Verification:**
-- Daemon stopped
+- Service stopped
 
 ### 12.2 Remove All Sandboxes
 
@@ -995,7 +990,7 @@ ayo triggers list 2>/dev/null || true
 
 **Verification:**
 - No sandboxes
-- Daemon not running
+- Service not running
 - No active triggers
 
 ### 12.4 Remove Test Artifacts

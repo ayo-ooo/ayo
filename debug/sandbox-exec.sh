@@ -76,7 +76,7 @@ if [[ -z "$CONTAINER_ID" ]]; then
 EOF
     else
         echo "ERROR: No running ayo sandbox container found" >&2
-        echo "Start one with: ayo @agent or ayo daemon start" >&2
+        echo "Start one with: ayo @agent or ayo sandbox service start" >&2
     fi
     exit 1
 fi

@@ -141,7 +141,7 @@ else
             ayo status 2>&1 | sed 's/^/  /' || echo "  Error getting status"
         else
             echo "  Daemon not running - cannot get detailed status"
-            echo "  Start with: ayo daemon start"
+            echo "  Start with: ayo sandbox service start"
         fi
     else
         echo "  ayo command not found"

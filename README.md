@@ -258,15 +258,46 @@ ayo doctor -v                    # Verbose with model list
 ayo status                       # Show daemon and system status
 ```
 
-### Daemon (Sandbox Management)
+### Sandbox Service
 
 ```bash
-ayo daemon start                 # Start daemon in background
-ayo daemon start --foreground    # Start in foreground (for debugging)
-ayo daemon stop                  # Stop the daemon
+ayo sandbox service start        # Start service in background
+ayo sandbox service start -f     # Start in foreground (for debugging)
+ayo sandbox service stop         # Stop the service
+ayo sandbox service status       # Show service status
 ```
 
-The daemon manages sandbox lifecycles and provides IPC for sandbox operations.
+The sandbox service manages sandbox lifecycles, pool management, and IPC for sandbox operations.
+
+### Sandbox Commands
+
+```bash
+ayo sandbox list                 # List active sandboxes
+ayo sandbox show                 # Show sandbox details (picker if multiple)
+ayo sandbox show --id <id>       # Show specific sandbox
+ayo sandbox exec <cmd>           # Execute command in sandbox
+ayo sandbox login                # Open interactive shell
+ayo sandbox push <src> <dest>    # Copy file to sandbox
+ayo sandbox pull <src> <dest>    # Copy file from sandbox
+ayo sandbox diff <sb> <host>     # Show differences
+ayo sandbox sync <sb> <host>     # Sync changes back to host
+ayo sandbox stop                 # Stop a sandbox
+ayo sandbox prune                # Remove stopped sandboxes
+```
+
+### Mount Management
+
+Mounts grant sandboxed agents persistent access to host filesystem paths. Project-level mounts (`.ayo.json`) can only restrict access to already-granted paths.
+
+```bash
+ayo mount add <path>             # Grant read-write access
+ayo mount add <path> --ro        # Grant read-only access
+ayo mount add ~/Documents        # Supports ~ expansion
+ayo mount list                   # List all grants
+ayo mount list --json            # JSON output
+ayo mount rm <path>              # Remove specific grant
+ayo mount rm --all               # Remove all grants
+```
 
 ## Configuration
 
@@ -330,12 +361,14 @@ Configure an agent for sandbox execution in its `config.json`:
 4. Commands execute in the container
 5. Sandbox is released when session ends
 
-### Daemon Commands
+### Sandbox Commands
 
 ```bash
-ayo status                       # Check daemon status
-ayo daemon start                 # Start daemon manually
-ayo daemon stop                  # Stop daemon
+ayo status                       # Check service status
+ayo sandbox service start        # Start service manually
+ayo sandbox service stop         # Stop service
+ayo sandbox list                 # List active sandboxes
+ayo sandbox exec <cmd>           # Execute command in sandbox
 ```
 
 ## Offline Web Client (Experimental)

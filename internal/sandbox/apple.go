@@ -92,7 +92,7 @@ func (p *AppleProvider) Create(ctx context.Context, opts providers.SandboxCreate
 		image = "docker.io/library/alpine:3.21"
 	}
 
-	debug.Log("creating apple container sandbox", "id", id, "name", name, "image", image)
+	debug.Log("creating apple container sandbox", "id", id, "name", name, "image", image, "mounts", len(opts.Mounts))
 
 	// Build container run command (detached mode with keepalive)
 	// Using `container run -d` creates and starts in one command
@@ -100,6 +100,7 @@ func (p *AppleProvider) Create(ctx context.Context, opts providers.SandboxCreate
 
 	// Add mounts using -v (virtiofs under the hood)
 	for _, m := range opts.Mounts {
+		debug.Log("adding mount", "source", m.Source, "dest", m.Destination, "readonly", m.ReadOnly)
 		mountOpt := fmt.Sprintf("%s:%s", m.Source, m.Destination)
 		if m.ReadOnly {
 			mountOpt += ":ro"

@@ -102,7 +102,7 @@ else
     if [[ -z "$CONTAINER_ID" ]]; then
         section "Container Status"
         echo "  No running sandbox container found"
-        echo "  Start one with: ayo @agent or ayo daemon start"
+        echo "  Start one with: ayo @agent or ayo sandbox service start"
     else
         section "Active Docker Mounts"
         echo "  Container: $CONTAINER_ID"

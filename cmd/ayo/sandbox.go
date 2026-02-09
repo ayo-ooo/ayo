@@ -247,11 +247,14 @@ func newSandboxExecCmd() *cobra.Command {
 		Short: "Run command in sandbox",
 		Long: `Execute a command inside a running sandbox.
 
+Flags (--id, --user, --workdir) must come before the command.
+After the first non-flag argument, everything is passed to the command.
+
 Examples:
   ayo sandbox exec ls -la
-  ayo sandbox exec --id abc123 ls -la
+  ayo sandbox exec --id abc123 cat /etc/os-release
   ayo sandbox exec --user ayo whoami
-  ayo sandbox exec --workdir /workspace pwd`,
+  ayo sandbox exec sh -c "echo hello"`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := selectSandboxProvider()
@@ -286,15 +289,24 @@ Examples:
 			}
 
 			// Print output
+			hasOutput := false
 			if result.Stdout != "" {
 				fmt.Print(result.Stdout)
+				hasOutput = true
 			}
 			if result.Stderr != "" {
 				fmt.Fprint(os.Stderr, result.Stderr)
+				hasOutput = true
 			}
 
 			if result.ExitCode != 0 {
 				os.Exit(result.ExitCode)
+			}
+
+			// Show success indicator for commands with no output
+			if !hasOutput {
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Printf("%s Command completed (exit code 0)\n", successStyle.Render("✓"))
 			}
 			return nil
 		},
@@ -303,6 +315,10 @@ Examples:
 	cmd.Flags().StringVar(&sandboxID, "id", "", "Sandbox ID (uses picker if not specified)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Run as specified user")
 	cmd.Flags().StringVarP(&workdir, "workdir", "w", "", "Working directory inside container")
+
+	// Stop parsing flags after the first positional argument (the command)
+	// This allows: ayo sandbox exec sh -c "echo hi" without needing --
+	cmd.Flags().SetInterspersed(false)
 
 	return cmd
 }
@@ -888,9 +904,17 @@ Examples:
 				return fmt.Errorf("cannot access local path: %w", err)
 			}
 
-			// Create tar archive
+			// Show what we're doing
+			srcDesc := localPath
+			if info.IsDir() {
+				srcDesc = localPath + "/"
+			}
+			fmt.Printf("Pushing %s to %s:%s\n", srcDesc, target.ID[:8], containerPath)
+
+			// Create tar archive with progress tracking
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
+			var fileCount int
 
 			if info.IsDir() {
 				err = filepath.Walk(localPath, func(path string, fi os.FileInfo, err error) error {
@@ -921,6 +945,7 @@ Examples:
 						if _, err := tw.Write(data); err != nil {
 							return err
 						}
+						fileCount++
 					}
 					return nil
 				})
@@ -943,6 +968,7 @@ Examples:
 				if _, err := tw.Write(data); err != nil {
 					return fmt.Errorf("write tar data: %w", err)
 				}
+				fileCount = 1
 			}
 
 			if err := tw.Close(); err != nil {
@@ -981,7 +1007,14 @@ Examples:
 				return fmt.Errorf("tar failed: %s", result.Stderr)
 			}
 
-			fmt.Printf("Copied %s -> %s:%s\n", localPath, target.ID[:8], containerPath)
+			// Success message
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			sizeStr := formatBytes(int64(buf.Len()))
+			if fileCount == 1 {
+				fmt.Printf("%s Copied 1 file (%s)\n", successStyle.Render("✓"), sizeStr)
+			} else {
+				fmt.Printf("%s Copied %d files (%s)\n", successStyle.Render("✓"), fileCount, sizeStr)
+			}
 			return nil
 		},
 	}
@@ -1041,6 +1074,9 @@ Examples:
 				return fmt.Errorf("sandbox not found: %s", sandboxID)
 			}
 
+			// Show progress message
+			fmt.Printf("Pulling %s:%s to %s\n", target.ID[:8], containerPath, localPath)
+
 			// Create tar in container and get output
 			result, err := provider.Exec(cmd.Context(), target.ID, providers.ExecOptions{
 				Command:    "tar",
@@ -1057,7 +1093,9 @@ Examples:
 
 			// Extract tar on host
 			tr := tar.NewReader(bytes.NewReader([]byte(result.Stdout)))
-			
+			var fileCount int
+			var totalBytes int64
+
 			for {
 				header, err := tr.Next()
 				if err == io.EOF {
@@ -1090,18 +1128,27 @@ Examples:
 					if err != nil {
 						return fmt.Errorf("create file: %w", err)
 					}
-					if _, err := io.Copy(outFile, tr); err != nil {
-						outFile.Close()
+					written, err := io.Copy(outFile, tr)
+					outFile.Close()
+					if err != nil {
 						return fmt.Errorf("write file: %w", err)
 					}
-					outFile.Close()
 					if err := os.Chmod(destPath, os.FileMode(header.Mode)); err != nil {
 						return fmt.Errorf("set permissions: %w", err)
 					}
+					fileCount++
+					totalBytes += written
 				}
 			}
 
-			fmt.Printf("Copied %s:%s -> %s\n", target.ID[:8], containerPath, localPath)
+			// Success message
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			sizeStr := formatBytes(totalBytes)
+			if fileCount == 1 {
+				fmt.Printf("%s Copied 1 file (%s)\n", successStyle.Render("✓"), sizeStr)
+			} else {
+				fmt.Printf("%s Copied %d files (%s)\n", successStyle.Render("✓"), fileCount, sizeStr)
+			}
 			return nil
 		},
 	}

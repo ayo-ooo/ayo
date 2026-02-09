@@ -19,6 +19,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
+	sandboxmounts "github.com/alexcabrera/ayo/internal/sandbox/mounts"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
@@ -775,6 +776,34 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 			Mode:        providers.MountModeVirtioFS,
 			ReadOnly:    false,
 		}}
+
+		// Add mounts from persistent grants (ayo mount add)
+		grants, grantsErr := sandboxmounts.LoadGrants()
+		if grantsErr != nil {
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Warning: could not load grants: %v\n", grantsErr)
+			}
+		} else {
+			for _, gm := range grants.ToProviderMounts() {
+				// Skip if already covered by baseDir mount
+				if gm.Source == baseDir || strings.HasPrefix(gm.Source, baseDir+string(filepath.Separator)) {
+					continue
+				}
+				mounts = append(mounts, providers.Mount{
+					Source:      gm.Source,
+					Destination: gm.Destination,
+					Mode:        providers.MountModeVirtioFS,
+					ReadOnly:    gm.ReadOnly,
+				})
+				if r.debug {
+					mode := "rw"
+					if gm.ReadOnly {
+						mode = "ro"
+					}
+					fmt.Fprintf(os.Stderr, "[sandbox] Mounting granted path %s (%s)\n", gm.Source, mode)
+				}
+			}
+		}
 
 		// Add persistent home directory mount if enabled
 		if ag.Config.Sandbox.PersistHomeEnabled() && sandboxUser != "" {

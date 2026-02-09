@@ -177,7 +177,7 @@ func newServiceStatusCmd(cfgPath *string) *cobra.Command {
 			if !serviceRunning {
 				status("Status:", false, "not running")
 				fmt.Println()
-				fmt.Println("  Run 'ayo service start' to start the service")
+				fmt.Println("  Run 'ayo sandbox service start' to start the service")
 				fmt.Println()
 				return nil
 			}

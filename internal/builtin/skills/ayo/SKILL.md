@@ -1330,17 +1330,17 @@ The ayo daemon manages background services including sandbox execution.
 ## Daemon Commands
 
 ```bash
-# Check daemon status
-ayo status
+# Check service status
+ayo sandbox service status
 
-# Start daemon manually (usually auto-started)
-ayo daemon start
+# Start service manually (usually auto-started)
+ayo sandbox service start
 
 # Start in foreground (for debugging)
-ayo daemon start --foreground
+ayo sandbox service start --foreground
 
-# Stop daemon
-ayo daemon stop
+# Stop service
+ayo sandbox service stop
 ```
 
 ## System Status

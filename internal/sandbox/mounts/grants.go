@@ -425,3 +425,38 @@ func MergeMounts(cliMounts map[string]GrantMode, projectMounts []ConfigMount, gr
 
 	return mounts
 }
+
+// GrantsToProviderMounts converts GrantService permissions to provider.Mount slice.
+// This is used to apply grants to sandbox creation.
+func (s *GrantService) ToProviderMounts() []struct {
+	Source      string
+	Destination string
+	ReadOnly    bool
+} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.grants == nil || len(s.grants.Permissions) == 0 {
+		return nil
+	}
+
+	result := make([]struct {
+		Source      string
+		Destination string
+		ReadOnly    bool
+	}, len(s.grants.Permissions))
+
+	for i, p := range s.grants.Permissions {
+		result[i] = struct {
+			Source      string
+			Destination string
+			ReadOnly    bool
+		}{
+			Source:      p.Path,
+			Destination: p.Path, // Mount at same path in container
+			ReadOnly:    p.Mode == GrantModeReadOnly,
+		}
+	}
+
+	return result
+}

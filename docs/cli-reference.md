@@ -518,6 +518,414 @@ ayo chain example <agent>
 
 ---
 
+## ayo sandbox
+
+Manage sandboxed execution environments.
+
+### ayo sandbox service
+
+Manage the sandbox background service.
+
+```bash
+ayo sandbox service start [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--foreground` | `-f` | Run in foreground for debugging |
+
+```bash
+ayo sandbox service stop
+ayo sandbox service status
+```
+
+### ayo sandbox list
+
+List active sandboxes.
+
+```bash
+ayo sandbox list
+```
+
+Output includes sandbox ID, name, status, and age.
+
+### ayo sandbox show
+
+Show sandbox details.
+
+```bash
+ayo sandbox show [--id <id>]
+```
+
+Without `--id`:
+- With 1 sandbox: auto-selects it
+- With multiple: shows interactive picker
+
+### ayo sandbox exec
+
+Execute command in a sandbox.
+
+```bash
+ayo sandbox exec [--id <id>] [--user <user>] [--workdir <dir>] <command> [args...]
+```
+
+Flags must come before the command. After the first non-flag argument, everything is passed to the command.
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--id` | | Sandbox ID (uses picker if not specified) |
+| `--user` | `-u` | Run as specified user |
+| `--workdir` | `-w` | Working directory inside container |
+
+**Examples:**
+
+```bash
+ayo sandbox exec ls -la
+ayo sandbox exec --user ayo whoami
+ayo sandbox exec --id abc123 cat /etc/os-release
+ayo sandbox exec sh -c "echo hello > /tmp/test.txt"
+```
+
+### ayo sandbox login
+
+Open interactive shell in sandbox.
+
+```bash
+ayo sandbox login [--id <id>] [--as <agent>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--id` | Sandbox ID (uses picker if not specified) |
+| `--as` | Login as agent user (e.g., `--as @ayo`) |
+
+### ayo sandbox shell
+
+Open line-mode shell in sandbox (for non-TTY environments).
+
+```bash
+ayo sandbox shell [--id <id>] [--as <agent>]
+```
+
+### ayo sandbox push
+
+Copy file or directory to sandbox.
+
+```bash
+ayo sandbox push <local-path> <container-path> [--id <id>]
+```
+
+### ayo sandbox pull
+
+Copy file or directory from sandbox.
+
+```bash
+ayo sandbox pull <container-path> <local-path> [--id <id>]
+```
+
+### ayo sandbox diff
+
+Show differences between sandbox and host.
+
+```bash
+ayo sandbox diff <sandbox-path> <host-path> [--id <id>]
+```
+
+### ayo sandbox sync
+
+Sync changes from sandbox back to host.
+
+```bash
+ayo sandbox sync <sandbox-path> <host-path> [--id <id>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--id` | Sandbox ID (uses picker if not specified) |
+| `--dry-run` | Preview changes without applying |
+
+### ayo sandbox start
+
+Start a stopped sandbox.
+
+```bash
+ayo sandbox start [--id <id>]
+```
+
+### ayo sandbox stop
+
+Stop a running sandbox.
+
+```bash
+ayo sandbox stop [--id <id>] [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--id` | | Sandbox ID (uses picker if not specified) |
+| `--force` | `-f` | Force kill immediately |
+| `--timeout` | `-t` | Seconds to wait before force kill |
+
+### ayo sandbox prune
+
+Remove stopped sandboxes.
+
+```bash
+ayo sandbox prune [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation prompt |
+| `--all` | `-a` | Also stop and remove running sandboxes |
+| `--homes` | | Also remove persistent agent home directories |
+
+### ayo sandbox logs
+
+View sandbox container logs.
+
+```bash
+ayo sandbox logs [--id <id>] [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--id` | | Sandbox ID (uses picker if not specified) |
+| `--follow` | `-f` | Follow log output |
+| `--tail` | `-n` | Number of lines to show from end |
+
+### ayo sandbox stats
+
+Show resource usage statistics.
+
+```bash
+ayo sandbox stats [--id <id>]
+```
+
+### ayo sandbox join
+
+Add an agent to an existing sandbox.
+
+```bash
+ayo sandbox join <agent> [--id <id>]
+```
+
+### ayo sandbox users
+
+List agents in a sandbox.
+
+```bash
+ayo sandbox users [--id <id>]
+```
+
+---
+
+## ayo mount
+
+Manage persistent filesystem access for sandboxed agents.
+
+Grants persist across sessions and allow agents to access host filesystem paths. Project-level mounts (`.ayo.json`) and session mounts (`--mount` flag) can only restrict access to paths already granted here—they cannot grant new access.
+
+### ayo mount add
+
+Grant filesystem access to a path.
+
+```bash
+ayo mount add <path> [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--ro` | Grant read-only access (default is read-write) |
+| `--json` | Output in JSON format |
+
+Aliases: `ayo mount grant`
+
+**Features:**
+- Paths are resolved to absolute paths
+- Supports `~/` home directory expansion
+- Warns if path doesn't exist (but still grants for future use)
+
+**Examples:**
+
+```bash
+ayo mount add .                  # Current directory, read-write
+ayo mount add ~/Documents --ro   # Read-only access to Documents
+ayo mount add /tmp/project       # Absolute path
+```
+
+**Output:**
+```
+✓ Granted readwrite access to /Users/you/project
+```
+
+### ayo mount list
+
+List all filesystem grants.
+
+```bash
+ayo mount list [--json]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output in JSON format |
+
+Aliases: `ayo mount ls`
+
+**Output:**
+```
+PATH              MODE       GRANTED
+/Users/you/proj   readwrite  2026-02-07
+/Users/you/docs   readonly   2026-02-06
+```
+
+**JSON Output:**
+```json
+[
+  {"path": "/Users/you/proj", "mode": "readwrite", "granted_at": "2026-02-07T10:30:00Z"},
+  {"path": "/Users/you/docs", "mode": "readonly", "granted_at": "2026-02-06T14:00:00Z"}
+]
+```
+
+### ayo mount rm
+
+Remove filesystem access.
+
+```bash
+ayo mount rm <path> [--flags]
+ayo mount rm --all
+```
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Remove all grants |
+| `--json` | Output in JSON format |
+
+Aliases: `ayo mount revoke`
+
+**Examples:**
+
+```bash
+ayo mount rm ~/Documents         # Remove specific grant
+ayo mount rm --all               # Remove all grants
+```
+
+**Output:**
+```
+✓ Revoked access to /Users/you/Documents
+✓ Revoked 3 grant(s)
+```
+
+### Mount Hierarchy
+
+Mounts work in a three-tier hierarchy:
+
+1. **Global grants** (`ayo mount add`) - Defines maximum accessible paths
+2. **Project mounts** (`.ayo.json` `mounts` array) - Restricts to project-relevant paths
+3. **Session mounts** (`--mount` flag) - Further restricts for specific sessions
+
+Each tier can only narrow access, never expand it. A project cannot access paths not granted globally.
+
+---
+
+## ayo triggers
+
+Manage automated triggers (cron schedules and file watchers).
+
+### ayo triggers list
+
+List all triggers.
+
+```bash
+ayo triggers list
+```
+
+### ayo triggers add
+
+Add a new trigger.
+
+```bash
+ayo triggers add --type <type> --agent <agent> --prompt <prompt> [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--type` | Trigger type: `cron` or `watch` |
+| `--agent` | Agent to invoke (e.g., `@ayo`) |
+| `--prompt` | Prompt to send to agent |
+| `--schedule` | Cron schedule (for cron type) |
+| `--path` | Path to watch (for watch type) |
+| `--patterns` | File patterns to match (for watch type) |
+
+**Examples:**
+
+```bash
+# Cron trigger every 5 minutes
+ayo triggers add --type cron --agent @ayo --schedule "*/5 * * * *" --prompt "Check status"
+
+# Watch trigger for text files
+ayo triggers add --type watch --agent @ayo --path /tmp --patterns "*.txt" --prompt "File changed"
+```
+
+### ayo triggers show
+
+Show trigger details.
+
+```bash
+ayo triggers show <id>
+```
+
+### ayo triggers test
+
+Manually fire a trigger.
+
+```bash
+ayo triggers test <id>
+```
+
+### ayo triggers enable
+
+Enable a disabled trigger.
+
+```bash
+ayo triggers enable <id>
+```
+
+### ayo triggers disable
+
+Disable a trigger.
+
+```bash
+ayo triggers disable <id>
+```
+
+### ayo triggers rm
+
+Remove a trigger.
+
+```bash
+ayo triggers rm <id>
+```
+
+---
+
+## ayo status
+
+Show system and service status.
+
+```bash
+ayo status
+```
+
+Displays:
+- CLI version
+- Service status (running/not running)
+- Service PID and uptime
+- Sandbox pool statistics
+
+---
+
 ## ayo setup
 
 Complete ayo setup.

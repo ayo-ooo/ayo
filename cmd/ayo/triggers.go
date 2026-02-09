@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
@@ -15,6 +18,64 @@ import (
 
 // Ensure cli package is used
 var _ = cli.Output{}
+
+// connectToDaemon connects to the daemon with a spinner if auto-starting.
+func connectToDaemon(ctx context.Context) (*daemon.Client, error) {
+	client := daemon.NewClient()
+
+	// Try to connect first (fast path)
+	if err := client.Connect(ctx); err == nil {
+		if err := client.Ping(ctx); err == nil {
+			return client, nil
+		}
+		client.Close()
+	}
+
+	// Daemon not running - start with spinner feedback
+	if globalOutput.JSON || globalOutput.Quiet {
+		// No spinner for JSON/quiet mode
+		return daemon.ConnectOrStart(ctx)
+	}
+
+	// Start daemon in background
+	if err := daemon.StartDaemonBackground(); err != nil {
+		return nil, fmt.Errorf("start daemon: %w", err)
+	}
+
+	// Wait for daemon with spinner
+	var result *daemon.Client
+	var connectErr error
+
+	spinErr := spinner.New().
+		Title("Starting service...").
+		Type(spinner.Dots).
+		Style(lipgloss.NewStyle().Foreground(lipgloss.Color("212"))).
+		ActionWithErr(func(_ context.Context) error {
+			deadline := time.Now().Add(45 * time.Second) // Longer timeout for sandbox creation
+			for time.Now().Before(deadline) {
+				time.Sleep(200 * time.Millisecond)
+				client := daemon.NewClient()
+				if err := client.Connect(ctx); err == nil {
+					if err := client.Ping(ctx); err == nil {
+						result = client
+						return nil
+					}
+					client.Close()
+				}
+			}
+			connectErr = fmt.Errorf("daemon started but not responding")
+			return connectErr
+		}).
+		Run()
+
+	if spinErr != nil {
+		return nil, spinErr
+	}
+	if connectErr != nil {
+		return nil, connectErr
+	}
+	return result, nil
+}
 
 func newTriggersCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -65,7 +126,7 @@ func listTriggersCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -164,7 +225,7 @@ func showTriggerCmd() *cobra.Command {
 			id := args[0]
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -284,7 +345,7 @@ Examples:
 				return fmt.Errorf("--path is required for watch triggers")
 			}
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -352,7 +413,7 @@ func removeTriggerCmd() *cobra.Command {
 			id := args[0]
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -403,7 +464,7 @@ Examples:
 			id := args[0]
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -438,7 +499,7 @@ Examples:
 			id := args[0]
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
@@ -473,7 +534,7 @@ Examples:
 			id := args[0]
 			ctx := cmd.Context()
 
-			client, err := daemon.ConnectOrStart(ctx)
+			client, err := connectToDaemon(ctx)
 			if err != nil {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}

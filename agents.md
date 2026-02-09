@@ -112,15 +112,16 @@ Mounts persist filesystem access grants across sessions:
 
 ```bash
 # Grant access to a path
-ayo mount grant <path>
-ayo mount add <path>       # Alias
+ayo mount add <path>           # Read-write access
+ayo mount add <path> --ro      # Read-only access
 
 # List all grants
 ayo mount list
+ayo mount list --json          # JSON output
 
-# Revoke access
-ayo mount revoke [path]
-ayo mount rm [path]        # Alias
+# Remove access
+ayo mount rm <path>            # Remove specific grant
+ayo mount rm --all             # Remove all grants
 ```
 
 ## Trigger Commands
