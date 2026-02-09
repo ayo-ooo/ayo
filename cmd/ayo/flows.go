@@ -27,8 +27,10 @@ func newFlowsCmd(cfgPath *string) *cobra.Command {
 		Aliases: []string{"flow"},
 		Long: `Manage flows - composable agent pipelines.
 
-Flows are shell scripts with structured frontmatter that compose agents
-into pipelines. They are the unit of work that external orchestrators invoke.
+Flows come in two types:
+  - Shell flows (.sh): Bash scripts with JSON I/O frontmatter
+  - YAML flows (.yaml): Declarative multi-step workflows with dependencies
+                        and parallel execution
 
 Discovery priority (first found wins):
   1. Project flows (.ayo/flows/)
@@ -47,6 +49,7 @@ Discovery priority (first found wins):
 	cmd.AddCommand(rmFlowCmd())
 	cmd.AddCommand(historyFlowsCmd(cfgPath))
 	cmd.AddCommand(replayFlowCmd(cfgPath))
+	cmd.AddCommand(statsFlowsCmd())
 
 	return cmd
 }
@@ -1182,4 +1185,170 @@ Examples:
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without removing")
 
 	return cmd
+}
+
+func statsFlowsCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "stats [flow-name]",
+		Short: "Show flow execution statistics",
+		Long: `Show statistics for flow executions.
+
+Without arguments, shows statistics for all flows.
+With a flow name, shows detailed statistics for that flow.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("connect to database: %w", err)
+			}
+
+			history := flows.NewHistoryService(queries)
+
+			if len(args) == 1 {
+				// Stats for specific flow
+				flowName := args[0]
+				stats, err := history.GetStats(cmd.Context(), flowName)
+				if err != nil {
+					return fmt.Errorf("get stats: %w", err)
+				}
+
+				if jsonOutput {
+					return outputStatsJSON(stats)
+				}
+
+				return outputFlowStats(stats)
+			}
+
+			// Stats for all flows
+			allStats, err := history.GetAllFlowStats(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("get all stats: %w", err)
+			}
+
+			if len(allStats) == 0 {
+				fmt.Println("No flow runs found.")
+				return nil
+			}
+
+			if jsonOutput {
+				return outputAllStatsJSON(allStats)
+			}
+
+			return outputAllFlowStats(allStats)
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
+
+	return cmd
+}
+
+func outputStatsJSON(stats *flows.FlowStats) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(stats)
+}
+
+func outputAllStatsJSON(allStats []*flows.FlowStats) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(allStats)
+}
+
+func outputFlowStats(stats *flows.FlowStats) error {
+	cyan := lipgloss.Color("#67e8f9")
+	green := lipgloss.Color("#34d399")
+	red := lipgloss.Color("#ef4444")
+	muted := lipgloss.Color("#6b7280")
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(cyan)
+	labelStyle := lipgloss.NewStyle().Foreground(muted)
+	successStyle := lipgloss.NewStyle().Foreground(green)
+	failStyle := lipgloss.NewStyle().Foreground(red)
+
+	fmt.Println(titleStyle.Render("Flow: " + stats.FlowName))
+	fmt.Println()
+
+	fmt.Printf("%s %d\n", labelStyle.Render("Total Runs:"), stats.TotalRuns)
+
+	if stats.TotalRuns > 0 {
+		rateStr := fmt.Sprintf("%.1f%% (%d/%d)", stats.SuccessRate, stats.SuccessCount, stats.TotalRuns)
+		if stats.SuccessRate >= 90 {
+			fmt.Printf("%s %s\n", labelStyle.Render("Success Rate:"), successStyle.Render(rateStr))
+		} else if stats.SuccessRate >= 70 {
+			fmt.Printf("%s %s\n", labelStyle.Render("Success Rate:"), rateStr)
+		} else {
+			fmt.Printf("%s %s\n", labelStyle.Render("Success Rate:"), failStyle.Render(rateStr))
+		}
+
+		if stats.AvgDuration > 0 {
+			fmt.Printf("%s %s\n", labelStyle.Render("Avg Duration:"), formatDuration(stats.AvgDuration))
+		}
+
+		if stats.LastRun != nil {
+			statusStr := string(stats.LastRun.Status)
+			if stats.LastRun.Status == flows.RunStatusSuccess {
+				statusStr = successStyle.Render("success")
+			} else if stats.LastRun.Status == flows.RunStatusFailed {
+				statusStr = failStyle.Render("failed")
+			}
+			fmt.Printf("%s %s (%s)\n", labelStyle.Render("Last Run:"), stats.LastRun.StartedAt.Format("2006-01-02 15:04"), statusStr)
+		}
+	}
+
+	return nil
+}
+
+func outputAllFlowStats(allStats []*flows.FlowStats) error {
+	cyan := lipgloss.Color("#67e8f9")
+	muted := lipgloss.Color("#6b7280")
+	green := lipgloss.Color("#34d399")
+	red := lipgloss.Color("#ef4444")
+
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(cyan)
+	mutedStyle := lipgloss.NewStyle().Foreground(muted)
+	successStyle := lipgloss.NewStyle().Foreground(green)
+	failStyle := lipgloss.NewStyle().Foreground(red)
+
+	// Calculate column widths
+	maxNameLen := 4 // "NAME"
+	for _, s := range allStats {
+		if len(s.FlowName) > maxNameLen {
+			maxNameLen = len(s.FlowName)
+		}
+	}
+
+	// Header
+	fmt.Printf("%s  %s  %s  %s\n",
+		headerStyle.Render(padRight("FLOW", maxNameLen)),
+		headerStyle.Render("RUNS"),
+		headerStyle.Render("SUCCESS"),
+		headerStyle.Render("AVG TIME"),
+	)
+
+	// Rows
+	for _, s := range allStats {
+		rateStr := fmt.Sprintf("%5.1f%%", s.SuccessRate)
+		if s.SuccessRate >= 90 {
+			rateStr = successStyle.Render(rateStr)
+		} else if s.SuccessRate < 70 {
+			rateStr = failStyle.Render(rateStr)
+		}
+
+		durationStr := "-"
+		if s.AvgDuration > 0 {
+			durationStr = formatDuration(s.AvgDuration)
+		}
+
+		fmt.Printf("%s  %s  %s  %s\n",
+			padRight(s.FlowName, maxNameLen),
+			mutedStyle.Render(fmt.Sprintf("%4d", s.TotalRuns)),
+			rateStr,
+			mutedStyle.Render(durationStr),
+		)
+	}
+
+	return nil
 }

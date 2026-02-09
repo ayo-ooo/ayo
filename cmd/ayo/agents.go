@@ -55,11 +55,21 @@ For help designing agents, chat with @ayo:
 	cmd.AddCommand(statusAgentsCmd())
 	cmd.AddCommand(wakeAgentCmd())
 	cmd.AddCommand(sleepAgentCmd())
+	cmd.AddCommand(capabilitiesAgentsCmd(cfgPath))
+	cmd.AddCommand(promoteAgentCmd(cfgPath))
+	cmd.AddCommand(archiveAgentCmd(cfgPath))
+	cmd.AddCommand(unarchiveAgentCmd(cfgPath))
+	cmd.AddCommand(refineAgentCmd(cfgPath))
 
 	return cmd
 }
 
 func listAgentsCmd(cfgPath *string) *cobra.Command {
+	var (
+		trustFilter string
+		typeFilter  string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all available agents",
@@ -81,45 +91,68 @@ func listAgentsCmd(cfgPath *string) *cobra.Command {
 				muted := lipgloss.Color("#6b7280")
 				text := lipgloss.Color("#e5e7eb")
 				subtle := lipgloss.Color("#374151")
+				yellow := lipgloss.Color("#fbbf24")
+				red := lipgloss.Color("#ef4444")
+				green := lipgloss.Color("#34d399")
 
 				// Styles
 				headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
-				sectionStyle := lipgloss.NewStyle().Foreground(muted).Bold(true)
-				iconStyle := lipgloss.NewStyle().Foreground(cyan)
 				handleStyle := lipgloss.NewStyle().Foreground(cyan).Bold(true)
 				descStyle := lipgloss.NewStyle().Foreground(text)
 				countStyle := lipgloss.NewStyle().Foreground(muted)
 				dividerStyle := lipgloss.NewStyle().Foreground(subtle)
 				emptyStyle := lipgloss.NewStyle().Foreground(muted).Italic(true)
+				warnStyle := lipgloss.NewStyle().Foreground(yellow)
+				dangerStyle := lipgloss.NewStyle().Foreground(red)
+				okStyle := lipgloss.NewStyle().Foreground(green)
 
-				// Categorize agents
+				// Collect agent info with metadata
 				type agentInfo struct {
-					handle string
-					desc   string
+					handle    string
+					desc      string
+					trust     agent.TrustLevel
+					agentType string // "builtin", "user"
 				}
-				var userAgents, builtinAgents []agentInfo
+				var agents []agentInfo
 
 				for _, h := range handles {
-					// Get description
+					// Get agent config
 					ag, err := agent.Load(cfg, h)
-					desc := ""
-					if err == nil {
-						desc = ag.Config.Description
+					if err != nil {
+						continue
+					}
+
+					info := agentInfo{
+						handle:    h,
+						desc:      ag.Config.Description,
+						trust:     ag.Config.TrustLevel,
+						agentType: "user",
 					}
 
 					// Determine source
 					isBuiltin := builtin.HasAgent(h)
 					if isBuiltin {
-						// Check if user has overridden
 						userDir := filepath.Join(cfg.AgentsDir, h)
-						if _, err := os.Stat(userDir); err == nil {
-							userAgents = append(userAgents, agentInfo{h, desc})
-						} else {
-							builtinAgents = append(builtinAgents, agentInfo{h, desc})
+						if _, err := os.Stat(userDir); err != nil {
+							info.agentType = "builtin"
 						}
-					} else {
-						userAgents = append(userAgents, agentInfo{h, desc})
 					}
+
+					// Apply filters
+					if trustFilter != "" {
+						agentTrust := string(info.trust)
+						if agentTrust == "" {
+							agentTrust = "sandboxed"
+						}
+						if agentTrust != trustFilter {
+							continue
+						}
+					}
+					if typeFilter != "" && info.agentType != typeFilter {
+						continue
+					}
+
+					agents = append(agents, info)
 				}
 
 				// JSON output
@@ -127,84 +160,82 @@ func listAgentsCmd(cfgPath *string) *cobra.Command {
 					type agentJSON struct {
 						Handle      string `json:"handle"`
 						Description string `json:"description,omitempty"`
-						Builtin     bool   `json:"builtin"`
+						TrustLevel  string `json:"trust_level"`
+						Type        string `json:"type"`
 					}
-					var agents []agentJSON
-					for _, a := range userAgents {
-						agents = append(agents, agentJSON{Handle: a.handle, Description: a.desc, Builtin: false})
+					var jsonAgents []agentJSON
+					for _, a := range agents {
+						trust := string(a.trust)
+						if trust == "" {
+							trust = "sandboxed"
+						}
+						jsonAgents = append(jsonAgents, agentJSON{
+							Handle:      a.handle,
+							Description: a.desc,
+							TrustLevel:  trust,
+							Type:        a.agentType,
+						})
 					}
-					for _, a := range builtinAgents {
-						agents = append(agents, agentJSON{Handle: a.handle, Description: a.desc, Builtin: true})
-					}
-					globalOutput.PrintData(agents, "")
+					globalOutput.PrintData(jsonAgents, "")
 					return nil
 				}
 
 				// Quiet mode: just list handles
 				if globalOutput.Quiet {
-					for _, a := range userAgents {
-						fmt.Println(a.handle)
-					}
-					for _, a := range builtinAgents {
+					for _, a := range agents {
 						fmt.Println(a.handle)
 					}
 					return nil
 				}
 
-				// Render function for an agent
-				renderAgent := func(a agentInfo) {
-					icon := iconStyle.Render("◆")
-					handle := handleStyle.Render(a.handle)
-					fmt.Printf("  %s %s\n", icon, handle)
-
-					// Description (truncated, indented)
-					if a.desc != "" {
-						desc := a.desc
-						if len(desc) > 52 {
-							desc = desc[:49] + "..."
-						}
-						fmt.Printf("    %s\n", descStyle.Render(desc))
+				// Format trust level with color
+				formatTrust := func(t agent.TrustLevel) string {
+					switch t {
+					case agent.TrustLevelUnrestricted:
+						return dangerStyle.Render("⚠ unrestricted")
+					case agent.TrustLevelPrivileged:
+						return warnStyle.Render("privileged")
+					default:
+						return okStyle.Render("sandboxed")
 					}
 				}
 
 				// Header
 				fmt.Println()
 				fmt.Println(headerStyle.Render("  Agents"))
-				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-
-				// User-defined agents section
+				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 60)))
 				fmt.Println()
-				fmt.Printf("  %s\n", sectionStyle.Render("User-defined"))
-				if len(userAgents) == 0 {
-					fmt.Printf("    %s\n", emptyStyle.Render("No user-defined agents"))
-					fmt.Printf("    %s\n", emptyStyle.Render("Create one with: ayo agents create @name"))
-				} else {
-					for _, a := range userAgents {
-						renderAgent(a)
-					}
-				}
 
-				// Built-in agents section
-				fmt.Println()
-				fmt.Printf("  %s\n", sectionStyle.Render("Built-in"))
-				if len(builtinAgents) == 0 {
-					fmt.Printf("    %s\n", emptyStyle.Render("No built-in agents installed"))
-					fmt.Printf("    %s\n", emptyStyle.Render("Run: ayo setup"))
+				// Column headers
+				fmt.Printf("  %-20s %-18s %-12s\n",
+					countStyle.Render("NAME"),
+					countStyle.Render("TRUST"),
+					countStyle.Render("TYPE"))
+
+				if len(agents) == 0 {
+					fmt.Println()
+					fmt.Printf("    %s\n", emptyStyle.Render("No agents match the filters"))
 				} else {
-					for _, a := range builtinAgents {
-						renderAgent(a)
+					for _, a := range agents {
+						fmt.Printf("  %-20s %-18s %-12s\n",
+							handleStyle.Render(a.handle),
+							formatTrust(a.trust),
+							descStyle.Render(a.agentType))
 					}
 				}
 
 				fmt.Println()
-				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-				fmt.Println(countStyle.Render(fmt.Sprintf("  %d agents", len(handles))))
+				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 60)))
+				fmt.Println(countStyle.Render(fmt.Sprintf("  %d agents", len(agents))))
 				fmt.Println()
 
 				return nil
 			})
 		},
 	}
+
+	cmd.Flags().StringVar(&trustFilter, "trust", "", "filter by trust level (sandboxed, privileged, unrestricted)")
+	cmd.Flags().StringVar(&typeFilter, "type", "", "filter by type (builtin, user)")
 
 	return cmd
 }
@@ -432,12 +463,52 @@ func showAgentCmd(cfgPath *string) *cobra.Command {
 					return fmt.Errorf("agent not found: %s", handle)
 				}
 
+				// JSON output
+				if globalOutput.JSON {
+					type agentJSON struct {
+						Handle      string   `json:"handle"`
+						Description string   `json:"description,omitempty"`
+						Model       string   `json:"model"`
+						TrustLevel  string   `json:"trust_level"`
+						Type        string   `json:"type"`
+						Path        string   `json:"path"`
+						Skills      []string `json:"skills,omitempty"`
+						Tools       []string `json:"allowed_tools,omitempty"`
+					}
+					trust := string(ag.Config.TrustLevel)
+					if trust == "" {
+						trust = "sandboxed"
+					}
+					agentType := "user"
+					if ag.BuiltIn {
+						agentType = "builtin"
+					}
+					skillNames := make([]string, len(ag.Skills))
+					for i, s := range ag.Skills {
+						skillNames[i] = s.Name
+					}
+					globalOutput.PrintData(agentJSON{
+						Handle:      ag.Handle,
+						Description: ag.Config.Description,
+						Model:       ag.Model,
+						TrustLevel:  trust,
+						Type:        agentType,
+						Path:        ag.Dir,
+						Skills:      skillNames,
+						Tools:       ag.Config.AllowedTools,
+					}, "")
+					return nil
+				}
+
 				// Color palette
 				purple := lipgloss.Color("#a78bfa")
 				cyan := lipgloss.Color("#67e8f9")
 				muted := lipgloss.Color("#6b7280")
 				text := lipgloss.Color("#e5e7eb")
 				subtle := lipgloss.Color("#374151")
+				yellow := lipgloss.Color("#fbbf24")
+				red := lipgloss.Color("#ef4444")
+				green := lipgloss.Color("#34d399")
 
 				// Styles
 				headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
@@ -445,6 +516,9 @@ func showAgentCmd(cfgPath *string) *cobra.Command {
 				labelStyle := lipgloss.NewStyle().Foreground(muted)
 				valueStyle := lipgloss.NewStyle().Foreground(text)
 				dividerStyle := lipgloss.NewStyle().Foreground(subtle)
+				warnStyle := lipgloss.NewStyle().Foreground(yellow)
+				dangerStyle := lipgloss.NewStyle().Foreground(red)
+				okStyle := lipgloss.NewStyle().Foreground(green)
 
 				fmt.Println()
 				fmt.Println("  " + iconStyle.Render("◆") + " " + headerStyle.Render(ag.Handle))
@@ -456,6 +530,19 @@ func showAgentCmd(cfgPath *string) *cobra.Command {
 				}
 				fmt.Printf("  %s %s\n", labelStyle.Render("Source:"), valueStyle.Render(source))
 				fmt.Printf("  %s  %s\n", labelStyle.Render("Model:"), valueStyle.Render(ag.Model))
+
+				// Trust level with color
+				trust := ag.Config.TrustLevel
+				var trustDisplay string
+				switch trust {
+				case agent.TrustLevelUnrestricted:
+					trustDisplay = dangerStyle.Render("⚠ unrestricted")
+				case agent.TrustLevelPrivileged:
+					trustDisplay = warnStyle.Render("privileged")
+				default:
+					trustDisplay = okStyle.Render("sandboxed")
+				}
+				fmt.Printf("  %s  %s\n", labelStyle.Render("Trust:"), trustDisplay)
 
 				if ag.Config.Description != "" {
 					fmt.Printf("  %s   %s\n", labelStyle.Render("Desc:"), valueStyle.Render(ag.Config.Description))

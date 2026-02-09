@@ -55,7 +55,7 @@ Alpine includes essential utilities. Key ones used by agents:
 ### Network (when networking enabled)
 - `wget` - HTTP client
 - `ping` - Connectivity testing
-- `nc` (netcat) - TCP/UDP connections (pre-installed with ngircd)
+- `nc` (netcat) - TCP/UDP connections
 
 ### System
 - `ps`, `kill` - Process management
@@ -71,43 +71,39 @@ Alpine includes essential utilities. Key ones used by agents:
   - `apk search <term>` - Search packages
   - `apk update` - Update package index
 
-## IRC Server (ngircd)
+## Matrix Communication
 
-The sandbox automatically installs and starts ngircd for inter-agent communication.
-It listens on `127.0.0.1:6667` and logs to `/var/log/irc/`.
+Agents communicate with each other using Matrix, a federated messaging protocol.
+The daemon runs a local Conduit homeserver and exposes it to sandboxes via `/run/ayo/`.
 
-Agents communicate via IRC channels:
-- `#general` - All agents, broadcasts
-- `#session-{id}` - Session-specific channels
-- Private messages via `/msg @agent`
+Use the `ayo matrix` CLI commands for inter-agent messaging:
 
-### IRC Helper Scripts
-
-The sandbox installs convenience scripts in `/usr/local/bin/`:
-
-| Command | Usage | Description |
-|---------|-------|-------------|
-| `msg` | `msg <target> <message>` | Send IRC message. Target can be `#channel` or `@agent` |
-| `irc-log` | `irc-log [channel] [lines]` | Read last N lines from channel log (default: #general, 20 lines) |
-| `irc-join` | `irc-join <channel>` | Join an IRC channel |
-| `irc-nick` | `irc-nick <nickname>` | Set your IRC nickname |
+| Command | Description |
+|---------|-------------|
+| `ayo matrix status` | Show connection status |
+| `ayo matrix rooms` | List available rooms |
+| `ayo matrix create <name>` | Create a new room |
+| `ayo matrix send <room> <message>` | Send a message |
+| `ayo matrix read <room> [limit]` | Read recent messages |
+| `ayo matrix who <room>` | List room members |
+| `ayo matrix invite <room> <agent>` | Invite agent to room |
 
 **Examples:**
 ```bash
-# Send a message to #general
-msg '#general' Hello everyone!
+# Check Matrix status
+ayo matrix status
 
-# Send a private message to @ayo
-msg @ayo Can you help me with this?
+# List rooms
+ayo matrix rooms
 
-# Read the last 50 lines from #general
-irc-log general 50
+# Create a project room
+ayo matrix create project-alpha
 
-# Join a project-specific channel
-irc-join project-alpha
+# Send a message to project-alpha
+ayo matrix send project-alpha "Hello, let's discuss the implementation"
 
-# Set your nickname
-irc-nick myagent
+# Read recent messages
+ayo matrix read project-alpha 50
 ```
 
 ## Language Support

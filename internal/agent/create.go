@@ -104,7 +104,7 @@ func CreateAgent(ctx context.Context, cfg config.Config, q db.Querier, opts Crea
 
 		err := q.CreateAyoAgent(ctx, db.CreateAyoAgentParams{
 			AgentID:           agentID,
-			AgentHandle:       "@" + handle,
+			AgentHandle:       handle,
 			CreatedBy:         opts.CreatedBy,
 			CreationReason:    sqlNullString(opts.CreationReason),
 			OriginalPrompt:    systemPrompt,
@@ -170,15 +170,16 @@ func RecordFailure(ctx context.Context, q db.Querier, agentHandle string) error 
 
 // RefinementOptions contains options for refining an agent's prompt.
 type RefinementOptions struct {
-	AgentHandle   string
-	NewPrompt     string
-	Reason        string
-	UpdateOnDisk  bool
+	AgentHandle  string
+	NewPrompt    string // Complete new prompt (if AppendPrompt is empty)
+	AppendPrompt string // Text to append to existing prompt
+	Reason       string
+	UpdateOnDisk bool
 }
 
 // RefineAgent refines an ayo-created agent's prompt.
 func RefineAgent(ctx context.Context, cfg config.Config, q db.Querier, opts RefinementOptions) error {
-	agent, err := q.GetAyoAgentByHandle(ctx, opts.AgentHandle)
+	agentRow, err := q.GetAyoAgentByHandle(ctx, opts.AgentHandle)
 	if err != nil {
 		return fmt.Errorf("agent not found: %w", err)
 	}
@@ -192,12 +193,21 @@ func RefineAgent(ctx context.Context, cfg config.Config, q db.Querier, opts Refi
 		return fmt.Errorf("load agent: %w", err)
 	}
 
+	// Determine new prompt (append or replace)
+	newPrompt := opts.NewPrompt
+	if opts.AppendPrompt != "" {
+		newPrompt = diskAgent.System + "\n\n" + opts.AppendPrompt
+	}
+	if newPrompt == "" {
+		return fmt.Errorf("either NewPrompt or AppendPrompt is required")
+	}
+
 	// Record refinement history
 	if err := q.CreateAgentRefinement(ctx, db.CreateAgentRefinementParams{
 		ID:             refinementID,
-		AgentID:        agent.AgentID,
+		AgentID:        agentRow.AgentID,
 		PreviousPrompt: diskAgent.System,
-		NewPrompt:      opts.NewPrompt,
+		NewPrompt:      newPrompt,
 		Reason:         opts.Reason,
 		CreatedAt:      now,
 	}); err != nil {
@@ -205,18 +215,18 @@ func RefineAgent(ctx context.Context, cfg config.Config, q db.Querier, opts Refi
 	}
 
 	// Update prompt hash in database
-	newHash := hashPrompt(opts.NewPrompt)
+	newHash := hashPrompt(newPrompt)
 	if err := q.UpdateAyoAgentPrompt(ctx, db.UpdateAyoAgentPromptParams{
 		CurrentPromptHash: sqlNullString(newHash),
 		UpdatedAt:         now,
-		AgentID:           agent.AgentID,
+		AgentID:           agentRow.AgentID,
 	}); err != nil {
 		return fmt.Errorf("update agent: %w", err)
 	}
 
 	// Update on disk if requested
 	if opts.UpdateOnDisk {
-		if _, err := Save(cfg, diskAgent.Handle, diskAgent.Config, opts.NewPrompt); err != nil {
+		if _, err := Save(cfg, diskAgent.Handle, diskAgent.Config, newPrompt); err != nil {
 			return fmt.Errorf("save agent: %w", err)
 		}
 	}
@@ -253,18 +263,42 @@ func UnarchiveAgent(ctx context.Context, q db.Querier, agentHandle string) error
 }
 
 // PromoteAgent promotes an ayo-created agent to a new handle.
-// The old handle continues to work but is marked as promoted.
+// This copies the agent directory, updates the database, and optionally removes the old agent.
 func PromoteAgent(ctx context.Context, cfg config.Config, q db.Querier, oldHandle, newHandle string) error {
-	agent, err := q.GetAyoAgentByHandle(ctx, oldHandle)
+	normalizedOld := NormalizeHandle(oldHandle)
+	normalizedNew := NormalizeHandle(newHandle)
+
+	// Check old agent exists in database
+	agent, err := q.GetAyoAgentByHandle(ctx, normalizedOld)
 	if err != nil {
-		return fmt.Errorf("agent not found: %w", err)
+		return fmt.Errorf("agent not found in @ayo registry: %w", err)
 	}
 
-	// TODO: Copy agent directory to new handle
-	// For now just record the promotion
+	// Check new handle is not reserved
+	if IsReservedNamespace(normalizedNew) {
+		return fmt.Errorf("cannot promote to reserved handle %s", normalizedNew)
+	}
+
+	// Load the existing agent from disk
+	diskAgent, err := Load(cfg, normalizedOld)
+	if err != nil {
+		return fmt.Errorf("load agent: %w", err)
+	}
+
+	// Create the new agent with the same configuration but remove @ayo metadata
+	promotedConfig := diskAgent.Config
+	// Clear any @ayo creation markers
+	promotedConfig.Description = promotedConfig.Description + " (promoted from @ayo)"
+
+	// Save as new handle
+	if _, err := Save(cfg, normalizedNew, promotedConfig, diskAgent.System); err != nil {
+		return fmt.Errorf("save promoted agent: %w", err)
+	}
+
+	// Record the promotion in database
 	now := time.Now().Unix()
 	return q.PromoteAyoAgent(ctx, db.PromoteAyoAgentParams{
-		PromotedTo: sqlNullString("@" + NormalizeHandle(newHandle)),
+		PromotedTo: sqlNullString(normalizedNew),
 		UpdatedAt:  now,
 		AgentID:    agent.AgentID,
 	})

@@ -1,6 +1,6 @@
 ---
 id: ase-qsc7
-status: open
+status: closed
 deps: [ase-kuef]
 links: []
 created: 2026-02-09T03:10:15Z

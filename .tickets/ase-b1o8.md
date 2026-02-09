@@ -1,6 +1,6 @@
 ---
 id: ase-b1o8
-status: open
+status: closed
 deps: [ase-eyvx]
 links: []
 created: 2026-02-09T03:16:33Z

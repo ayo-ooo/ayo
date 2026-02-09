@@ -618,3 +618,63 @@ func FlowsDirs() []string {
 
 	return dirs
 }
+
+// RuntimeDir returns the runtime directory for ephemeral files (sockets, PIDs).
+// Unix: /tmp/ayo or $XDG_RUNTIME_DIR/ayo
+// Windows: %TEMP%\ayo
+func RuntimeDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.TempDir(), "ayo")
+	}
+	// Try XDG_RUNTIME_DIR first (more secure on Linux)
+	if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
+		return filepath.Join(xdg, "ayo")
+	}
+	return "/tmp/ayo"
+}
+
+// DaemonSocket returns the path to the daemon Unix socket.
+func DaemonSocket() string {
+	return filepath.Join(RuntimeDir(), "daemon.sock")
+}
+
+// MatrixDataDir returns the directory for Matrix/Conduit data.
+// Location: ~/.local/share/ayo/matrix
+func MatrixDataDir() string {
+	return filepath.Join(DataDir(), "matrix")
+}
+
+// MatrixSocket returns the path to the Matrix (Conduit) Unix socket.
+func MatrixSocket() string {
+	return filepath.Join(RuntimeDir(), "matrix.sock")
+}
+
+// ConduitConfig returns the path to the Conduit configuration file.
+func ConduitConfig() string {
+	return filepath.Join(MatrixDataDir(), "conduit.toml")
+}
+
+// ConduitDatabase returns the path to the Conduit SQLite database.
+func ConduitDatabase() string {
+	return filepath.Join(MatrixDataDir(), "conduit.db")
+}
+
+// ConduitBinary returns the path to the Conduit binary.
+func ConduitBinary() string {
+	return filepath.Join(DataDir(), "bin", "conduit")
+}
+
+// ConduitLogPath returns the path to the Conduit log file.
+func ConduitLogPath() string {
+	return filepath.Join(LogDir(), "conduit.log")
+}
+
+// LogDir returns the directory for log files.
+func LogDir() string {
+	return filepath.Join(DataDir(), "logs")
+}
+
+// MatrixAgentsFile returns the path to the Matrix agent credentials file.
+func MatrixAgentsFile() string {
+	return filepath.Join(MatrixDataDir(), "agents.json")
+}

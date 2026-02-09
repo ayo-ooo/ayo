@@ -25,12 +25,14 @@ type Querier interface {
 	CountSessionsBySource(ctx context.Context, source string) (int64, error)
 	CreateAgentRefinement(ctx context.Context, arg CreateAgentRefinementParams) error
 	CreateAyoAgent(ctx context.Context, arg CreateAyoAgentParams) error
+	CreateCapability(ctx context.Context, arg CreateCapabilityParams) error
 	CreateEdge(ctx context.Context, arg CreateEdgeParams) error
 	CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (FlowRun, error)
 	CreateMemory(ctx context.Context, arg CreateMemoryParams) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteAyoAgent(ctx context.Context, agentID string) error
+	DeleteCapabilitiesByAgent(ctx context.Context, agentID string) error
 	DeleteEdge(ctx context.Context, arg DeleteEdgeParams) error
 	DeleteEdgesBySession(ctx context.Context, sessionID string) error
 	DeleteFlowRun(ctx context.Context, id string) error
@@ -42,6 +44,9 @@ type Querier interface {
 	GetAllActiveMemoriesWithEmbeddings(ctx context.Context) ([]GetAllActiveMemoriesWithEmbeddingsRow, error)
 	GetAyoAgent(ctx context.Context, agentID string) (AyoCreatedAgent, error)
 	GetAyoAgentByHandle(ctx context.Context, agentHandle string) (AyoCreatedAgent, error)
+	GetCapabilitiesByAgent(ctx context.Context, agentID string) ([]AgentCapability, error)
+	GetCapabilitiesByHash(ctx context.Context, inputHash string) ([]AgentCapability, error)
+	GetCapabilityByName(ctx context.Context, arg GetCapabilityByNameParams) (AgentCapability, error)
 	GetChildEdges(ctx context.Context, parentID string) ([]SessionEdge, error)
 	GetFlowRun(ctx context.Context, id string) (FlowRun, error)
 	GetFlowRunByPrefix(ctx context.Context, prefix sql.NullString) ([]FlowRun, error)
@@ -55,6 +60,7 @@ type Querier interface {
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetSessionByPrefix(ctx context.Context, prefix sql.NullString) ([]Session, error)
 	ListAgentRefinements(ctx context.Context, agentID string) ([]AgentRefinement, error)
+	ListAllCapabilities(ctx context.Context) ([]AgentCapability, error)
 	ListArchivedAyoAgents(ctx context.Context) ([]AyoCreatedAgent, error)
 	ListAyoAgents(ctx context.Context) ([]AyoCreatedAgent, error)
 	ListFlowRuns(ctx context.Context, limit int64) ([]FlowRun, error)
@@ -73,6 +79,7 @@ type Querier interface {
 	PromoteAyoAgent(ctx context.Context, arg PromoteAyoAgentParams) error
 	PruneFlowRunsByAge(ctx context.Context, cutoffTimestamp int64) error
 	PruneFlowRunsByCount(ctx context.Context, keepCount int64) error
+	SearchCapabilitiesByName(ctx context.Context, arg SearchCapabilitiesByNameParams) ([]AgentCapability, error)
 	SearchSessionsByTitle(ctx context.Context, arg SearchSessionsByTitleParams) ([]Session, error)
 	SupersedeMemory(ctx context.Context, arg SupersedeMemoryParams) error
 	UnarchiveAyoAgent(ctx context.Context, arg UnarchiveAyoAgentParams) error
@@ -80,6 +87,7 @@ type Querier interface {
 	UpdateAyoAgentInvocation(ctx context.Context, arg UpdateAyoAgentInvocationParams) error
 	UpdateAyoAgentPrompt(ctx context.Context, arg UpdateAyoAgentPromptParams) error
 	UpdateAyoAgentSuccess(ctx context.Context, arg UpdateAyoAgentSuccessParams) error
+	UpdateCapabilityEmbedding(ctx context.Context, arg UpdateCapabilityEmbeddingParams) error
 	UpdateMemory(ctx context.Context, arg UpdateMemoryParams) error
 	UpdateMemoryAccess(ctx context.Context, arg UpdateMemoryAccessParams) error
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) error

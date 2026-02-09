@@ -23,10 +23,11 @@ type Guardrails struct {
 
 // WrapContext provides template data for PREFIX/SUFFIX rendering.
 type WrapContext struct {
-	TrustLevel string // Agent's trust level (sandboxed, privileged, unrestricted)
-	SessionID  string // Current session identifier
-	AgentName  string // Name of the agent being invoked
+	TrustLevel        string // Agent's trust level (sandboxed, privileged, unrestricted)
+	SessionID         string // Current session identifier
+	AgentName         string // Name of the agent being invoked
 	OrchestratorAgent string // Name of the orchestrating agent (e.g., "@ayo")
+	SessionRoom       string // Matrix room for the session (e.g., "#session-abc123")
 }
 
 // Wrap wraps an agent prompt with PREFIX and SUFFIX guardrails.

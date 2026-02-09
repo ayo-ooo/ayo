@@ -823,6 +823,17 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 			}
 		}
 
+		// Add Matrix/daemon runtime directory mount for inter-agent communication
+		mounts = append(mounts, providers.Mount{
+			Source:      paths.RuntimeDir(),
+			Destination: "/run/ayo",
+			Mode:        providers.MountModeVirtioFS,
+			ReadOnly:    false,
+		})
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[sandbox] Mounting daemon socket directory %s -> /run/ayo\n", paths.RuntimeDir())
+		}
+
 		sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
 			Name:   fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
 			Image:  ag.Config.Sandbox.SandboxImage(),

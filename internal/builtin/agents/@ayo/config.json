@@ -1,7 +1,7 @@
 {
   "description": "The default ayo agent - a versatile command-line assistant",
-  "allowed_tools": ["bash", "memory", "search"],
-  "skills": ["memory", "coding", "flows"],
+  "allowed_tools": ["bash", "memory", "search", "find_agent"],
+  "skills": ["memory", "coding", "flows", "ayo/orchestration"],
   "sandbox": {
     "enabled": true,
     "network": true

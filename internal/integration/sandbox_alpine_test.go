@@ -139,8 +139,8 @@ func TestAlpineSandbox_UserCreation(t *testing.T) {
 	}
 }
 
-// TestAlpineSandbox_IRC tests ngircd setup and connectivity.
-func TestAlpineSandbox_IRC(t *testing.T) {
+// TestAlpineSandbox_Matrix tests Matrix socket mount for inter-agent communication.
+func TestAlpineSandbox_Matrix(t *testing.T) {
 	apple := sandbox.NewAppleProvider()
 	if !apple.IsAvailable() {
 		t.Skip("Apple Container not available (requires macOS 26+ on Apple Silicon)")
@@ -149,9 +149,9 @@ func TestAlpineSandbox_IRC(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Create sandbox (ngircd is installed during setup)
+	// Create sandbox
 	sb, err := apple.Create(ctx, providers.SandboxCreateOptions{
-		Name:    "ayo-alpine-test-irc",
+		Name:    "ayo-alpine-test-matrix",
 		Image:   "docker.io/library/alpine:3.21",
 		Network: providers.NetworkConfig{Enabled: true},
 	})
@@ -160,55 +160,16 @@ func TestAlpineSandbox_IRC(t *testing.T) {
 	}
 	defer apple.Delete(ctx, sb.ID, true)
 
-	// Wait a moment for ngircd to fully start
-	time.Sleep(1 * time.Second)
-
-	// Verify ngircd is running
+	// Verify /run/ayo directory exists for Matrix socket mount
 	result, err := apple.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command: "pgrep ngircd",
-		Timeout: 5 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("Exec pgrep: %v", err)
-	}
-	if result.ExitCode != 0 {
-		t.Errorf("ngircd not running: %s", result.Stderr)
-	}
-
-	// Verify ngircd is listening on port 6667
-	result, err = apple.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command: "netstat -tln | grep 6667 || ss -tln | grep 6667",
-		Timeout: 5 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("Exec netstat: %v", err)
-	}
-	if result.ExitCode != 0 {
-		t.Logf("ngircd may not be listening yet: %s", result.Stderr)
-	}
-
-	// Verify IRC log directory exists
-	result, err = apple.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command: "test -d /var/log/irc",
+		Command: "test -d /run/ayo",
 		Timeout: 5 * time.Second,
 	})
 	if err != nil {
 		t.Fatalf("Exec test: %v", err)
 	}
 	if result.ExitCode != 0 {
-		t.Errorf("IRC log directory /var/log/irc does not exist")
-	}
-
-	// Verify msg helper script exists
-	result, err = apple.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command: "test -x /usr/local/bin/msg",
-		Timeout: 5 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("Exec test msg: %v", err)
-	}
-	if result.ExitCode != 0 {
-		t.Errorf("msg helper script not installed or not executable")
+		t.Errorf("/run/ayo directory does not exist")
 	}
 }
 
@@ -237,7 +198,7 @@ func TestAlpineSandbox_DirectoryStructure(t *testing.T) {
 	dirs := []string{
 		"/shared",
 		"/workspaces",
-		"/var/log/irc",
+		"/run/ayo",
 		"/mnt/host",
 	}
 

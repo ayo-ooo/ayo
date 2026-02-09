@@ -1,6 +1,6 @@
 ---
 id: ase-nwi5
-status: open
+status: closed
 deps: [ase-yqtq, ase-deny]
 links: []
 created: 2026-02-09T03:25:08Z

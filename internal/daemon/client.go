@@ -392,3 +392,67 @@ func StartDaemonBackground() error {
 
 	return nil
 }
+
+// Call makes a generic RPC call. For use when specific client methods are not available.
+func (c *Client) Call(ctx context.Context, method string, params any, result any) error {
+	return c.call(ctx, method, params, result)
+}
+
+// MatrixStatus returns the Matrix subsystem status.
+func (c *Client) MatrixStatus(ctx context.Context) (*MatrixStatusResult, error) {
+	var result MatrixStatusResult
+	if err := c.call(ctx, MethodMatrixStatus, nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// MatrixRoomsList lists Matrix rooms.
+func (c *Client) MatrixRoomsList(ctx context.Context, params MatrixRoomsListParams) (*MatrixRoomsListResult, error) {
+	var result MatrixRoomsListResult
+	if err := c.call(ctx, MethodMatrixRoomsList, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// MatrixRoomsCreate creates a Matrix room.
+func (c *Client) MatrixRoomsCreate(ctx context.Context, params MatrixRoomsCreateParams) (*MatrixRoomsCreateResult, error) {
+	var result MatrixRoomsCreateResult
+	if err := c.call(ctx, MethodMatrixRoomsCreate, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// MatrixRoomsMembers gets members of a Matrix room.
+func (c *Client) MatrixRoomsMembers(ctx context.Context, params MatrixRoomsMembersParams) (*MatrixRoomsMembersResult, error) {
+	var result MatrixRoomsMembersResult
+	if err := c.call(ctx, MethodMatrixRoomsMembers, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// MatrixRoomsInvite invites an agent to a room.
+func (c *Client) MatrixRoomsInvite(ctx context.Context, params MatrixRoomsInviteParams) error {
+	return c.call(ctx, MethodMatrixRoomsInvite, params, nil)
+}
+
+// MatrixSend sends a message to a Matrix room.
+func (c *Client) MatrixSend(ctx context.Context, params MatrixSendParams) (*MatrixSendResult, error) {
+	var result MatrixSendResult
+	if err := c.call(ctx, MethodMatrixSend, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// MatrixRead reads messages from a Matrix room.
+func (c *Client) MatrixRead(ctx context.Context, params MatrixReadParams) (*MatrixReadResult, error) {
+	var result MatrixReadResult
+	if err := c.call(ctx, MethodMatrixRead, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

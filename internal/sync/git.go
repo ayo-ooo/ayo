@@ -34,11 +34,6 @@ func SharedDir() string {
 	return filepath.Join(SandboxDir(), "shared")
 }
 
-// IRCLogsDir returns the IRC logs directory within sandbox.
-func IRCLogsDir() string {
-	return filepath.Join(SandboxDir(), "irc-logs")
-}
-
 // IsInitialized checks if the sandbox directory has been initialized as a git repo.
 func IsInitialized() bool {
 	gitDir := filepath.Join(SandboxDir(), ".git")
@@ -60,7 +55,6 @@ func Init() error {
 	dirs := []string{
 		HomesDir(),
 		SharedDir(),
-		IRCLogsDir(),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

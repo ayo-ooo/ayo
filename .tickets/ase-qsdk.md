@@ -1,6 +1,6 @@
 ---
 id: ase-qsdk
-status: open
+status: closed
 deps: [ase-trs4, ase-8g9z]
 links: []
 created: 2026-02-09T03:26:06Z

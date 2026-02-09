@@ -1,6 +1,6 @@
 ---
 id: ase-fked
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-09T03:03:32Z

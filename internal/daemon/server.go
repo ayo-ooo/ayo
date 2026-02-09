@@ -27,6 +27,8 @@ type Server struct {
 	sessionManager *DaemonSessionManager
 	triggerEngine  *TriggerEngine
 	webhookServer  *WebhookServer
+	conduit        *ConduitProcess
+	matrixBroker   *MatrixBroker
 	startTime      time.Time
 	shutdownCh     chan struct{}
 	wg             sync.WaitGroup
@@ -81,10 +83,18 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	// Create session manager
 	sessionManager := NewDaemonSessionManager(cfg.IdleTimeout)
 
+	// Create Conduit process manager
+	conduit := NewConduitProcess()
+
+	// Create Matrix broker
+	matrixBroker := NewMatrixBroker(paths.MatrixSocket(), "ayo.local")
+
 	server := &Server{
 		provider:       provider,
 		pool:           pool,
 		sessionManager: sessionManager,
+		conduit:        conduit,
+		matrixBroker:   matrixBroker,
 		shutdownCh:     make(chan struct{}),
 	}
 
@@ -157,6 +167,21 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("start webhook server: %w", err)
 	}
 
+	// Start Conduit Matrix homeserver (optional - don't fail if not available)
+	if s.conduit != nil {
+		if err := s.conduit.Start(ctx); err != nil {
+			// Log warning but don't fail - Matrix is optional
+			// In production, this would use proper logging
+		} else {
+			// Start Matrix broker if Conduit started
+			if s.matrixBroker != nil {
+				if err := s.matrixBroker.Connect(ctx); err != nil {
+					// Log warning but don't fail
+				}
+			}
+		}
+	}
+
 	// Write PID file
 	if err := s.writePIDFile(); err != nil {
 		s.listener.Close()
@@ -201,6 +226,16 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Stop webhook server
 	if s.webhookServer != nil {
 		s.webhookServer.Stop(ctx)
+	}
+
+	// Stop Matrix broker
+	if s.matrixBroker != nil {
+		s.matrixBroker.Disconnect()
+	}
+
+	// Stop Conduit
+	if s.conduit != nil {
+		s.conduit.Stop()
 	}
 
 	// Stop sandbox pool
@@ -365,6 +400,36 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleTriggerTest(req)
 	case MethodTriggerSetEnabled:
 		return s.handleTriggerSetEnabled(req)
+	// Matrix methods
+	case MethodMatrixStatus:
+		return s.handleMatrixStatus(req)
+	case MethodMatrixRoomsList:
+		return s.handleMatrixRoomsList(req)
+	case MethodMatrixRoomsCreate:
+		return s.handleMatrixRoomsCreate(ctx, req)
+	case MethodMatrixRoomsMembers:
+		return s.handleMatrixRoomsMembers(req)
+	case MethodMatrixRoomsInvite:
+		return s.handleMatrixRoomsInvite(req)
+	case MethodMatrixRoomsJoin:
+		return s.handleMatrixRoomsJoin(req)
+	case MethodMatrixRoomsLeave:
+		return s.handleMatrixRoomsLeave(req)
+	case MethodMatrixSend:
+		return s.handleMatrixSend(req)
+	case MethodMatrixRead:
+		return s.handleMatrixRead(req)
+	case MethodMatrixReadStream:
+		return s.handleMatrixReadStream(ctx, req)
+	// Flow methods
+	case MethodFlowRun:
+		return s.handleFlowRun(ctx, req)
+	case MethodFlowList:
+		return s.handleFlowList(req)
+	case MethodFlowGet:
+		return s.handleFlowGet(req)
+	case MethodFlowHistory:
+		return s.handleFlowHistory(req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}

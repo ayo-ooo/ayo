@@ -49,16 +49,42 @@ Manage agents.
 List all available agents.
 
 ```bash
-ayo agents list
+ayo agents list [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--trust` | Filter by trust level: sandboxed, privileged, unrestricted |
+| `--type` | Filter by type: user, builtin, created |
+
+**Output columns:**
+- HANDLE - Agent handle (with @ prefix)
+- DESCRIPTION - Brief description
+- TRUST - Trust level (color-coded: green=sandboxed, yellow=privileged, red=unrestricted)
+- TYPE - Source: user, builtin, or created (by @ayo)
+
+**Examples:**
+
+```bash
+ayo agents list                    # List all agents
+ayo agents list --trust sandboxed  # Only sandboxed agents
+ayo agents list --type user        # Only user-created agents
 ```
 
 ### ayo agents show
 
-Show agent details.
+Show agent details including trust level and metadata.
 
 ```bash
 ayo agents show <handle>
 ```
+
+Displays:
+- Handle, model, and description
+- Trust level with explanation
+- Tools and skills configuration
+- Input/output schemas if defined
+- Creation metadata (for @ayo-created agents)
 
 ### ayo agents create
 
@@ -116,6 +142,103 @@ Update built-in agents.
 
 ```bash
 ayo agents update [--force]
+```
+
+### ayo agents rm
+
+Remove a user agent.
+
+```bash
+ayo agents rm <handle> [--force]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation prompt |
+
+### ayo agents refine
+
+Refine an agent's configuration through conversation.
+
+```bash
+ayo agents refine <handle>
+```
+
+Opens an interactive session with @ayo to improve the agent's system prompt, tools, or skills based on feedback.
+
+### ayo agents promote
+
+Promote an @ayo-created agent to a permanent user agent.
+
+```bash
+ayo agents promote <handle>
+```
+
+Moves the agent from the temporary created-agents directory to the user agents directory.
+
+### ayo agents archive
+
+Archive an agent (soft delete).
+
+```bash
+ayo agents archive <handle>
+```
+
+Marks the agent as archived. It won't appear in listings but can be restored.
+
+### ayo agents unarchive
+
+Restore an archived agent.
+
+```bash
+ayo agents unarchive <handle>
+```
+
+### ayo agents capabilities
+
+Show or search agent capabilities.
+
+```bash
+ayo agents capabilities <handle> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--search` | `-s` | Search query for capability matching |
+| `--json` | | Output in JSON format |
+
+#### ayo agents capabilities refresh
+
+Regenerate capability embeddings.
+
+```bash
+ayo agents capabilities refresh <handle>
+```
+
+### ayo agents status
+
+Show agent status (running sessions, wake state).
+
+```bash
+ayo agents status [handle]
+```
+
+Without a handle, shows status of all agents.
+
+### ayo agents wake
+
+Wake an agent (start background session).
+
+```bash
+ayo agents wake <handle>
+```
+
+### ayo agents sleep
+
+Put an agent to sleep (end background session).
+
+```bash
+ayo agents sleep <handle>
 ```
 
 ---
@@ -386,13 +509,21 @@ ayo plugins remove <name> [--yes]
 
 Manage flows - composable agent pipelines.
 
+Flows come in two types:
+- **Shell flows** (`.sh`): Bash scripts with JSON I/O
+- **YAML flows** (`.yaml`): Declarative multi-step workflows with dependencies and parallel execution
+
 ### ayo flows list
 
 List all available flows.
 
 ```bash
-ayo flows list
+ayo flows list [--json]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output in JSON format |
 
 ### ayo flows show
 
@@ -414,6 +545,7 @@ ayo flows new <name> [--flags]
 |------|-------------|
 | `--project` | Create in project directory (.ayo/flows/) |
 | `--with-schemas` | Create with input/output schemas |
+| `--yaml` | Create a YAML flow instead of shell flow |
 | `--force` | Overwrite if exists |
 
 ### ayo flows run
@@ -427,6 +559,7 @@ ayo flows run <name> [input] [--flags]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--input` | `-i` | Input file path |
+| `--param` | `-p` | Set parameter (key=value, repeatable) |
 | `--timeout` | `-t` | Timeout in seconds (default 300) |
 | `--validate` | | Validate input only, don't run |
 | `--no-history` | | Don't record run in history |
@@ -435,6 +568,7 @@ ayo flows run <name> [input] [--flags]
 - Argument: `ayo flows run myflow '{"key": "value"}'`
 - Stdin: `echo '{"key": "value"}' | ayo flows run myflow`
 - File: `ayo flows run myflow -i data.json`
+- Parameters: `ayo flows run myflow --param key=value`
 
 ### ayo flows validate
 
@@ -444,13 +578,40 @@ Validate a flow file or directory.
 ayo flows validate <path>
 ```
 
+Checks:
+- YAML/shell syntax
+- Step dependencies form a valid DAG
+- Template variable references are valid
+- Required parameters are defined
+
 ### ayo flows history
 
 Show flow run history.
 
 ```bash
-ayo flows history [--flow=<name>]
+ayo flows history [--flags]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--flow` | Filter by flow name |
+| `--status` | Filter by status (success, failed) |
+| `--limit` | Maximum results (default 20) |
+| `--json` | Output in JSON format |
+
+### ayo flows stats
+
+Show flow execution statistics.
+
+```bash
+ayo flows stats [flow-name]
+```
+
+Displays:
+- Total runs
+- Success/failure rate
+- Average duration
+- Last run time
 
 ### ayo flows replay
 
@@ -720,6 +881,130 @@ ayo sandbox users [--id <id>]
 
 ---
 
+## ayo matrix
+
+Inter-agent communication via Matrix protocol (Conduit homeserver).
+
+Matrix provides secure, decentralized messaging between agents running in sandboxes. The daemon automatically manages a Conduit homeserver for local agent communication.
+
+### ayo matrix status
+
+Show Matrix/Conduit server status.
+
+```bash
+ayo matrix status [--json]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output in JSON format |
+
+Displays:
+- Conduit server status (running/stopped)
+- Broker connection status
+- Server URL and port
+
+### ayo matrix rooms
+
+List available Matrix rooms.
+
+```bash
+ayo matrix rooms [--json]
+```
+
+### ayo matrix create
+
+Create a new Matrix room.
+
+```bash
+ayo matrix create <room-name>
+```
+
+**Examples:**
+
+```bash
+ayo matrix create project-chat
+ayo matrix create code-review-team
+```
+
+### ayo matrix send
+
+Send a message to a room.
+
+```bash
+ayo matrix send <room> <message>
+```
+
+**Examples:**
+
+```bash
+ayo matrix send project-chat "Build completed successfully"
+ayo matrix send alerts "Warning: disk space low"
+```
+
+### ayo matrix read
+
+Read messages from a room.
+
+```bash
+ayo matrix read <room> [limit]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `room` | Room name to read from |
+| `limit` | Number of messages to retrieve (default: 50) |
+
+**Examples:**
+
+```bash
+ayo matrix read project-chat
+ayo matrix read alerts 10
+```
+
+### ayo matrix who
+
+List members of a room.
+
+```bash
+ayo matrix who <room>
+```
+
+### ayo matrix invite
+
+Invite an agent to a room.
+
+```bash
+ayo matrix invite <room> <agent>
+```
+
+**Examples:**
+
+```bash
+ayo matrix invite project-chat @builder
+ayo matrix invite code-review @reviewer
+```
+
+### ayo matrix leave
+
+Leave a room.
+
+```bash
+ayo matrix leave <room>
+```
+
+### Matrix in Sandboxes
+
+Agents running in sandboxes can access Matrix through the socket mounted at `/run/ayo/`. The Matrix client is available inside sandboxes:
+
+```bash
+# From inside a sandbox
+ayo matrix status
+ayo matrix send my-room "Message from sandbox"
+```
+
+---
+
 ## ayo mount
 
 Manage persistent filesystem access for sandboxed agents.
@@ -829,83 +1114,282 @@ Each tier can only narrow access, never expand it. A project cannot access paths
 
 ---
 
-## ayo triggers
+## ayo trigger
 
 Manage automated triggers (cron schedules and file watchers).
 
-### ayo triggers list
+> **Note:** The singular `trigger` is preferred. `triggers` is still supported as an alias.
+
+### ayo trigger list
 
 List all triggers.
 
 ```bash
-ayo triggers list
+ayo trigger list
 ```
 
-### ayo triggers add
+### ayo trigger schedule
 
-Add a new trigger.
+Create a scheduled (cron) trigger.
 
 ```bash
-ayo triggers add --type <type> --agent <agent> --prompt <prompt> [--flags]
+ayo trigger schedule <agent> <schedule> [--flags]
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--type` | Trigger type: `cron` or `watch` |
-| `--agent` | Agent to invoke (e.g., `@ayo`) |
-| `--prompt` | Prompt to send to agent |
-| `--schedule` | Cron schedule (for cron type) |
-| `--path` | Path to watch (for watch type) |
-| `--patterns` | File patterns to match (for watch type) |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--prompt` | `-p` | Prompt to send to agent when triggered |
+
+The schedule can be either cron syntax or natural language:
+
+**Natural language examples:**
+- `"every hour"`
+- `"every day at 9am"`
+- `"every monday at 3pm"`
+- `"daily"`, `"hourly"`, `"weekly"`
+- `"every 5 minutes"`
+
+**Cron syntax** (6 fields with seconds):
+- `"0 0 * * * *"` - every hour
+- `"0 30 9 * * *"` - every day at 9:30am
+- `"0 0 9 * * MON"` - every Monday at 9am
 
 **Examples:**
 
 ```bash
-# Cron trigger every 5 minutes
-ayo triggers add --type cron --agent @ayo --schedule "*/5 * * * *" --prompt "Check status"
+# Natural language
+ayo trigger schedule @backup "every hour"
+ayo trigger schedule @reports "every day at 9am" --prompt "Generate daily report"
+ayo trigger schedule @cleanup "every monday at 3pm"
 
-# Watch trigger for text files
-ayo triggers add --type watch --agent @ayo --path /tmp --patterns "*.txt" --prompt "File changed"
+# Cron syntax
+ayo trigger schedule @backup "0 0 * * * *"
+ayo trigger schedule @weekly "0 0 9 * * MON"
 ```
 
-### ayo triggers show
+### ayo trigger watch
+
+Create a filesystem watch trigger.
+
+```bash
+ayo trigger watch <path> <agent> [patterns...] [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--prompt` | `-p` | Prompt to send to agent when triggered |
+| `--recursive` | `-r` | Watch subdirectories |
+| `--events` | | Events to trigger on: create, modify, delete |
+
+**Examples:**
+
+```bash
+# Watch directory for any changes
+ayo trigger watch ./src @build
+
+# Watch for specific file patterns
+ayo trigger watch ./src @build "*.go" "*.mod"
+
+# Watch recursively with events filter
+ayo trigger watch ./docs @docs "*.md" --recursive --events modify,create
+```
+
+### ayo trigger show
 
 Show trigger details.
 
 ```bash
-ayo triggers show <id>
+ayo trigger show [id]
 ```
 
-### ayo triggers test
+If ID is omitted, shows an interactive picker. Supports prefix matching.
+
+### ayo trigger test
 
 Manually fire a trigger.
 
 ```bash
-ayo triggers test <id>
+ayo trigger test [id]
 ```
 
-### ayo triggers enable
+This will wake the associated agent just as if the trigger had fired naturally.
+
+### ayo trigger enable
 
 Enable a disabled trigger.
 
 ```bash
-ayo triggers enable <id>
+ayo trigger enable [id]
 ```
 
-### ayo triggers disable
+### ayo trigger disable
 
-Disable a trigger.
+Disable a trigger without removing it.
 
 ```bash
-ayo triggers disable <id>
+ayo trigger disable [id]
 ```
 
-### ayo triggers rm
+### ayo trigger rm
 
 Remove a trigger.
 
 ```bash
-ayo triggers rm <id>
+ayo trigger rm [id] [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation |
+
+Aliases: `remove`, `delete`
+
+---
+
+## ayo backup
+
+Manage backups of sandbox state, config, and data.
+
+Backups include:
+- Sandbox state (agent homes, shared files)
+- Config (~/.config/ayo/)
+- Data (~/.local/share/ayo/ except sandbox and backups)
+
+### ayo backup create
+
+Create a new backup.
+
+```bash
+ayo backup create [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Backup name (default: timestamp) |
+| `--json` | Output in JSON format |
+
+### ayo backup list
+
+List all backups.
+
+```bash
+ayo backup list [--json]
+```
+
+Aliases: `ls`
+
+### ayo backup show
+
+Show backup details.
+
+```bash
+ayo backup show <name>
+```
+
+### ayo backup restore
+
+Restore from a backup.
+
+```bash
+ayo backup restore <name> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation |
+| `--dry-run` | | Preview changes without applying |
+
+### ayo backup export
+
+Export backup to portable archive.
+
+```bash
+ayo backup export <name> <destination>
+```
+
+Creates a .tar.gz archive that can be transferred to another machine.
+
+### ayo backup import
+
+Import backup from archive.
+
+```bash
+ayo backup import <archive>
+```
+
+### ayo backup prune
+
+Clean old auto-backups.
+
+```bash
+ayo backup prune [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--keep` | Number of backups to keep (default: 5) |
+| `--force` | Skip confirmation |
+
+---
+
+## ayo sync
+
+Synchronize ayo configuration and data with remote storage.
+
+### ayo sync init
+
+Initialize sync for current directory.
+
+```bash
+ayo sync init
+```
+
+### ayo sync status
+
+Show sync status.
+
+```bash
+ayo sync status
+```
+
+### ayo sync remote
+
+Manage sync remotes.
+
+```bash
+ayo sync remote
+```
+
+#### ayo sync remote add
+
+Add a sync remote.
+
+```bash
+ayo sync remote add <name> <url>
+```
+
+#### ayo sync remote show
+
+Show remote details.
+
+```bash
+ayo sync remote show <name>
+```
+
+### ayo sync push
+
+Push local changes to remote.
+
+```bash
+ayo sync push [remote]
+```
+
+### ayo sync pull
+
+Pull remote changes to local.
+
+```bash
+ayo sync pull [remote]
 ```
 
 ---

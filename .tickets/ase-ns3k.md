@@ -1,6 +1,6 @@
 ---
 id: ase-ns3k
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-09T03:26:45Z

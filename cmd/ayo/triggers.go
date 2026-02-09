@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -77,11 +78,11 @@ func connectToDaemon(ctx context.Context) (*daemon.Client, error) {
 	return result, nil
 }
 
-func newTriggersCmd() *cobra.Command {
+func newTriggerCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "triggers",
+		Use:     "trigger",
 		Short:   "Manage triggers",
-		Aliases: []string{"trigger"},
+		Aliases: []string{"triggers"}, // Hidden backwards-compat alias
 		Long: `Manage triggers that wake agents on events.
 
 Triggers can be:
@@ -89,20 +90,20 @@ Triggers can be:
   watch   File system triggers (e.g., "when a file changes")
 
 Examples:
+  # Create a scheduled trigger
+  ayo trigger schedule @backup "0 0 2 * * *"
+
+  # Create a watch trigger
+  ayo trigger watch ./src @build "*.go"
+
   # List all triggers
-  ayo triggers list
-
-  # Add a cron trigger
-  ayo triggers add --type cron --agent @backup --schedule "0 0 2 * * *"
-
-  # Add a watch trigger
-  ayo triggers add --type watch --agent @build --path ./src --patterns "*.go"
+  ayo trigger list
 
   # Test a trigger
-  ayo triggers test trig_123456789
+  ayo trigger test trig_123456789
 
   # Remove a trigger
-  ayo triggers rm trig_123456789`,
+  ayo trigger rm trig_123456789`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return listTriggersCmd().RunE(cmd, args)
 		},
@@ -111,6 +112,8 @@ Examples:
 	cmd.AddCommand(listTriggersCmd())
 	cmd.AddCommand(showTriggerCmd())
 	cmd.AddCommand(addTriggerCmd())
+	cmd.AddCommand(scheduleCmd())
+	cmd.AddCommand(watchCmd())
 	cmd.AddCommand(removeTriggerCmd())
 	cmd.AddCommand(testTriggerCmd())
 	cmd.AddCommand(enableTriggerCmd())
@@ -145,7 +148,7 @@ func listTriggersCmd() *cobra.Command {
 				if !globalOutput.Quiet {
 					fmt.Println("No triggers registered")
 					fmt.Println()
-					fmt.Println("Add one with: ayo triggers add --type cron --agent @name --schedule \"0 0 * * * *\"")
+					fmt.Println("Add one with: ayo trigger add --type cron --agent @name --schedule \"0 0 * * * *\"")
 				}
 				return nil
 			}
@@ -218,11 +221,10 @@ func listTriggersCmd() *cobra.Command {
 
 func showTriggerCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "show <id>",
+		Use:   "show [id]",
 		Short: "Show trigger details",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
 			ctx := cmd.Context()
 
 			client, err := connectToDaemon(ctx)
@@ -230,6 +232,16 @@ func showTriggerCmd() *cobra.Command {
 				return fmt.Errorf("connect to daemon: %w", err)
 			}
 			defer client.Close()
+
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to show")
+			if err != nil {
+				return err
+			}
 
 			result, err := client.TriggerGet(ctx, id)
 			if err != nil {
@@ -307,27 +319,20 @@ func addTriggerCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "add",
-		Short: "Add a new trigger",
+		Use:    "add",
+		Short:  "Add a new trigger (deprecated: use 'schedule' or 'watch')",
+		Hidden: true,
 		Long: `Add a new trigger to wake an agent.
+
+DEPRECATED: Use 'ayo trigger schedule' or 'ayo trigger watch' instead.
 
 Cron triggers use standard cron syntax with seconds:
   seconds minutes hours day-of-month month day-of-week
 
 Examples:
-  # Every hour
-  ayo triggers add --type cron --agent @backup --schedule "0 0 * * * *"
-
-  # Every day at 2am
-  ayo triggers add --type cron --agent @reports --schedule "0 0 2 * * *"
-
-  # Watch for Go file changes
-  ayo triggers add --type watch --agent @build --path ./src --patterns "*.go"
-
-  # Watch with custom prompt
-  ayo triggers add --type watch --agent @review \
-    --path ./src --patterns "*.go" \
-    --prompt "Review the changed files"`,
+  # Use these instead:
+  ayo trigger schedule @backup "0 0 * * * *"
+  ayo trigger watch ./src @build "*.go"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -401,16 +406,14 @@ Examples:
 func removeTriggerCmd() *cobra.Command {
 	var (
 		force bool
-		quiet bool
 	)
 
 	cmd := &cobra.Command{
-		Use:     "rm <id>",
+		Use:     "rm [id]",
 		Aliases: []string{"remove", "delete"},
 		Short:   "Remove a trigger",
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
 			ctx := cmd.Context()
 
 			client, err := connectToDaemon(ctx)
@@ -419,8 +422,18 @@ func removeTriggerCmd() *cobra.Command {
 			}
 			defer client.Close()
 
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to remove")
+			if err != nil {
+				return err
+			}
+
 			// Confirm unless forced
-			if !force {
+			if !force && !globalOutput.Quiet {
 				fmt.Printf("Remove trigger %s? (y/N): ", id)
 				var confirm string
 				fmt.Scanln(&confirm)
@@ -433,7 +446,7 @@ func removeTriggerCmd() *cobra.Command {
 				return fmt.Errorf("remove trigger: %w", err)
 			}
 
-			if !quiet {
+			if !globalOutput.Quiet {
 				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 				fmt.Println(successStyle.Render("✓ Removed trigger: " + id))
 			}
@@ -443,14 +456,13 @@ func removeTriggerCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "skip confirmation")
-	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress output")
 
 	return cmd
 }
 
 func testTriggerCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "test <id>",
+		Use:   "test [id]",
 		Short: "Fire a trigger manually",
 		Long: `Fire a trigger manually for testing purposes.
 
@@ -458,10 +470,10 @@ This will wake the associated agent just as if the trigger
 had fired naturally.
 
 Examples:
-  ayo triggers test trig_123456789`,
-		Args: cobra.ExactArgs(1),
+  ayo trigger test trig_123456789
+  ayo trigger test trig_  # prefix match`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
 			ctx := cmd.Context()
 
 			client, err := connectToDaemon(ctx)
@@ -470,12 +482,24 @@ Examples:
 			}
 			defer client.Close()
 
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to test")
+			if err != nil {
+				return err
+			}
+
 			if err := client.TriggerTest(ctx, id); err != nil {
 				return fmt.Errorf("test trigger: %w", err)
 			}
 
-			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-			fmt.Println(successStyle.Render("✓ Trigger fired: " + id))
+			if !globalOutput.Quiet {
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Println(successStyle.Render("✓ Trigger fired: " + id))
+			}
 
 			return nil
 		},
@@ -486,17 +510,16 @@ Examples:
 
 func enableTriggerCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "enable <id>",
+		Use:   "enable [id]",
 		Short: "Enable a disabled trigger",
 		Long: `Enable a previously disabled trigger.
 
 The trigger will resume firing on its schedule or watch conditions.
 
 Examples:
-  ayo triggers enable trig_123456789`,
-		Args: cobra.ExactArgs(1),
+  ayo trigger enable trig_123456789`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
 			ctx := cmd.Context()
 
 			client, err := connectToDaemon(ctx)
@@ -505,12 +528,24 @@ Examples:
 			}
 			defer client.Close()
 
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to enable")
+			if err != nil {
+				return err
+			}
+
 			if err := client.TriggerSetEnabled(ctx, id, true); err != nil {
 				return fmt.Errorf("enable trigger: %w", err)
 			}
 
-			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-			fmt.Println(successStyle.Render("✓ Trigger enabled: " + id))
+			if !globalOutput.Quiet {
+				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+				fmt.Println(successStyle.Render("✓ Trigger enabled: " + id))
+			}
 
 			return nil
 		},
@@ -521,17 +556,16 @@ Examples:
 
 func disableTriggerCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "disable <id>",
+		Use:   "disable [id]",
 		Short: "Disable a trigger",
 		Long: `Disable a trigger without removing it.
 
 The trigger will stop firing but can be re-enabled later.
 
 Examples:
-  ayo triggers disable trig_123456789`,
-		Args: cobra.ExactArgs(1),
+  ayo trigger disable trig_123456789`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id := args[0]
 			ctx := cmd.Context()
 
 			client, err := connectToDaemon(ctx)
@@ -540,16 +574,270 @@ Examples:
 			}
 			defer client.Close()
 
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to disable")
+			if err != nil {
+				return err
+			}
+
 			if err := client.TriggerSetEnabled(ctx, id, false); err != nil {
 				return fmt.Errorf("disable trigger: %w", err)
 			}
 
-			warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-			fmt.Println(warnStyle.Render("⏸ Trigger disabled: " + id))
+			if !globalOutput.Quiet {
+				warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+				fmt.Println(warnStyle.Render("⏸ Trigger disabled: " + id))
+			}
 
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func scheduleCmd() *cobra.Command {
+	var (
+		prompt string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "schedule <agent> <schedule>",
+		Short: "Create a scheduled trigger",
+		Long: `Create a cron-based trigger that wakes an agent on a schedule.
+
+Supports natural language or cron syntax:
+
+Natural language examples:
+  ayo trigger schedule @backup "every hour"
+  ayo trigger schedule @reports "every day at 9am"
+  ayo trigger schedule @cleanup "every monday at 3pm"
+  ayo trigger schedule @weekly "daily"
+
+Cron syntax (with seconds):
+  ayo trigger schedule @backup "0 0 * * * *"      # every hour
+  ayo trigger schedule @reports "0 0 9 * * *"     # every day at 9am
+  ayo trigger schedule @weekly "0 0 9 * * MON"    # every Monday at 9am
+
+Supported patterns:
+  hourly, daily, weekly, monthly, yearly
+  every hour, every day, every monday
+  every day at 9am, every monday at 3pm
+  every 5 minutes, every 2 hours`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			agent := args[0]
+			scheduleInput := args[1]
+			ctx := cmd.Context()
+
+			// Parse natural language to cron
+			schedule, err := cli.ParseSchedule(scheduleInput)
+			if err != nil {
+				return err
+			}
+
+			client, err := connectToDaemon(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			params := daemon.TriggerRegisterParams{
+				Type:     "cron",
+				Agent:    agent,
+				Prompt:   prompt,
+				Schedule: schedule,
+			}
+
+			result, err := client.TriggerRegister(ctx, params)
+			if err != nil {
+				return fmt.Errorf("register trigger: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result.Trigger)
+			}
+
+			if globalOutput.Quiet {
+				fmt.Println(result.Trigger.ID)
+				return nil
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render("✓ Created trigger: " + result.Trigger.ID))
+			fmt.Printf("  Type:     cron\n")
+			fmt.Printf("  Agent:    %s\n", agent)
+			if scheduleInput != schedule {
+				// Show both natural language and parsed cron
+				fmt.Printf("  Schedule: %s (%s)\n", scheduleInput, schedule)
+			} else {
+				fmt.Printf("  Schedule: %s\n", schedule)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&prompt, "prompt", "p", "", "prompt to pass to agent when triggered")
+
+	return cmd
+}
+
+func watchCmd() *cobra.Command {
+	var (
+		prompt    string
+		recursive bool
+		events    []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "watch <path> <agent> [patterns...]",
+		Short: "Create a filesystem watch trigger",
+		Long: `Create a trigger that wakes an agent when files change.
+
+Examples:
+  # Watch directory for any changes
+  ayo trigger watch ./src @build
+
+  # Watch for specific file patterns
+  ayo trigger watch ./src @build "*.go" "*.mod"
+
+  # Watch recursively with events filter
+  ayo trigger watch ./docs @docs "*.md" --recursive --events modify,create`,
+		Args: cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := args[0]
+			agent := args[1]
+			patterns := args[2:]
+			ctx := cmd.Context()
+
+			client, err := connectToDaemon(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			params := daemon.TriggerRegisterParams{
+				Type:      "watch",
+				Agent:     agent,
+				Prompt:    prompt,
+				Path:      path,
+				Patterns:  patterns,
+				Recursive: recursive,
+				Events:    events,
+			}
+
+			result, err := client.TriggerRegister(ctx, params)
+			if err != nil {
+				return fmt.Errorf("register trigger: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result.Trigger)
+			}
+
+			if globalOutput.Quiet {
+				fmt.Println(result.Trigger.ID)
+				return nil
+			}
+
+			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			fmt.Println(successStyle.Render("✓ Created trigger: " + result.Trigger.ID))
+			fmt.Printf("  Type:  watch\n")
+			fmt.Printf("  Agent: %s\n", agent)
+			fmt.Printf("  Path:  %s\n", path)
+			if len(patterns) > 0 {
+				fmt.Printf("  Patterns: %s\n", strings.Join(patterns, ", "))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&prompt, "prompt", "p", "", "prompt to pass to agent when triggered")
+	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "watch subdirectories")
+	cmd.Flags().StringSliceVar(&events, "events", nil, "events to trigger on: create, modify, delete")
+
+	return cmd
+}
+
+// resolveTriggerID resolves a trigger ID from a query (full ID or prefix).
+// If query is empty, shows a picker or auto-selects if only one trigger exists.
+func resolveTriggerID(ctx context.Context, client *daemon.Client, query string, title string) (string, error) {
+	result, err := client.TriggerList(ctx)
+	if err != nil {
+		return "", cli.WrapWithSuggestion(err, "Check if service is running with 'ayo service status'")
+	}
+
+	triggers := result.Triggers
+	if len(triggers) == 0 {
+		return "", &cli.CLIError{
+			Brief:      "No triggers registered",
+			Suggestion: "Create one with 'ayo trigger schedule @agent \"0 * * * * *\"'",
+			Code:       cli.ExitNotFound,
+		}
+	}
+
+	// If query provided, do prefix matching
+	if query != "" {
+		var matches []daemon.TriggerInfo
+		for _, t := range triggers {
+			if t.ID == query || strings.HasPrefix(t.ID, query) {
+				matches = append(matches, t)
+			}
+		}
+
+		if len(matches) == 0 {
+			return "", cli.ErrTriggerNotFound(query)
+		}
+		if len(matches) == 1 {
+			return matches[0].ID, nil
+		}
+		// Multiple prefix matches - use picker
+		triggers = matches
+	}
+
+	// Auto-select if only one trigger
+	if len(triggers) == 1 {
+		return triggers[0].ID, nil
+	}
+
+	// Show picker for multiple triggers
+	if globalOutput.JSON || globalOutput.Quiet {
+		return "", cli.ErrInvalidInputWithSuggestion(
+			"Multiple triggers match",
+			"Specify a more specific ID prefix",
+		)
+	}
+
+	options := make([]huh.Option[string], len(triggers))
+	for i, t := range triggers {
+		config := ""
+		if t.Type == "cron" {
+			config = t.Schedule
+		} else if t.Type == "watch" {
+			config = t.Path
+		}
+		if len(config) > 20 {
+			config = config[:17] + "..."
+		}
+		label := fmt.Sprintf("%-20s %-8s %-15s %s", t.ID, t.Type, t.Agent, config)
+		options[i] = huh.NewOption(label, t.ID)
+	}
+
+	var selectedID string
+	err = huh.NewSelect[string]().
+		Title(title).
+		Options(options...).
+		Value(&selectedID).
+		Run()
+	if err != nil {
+		return "", err
+	}
+
+	return selectedID, nil
 }

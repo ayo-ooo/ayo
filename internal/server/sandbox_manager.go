@@ -8,6 +8,7 @@ import (
 	stdsync "sync"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/sandbox/mounts"
@@ -164,7 +165,6 @@ func (m *SandboxManager) ensureHostDirectories() error {
 	dirs := []string{
 		sync.HomesDir(),
 		sync.SharedDir(),
-		sync.IRCLogsDir(),
 		sync.SandboxDir() + "/workspaces",
 	}
 
@@ -254,9 +254,10 @@ func (m *SandboxManager) createPersistentSandbox(ctx context.Context) error {
 			Mode:        providers.MountModeBind,
 			ReadOnly:    false,
 		},
+		// Matrix/daemon runtime directory (socket access)
 		{
-			Source:      sync.IRCLogsDir(),
-			Destination: "/var/log/irc",
+			Source:      paths.RuntimeDir(),
+			Destination: "/run/ayo",
 			Mode:        providers.MountModeBind,
 			ReadOnly:    false,
 		},

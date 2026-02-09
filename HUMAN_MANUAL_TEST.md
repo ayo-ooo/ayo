@@ -430,6 +430,151 @@ rm -rf /tmp/sandbox-mount-test /tmp/test-mount /tmp/readonly-mount
 
 ---
 
+## 11. Matrix Communication
+
+### 11.1 Status Check
+```bash
+./ayo matrix status
+./ayo matrix status --json
+```
+- [ ] Shows Conduit status (running/stopped)
+- [ ] Shows broker connection status
+- [ ] JSON output works
+
+### 11.2 Room Management
+```bash
+# List rooms
+./ayo matrix rooms
+
+# Create a test room
+./ayo matrix create test-room
+
+# List rooms again
+./ayo matrix rooms
+```
+- [ ] Rooms listed (may be empty initially)
+- [ ] Room creation succeeds
+- [ ] New room appears in list
+
+### 11.3 Messaging
+```bash
+# Send a message to the test room
+./ayo matrix send test-room "Hello, world!"
+
+# Read messages
+./ayo matrix read test-room
+
+# Read with limit
+./ayo matrix read test-room 5
+```
+- [ ] Message sends successfully
+- [ ] Read shows sent message
+- [ ] Limit works correctly
+
+### 11.4 Room Membership
+```bash
+# Show who is in the room
+./ayo matrix who test-room
+
+# Invite another agent (if available)
+./ayo matrix invite test-room @ayo
+```
+- [ ] Who shows current member(s)
+- [ ] Invite works (or shows appropriate error if agent doesn't exist)
+
+### 11.5 Matrix from Sandbox
+```bash
+# Enter sandbox login shell
+./ayo sandbox login
+
+# Inside sandbox, verify socket mount
+ls -la /run/ayo/
+
+# Test matrix commands work from sandbox
+ayo matrix status
+ayo matrix rooms
+```
+- [ ] /run/ayo/ directory exists with sockets
+- [ ] Matrix commands work from inside sandbox
+
+---
+
+## 12. Flow System
+
+### 12.1 List Flows
+```bash
+./ayo flows list
+./ayo flows list --json
+```
+- [ ] Shows available flows
+- [ ] JSON output works
+
+### 12.2 Create Shell Flow
+```bash
+./ayo flows new test-flow
+cat ~/.config/ayo/flows/test-flow.sh
+```
+- [ ] Flow file created
+- [ ] Has ayo:flow frontmatter
+- [ ] Has shebang and set -euo pipefail
+
+### 12.3 Run Shell Flow
+```bash
+./ayo flows run test-flow '{"message": "hello"}'
+```
+- [ ] Flow executes
+- [ ] Output is JSON
+
+### 12.4 Create YAML Flow
+```bash
+cat > /tmp/test-yaml-flow.yaml << 'EOF'
+version: 1
+name: test-yaml-flow
+description: Test multi-step flow
+steps:
+  - id: step1
+    type: shell
+    run: echo "Hello from step 1"
+  - id: step2
+    type: shell
+    run: echo "Step 2 received: {{ steps.step1.stdout }}"
+    depends_on: [step1]
+EOF
+```
+- [ ] YAML file created with valid syntax
+
+### 12.5 Validate Flow
+```bash
+./ayo flows validate /tmp/test-yaml-flow.yaml
+```
+- [ ] Shows valid or errors
+
+### 12.6 Flow History
+```bash
+./ayo flows history
+./ayo flows history --flow test-flow
+```
+- [ ] Shows run history
+- [ ] Filter by flow works
+
+### 12.7 Flow Stats
+```bash
+./ayo flows stats
+./ayo flows stats test-flow
+```
+- [ ] Shows execution statistics
+- [ ] Per-flow stats work
+
+### 12.8 Remove Flow
+```bash
+./ayo flows rm test-flow --force
+./ayo flows list
+```
+- [ ] Flow removed
+- [ ] No longer in list
+
+---
+
 ## Cleanup
 
 ```bash
@@ -454,6 +599,8 @@ rm -rf /tmp/test-workdir /tmp/testfile.txt /tmp/pulled-file.txt
 | Agent Execution | | |
 | Sessions | | |
 | Debug Scripts | | |
+| Matrix Communication | | |
+| Flow System | | |
 
 **Issues Found:**
 - 

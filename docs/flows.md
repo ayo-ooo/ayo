@@ -1,10 +1,13 @@
 # Flows Guide
 
-Flows are composable agent pipelines - shell scripts with structured frontmatter that orchestrate agent calls. They are the unit of work that external systems invoke.
+Flows are composable agent pipelines that orchestrate multi-step workflows. There are two flow types:
+
+- **Shell Flows** (`.sh`): Bash scripts with JSON I/O frontmatter
+- **YAML Flows** (`.yaml`): Declarative multi-step workflows with dependencies, parallel execution, and templates
 
 ## Quick Start
 
-### Create Your First Flow
+### Create Your First Shell Flow
 
 ```bash
 # Create a simple flow
@@ -41,6 +44,192 @@ echo '{"message": "Hello, world!"}' | ayo flows run my-first-flow
 
 # Run with input file
 ayo flows run my-first-flow -i input.json
+```
+
+---
+
+## YAML Flows
+
+YAML flows provide a declarative way to define multi-step workflows with:
+
+- **Step dependencies** - control execution order
+- **Parallel execution** - independent steps run concurrently
+- **Template variables** - reference outputs from previous steps
+- **Conditional execution** - run steps based on conditions
+- **Built-in triggers** - cron schedules and file watchers
+
+### Create a YAML Flow
+
+```yaml
+# ~/.config/ayo/flows/daily-report.yaml
+version: 1
+name: daily-report
+description: Generate a daily project status report
+
+steps:
+  - id: git-status
+    type: shell
+    run: git log --oneline --since="1 day ago"
+
+  - id: test-results
+    type: shell
+    run: go test ./... -json 2>&1 | tail -20
+
+  - id: generate-report
+    type: agent
+    agent: "@ayo"
+    prompt: |
+      Generate a daily report from this data:
+      
+      Recent commits:
+      {{ steps.git-status.stdout }}
+      
+      Test results:
+      {{ steps.test-results.stdout }}
+      
+      Return JSON with: headline, summary, action_items
+    depends_on: [git-status, test-results]
+```
+
+### YAML Flow Structure
+
+```yaml
+version: 1                          # Schema version (required)
+name: flow-name                     # Flow identifier (required)
+description: What the flow does     # Human description
+
+params:                             # Optional input parameters
+  param-name:
+    type: string
+    default: "value"
+    required: true
+
+env:                                # Environment variables
+  MY_VAR: "value"
+  FROM_PARAM: "{{ params.param-name }}"
+
+triggers:                           # Optional auto-triggers
+  - type: cron
+    schedule: "0 9 * * *"           # Daily at 9am
+  - type: watch
+    path: ./src
+    patterns: ["*.go"]
+
+steps:                              # Execution steps (required)
+  - id: step-id                     # Unique step identifier
+    type: shell | agent             # Step type
+    # ... type-specific fields
+```
+
+### Step Types
+
+#### Shell Steps
+
+Execute shell commands:
+
+```yaml
+- id: build
+  type: shell
+  run: go build -o app ./cmd/...
+  workdir: /path/to/project         # Optional working directory
+  env:                              # Step-specific environment
+    GOOS: linux
+```
+
+#### Agent Steps
+
+Invoke an AI agent:
+
+```yaml
+- id: analyze
+  type: agent
+  agent: "@ayo"
+  prompt: |
+    Analyze this code and suggest improvements.
+    {{ steps.read-code.stdout }}
+```
+
+### Dependencies and Parallel Execution
+
+Steps run in parallel unless they have dependencies:
+
+```yaml
+steps:
+  # These run in parallel
+  - id: step-a
+    type: shell
+    run: echo "A"
+
+  - id: step-b
+    type: shell
+    run: echo "B"
+
+  # This waits for both A and B
+  - id: step-c
+    type: shell
+    run: echo "C after A and B"
+    depends_on: [step-a, step-b]
+```
+
+### Template Variables
+
+Reference data from previous steps and parameters:
+
+| Template | Description |
+|----------|-------------|
+| `{{ steps.ID.stdout }}` | Standard output from step |
+| `{{ steps.ID.stderr }}` | Standard error from step |
+| `{{ steps.ID.exit_code }}` | Exit code (0 = success) |
+| `{{ params.NAME }}` | Input parameter value |
+| `{{ env.VAR }}` | Environment variable |
+
+### Conditional Execution
+
+Run steps only when conditions are met:
+
+```yaml
+- id: deploy
+  type: shell
+  run: ./deploy.sh
+  when: "{{ steps.test.exit_code == 0 }}"
+  depends_on: [test]
+```
+
+### Triggers
+
+Define how flows are automatically triggered:
+
+#### Cron Triggers
+
+```yaml
+triggers:
+  - type: cron
+    schedule: "*/30 * * * *"        # Every 30 minutes
+    enabled: true
+```
+
+#### Watch Triggers
+
+```yaml
+triggers:
+  - type: watch
+    path: ./src
+    patterns: ["*.go", "*.mod"]
+    events: [create, modify]
+    debounce: 5s
+```
+
+### Running YAML Flows
+
+```bash
+# Run by name
+ayo flows run daily-report
+
+# With parameters
+ayo flows run my-flow --param key=value
+
+# Validate before running
+ayo flows validate daily-report.yaml
 ```
 
 ---

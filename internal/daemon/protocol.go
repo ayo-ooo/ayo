@@ -356,3 +356,214 @@ type TriggerSetEnabledParams struct {
 	ID      string `json:"id"`
 	Enabled bool   `json:"enabled"`
 }
+
+// Matrix method names
+const (
+	MethodMatrixStatus       = "matrix.status"
+	MethodMatrixRoomsList    = "matrix.rooms.list"
+	MethodMatrixRoomsCreate  = "matrix.rooms.create"
+	MethodMatrixRoomsMembers = "matrix.rooms.members"
+	MethodMatrixRoomsInvite  = "matrix.rooms.invite"
+	MethodMatrixRoomsJoin    = "matrix.rooms.join"
+	MethodMatrixRoomsLeave   = "matrix.rooms.leave"
+	MethodMatrixSend         = "matrix.send"
+	MethodMatrixRead         = "matrix.read"
+	MethodMatrixReadStream   = "matrix.read.stream"
+)
+
+// MatrixStatusResult is the response to matrix.status.
+type MatrixStatusResult struct {
+	Conduit ConduitStatus `json:"conduit"`
+	Broker  BrokerStatus  `json:"broker"`
+}
+
+// MatrixRoomsListParams is the request for matrix.rooms.list.
+type MatrixRoomsListParams struct {
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// MatrixRoomsListResult is the response to matrix.rooms.list.
+type MatrixRoomsListResult struct {
+	Rooms []*RoomInfo `json:"rooms"`
+}
+
+// MatrixRoomsCreateParams is the request for matrix.rooms.create.
+type MatrixRoomsCreateParams struct {
+	Name      string   `json:"name"`
+	SessionID string   `json:"session_id,omitempty"`
+	Invite    []string `json:"invite,omitempty"`
+}
+
+// MatrixRoomsCreateResult is the response to matrix.rooms.create.
+type MatrixRoomsCreateResult struct {
+	RoomID string `json:"room_id"`
+}
+
+// MatrixRoomsMembersParams is the request for matrix.rooms.members.
+type MatrixRoomsMembersParams struct {
+	RoomID string `json:"room_id"`
+}
+
+// MatrixRoomsMembersResult is the response to matrix.rooms.members.
+type MatrixRoomsMembersResult struct {
+	Members []MemberInfo `json:"members"`
+}
+
+// MemberInfo represents a room member.
+type MemberInfo struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	IsAgent     bool   `json:"is_agent"`
+	Handle      string `json:"handle,omitempty"`
+}
+
+// MatrixRoomsInviteParams is the request for matrix.rooms.invite.
+type MatrixRoomsInviteParams struct {
+	RoomID string `json:"room_id"`
+	Handle string `json:"handle"`
+}
+
+// MatrixRoomsJoinParams is the request for matrix.rooms.join.
+type MatrixRoomsJoinParams struct {
+	RoomID string `json:"room_id"`
+	Handle string `json:"handle"`
+}
+
+// MatrixRoomsLeaveParams is the request for matrix.rooms.leave.
+type MatrixRoomsLeaveParams struct {
+	RoomID string `json:"room_id"`
+	Handle string `json:"handle"`
+}
+
+// MatrixSendParams is the request for matrix.send.
+type MatrixSendParams struct {
+	RoomID  string `json:"room_id"`
+	Content string `json:"content"`
+	AsAgent string `json:"as_agent,omitempty"`
+	ReplyTo string `json:"reply_to,omitempty"`
+	Format  string `json:"format,omitempty"` // "plain" or "markdown"
+}
+
+// MatrixSendResult is the response to matrix.send.
+type MatrixSendResult struct {
+	EventID string `json:"event_id"`
+}
+
+// MatrixReadParams is the request for matrix.read.
+type MatrixReadParams struct {
+	RoomID string `json:"room_id"`
+	Limit  int    `json:"limit,omitempty"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+}
+
+// MatrixReadResult is the response to matrix.read.
+type MatrixReadResult struct {
+	Messages []*QueuedMessage `json:"messages"`
+	HasMore  bool             `json:"has_more"`
+	Start    string           `json:"start,omitempty"`
+	End      string           `json:"end,omitempty"`
+}
+
+// MatrixReadStreamParams is the request for matrix.read.stream.
+type MatrixReadStreamParams struct {
+	RoomID  string `json:"room_id"`
+	Timeout int    `json:"timeout,omitempty"`
+	Since   string `json:"since,omitempty"`
+}
+
+// Flow method names
+const (
+	MethodFlowRun     = "flow.run"
+	MethodFlowList    = "flow.list"
+	MethodFlowGet     = "flow.get"
+	MethodFlowHistory = "flow.history"
+)
+
+// FlowRunParams is the request for flow.run.
+type FlowRunParams struct {
+	FlowName   string         `json:"flow_name"`
+	Params     map[string]any `json:"params,omitempty"`
+	Timeout    int            `json:"timeout,omitempty"` // seconds
+	Async      bool           `json:"async,omitempty"`   // return immediately with run ID
+	SessionID  string         `json:"session_id,omitempty"`
+}
+
+// FlowRunResult is the response to flow.run.
+type FlowRunResult struct {
+	RunID     string                    `json:"run_id"`
+	FlowName  string                    `json:"flow_name"`
+	Status    string                    `json:"status"`
+	Steps     map[string]*FlowStepResult `json:"steps,omitempty"`
+	StartTime int64                     `json:"start_time"`
+	EndTime   int64                     `json:"end_time,omitempty"`
+	Duration  int64                     `json:"duration_ms,omitempty"`
+	Error     string                    `json:"error,omitempty"`
+}
+
+// FlowStepResult represents a single step's execution result.
+type FlowStepResult struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	Stdout    string `json:"stdout,omitempty"`
+	Stderr    string `json:"stderr,omitempty"`
+	Output    string `json:"output,omitempty"`
+	ExitCode  int    `json:"exit_code,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Skipped   bool   `json:"skipped,omitempty"`
+	Duration  int64  `json:"duration_ms"`
+}
+
+// FlowListParams is the request for flow.list.
+type FlowListParams struct {
+	Source string `json:"source,omitempty"` // filter by source: built-in, user, project
+}
+
+// FlowListResult is the response to flow.list.
+type FlowListResult struct {
+	Flows []FlowInfo `json:"flows"`
+}
+
+// FlowInfo represents flow metadata.
+type FlowInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source"`
+	Path        string `json:"path"`
+	Version     int    `json:"version,omitempty"`
+	IsYAML      bool   `json:"is_yaml"`
+	StepCount   int    `json:"step_count,omitempty"`
+}
+
+// FlowGetParams is the request for flow.get.
+type FlowGetParams struct {
+	Name string `json:"name"`
+}
+
+// FlowGetResult is the response to flow.get.
+type FlowGetResult struct {
+	Flow FlowInfo `json:"flow"`
+}
+
+// FlowHistoryParams is the request for flow.history.
+type FlowHistoryParams struct {
+	FlowName string `json:"flow_name,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+}
+
+// FlowHistoryResult is the response to flow.history.
+type FlowHistoryResult struct {
+	Runs []FlowRunSummary `json:"runs"`
+}
+
+// FlowRunSummary is a summary of a flow run for history.
+type FlowRunSummary struct {
+	RunID     string `json:"run_id"`
+	FlowName  string `json:"flow_name"`
+	Status    string `json:"status"`
+	StartTime int64  `json:"start_time"`
+	EndTime   int64  `json:"end_time,omitempty"`
+	Duration  int64  `json:"duration_ms,omitempty"`
+	Error     string `json:"error,omitempty"`
+}

@@ -25,10 +25,11 @@ For each test section:
 6. [Service Operations](#6-service-operations)
 7. [Trigger System](#7-trigger-system)
 8. [Sessions and Persistence](#8-sessions-and-persistence)
-9. [IRC Inter-Agent Communication](#9-irc-inter-agent-communication)
+9. [Matrix Inter-Agent Communication](#9-matrix-inter-agent-communication)
 10. [Backup and Sync](#10-backup-and-sync)
 11. [Error Recovery](#11-error-recovery)
 12. [Full System Teardown](#12-full-system-teardown)
+13. [Flow System](#13-flow-system)
 
 ---
 
@@ -799,53 +800,106 @@ ayo sessions list
 
 ---
 
-## 9. IRC Inter-Agent Communication
+## 9. Matrix Inter-Agent Communication
 
-### 9.1 Verify IRC Server Running
+### 9.1 Verify Matrix/Conduit Running
 
-**Precondition:** Sandbox running
-
-**Execution:**
-```bash
-./debug/irc-status.sh 2>/dev/null || ayo sandbox exec pgrep ngircd
-```
-
-**Verification:**
-- IRC server process exists OR
-- IRC not configured (document this)
-
-### 9.2 Check IRC Configuration
+**Precondition:** Sandbox service running
 
 **Execution:**
 ```bash
-ayo sandbox exec cat /etc/ngircd.conf 2>/dev/null || echo "No ngircd config"
+ayo matrix status
+ayo matrix status --json
 ```
 
 **Verification:**
-- Configuration exists OR
-- Feature not implemented
+- Conduit server status shown (running/stopped)
+- Broker connection status shown
+- JSON output format valid
 
-### 9.3 Check IRC Ports
+### 9.2 Room Management
 
 **Execution:**
 ```bash
-ayo sandbox exec netstat -tlnp 2>/dev/null | grep 6667 || echo "Port 6667 not listening"
+# List existing rooms
+ayo matrix rooms
+
+# Create a test room
+ayo matrix create test-agent-room
+
+# List rooms again
+ayo matrix rooms
 ```
 
 **Verification:**
-- Port 6667 listening OR
-- Feature not implemented
+- Initial room list displayed (may be empty)
+- Room creation succeeds with confirmation
+- New room appears in list
 
-### 9.4 Agent IRC Users
+### 9.3 Messaging
 
 **Execution:**
 ```bash
-ayo sandbox exec cat /etc/passwd | grep agent-
+# Send a message
+ayo matrix send test-agent-room "Test message from agent"
+
+# Read messages
+ayo matrix read test-agent-room
+
+# Read with limit
+ayo matrix read test-agent-room 5
 ```
 
 **Verification:**
-- Agent users exist
-- User naming convention correct
+- Message sends successfully
+- Read shows the sent message
+- Limit parameter works correctly
+
+### 9.4 Room Membership
+
+**Execution:**
+```bash
+# Show room members
+ayo matrix who test-agent-room
+
+# Invite another agent (if available)
+ayo matrix invite test-agent-room @ayo
+```
+
+**Verification:**
+- Current members listed
+- Invite works or shows appropriate error
+
+### 9.5 Matrix from Inside Sandbox
+
+**Execution:**
+```bash
+# Login to sandbox
+ayo sandbox login
+
+# Inside sandbox, verify socket mount exists
+ls -la /run/ayo/
+
+# Test matrix commands work from sandbox
+ayo matrix status
+ayo matrix rooms
+
+# Exit sandbox
+exit
+```
+
+**Verification:**
+- /run/ayo/ directory exists with sockets
+- Matrix commands work from inside sandbox
+- Socket communication successful
+
+### 9.6 Cleanup Matrix Test Artifacts
+
+**Cleanup:**
+```bash
+# No persistent cleanup needed - rooms persist for future tests
+# Or manually delete room if cleanup desired
+```
 
 ---
 
@@ -1004,6 +1058,144 @@ rm -f /tmp/ayo-test-*
 **Verification:**
 - Temp files removed
 - Clean filesystem state
+
+---
+
+## 13. Flow System
+
+### 13.1 List Flows (Initial State)
+
+**Execution:**
+```bash
+ayo flows list
+ayo flows list --json
+```
+
+**Verification:**
+- Shows available flows (may be empty)
+- JSON output format valid
+
+### 13.2 Create Shell Flow
+
+**Execution:**
+```bash
+ayo flows new test-agent-flow
+cat ~/.config/ayo/flows/test-agent-flow.sh
+```
+
+**Verification:**
+- Flow file created at expected path
+- Has ayo:flow frontmatter header
+- Has shebang and set -euo pipefail
+
+### 13.3 Run Shell Flow
+
+**Execution:**
+```bash
+ayo flows run test-agent-flow '{"message": "hello from agent"}'
+```
+
+**Verification:**
+- Flow executes successfully
+- Output is JSON format
+- No errors in execution
+
+### 13.4 Create YAML Flow
+
+**Setup:**
+```bash
+cat > /tmp/test-yaml-flow.yaml << 'EOF'
+version: 1
+name: test-yaml-flow
+description: Test multi-step flow
+
+steps:
+  - id: step1
+    type: shell
+    run: echo "Hello from step 1"
+
+  - id: step2
+    type: shell
+    run: echo "Step 2 received: {{ steps.step1.stdout }}"
+    depends_on: [step1]
+
+  - id: step3
+    type: shell
+    run: echo "Final output"
+    depends_on: [step2]
+EOF
+```
+
+**Verification:**
+- YAML file created with valid syntax
+- All steps defined correctly
+
+### 13.5 Validate YAML Flow
+
+**Execution:**
+```bash
+ayo flows validate /tmp/test-yaml-flow.yaml
+```
+
+**Verification:**
+- Shows validation result (valid or errors)
+- Identifies any structural issues
+
+### 13.6 Flow History
+
+**Execution:**
+```bash
+ayo flows history
+ayo flows history --flow test-agent-flow
+```
+
+**Verification:**
+- Shows run history
+- Filter by flow name works
+
+### 13.7 Flow Stats
+
+**Execution:**
+```bash
+ayo flows stats
+ayo flows stats test-agent-flow
+```
+
+**Verification:**
+- Shows execution statistics
+- Per-flow stats work correctly
+
+### 13.8 Flow Triggers
+
+**Execution:**
+```bash
+# List flows that have triggers defined
+ayo flows list --with-triggers 2>/dev/null || ayo flows list
+```
+
+**Verification:**
+- Flows with triggers identified OR
+- Feature shows in listing
+
+### 13.9 Remove Flow
+
+**Execution:**
+```bash
+ayo flows rm test-agent-flow --force
+ayo flows list
+```
+
+**Verification:**
+- Flow removed from list
+- No longer appears
+
+### 13.10 Cleanup Flow Artifacts
+
+**Cleanup:**
+```bash
+rm -f /tmp/test-yaml-flow.yaml
+ayo flows rm test-agent-flow 2>/dev/null || true
+```
 
 ---
 

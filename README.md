@@ -29,6 +29,8 @@ ayo -a main.go "review this code"
 - **Plugins**: Extend with community packages
 - **Sandbox**: Isolated execution environments for secure command running
 - **Daemon**: Background service for managing sandbox lifecycles
+- **Matrix**: Secure inter-agent communication via Conduit homeserver
+- **Flows**: Multi-step workflows with shell scripts or YAML step definitions
 
 ## Architecture
 
@@ -212,9 +214,27 @@ ayo memory stats                 # Show memory statistics
 ayo flows list                   # List all flows
 ayo flows show <name>            # Show flow details
 ayo flows run <name> [input]     # Execute a flow
-ayo flows new <name>             # Create new flow
+ayo flows new <name>             # Create new shell flow
+ayo flows validate <file>        # Validate YAML flow
 ayo flows history                # Show run history
+ayo flows stats                  # Show execution statistics
 ayo flows replay <run-id>        # Replay a previous run
+```
+
+**Flow Types:**
+- **Shell flows** (`.sh`): Simple bash scripts with JSON I/O
+- **YAML flows** (`.yaml`): Multi-step workflows with dependencies, parallel execution, and templates
+
+### Matrix Communication
+
+```bash
+ayo matrix status                # Show Conduit server status
+ayo matrix rooms                 # List available rooms
+ayo matrix create <room>         # Create a new room
+ayo matrix send <room> <msg>     # Send message to room
+ayo matrix read <room> [limit]   # Read messages from room
+ayo matrix who <room>            # List room members
+ayo matrix invite <room> <agent> # Invite agent to room
 ```
 
 ### Plugins

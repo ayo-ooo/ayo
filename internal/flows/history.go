@@ -235,6 +235,100 @@ func (h *HistoryService) CountRunsByStatus(ctx context.Context, status RunStatus
 	return h.queries.CountFlowRunsByStatus(ctx, string(status))
 }
 
+// FlowStats contains statistics for a flow.
+type FlowStats struct {
+	FlowName     string        `json:"flow_name"`
+	TotalRuns    int64         `json:"total_runs"`
+	SuccessCount int64         `json:"success_count"`
+	FailedCount  int64         `json:"failed_count"`
+	SuccessRate  float64       `json:"success_rate"`
+	AvgDuration  time.Duration `json:"avg_duration_ms"`
+	LastRun      *FlowRun      `json:"last_run,omitempty"`
+}
+
+// GetStats calculates statistics for a specific flow or all flows.
+func (h *HistoryService) GetStats(ctx context.Context, flowName string) (*FlowStats, error) {
+	stats := &FlowStats{FlowName: flowName}
+
+	// Get runs for calculation
+	var runs []*FlowRun
+	var err error
+
+	if flowName != "" {
+		runs, err = h.ListRuns(ctx, RunFilter{FlowName: flowName, Limit: 1000})
+	} else {
+		runs, err = h.ListRuns(ctx, RunFilter{Limit: 1000})
+		stats.FlowName = "(all flows)"
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if len(runs) == 0 {
+		return stats, nil
+	}
+
+	var totalDuration int64
+	for _, run := range runs {
+		stats.TotalRuns++
+		if run.Status == RunStatusSuccess {
+			stats.SuccessCount++
+		} else if run.Status == RunStatusFailed {
+			stats.FailedCount++
+		}
+		if run.DurationMs > 0 {
+			totalDuration += run.DurationMs
+		}
+	}
+
+	if stats.TotalRuns > 0 {
+		stats.SuccessRate = float64(stats.SuccessCount) / float64(stats.TotalRuns) * 100
+	}
+
+	completedRuns := stats.SuccessCount + stats.FailedCount
+	if completedRuns > 0 {
+		stats.AvgDuration = time.Duration(totalDuration/completedRuns) * time.Millisecond
+	}
+
+	// Get last run
+	if flowName != "" {
+		lastRun, err := h.GetLastRun(ctx, flowName)
+		if err == nil {
+			stats.LastRun = lastRun
+		}
+	} else if len(runs) > 0 {
+		stats.LastRun = runs[0] // Already sorted by time desc
+	}
+
+	return stats, nil
+}
+
+// GetAllFlowStats returns statistics for all flows with runs.
+func (h *HistoryService) GetAllFlowStats(ctx context.Context) ([]*FlowStats, error) {
+	// Get all runs to determine unique flow names
+	runs, err := h.ListRuns(ctx, RunFilter{Limit: 10000})
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by flow name
+	flowNames := make(map[string]bool)
+	for _, run := range runs {
+		flowNames[run.FlowName] = true
+	}
+
+	var allStats []*FlowStats
+	for name := range flowNames {
+		stats, err := h.GetStats(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		allStats = append(allStats, stats)
+	}
+
+	return allStats, nil
+}
+
 // Helper functions
 
 func toNullString(s string) sql.NullString {

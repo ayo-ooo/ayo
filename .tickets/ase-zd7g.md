@@ -1,6 +1,6 @@
 ---
 id: ase-zd7g
-status: open
+status: closed
 deps: [ase-qsc7]
 links: []
 created: 2026-02-09T03:13:00Z

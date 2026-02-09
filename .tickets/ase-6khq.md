@@ -1,6 +1,6 @@
 ---
 id: ase-6khq
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-07T03:24:58Z

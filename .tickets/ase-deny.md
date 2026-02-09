@@ -1,6 +1,6 @@
 ---
 id: ase-deny
-status: open
+status: closed
 deps: [ase-0oyk]
 links: []
 created: 2026-02-09T03:11:13Z

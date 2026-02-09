@@ -1,6 +1,6 @@
 ---
 id: ase-gmur
-status: open
+status: closed
 deps: [ase-pp2z, ase-ij0d]
 links: []
 created: 2026-02-09T03:13:37Z

@@ -17,6 +17,7 @@ var (
 	ErrGitNotFound       = errors.New("git is not installed or not in PATH")
 	ErrCloneFailed       = errors.New("failed to clone repository")
 	ErrDependencyMissing = errors.New("required dependency is missing")
+	ErrSecurityScanFailed = errors.New("security scan failed")
 )
 
 // InstallOptions configures plugin installation behavior.
@@ -29,13 +30,17 @@ type InstallOptions struct {
 
 	// SkipDependencyCheck skips checking for required binaries.
 	SkipDependencyCheck bool
+
+	// SkipSecurityScan skips the security scan (dangerous - use with caution).
+	SkipSecurityScan bool
 }
 
 // InstallResult contains information about a successful installation.
 type InstallResult struct {
-	Plugin      *InstalledPlugin
-	Manifest    *Manifest
-	MissingDeps []BinaryDep // Dependencies that are missing (with install hints)
+	Plugin       *InstalledPlugin
+	Manifest     *Manifest
+	MissingDeps  []BinaryDep   // Dependencies that are missing (with install hints)
+	SecurityScan *ScanResult   // Security scan results (nil if skipped)
 }
 
 // Install installs a plugin from a git repository.
@@ -89,6 +94,21 @@ func Install(pluginRef string, opts *InstallOptions) (*InstallResult, error) {
 		return nil, fmt.Errorf("%w: %v", ErrCloneFailed, err)
 	}
 
+	// Run security scan unless skipped
+	var scanResult *ScanResult
+	if !opts.SkipSecurityScan {
+		scanner := NewSecurityScanner()
+		scanResult, err = scanner.Scan(pluginDir)
+		if err != nil {
+			os.RemoveAll(pluginDir)
+			return nil, fmt.Errorf("security scan error: %w", err)
+		}
+		if !scanResult.Allowed {
+			os.RemoveAll(pluginDir)
+			return nil, fmt.Errorf("%w: %s (use --force to skip security scan)", ErrSecurityScanFailed, scanResult.Reason)
+		}
+	}
+
 	// Load and validate manifest
 	manifest, err := LoadManifest(pluginDir)
 	if err != nil {
@@ -132,9 +152,10 @@ func Install(pluginRef string, opts *InstallOptions) (*InstallResult, error) {
 	}
 
 	return &InstallResult{
-		Plugin:      plugin,
-		Manifest:    manifest,
-		MissingDeps: missingDeps,
+		Plugin:       plugin,
+		Manifest:     manifest,
+		MissingDeps:  missingDeps,
+		SecurityScan: scanResult,
 	}, nil
 }
 
@@ -175,6 +196,20 @@ func getGitCommit(repoDir string) (string, error) {
 func InstallFromLocal(localPath string, opts *InstallOptions) (*InstallResult, error) {
 	if opts == nil {
 		opts = &InstallOptions{}
+	}
+
+	// Run security scan on source directory unless skipped
+	var scanResult *ScanResult
+	if !opts.SkipSecurityScan {
+		scanner := NewSecurityScanner()
+		var err error
+		scanResult, err = scanner.Scan(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("security scan error: %w", err)
+		}
+		if !scanResult.Allowed {
+			return nil, fmt.Errorf("%w: %s (use --force to skip security scan)", ErrSecurityScanFailed, scanResult.Reason)
+		}
 	}
 
 	// Load and validate manifest from local path
@@ -259,9 +294,10 @@ func InstallFromLocal(localPath string, opts *InstallOptions) (*InstallResult, e
 	}
 
 	return &InstallResult{
-		Plugin:      plugin,
-		Manifest:    manifest,
-		MissingDeps: missingDeps,
+		Plugin:       plugin,
+		Manifest:     manifest,
+		MissingDeps:  missingDeps,
+		SecurityScan: scanResult,
 	}, nil
 }
 

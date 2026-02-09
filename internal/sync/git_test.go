@@ -25,7 +25,6 @@ func TestSubdirectories(t *testing.T) {
 	}{
 		{"HomesDir", HomesDir, "homes"},
 		{"SharedDir", SharedDir, "shared"},
-		{"IRCLogsDir", IRCLogsDir, "irc-logs"},
 	}
 
 	for _, tt := range tests {
@@ -66,7 +65,7 @@ func TestInit(t *testing.T) {
 	}
 
 	// Check directories were created
-	dirs := []string{"homes", "shared", "irc-logs"}
+	dirs := []string{"homes", "shared"}
 	for _, dir := range dirs {
 		path := filepath.Join(tmpDir, dir)
 		if _, err := os.Stat(path); os.IsNotExist(err) {

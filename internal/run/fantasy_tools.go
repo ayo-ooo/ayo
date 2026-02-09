@@ -14,11 +14,13 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/alexcabrera/ayo/internal/capabilities"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/tools"
+	"github.com/alexcabrera/ayo/internal/tools/findagent"
 )
 
 // Tool parameter types for Fantasy
@@ -112,12 +114,13 @@ type FantasyToolSet struct {
 
 // ToolSetOptions configures the Fantasy tool set.
 type ToolSetOptions struct {
-	AllowedTools    []string
-	BaseDir         string
-	MemoryQueue     *memory.Queue
-	Depth           int
-	DisableTodo     bool
-	SandboxExecutor *sandbox.Executor
+	AllowedTools       []string
+	BaseDir            string
+	MemoryQueue        *memory.Queue
+	Depth              int
+	DisableTodo        bool
+	SandboxExecutor    *sandbox.Executor
+	CapabilitySearcher *capabilities.CapabilitySearcher // Optional for find_agent tool
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
@@ -195,6 +198,14 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 		case "memory":
 			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(opts.MemoryQueue))
 			loadedTools[resolvedName] = true
+		case "find_agent":
+			// Only add if capability searcher is configured
+			if opts.CapabilitySearcher != nil {
+				fantasyTools = append(fantasyTools, findagent.NewFindAgentTool(findagent.ToolConfig{
+					Searcher: opts.CapabilitySearcher,
+				}))
+				loadedTools[resolvedName] = true
+			}
 		default:
 			// Try to load as external tool from plugins
 			if tool := loadExternalTool(resolvedName, baseDir, opts.Depth, &cfg); tool != nil {

@@ -176,7 +176,7 @@ func TestSandboxManager_MountsConfigured(t *testing.T) {
 		destinations[m.Destination] = true
 	}
 
-	required := []string{"/home", "/shared", "/workspaces", "/var/log/irc"}
+	required := []string{"/home", "/shared", "/workspaces", "/run/ayo"}
 	for _, dest := range required {
 		if !destinations[dest] {
 			t.Errorf("Expected mount for %q", dest)

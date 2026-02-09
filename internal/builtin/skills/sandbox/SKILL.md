@@ -58,7 +58,7 @@ The sandbox provides a consistent directory structure for all agents:
 | `/shared/` | Shared files between all agents | World-writable (sticky bit) |
 | `/workspaces/{session-id}/` | Current session workspace | Session-specific |
 | `/mnt/host/` | Mounted host files | Read-only or read-write |
-| `/var/log/irc/` | IRC channel logs | Read-only |
+| `/run/ayo/` | Daemon socket for Matrix communication | Read-write |
 
 ### Session Workspace Subdirectories
 

@@ -311,11 +311,11 @@ Examples:
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
 	cmd.AddCommand(newSandboxCmd(&cfgPath))
-	cmd.AddCommand(newMessagesCmd())
 	cmd.AddCommand(newMountCmd())
 	cmd.AddCommand(newBackupCmd())
 	cmd.AddCommand(newSyncCmd())
-	cmd.AddCommand(newTriggersCmd())
+	cmd.AddCommand(newTriggerCmd())
+	cmd.AddCommand(newMatrixCmd())
 
 	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
 	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))
