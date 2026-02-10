@@ -38,7 +38,6 @@ func newRootCmd() *cobra.Command {
 	var modelOverride string
 	var sessionID string
 	var continueSession bool
-	var sessionMounts []string
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -199,7 +198,6 @@ Examples:
 					SmallModel:       smallModelSvc,
 					MemoryQueue:      memQueue,
 					SandboxProvider:  selectSandboxProvider(),
-					SessionMounts:    sessionMounts,
 				})
 				if err != nil {
 					return err
@@ -297,7 +295,6 @@ Examples:
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
 	cmd.Flags().BoolVarP(&continueSession, "continue", "c", false, "continue the most recent session")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a specific session by ID")
-	cmd.Flags().StringSliceVar(&sessionMounts, "mount", nil, "mount a directory for this session (can be repeated)")
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))
@@ -311,7 +308,7 @@ Examples:
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
 	cmd.AddCommand(newServeCmd(&cfgPath))
 	cmd.AddCommand(newSandboxCmd(&cfgPath))
-	cmd.AddCommand(newMountCmd())
+	cmd.AddCommand(newShareCmd())
 	cmd.AddCommand(newBackupCmd())
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newTriggerCmd())

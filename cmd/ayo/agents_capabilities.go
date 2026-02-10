@@ -110,7 +110,7 @@ func showAgentCapabilities(ctx context.Context, cfg config.Config, repo *capabil
 			InputHash    string    `json:"input_hash,omitempty"`
 		}
 
-		out := output{Agent: "@" + handle}
+		out := output{Agent: handle}
 		for _, cap := range caps {
 			out.Capabilities = append(out.Capabilities, capJSON{
 				Name:        cap.Name,
@@ -164,13 +164,13 @@ func showAgentCapabilities(ctx context.Context, cfg config.Config, repo *capabil
 	}
 
 	fmt.Println()
-	fmt.Println("  " + headerStyle.Render("Capabilities for ") + handleStyle.Render("@"+handle))
+	fmt.Println("  " + headerStyle.Render("Capabilities for ") + handleStyle.Render(handle))
 	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
 	fmt.Println()
 
 	if len(caps) == 0 {
 		fmt.Println(mutedStyle.Render("  No capabilities inferred yet."))
-		fmt.Println(mutedStyle.Render("  Run: ayo agents capabilities refresh @" + handle))
+		fmt.Println(mutedStyle.Render("  Run: ayo agent capabilities refresh " + handle))
 		fmt.Println()
 		return nil
 	}
@@ -278,7 +278,7 @@ func listAllCapabilities(ctx context.Context, cfg config.Config, repo *capabilit
 	}
 
 	for agentID, agentCaps := range byAgent {
-		fmt.Printf("  %s\n", handleStyle.Render("@"+agentID))
+		fmt.Printf("  %s\n", handleStyle.Render(agentID))
 		for _, cap := range agentCaps {
 			fmt.Printf("    • %s (%.2f)\n", cap.Name, cap.Confidence)
 		}
@@ -358,7 +358,7 @@ func searchCapabilities(ctx context.Context, cfg config.Config, repo *capabiliti
 	}
 
 	for agentID, agentCaps := range byAgent {
-		fmt.Printf("  %s\n", handleStyle.Render("@"+agentID))
+		fmt.Printf("  %s\n", handleStyle.Render(agentID))
 		for _, cap := range agentCaps {
 			fmt.Printf("    %s: %s\n", cap.Name, descStyle.Render(capTruncate(cap.Description, 50)))
 		}
@@ -447,7 +447,7 @@ Examples:
 					}
 
 					if !globalOutput.Quiet {
-						fmt.Printf("  ✓ Refreshed @%s: %d capabilities\n", handle, len(result.Capabilities))
+						fmt.Printf("  ✓ Refreshed %s: %d capabilities\n", handle, len(result.Capabilities))
 					}
 				}
 

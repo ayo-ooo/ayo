@@ -45,9 +45,9 @@ var (
 
 func newPluginsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "plugins",
+		Use:     "plugin",
 		Short:   "Manage plugins",
-		Aliases: []string{"plugin"},
+		Aliases: []string{"plugins"},
 		Long: `Manage plugins that extend ayo with additional agents, skills, and tools.
 
 Plugins are distributed via git repositories with the naming convention:

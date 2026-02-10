@@ -11,7 +11,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
-	"github.com/alexcabrera/ayo/internal/sandbox/mounts"
 	"github.com/alexcabrera/ayo/internal/sync"
 )
 
@@ -165,6 +164,7 @@ func (m *SandboxManager) ensureHostDirectories() error {
 	dirs := []string{
 		sync.HomesDir(),
 		sync.SharedDir(),
+		sync.WorkspaceDir(),
 		sync.SandboxDir() + "/workspaces",
 	}
 
@@ -249,6 +249,12 @@ func (m *SandboxManager) createPersistentSandbox(ctx context.Context) error {
 			ReadOnly:    false,
 		},
 		{
+			Source:      sync.WorkspaceDir(),
+			Destination: "/workspace",
+			Mode:        providers.MountModeBind,
+			ReadOnly:    false,
+		},
+		{
 			Source:      sync.SandboxDir() + "/workspaces",
 			Destination: "/workspaces",
 			Mode:        providers.MountModeBind,
@@ -261,24 +267,6 @@ func (m *SandboxManager) createPersistentSandbox(ctx context.Context) error {
 			Mode:        providers.MountModeBind,
 			ReadOnly:    false,
 		},
-	}
-
-	// Add mounts from persistent grants (ayo mount add)
-	grants, grantsErr := mounts.LoadGrants()
-	if grantsErr != nil {
-		m.logger.Warn("could not load grants", "error", grantsErr)
-	} else {
-		grantMounts := grants.ToProviderMounts()
-		m.logger.Info("loaded grants", "count", len(grantMounts))
-		for _, gm := range grantMounts {
-			m.logger.Info("adding grant mount", "source", gm.Source, "dest", gm.Destination, "readonly", gm.ReadOnly)
-			mountList = append(mountList, providers.Mount{
-				Source:      gm.Source,
-				Destination: gm.Destination,
-				Mode:        providers.MountModeBind,
-				ReadOnly:    gm.ReadOnly,
-			})
-		}
 	}
 
 	sb, err := m.provider.Create(ctx, providers.SandboxCreateOptions{

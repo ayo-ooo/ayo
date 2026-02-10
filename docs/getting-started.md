@@ -2,6 +2,8 @@
 
 This guide will help you install ayo and start using AI agents in your terminal.
 
+> **Want the full picture?** See the [Tutorial](TUTORIAL.md) for a comprehensive introduction to the philosophy, architecture, and practice of agent-based computing with Ayo.
+
 ## Installation
 
 ### From Source (Go)
@@ -176,10 +178,11 @@ ayo sessions continue
 
 ## Next Steps
 
+- [Tutorial](TUTORIAL.md) - Deep dive into philosophy and architecture
 - [Create your first agent](agents.md#creating-agents)
 - [Learn about skills](skills.md)
 - [Set up memory](memory.md)
-- [Install plugins](plugins.md) for additional capabilities
+- [Understand the sandbox](TUTORIAL.md#chapter-5-the-sandbox-isolation-and-safety)
 - [CLI Reference](cli-reference.md) for all commands
 
 ## Troubleshooting

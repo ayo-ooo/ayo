@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
+	ayosync "github.com/alexcabrera/ayo/internal/sync"
 	"github.com/alexcabrera/ayo/internal/version"
 )
 
@@ -54,6 +55,38 @@ func DefaultServerConfig() ServerConfig {
 			Name:    "daemon",
 			MinSize: 1,
 			MaxSize: 4,
+			Mounts: []providers.Mount{
+				{
+					Source:      ayosync.HomesDir(),
+					Destination: "/home",
+					Mode:        providers.MountModeBind,
+					ReadOnly:    false,
+				},
+				{
+					Source:      ayosync.SharedDir(),
+					Destination: "/shared",
+					Mode:        providers.MountModeBind,
+					ReadOnly:    false,
+				},
+				{
+					Source:      ayosync.WorkspaceDir(),
+					Destination: "/workspace",
+					Mode:        providers.MountModeBind,
+					ReadOnly:    false,
+				},
+				{
+					Source:      ayosync.SandboxDir() + "/workspaces",
+					Destination: "/workspaces",
+					Mode:        providers.MountModeBind,
+					ReadOnly:    false,
+				},
+				{
+					Source:      paths.RuntimeDir(),
+					Destination: "/run/ayo",
+					Mode:        providers.MountModeBind,
+					ReadOnly:    false,
+				},
+			},
 		},
 		IdleTimeout: 30 * time.Minute,
 	}
@@ -132,6 +165,11 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0755); err != nil {
 		return fmt.Errorf("create socket dir: %w", err)
+	}
+
+	// Ensure runtime directory exists (for sandbox mounts)
+	if err := os.MkdirAll(paths.RuntimeDir(), 0755); err != nil {
+		return fmt.Errorf("create runtime dir: %w", err)
 	}
 
 	// Start listening

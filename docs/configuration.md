@@ -40,7 +40,12 @@ Both stored in `%LOCALAPPDATA%\ayo\`
 │   └── debugging/
 ├── plugins/                      # Installed plugins
 │   └── research/
+├── sandbox/                      # Sandbox data
+│   ├── homes/                    # Agent home directories
+│   ├── shared/                   # Shared workspace
+│   └── workspace/                # Host directory shares
 ├── ayo.db                        # SQLite database (sessions, memories)
+├── shares.json                   # Shared directory configuration
 ├── packages.json                 # Plugin registry
 └── .builtin-version              # Version marker
 ```

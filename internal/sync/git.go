@@ -34,6 +34,12 @@ func SharedDir() string {
 	return filepath.Join(SandboxDir(), "shared")
 }
 
+// WorkspaceDir returns the directory for user-shared files within sandbox.
+// This directory contains symlinks to host paths that users have shared.
+func WorkspaceDir() string {
+	return filepath.Join(SandboxDir(), "workspace")
+}
+
 // IsInitialized checks if the sandbox directory has been initialized as a git repo.
 func IsInitialized() bool {
 	gitDir := filepath.Join(SandboxDir(), ".git")
@@ -55,6 +61,7 @@ func Init() error {
 	dirs := []string{
 		HomesDir(),
 		SharedDir(),
+		WorkspaceDir(),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

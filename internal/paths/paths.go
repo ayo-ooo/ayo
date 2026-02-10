@@ -620,22 +620,16 @@ func FlowsDirs() []string {
 }
 
 // RuntimeDir returns the runtime directory for ephemeral files (sockets, PIDs).
-// Unix: /tmp/ayo or $XDG_RUNTIME_DIR/ayo
-// Windows: %TEMP%\ayo
+// All platforms: uses DataDir()/run to keep everything consolidated.
 func RuntimeDir() string {
-	if runtime.GOOS == "windows" {
-		return filepath.Join(os.TempDir(), "ayo")
-	}
-	// Try XDG_RUNTIME_DIR first (more secure on Linux)
-	if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
-		return filepath.Join(xdg, "ayo")
-	}
-	return "/tmp/ayo"
+	return filepath.Join(DataDir(), "run")
 }
 
 // DaemonSocket returns the path to the daemon Unix socket.
+// Note: The actual daemon socket path is defined in daemon.DefaultSocketPath()
+// which uses DataDir()/daemon.sock for historical reasons.
 func DaemonSocket() string {
-	return filepath.Join(RuntimeDir(), "daemon.sock")
+	return filepath.Join(DataDir(), "daemon.sock")
 }
 
 // MatrixDataDir returns the directory for Matrix/Conduit data.

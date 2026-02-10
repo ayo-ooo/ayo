@@ -1,6 +1,21 @@
 # `ayo` - Agents You Orchestrate
 
-`ayo` is a command-line tool for running AI agents that can execute tasks, use tools, and chain together via Unix pipes.
+`ayo` is a command-line framework for creating, managing, and orchestrating AI agents that operate within your computing environment.
+
+## Philosophy
+
+Ayo extends the Unix philosophy to agent-based computing:
+
+| Principle | Application |
+|-----------|-------------|
+| Do one thing well | Each agent has a focused purpose |
+| Text streams as interface | JSON flows between agents via pipes |
+| Small tools, composed | Simple agents combine into complex workflows |
+| Files as universal abstraction | Agents are directories with configuration files |
+| Isolation by default | Agents run in sandboxes, not on the host |
+| Trust is explicit | Permissions are granted, not assumed |
+
+**New to Ayo?** Start with the [Tutorial](docs/TUTORIAL.md) for a comprehensive introduction to the philosophy, architecture, and practice of agent-based computing.
 
 ## Quick Start
 
@@ -8,7 +23,10 @@
 # Install
 go install github.com/alexcabrera/ayo/cmd/ayo@latest
 
-# Start chatting (built-ins install automatically)
+# Configure API key
+export ANTHROPIC_API_KEY="sk-..."  # or OPENAI_API_KEY, etc.
+
+# Start chatting
 ayo
 
 # Single prompt
@@ -20,83 +38,83 @@ ayo -a main.go "review this code"
 
 ## Features
 
-- **Agents**: AI assistants with custom prompts and tool access
-- **Skills**: Reusable instruction sets following the [agentskills spec](https://agentskills.org)
-- **Tools**: Execute shell commands, delegate tasks, track todos
-- **Memory**: Persistent facts and preferences across sessions
-- **Sessions**: Resume previous conversations
-- **Chaining**: Compose agents via Unix pipes
-- **Plugins**: Extend with community packages
-- **Sandbox**: Isolated execution environments for secure command running
-- **Daemon**: Background service for managing sandbox lifecycles
-- **Matrix**: Secure inter-agent communication via Conduit homeserver
-- **Flows**: Multi-step workflows with shell scripts or YAML step definitions
+| Feature | Description |
+|---------|-------------|
+| **Agents** | AI assistants with custom prompts and tool access |
+| **Skills** | Reusable instruction sets following the [agentskills spec](https://agentskills.org) |
+| **Tools** | Execute shell commands, delegate tasks, manage memory |
+| **Memory** | Persistent facts and preferences across sessions |
+| **Sessions** | Resume previous conversations |
+| **Chaining** | Compose agents via Unix pipes with JSON schemas |
+| **Delegation** | Route task types to specialist agents |
+| **Sandbox** | Isolated execution environments (Apple Container / systemd-nspawn) |
+| **Flows** | Multi-step workflows with shell scripts or YAML definitions |
+| **Triggers** | Automated execution via cron, file watchers, webhooks |
+| **Plugins** | Extend with community packages |
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         ayo CLI                             │
-├─────────────────────────────────────────────────────────────┤
-│  @ayo (default agent)                                       │
-│  ├── bash tool      Execute shell commands                  │
-│  ├── agent_call     Delegate to other agents                │
-│  ├── todo           Track multi-step tasks                  │
-│  └── skills         Instruction sets (ayo, debugging, etc.) │
-├─────────────────────────────────────────────────────────────┤
-│  Sessions           Persist conversation history            │
-│  Memory             Store facts/preferences across sessions │
-│  Plugins            Extend with community packages          │
-│  Sandbox            Isolated execution environments         │
-│  Daemon             Background service for sandbox mgmt     │
-├─────────────────────────────────────────────────────────────┤
-│  Fantasy            Provider-agnostic LLM abstraction       │
-│  (OpenAI, Anthropic, Google, OpenRouter)                    │
+│                          HOST                                │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  ayo CLI                                               │  │
+│  │  • LLM API calls (Fantasy abstraction layer)          │  │
+│  │  • Memory management (SQLite + embeddings)            │  │
+│  │  • Session persistence                                 │  │
+│  │  • Agent orchestration                                 │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                              │                               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Daemon (background service)                           │  │
+│  │  • Sandbox pool management                             │  │
+│  │  • Trigger engine (cron, watch, webhook)               │  │
+│  │  • Inter-agent communication (Matrix/Conduit)          │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                              │                               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  SANDBOX CONTAINER                                     │  │
+│  │  • Command execution (bash tool)                       │  │
+│  │  • File operations                                     │  │
+│  │  • Isolated from host filesystem                       │  │
+│  │  • Per-agent home directories                          │  │
+│  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Directory Structure
 
 ```
-~/.config/ayo/                    # User configuration
-├── ayo.json                      # Main config file
+~/.config/ayo/                    # Configuration
+├── ayo.json                      # Main config
 ├── agents/                       # User-defined agents
 │   └── @myagent/
 │       ├── config.json
-│       ├── system.md
-│       └── skills/
-└── skills/                       # User-defined shared skills
-    └── my-skill/
-        └── SKILL.md
+│       └── system.md
+├── skills/                       # User-defined skills
+├── flows/                        # User-defined flows
+└── prompts/                      # prefix.md, suffix.md
 
-~/.local/share/ayo/               # Data and built-ins
-├── ayo.db                        # Sessions and memories (SQLite)
-├── agents/                       # Built-in agents (@ayo)
+~/.local/share/ayo/               # Data
+├── ayo.db                        # SQLite (sessions, memory)
+├── shares.json                   # Shared directories
+├── agents/                       # Built-in agents
 ├── skills/                       # Built-in skills
-└── plugins/                      # Installed plugins
-```
-
-## Built-in Agent
-
-| Agent | Description |
-|-------|-------------|
-| `@ayo` | Default versatile assistant |
-
-`@ayo` handles all tasks including agent/skill creation and management. Just ask:
-
-```bash
-ayo "help me create an agent for code review"
-ayo "create a skill for debugging Go code"
+├── plugins/                      # Installed plugins
+└── sandbox/                      # Sandbox data
+    ├── homes/                    # Agent home directories
+    └── workspace/                # Host directory shares
 ```
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
+| **[Tutorial](docs/TUTORIAL.md)** | **Comprehensive guide: philosophy, architecture, and practice** |
 | [Getting Started](docs/getting-started.md) | Installation and first steps |
 | [Agents](docs/agents.md) | Creating and managing agents |
 | [Skills](docs/skills.md) | Extending agents with instructions |
-| [Tools](docs/tools.md) | Tool system (bash, todo, etc.) |
+| [Tools](docs/tools.md) | Tool system (bash, memory, delegation) |
 | [Flows](docs/flows.md) | Composable agent pipelines |
 | [Memory](docs/memory.md) | Persistent facts and preferences |
 | [Sessions](docs/sessions.md) | Conversation persistence |
@@ -110,29 +128,22 @@ ayo "create a skill for debugging Go code"
 
 ### Create an Agent
 
-Ask `@ayo` to help design your agent:
-
 ```bash
+# Interactive (recommended)
 ayo "help me create an agent for code review"
-```
 
-Or use the CLI directly:
-
-```bash
+# Direct CLI
 ayo agents create @reviewer \
-  -m gpt-5.2 \
+  -m claude-sonnet-4-20250514 \
   -d "Reviews code for best practices" \
   -f ~/prompts/reviewer.md
 ```
 
-### Install a Plugin
+### Agent Chaining
 
 ```bash
-# Add research capabilities
-ayo plugins install https://github.com/alexcabrera/ayo-plugins-research
-
-# Use the new agent
-ayo @research "latest developments in AI"
+# Type-safe pipeline with JSON schemas
+ayo @analyzer '{"files":["main.go"]}' | ayo @reporter
 ```
 
 ### Configure Delegation
@@ -151,190 +162,77 @@ EOF
 ayo "refactor the auth module"
 ```
 
-### Chain Agents
+### Run a Flow
 
 ```bash
-# Pipe output between agents with structured I/O
-ayo @analyzer '{"code":"..."}' | ayo @reporter
+# Create and run a shell flow
+ayo flows new daily-summary
+ayo flows run daily-summary '{"project": "."}'
 ```
 
 ## CLI Overview
 
-### Chat
-
 ```bash
-ayo @ayo                         # Interactive chat with @ayo
-ayo "prompt"                     # Single prompt with @ayo
-ayo @agent "prompt"              # Single prompt with specific agent
-ayo -a file.txt "analyze this"  # Attach file to prompt
+# Chat
+ayo                              # Interactive with @ayo
+ayo @agent "prompt"              # Single prompt
+ayo -a file.txt "analyze"        # With attachment
+ayo -c "follow up"               # Continue session
+
+# Agents
+ayo agents list                  # List agents
+ayo agents show @name            # Show details
+ayo agents create @name          # Create agent
+
+# Flows
+ayo flows list                   # List flows
+ayo flows run name [input]       # Run flow
+ayo flows new name               # Create flow
+
+# Sandbox
+ayo sandbox list                 # List sandboxes
+ayo sandbox exec command         # Execute in sandbox
+ayo share ~/Code/project         # Share directory
+
+# Memory
+ayo memory search "query"        # Semantic search
+ayo memory store "fact"          # Store memory
+
+# System
+ayo setup                        # Initial setup
+ayo doctor                       # Health check
+ayo sandbox service start        # Start daemon
 ```
 
-### Agents
+## Sandbox Providers
 
-```bash
-ayo agents list                  # List all agents
-ayo agents show @name            # Show agent details
-ayo agents create @name          # Create new agent
-ayo agents update                # Update built-in agents
-```
+| Provider | Platform | Technology |
+|----------|----------|------------|
+| Apple Container | macOS 26+ (Apple Silicon) | Native containerization |
+| systemd-nspawn | Linux with systemd | systemd containers |
+| None | Fallback | Host execution (no isolation) |
 
-### Skills
-
-```bash
-ayo skills list                  # List all skills
-ayo skills show <name>           # Show skill details
-ayo skills create <name>         # Create new skill
-ayo skills update                # Update built-in skills
-```
-
-### Sessions
-
-```bash
-ayo sessions list                # List conversation sessions
-ayo sessions show <id>           # Show session details
-ayo sessions continue            # Resume a session (interactive picker)
-ayo sessions continue -l         # Resume most recent session
-ayo sessions delete <id>         # Delete a session
-```
-
-### Memory
-
-```bash
-ayo memory list                  # List all memories
-ayo memory search "query"        # Search memories semantically
-ayo memory show <id>             # Show memory details
-ayo memory store "content"       # Store a new memory
-ayo memory forget <id>           # Forget a memory
-ayo memory stats                 # Show memory statistics
-```
-
-### Flows
-
-```bash
-ayo flows list                   # List all flows
-ayo flows show <name>            # Show flow details
-ayo flows run <name> [input]     # Execute a flow
-ayo flows new <name>             # Create new shell flow
-ayo flows validate <file>        # Validate YAML flow
-ayo flows history                # Show run history
-ayo flows stats                  # Show execution statistics
-ayo flows replay <run-id>        # Replay a previous run
-```
-
-**Flow Types:**
-- **Shell flows** (`.sh`): Simple bash scripts with JSON I/O
-- **YAML flows** (`.yaml`): Multi-step workflows with dependencies, parallel execution, and templates
-
-### Matrix Communication
-
-```bash
-ayo matrix status                # Show Conduit server status
-ayo matrix rooms                 # List available rooms
-ayo matrix create <room>         # Create a new room
-ayo matrix send <room> <msg>     # Send message to room
-ayo matrix read <room> [limit]   # Read messages from room
-ayo matrix who <room>            # List room members
-ayo matrix invite <room> <agent> # Invite agent to room
-```
-
-### Plugins
-
-```bash
-ayo plugins install <url>        # Install plugin from git
-ayo plugins list                 # List installed plugins
-ayo plugins show <name>          # Show plugin details
-ayo plugins update               # Update all plugins
-ayo plugins remove <name>        # Remove a plugin
-```
-
-### Chaining
-
-```bash
-ayo chain ls                     # List chainable agents
-ayo chain inspect @agent         # Show agent schemas
-ayo chain from @agent            # Find compatible downstream agents
-ayo chain to @agent              # Find compatible upstream agents
-ayo chain validate @agent <json> # Validate input against schema
-ayo chain example @agent         # Generate example input
-```
-
-### Server & Web Client
-
-```bash
-ayo serve                        # Start HTTP API server
-ayo serve --port 8080            # Start on specific port
-ayo serve --host 0.0.0.0         # Allow external connections
-```
-
-Connect from the **[Web Client](https://alexcabrera.github.io/ayo-client-web/)** by scanning the QR code or entering the URL and token shown in the terminal.
-
-### System
-
-```bash
-ayo setup                        # Install/update built-ins
-ayo setup -f                     # Force reinstall
-ayo doctor                       # Check system health
-ayo doctor -v                    # Verbose with model list
-ayo status                       # Show daemon and system status
-```
-
-### Sandbox Service
-
-```bash
-ayo sandbox service start        # Start service in background
-ayo sandbox service start -f     # Start in foreground (for debugging)
-ayo sandbox service stop         # Stop the service
-ayo sandbox service status       # Show service status
-```
-
-The sandbox service manages sandbox lifecycles, pool management, and IPC for sandbox operations.
-
-### Sandbox Commands
-
-```bash
-ayo sandbox list                 # List active sandboxes
-ayo sandbox show                 # Show sandbox details (picker if multiple)
-ayo sandbox show --id <id>       # Show specific sandbox
-ayo sandbox exec <cmd>           # Execute command in sandbox
-ayo sandbox login                # Open interactive shell
-ayo sandbox push <src> <dest>    # Copy file to sandbox
-ayo sandbox pull <src> <dest>    # Copy file from sandbox
-ayo sandbox diff <sb> <host>     # Show differences
-ayo sandbox sync <sb> <host>     # Sync changes back to host
-ayo sandbox stop                 # Stop a sandbox
-ayo sandbox prune                # Remove stopped sandboxes
-```
-
-### Mount Management
-
-Mounts grant sandboxed agents persistent access to host filesystem paths. Project-level mounts (`.ayo.json`) can only restrict access to already-granted paths.
-
-```bash
-ayo mount add <path>             # Grant read-write access
-ayo mount add <path> --ro        # Grant read-only access
-ayo mount add ~/Documents        # Supports ~ expansion
-ayo mount list                   # List all grants
-ayo mount list --json            # JSON output
-ayo mount rm <path>              # Remove specific grant
-ayo mount rm --all               # Remove all grants
-```
+The provider is auto-selected based on platform. Verify with `ayo doctor`.
 
 ## Configuration
 
-Config file: `~/.config/ayo/ayo.json`
+**Main config**: `~/.config/ayo/ayo.json`
 
 ```json
 {
-  "default_model": "gpt-5.2",
-  "provider": { "name": "openai" }
+  "default_model": "claude-sonnet-4-20250514",
+  "provider": {"name": "anthropic"},
+  "delegates": {
+    "coding": "@crush"
+  }
 }
 ```
 
-Required: Set an API key environment variable:
+**Required**: Set an API key environment variable:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-# or ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY
+export ANTHROPIC_API_KEY="sk-..."
+# or OPENAI_API_KEY, GOOGLE_API_KEY, OPENROUTER_API_KEY
 ```
 
 ## System Health
@@ -344,73 +242,6 @@ ayo doctor      # Check dependencies and configuration
 ayo doctor -v   # Verbose output with model list
 ```
 
-## Sandbox Execution (Experimental)
+## License
 
-Sandbox mode runs agent commands in isolated containers for security and reproducibility.
-
-### Enabling Sandbox Mode
-
-Configure an agent for sandbox execution in its `config.json`:
-
-```json
-{
-  "sandbox": {
-    "enabled": true,
-    "image": "busybox:stable",
-    "mounts": [
-      {"host": ".", "container": "/workspace", "readonly": false}
-    ],
-    "network": true
-  }
-}
-```
-
-### Sandbox Providers
-
-| Provider | Status | Requirements |
-|----------|--------|--------------|
-| Apple Container | Available | macOS 26+, Apple Silicon |
-| systemd-nspawn | Available | Linux with systemd |
-| None | Available | Fallback (no isolation) |
-
-### How It Works
-
-1. Daemon starts (auto-started on first sandbox operation)
-2. Agent requests sandbox via IPC
-3. Container is created with configured mounts
-4. Commands execute in the container
-5. Sandbox is released when session ends
-
-### Sandbox Commands
-
-```bash
-ayo status                       # Check service status
-ayo sandbox service start        # Start service manually
-ayo sandbox service stop         # Stop service
-ayo sandbox list                 # List active sandboxes
-ayo sandbox exec <cmd>           # Execute command in sandbox
-```
-
-## Offline Web Client (Experimental)
-
-Try ayo directly in your browser with no installation required:
-
-**[Launch ayo Offline Demo](https://alexcabrera.github.io/ayo/)**
-
-The offline web client runs entirely in your browser using:
-- **WebLLM** for local model inference (requires WebGPU)
-- **TinyEMU** for Linux shell access via WebAssembly
-- **IndexedDB** for persistent storage
-
-### Features
-- Chat with AI using local models or cloud API keys
-- Full Linux terminal with BusyBox tools
-- File editor for the browser-based filesystem
-- Works offline after initial load
-
-### Requirements
-- Chrome 113+ or Edge 113+ (for WebGPU)
-- 4GB+ available memory
-- For local models: GPU with 2-8GB VRAM
-
-See [Offline Mode User Guide](docs/user-guide.md) for details.
+MIT

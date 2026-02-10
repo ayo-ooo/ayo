@@ -19,7 +19,9 @@ type DiscoveryOptions struct {
 	// BuiltinDir is the directory for installed built-in skills (~/.local/share/ayo/skills).
 	BuiltinDir string
 
-	// IncludeSkills limits discovery to only these skill names (empty = all).
+	// IncludeSkills limits discovery to only these skill names.
+	// For agent loading, this is required (empty = none loaded).
+	// For listing all skills, use DiscoverWithSources directly.
 	IncludeSkills []string
 	// ExcludeSkills excludes these skill names from discovery.
 	ExcludeSkills []string

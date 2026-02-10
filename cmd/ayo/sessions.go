@@ -29,8 +29,8 @@ var _ = cli.Output{}
 
 func newSessionsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "sessions",
-		Aliases: []string{"session"},
+		Use:     "session",
+		Aliases: []string{"sessions"},
 		Short:   "Manage conversation sessions",
 		Long: `Manage conversation sessions stored in the local database.
 

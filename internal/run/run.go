@@ -19,7 +19,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
-	sandboxmounts "github.com/alexcabrera/ayo/internal/sandbox/mounts"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
@@ -39,7 +38,6 @@ type Runner struct {
 	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
 	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
-	sessionMounts    []string                 // session-scoped mounts from CLI
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -81,7 +79,6 @@ type RunnerOptions struct {
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
 	StreamWriter     StreamWriter               // Unified stream writer interface
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
-	SessionMounts    []string                   // Session-scoped mounts from CLI --mount flags
 }
 
 // NewRunner creates a runner with all options.
@@ -98,7 +95,6 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		memoryQueue:      opts.MemoryQueue,
 		streamWriter:     opts.StreamWriter,
 		sandboxProvider:  opts.SandboxProvider,
-		sessionMounts:    opts.SessionMounts,
 	}, nil
 }
 
@@ -132,12 +128,6 @@ func (r *Runner) StartMemoryQueue() {
 		r.memoryQueue.Start()
 	}
 }
-
-// SessionMounts returns the session-scoped mounts from CLI flags.
-func (r *Runner) SessionMounts() []string {
-	return r.sessionMounts
-}
-
 
 // Chat sends a message in an interactive session, maintaining conversation history.
 func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string, error) {
@@ -776,34 +766,6 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 			Mode:        providers.MountModeVirtioFS,
 			ReadOnly:    false,
 		}}
-
-		// Add mounts from persistent grants (ayo mount add)
-		grants, grantsErr := sandboxmounts.LoadGrants()
-		if grantsErr != nil {
-			if r.debug {
-				fmt.Fprintf(os.Stderr, "[sandbox] Warning: could not load grants: %v\n", grantsErr)
-			}
-		} else {
-			for _, gm := range grants.ToProviderMounts() {
-				// Skip if already covered by baseDir mount
-				if gm.Source == baseDir || strings.HasPrefix(gm.Source, baseDir+string(filepath.Separator)) {
-					continue
-				}
-				mounts = append(mounts, providers.Mount{
-					Source:      gm.Source,
-					Destination: gm.Destination,
-					Mode:        providers.MountModeVirtioFS,
-					ReadOnly:    gm.ReadOnly,
-				})
-				if r.debug {
-					mode := "rw"
-					if gm.ReadOnly {
-						mode = "ro"
-					}
-					fmt.Fprintf(os.Stderr, "[sandbox] Mounting granted path %s (%s)\n", gm.Source, mode)
-				}
-			}
-		}
 
 		// Add persistent home directory mount if enabled
 		if ag.Config.Sandbox.PersistHomeEnabled() && sandboxUser != "" {

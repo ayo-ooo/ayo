@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
@@ -21,9 +22,9 @@ var _ = cli.Output{}
 
 func newSkillsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "skills",
+		Use:     "skill",
 		Short:   "Manage skills",
-		Aliases: []string{"skill"},
+		Aliases: []string{"skills"},
 		Long: `Manage skills that extend agent capabilities.
 
 Skills are instruction sets that teach agents specialized tasks.
@@ -59,11 +60,22 @@ func listSkillsCmd(cfgPath *string) *cobra.Command {
 					return fmt.Errorf("install builtins: %w", err)
 				}
 
-				// Discover all skills with proper source tagging
-				result := skills.DiscoverAll(skills.DiscoveryOptions{
-					UserSharedDir: cfg.SkillsDir,
-					BuiltinDir:    builtin.SkillsInstallDir(),
+				// Build source list for discovery (bypasses include filter)
+				var sources []skills.SkillSourceDir
+				if cfg.SkillsDir != "" {
+					sources = append(sources, skills.SkillSourceDir{
+						Path:   cfg.SkillsDir,
+						Source: skills.SourceUserShared,
+						Label:  "user",
+					})
+				}
+				sources = append(sources, skills.SkillSourceDir{
+					Path:   builtin.SkillsInstallDir(),
+					Source: skills.SourceBuiltIn,
+					Label:  "builtin",
 				})
+
+				result := skills.DiscoverWithSources(sources)
 
 				if len(result.Skills) == 0 {
 					fmt.Println("No skills found.")
@@ -199,10 +211,27 @@ func showSkillCmd(cfgPath *string) *cobra.Command {
 					return fmt.Errorf("install builtins: %w", err)
 				}
 
-				// Discover all skills
-				result := skills.DiscoverAll(skills.DiscoveryOptions{
-					SharedDirs: paths.SkillsDirs(),
+				// Build source list for discovery (bypasses include filter)
+				builtinDir := builtin.SkillsInstallDir()
+				var sources []skills.SkillSourceDir
+				for _, dir := range paths.SkillsDirs() {
+					// Skip builtin dir if it appears in SkillsDirs
+					if dir == builtinDir {
+						continue
+					}
+					sources = append(sources, skills.SkillSourceDir{
+						Path:   dir,
+						Source: skills.SourceUserShared,
+						Label:  "shared",
+					})
+				}
+				sources = append(sources, skills.SkillSourceDir{
+					Path:   builtinDir,
+					Source: skills.SourceBuiltIn,
+					Label:  "builtin",
 				})
+
+				result := skills.DiscoverWithSources(sources)
 
 				// Find the skill
 				var meta *skills.Metadata
@@ -358,13 +387,18 @@ Use --agent to create an agent-specific skill in the agent's skills/ directory.`
 						handle = "@" + handle
 					}
 
-					// Find the agent
-					agentDir := filepath.Join(cfg.AgentsDir, handle)
-					if _, err := os.Stat(agentDir); os.IsNotExist(err) {
+					// Install builtins so we can find builtin agents
+					if err := builtin.Install(); err != nil {
+						return fmt.Errorf("install builtins: %w", err)
+					}
+
+					// Find the agent using the loader (checks all agent dirs)
+					ag, err := agent.Load(cfg, handle)
+					if err != nil {
 						return fmt.Errorf("agent not found: %s", handle)
 					}
 
-					skillDir = filepath.Join(agentDir, "skills", name)
+					skillDir = filepath.Join(ag.Dir, "skills", name)
 				case local:
 					// --local: create in current directory
 					cwd, err := os.Getwd()

@@ -22,9 +22,9 @@ import (
 
 func newFlowsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "flows",
+		Use:     "flow",
 		Short:   "Manage flows",
-		Aliases: []string{"flow"},
+		Aliases: []string{"flows"},
 		Long: `Manage flows - composable agent pipelines.
 
 Flows come in two types:
