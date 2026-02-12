@@ -40,7 +40,7 @@ func renderAny(b *strings.Builder, v any, depth int) {
 	}
 }
 
-func renderObject(b *strings.Builder, obj map[string]any, depth int) {
+func renderObject(b *strings.Builder, obj map[string]any, _ int) {
 	// Check for SearXNG response pattern
 	if isSearXNGResponse(obj) {
 		renderSearXNGResponse(b, obj)
@@ -104,7 +104,7 @@ func renderKeyValueTable(b *strings.Builder, obj map[string]any) {
 	b.WriteString("\n")
 }
 
-func renderArray(b *strings.Builder, arr []any, depth int) {
+func renderArray(b *strings.Builder, arr []any, _ int) {
 	if len(arr) == 0 {
 		return
 	}

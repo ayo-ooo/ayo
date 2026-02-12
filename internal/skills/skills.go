@@ -192,7 +192,7 @@ func Load(meta Metadata) (Skill, error) {
 	return Skill{Metadata: parsedMeta, Body: body}, nil
 }
 
-func parseSkill(path, dirName, content string) (Metadata, string, error) {
+func parseSkill(_, dirName, content string) (Metadata, string, error) {
 	var meta Metadata
 	parts := strings.SplitN(content, "---", 3)
 	if len(parts) < 3 || parts[0] != "" {
