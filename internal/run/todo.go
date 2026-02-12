@@ -232,8 +232,8 @@ func (t *todoTool) ProviderOptions() fantasy.ProviderOptions {
 	return fantasy.ProviderOptions{}
 }
 
-// SetProviderOptions is a no-op for this tool.
-func (t *todoTool) SetProviderOptions(opts fantasy.ProviderOptions) {}
+// SetProviderOptions satisfies fantasy.AgentTool but is unused for this tool.
+func (t *todoTool) SetProviderOptions(_ fantasy.ProviderOptions) {}
 
 // getTodos retrieves todos for a session from the database.
 func (t *todoTool) getTodos(ctx context.Context, sessionID string) ([]Todo, error) {

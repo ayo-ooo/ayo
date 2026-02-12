@@ -55,9 +55,8 @@ func (w *externalToolWrapper) ProviderOptions() fantasy.ProviderOptions {
 	return fantasy.ProviderOptions{}
 }
 
-func (w *externalToolWrapper) SetProviderOptions(opts fantasy.ProviderOptions) {
-	// Not used for external tools
-}
+// SetProviderOptions satisfies fantasy.AgentTool but is unused for external tools.
+func (w *externalToolWrapper) SetProviderOptions(_ fantasy.ProviderOptions) {}
 
 // NewExternalTool creates a Fantasy tool from a plugin tool definition.
 func NewExternalTool(def *plugins.ToolDefinition, pluginDir string, baseDir string, depth int) fantasy.AgentTool {
