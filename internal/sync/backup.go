@@ -530,9 +530,18 @@ func addDirToTarExcluding(tw *tar.Writer, srcDir, prefix string, exclude []strin
 			return nil
 		}
 
+		// Handle symlinks
+		var linkTarget string
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err = os.Readlink(path)
+			if err != nil {
+				return nil // Skip symlinks we can't read
+			}
+		}
+
 		// Create tar header
 		tarPath := filepath.Join(prefix, relPath)
-		header, err := tar.FileInfoHeader(info, "")
+		header, err := tar.FileInfoHeader(info, linkTarget)
 		if err != nil {
 			return nil
 		}
@@ -542,7 +551,8 @@ func addDirToTarExcluding(tw *tar.Writer, srcDir, prefix string, exclude []strin
 			return err
 		}
 
-		if !info.IsDir() {
+		// Only copy file contents for regular files (not symlinks or dirs)
+		if info.Mode().IsRegular() {
 			file, err := os.Open(path)
 			if err != nil {
 				return nil // Skip files we can't open

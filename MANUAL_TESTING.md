@@ -97,13 +97,13 @@ ayo agents list --type builtin
 ayo agents list --type user
 ```
 
-**Expected:** Shows built-in agents (@ayo, @code, etc.) with handles, models, and trust levels.
+**Expected:** Shows built-in agents (@ayo, @ayo, etc.) with handles, models, and trust levels.
 
 ### 3.2 Show Agent Details
 
 ```bash
 ayo agents show @ayo
-ayo agents show @code
+ayo agents show @ayo
 ```
 
 **Expected:** Displays full agent configuration including system prompt, tools, and skills.
@@ -268,7 +268,7 @@ ayo share list --json
 ayo sandbox list
 
 # Check share is visible
-ayo sandbox exec <id> ls -la /workspace/
+ayo sandbox exec --id <id> ls -la /workspace/
 ```
 
 **Expected:** Shared directories appear in `/workspace/`.
@@ -290,45 +290,9 @@ ayo share rm --all
 
 ---
 
-## 6. Mount System (Legacy)
+## 6. Sandbox Operations
 
-> **Note:** The mount system is being replaced by shares. Use shares for new workflows.
-
-### 6.1 Add Mount
-
-```bash
-# Read-write access
-ayo mount add ~/Code/project
-
-# Read-only access
-ayo mount add ~/Documents --ro
-```
-
-**Expected:** Mount grant recorded in `~/.local/share/ayo/mounts.json`.
-
-### 6.2 List Mounts
-
-```bash
-ayo mount list
-ayo mount list --json
-```
-
-**Expected:** Shows granted paths with access levels.
-
-### 6.3 Remove Mount
-
-```bash
-ayo mount rm ~/Code/project
-ayo mount rm --all
-```
-
-**Expected:** Mount grants removed.
-
----
-
-## 7. Sandbox Operations
-
-### 7.1 List Sandboxes
+### 6.1 List Sandboxes
 
 ```bash
 ayo sandbox list
@@ -337,7 +301,7 @@ ayo sandbox ls
 
 **Expected:** Shows active sandboxes with ID, status, agents, and uptime.
 
-### 7.2 Show Sandbox Details
+### 6.2 Show Sandbox Details
 
 ```bash
 ayo sandbox show --id <sandbox-id>
@@ -345,22 +309,22 @@ ayo sandbox show --id <sandbox-id>
 
 **Expected:** Detailed sandbox info including mounts, agents, and resource usage.
 
-### 7.3 Execute Commands
+### 6.3 Execute Commands
 
 ```bash
 # Run as root
-ayo sandbox exec <id> whoami
+ayo sandbox exec --id <id> whoami
 
 # Run as specific user
-ayo sandbox exec <id> -u agent-ayo whoami
+ayo sandbox exec --id <id> -u agent-ayo whoami
 
 # Run in specific directory
-ayo sandbox exec <id> -w /workspace pwd
+ayo sandbox exec --id <id> -w /workspace pwd
 ```
 
 **Expected:** Command output from inside container.
 
-### 7.4 Shell Access
+### 6.4 Shell Access
 
 ```bash
 # Non-interactive shell (for scripting)
@@ -375,50 +339,50 @@ ayo sandbox login --id <id>
 
 **Expected:** Shell access to container.
 
-### 7.5 File Transfer
+### 6.5 File Transfer
 
 ```bash
 # Create test file
 echo "test content" > /tmp/testfile.txt
 
 # Push to sandbox
-ayo sandbox push <id> /tmp/testfile.txt /tmp/testfile.txt
+ayo sandbox push --id <id> /tmp/testfile.txt /tmp/testfile.txt
 
 # Verify
-ayo sandbox exec <id> cat /tmp/testfile.txt
+ayo sandbox exec --id <id> cat /tmp/testfile.txt
 
 # Modify in sandbox
-ayo sandbox exec <id> sh -c 'echo "modified" >> /tmp/testfile.txt'
+ayo sandbox exec --id <id> sh -c 'echo "modified" >> /tmp/testfile.txt'
 
 # Pull back
-ayo sandbox pull <id> /tmp/testfile.txt /tmp/pulled.txt
+ayo sandbox pull --id <id> /tmp/testfile.txt /tmp/pulled.txt
 cat /tmp/pulled.txt
 ```
 
 **Expected:** File transfers work bidirectionally.
 
-### 7.6 Working Copy Sync
+### 6.6 Working Copy Sync
 
 ```bash
 # Share a directory first
 ayo share ~/Code/testproject --as testproject
 
 # Make changes inside sandbox
-ayo sandbox exec <id> sh -c 'echo "new file" > /workspace/testproject/newfile.txt'
+ayo sandbox exec --id <id> sh -c 'echo "new file" > /workspace/testproject/newfile.txt'
 
 # Show differences
-ayo sandbox diff <id> /workspace/testproject ~/Code/testproject
+ayo sandbox diff --id <id> /workspace/testproject ~/Code/testproject
 
 # Sync changes back (dry run first)
-ayo sandbox sync <id> /workspace/testproject ~/Code/testproject --dry-run
+ayo sandbox sync --id <id> /workspace/testproject ~/Code/testproject --dry-run
 
 # Actually sync
-ayo sandbox sync <id> /workspace/testproject ~/Code/testproject
+ayo sandbox sync --id <id> /workspace/testproject ~/Code/testproject
 ```
 
 **Expected:** Changes from sandbox synced to host.
 
-### 7.7 Resource Stats
+### 6.7 Resource Stats
 
 ```bash
 ayo sandbox stats --id <id>
@@ -426,7 +390,7 @@ ayo sandbox stats --id <id>
 
 **Expected:** Shows CPU, memory, and disk usage.
 
-### 7.8 Logs
+### 6.8 Logs
 
 ```bash
 # Recent logs
@@ -441,11 +405,11 @@ ayo sandbox logs --id <id> -n 50
 
 **Expected:** Container logs displayed.
 
-### 7.9 Multi-Agent Sandbox
+### 6.9 Multi-Agent Sandbox
 
 ```bash
 # Add another agent to existing sandbox
-ayo sandbox join <id> @code
+ayo sandbox join @ayo --id <id>
 
 # List agents in sandbox
 ayo sandbox users --id <id>
@@ -453,7 +417,7 @@ ayo sandbox users --id <id>
 
 **Expected:** Multiple agents share the sandbox.
 
-### 7.10 Lifecycle Control
+### 6.10 Lifecycle Control
 
 ```bash
 # Stop sandbox
@@ -468,7 +432,7 @@ ayo sandbox stop --id <id> --force
 
 **Expected:** Sandbox starts and stops cleanly.
 
-### 7.11 Cleanup
+### 6.11 Cleanup
 
 ```bash
 # Remove stopped sandboxes
@@ -485,9 +449,9 @@ ayo sandbox prune --homes
 
 ---
 
-## 8. Triggers
+## 7. Triggers
 
-### 8.1 List Triggers
+### 7.1 List Triggers
 
 ```bash
 ayo triggers list
@@ -495,37 +459,37 @@ ayo triggers list
 
 **Expected:** Shows registered triggers (may be empty initially).
 
-### 8.2 Create Schedule Trigger
+### 7.2 Create Schedule Trigger
 
 ```bash
-# Run every hour
-ayo triggers schedule @ayo "0 * * * *" -p "Check system status"
+# Run every hour (6-field cron: sec min hour day month weekday)
+ayo triggers schedule @ayo "0 0 * * * *" -p "Check system status"
 
 # Run daily at 9am
-ayo triggers schedule @ayo "0 9 * * *" -p "Good morning report"
+ayo triggers schedule @ayo "0 0 9 * * *" -p "Good morning report"
 ```
 
 **Expected:** Trigger created with ID.
 
-### 8.3 Create Watch Trigger
+### 7.3 Create Watch Trigger
 
 ```bash
 # Watch directory for changes
-ayo triggers watch ~/Code/project @code -p "Review changes"
+ayo triggers watch ~/Code/project @ayo -p "Review changes"
 
 # Watch with specific patterns
-ayo triggers watch ~/Code/project @code "*.go" "*.md" -p "Files changed"
+ayo triggers watch ~/Code/project @ayo "*.go" "*.md" -p "Files changed"
 
 # Watch recursively
-ayo triggers watch ~/Code/project @code -r -p "Something changed"
+ayo triggers watch ~/Code/project @ayo -r -p "Something changed"
 
 # Watch specific events
-ayo triggers watch ~/Code/project @code --events create,modify -p "New or modified files"
+ayo triggers watch ~/Code/project @ayo --events create,modify -p "New or modified files"
 ```
 
 **Expected:** Watch trigger created.
 
-### 8.4 Show Trigger Details
+### 7.4 Show Trigger Details
 
 ```bash
 ayo triggers show <trigger-id>
@@ -533,7 +497,7 @@ ayo triggers show <trigger-id>
 
 **Expected:** Full trigger configuration.
 
-### 8.5 Test Trigger
+### 7.5 Test Trigger
 
 ```bash
 ayo triggers test <trigger-id>
@@ -541,7 +505,7 @@ ayo triggers test <trigger-id>
 
 **Expected:** Trigger fires immediately (useful for debugging).
 
-### 8.6 Enable/Disable
+### 7.6 Enable/Disable
 
 ```bash
 ayo triggers disable <trigger-id>
@@ -550,7 +514,7 @@ ayo triggers enable <trigger-id>
 
 **Expected:** Trigger state changes.
 
-### 8.7 Remove Trigger
+### 7.7 Remove Trigger
 
 ```bash
 ayo triggers rm <trigger-id>
@@ -561,9 +525,9 @@ ayo triggers rm <trigger-id> --force
 
 ---
 
-## 9. Session Management
+## 8. Session Management
 
-### 9.1 Run Agent (Creates Session)
+### 8.1 Run Agent (Creates Session)
 
 ```bash
 # Interactive chat
@@ -581,7 +545,7 @@ ayo @ayo "Hello" --debug
 
 **Expected:** Agent responds, session created.
 
-### 9.2 List Sessions
+### 8.2 List Sessions
 
 ```bash
 # All sessions
@@ -596,7 +560,7 @@ ayo sessions list -n 5
 
 **Expected:** Shows session history with IDs, agents, and timestamps.
 
-### 9.3 Show Session
+### 8.3 Show Session
 
 ```bash
 # Show specific session
@@ -608,7 +572,7 @@ ayo sessions show --latest
 
 **Expected:** Full session details including messages.
 
-### 9.4 Continue Session
+### 8.4 Continue Session
 
 ```bash
 # Continue specific session
@@ -621,7 +585,7 @@ ayo sessions continue --latest
 
 **Expected:** Resumes previous conversation.
 
-### 9.5 Delete Session
+### 8.5 Delete Session
 
 ```bash
 ayo sessions delete <session-id>
@@ -630,7 +594,7 @@ ayo sessions delete --latest --force
 
 **Expected:** Session removed from history.
 
-### 9.6 Session Maintenance
+### 8.6 Session Maintenance
 
 ```bash
 # Migrate old format (if needed)
@@ -645,9 +609,9 @@ ayo sessions reindex --full
 
 ---
 
-## 10. Memory System
+## 9. Memory System
 
-### 10.1 Store Memory
+### 9.1 Store Memory
 
 ```bash
 # Basic memory
@@ -665,7 +629,7 @@ ayo memory store "This project uses pnpm" -p ~/Code/myproject
 
 **Expected:** Memory stored with auto-generated ID.
 
-### 10.2 List Memories
+### 9.2 List Memories
 
 ```bash
 # All memories
@@ -683,7 +647,7 @@ ayo memory list -n 10
 
 **Expected:** Shows memories with IDs and content previews.
 
-### 10.3 Search Memories
+### 9.3 Search Memories
 
 ```bash
 # Semantic search
@@ -698,7 +662,7 @@ ayo memory search "preferences" -n 5
 
 **Expected:** Relevant memories ranked by similarity.
 
-### 10.4 Show Memory
+### 9.4 Show Memory
 
 ```bash
 ayo memory show <memory-id>
@@ -706,7 +670,7 @@ ayo memory show <memory-id>
 
 **Expected:** Full memory details.
 
-### 10.5 Memory Topics
+### 9.5 Memory Topics
 
 ```bash
 ayo memory topics
@@ -714,7 +678,7 @@ ayo memory topics
 
 **Expected:** Shows topic clusters in memory.
 
-### 10.6 Link Memories
+### 9.6 Link Memories
 
 ```bash
 ayo memory link <id1> <id2>
@@ -722,7 +686,7 @@ ayo memory link <id1> <id2>
 
 **Expected:** Creates connection between memories.
 
-### 10.7 Merge Similar
+### 9.7 Merge Similar
 
 ```bash
 # Dry run
@@ -734,7 +698,7 @@ ayo memory merge --threshold 0.9
 
 **Expected:** Consolidates duplicate/similar memories.
 
-### 10.8 Forget Memory
+### 9.8 Forget Memory
 
 ```bash
 ayo memory forget <memory-id>
@@ -743,7 +707,7 @@ ayo memory forget <memory-id> --force
 
 **Expected:** Memory soft-deleted.
 
-### 10.9 Memory Stats
+### 9.9 Memory Stats
 
 ```bash
 ayo memory stats
@@ -752,7 +716,7 @@ ayo memory stats --json
 
 **Expected:** Shows memory counts and distribution.
 
-### 10.10 Clear Memories
+### 9.10 Clear Memories
 
 ```bash
 # Clear for specific agent
@@ -764,7 +728,7 @@ ayo memory clear --force
 
 **Expected:** Memories removed.
 
-### 10.11 Maintenance
+### 9.11 Maintenance
 
 ```bash
 ayo memory reindex
@@ -775,9 +739,9 @@ ayo memory migrate  # If upgrading from old format
 
 ---
 
-## 11. Flows
+## 10. Flows
 
-### 11.1 List Flows
+### 10.1 List Flows
 
 ```bash
 ayo flows list
@@ -787,7 +751,7 @@ ayo flows list --json
 
 **Expected:** Shows available flows with sources.
 
-### 11.2 Show Flow
+### 10.2 Show Flow
 
 ```bash
 ayo flows show <flow-name>
@@ -796,7 +760,7 @@ ayo flows show <flow-name> --script
 
 **Expected:** Flow configuration and steps.
 
-### 11.3 Create Flow
+### 10.3 Create Flow
 
 ```bash
 # Create in user flows
@@ -811,7 +775,7 @@ ayo flows new typed-flow --with-schemas
 
 **Expected:** Flow YAML file created.
 
-### 11.4 Validate Flow
+### 10.4 Validate Flow
 
 ```bash
 ayo flows validate ~/.config/ayo/flows/my-flow.yaml
@@ -819,7 +783,7 @@ ayo flows validate ~/.config/ayo/flows/my-flow.yaml
 
 **Expected:** Reports validation errors or confirms valid.
 
-### 11.5 Run Flow
+### 10.5 Run Flow
 
 ```bash
 # Run with inline input
@@ -837,7 +801,7 @@ ayo flows run my-flow -t 600
 
 **Expected:** Flow executes, shows output.
 
-### 11.6 Flow History
+### 10.6 Flow History
 
 ```bash
 # List runs
@@ -851,7 +815,7 @@ ayo flows history show <run-id>
 
 **Expected:** Shows execution history.
 
-### 11.7 Replay Flow
+### 10.7 Replay Flow
 
 ```bash
 ayo flows replay <run-id>
@@ -859,7 +823,7 @@ ayo flows replay <run-id>
 
 **Expected:** Re-runs flow with same inputs.
 
-### 11.8 Flow Stats
+### 10.8 Flow Stats
 
 ```bash
 ayo flows stats
@@ -868,7 +832,7 @@ ayo flows stats my-flow
 
 **Expected:** Shows success rates, timing, etc.
 
-### 11.9 Remove Flow
+### 10.9 Remove Flow
 
 ```bash
 ayo flows rm my-flow
@@ -879,9 +843,9 @@ ayo flows rm my-flow --force
 
 ---
 
-## 12. Agent Chaining
+## 11. Agent Chaining
 
-### 12.1 List Chainable Agents
+### 11.1 List Chainable Agents
 
 ```bash
 ayo chain ls
@@ -890,47 +854,47 @@ ayo chain ls --json
 
 **Expected:** Shows agents with input/output schemas.
 
-### 12.2 Inspect Schemas
+### 11.2 Inspect Schemas
 
 ```bash
-ayo chain inspect @code
+ayo chain inspect @ayo
 ```
 
 **Expected:** Shows input and output schemas.
 
-### 12.3 Check Compatibility
+### 11.3 Check Compatibility
 
 ```bash
-# What can receive output from @code?
-ayo chain from @code
+# What can receive output from @ayo?
+ayo chain from @ayo
 
-# What can send to @code?
-ayo chain to @code
+# What can send to @ayo?
+ayo chain to @ayo
 ```
 
 **Expected:** Shows compatible agents.
 
-### 12.4 Validate Input
+### 11.4 Validate Input
 
 ```bash
-ayo chain validate @code '{"files": ["main.go"]}'
+ayo chain validate @ayo '{"files": ["main.go"]}'
 ```
 
 **Expected:** Reports if input matches schema.
 
-### 12.5 Generate Example
+### 11.5 Generate Example
 
 ```bash
-ayo chain example @code
+ayo chain example @ayo
 ```
 
 **Expected:** Generates valid example input JSON.
 
 ---
 
-## 13. Plugins
+## 12. Plugins
 
-### 13.1 List Plugins
+### 12.1 List Plugins
 
 ```bash
 ayo plugins list
@@ -938,7 +902,7 @@ ayo plugins list
 
 **Expected:** Shows installed plugins (may be empty).
 
-### 13.2 Install Plugin
+### 12.2 Install Plugin
 
 ```bash
 # From git
@@ -953,7 +917,7 @@ ayo plugins install https://github.com/user/ayo-plugin --force
 
 **Expected:** Plugin installed to `~/.config/ayo/plugins/`.
 
-### 13.3 Show Plugin
+### 12.3 Show Plugin
 
 ```bash
 ayo plugins show <plugin-name>
@@ -961,7 +925,7 @@ ayo plugins show <plugin-name>
 
 **Expected:** Plugin details and capabilities.
 
-### 13.4 Update Plugins
+### 12.4 Update Plugins
 
 ```bash
 # Update all
@@ -976,7 +940,7 @@ ayo plugins update --dry-run
 
 **Expected:** Plugins updated.
 
-### 13.5 Remove Plugin
+### 12.5 Remove Plugin
 
 ```bash
 ayo plugins remove <plugin-name>
@@ -987,9 +951,9 @@ ayo plugins rm <plugin-name> -y
 
 ---
 
-## 14. Backup & Sync
+## 13. Backup & Sync
 
-### 14.1 Create Backup
+### 13.1 Create Backup
 
 ```bash
 ayo backup create
@@ -998,7 +962,7 @@ ayo backup create --name "before-upgrade"
 
 **Expected:** Backup created with timestamp.
 
-### 14.2 List Backups
+### 13.2 List Backups
 
 ```bash
 ayo backup list
@@ -1007,7 +971,7 @@ ayo backup list --json
 
 **Expected:** Shows available backups.
 
-### 14.3 Show Backup
+### 13.3 Show Backup
 
 ```bash
 ayo backup show <backup-name>
@@ -1015,7 +979,7 @@ ayo backup show <backup-name>
 
 **Expected:** Backup details and contents.
 
-### 14.4 Restore Backup
+### 13.4 Restore Backup
 
 ```bash
 ayo backup restore <backup-name>
@@ -1024,7 +988,7 @@ ayo backup restore <backup-name> --no-safety
 
 **Expected:** State restored from backup.
 
-### 14.5 Export/Import
+### 13.5 Export/Import
 
 ```bash
 # Export to archive
@@ -1036,7 +1000,7 @@ ayo backup import ~/backup.tar.gz
 
 **Expected:** Backup transferred as archive file.
 
-### 14.6 Prune Old Backups
+### 13.6 Prune Old Backups
 
 ```bash
 ayo backup prune
@@ -1045,7 +1009,7 @@ ayo backup prune --keep 5
 
 **Expected:** Old auto-backups removed.
 
-### 14.7 Sync Init
+### 13.7 Sync Init
 
 ```bash
 ayo sync init
@@ -1054,7 +1018,7 @@ ayo sync init --branch
 
 **Expected:** Git repo initialized in sandbox directory.
 
-### 14.8 Sync Status
+### 13.8 Sync Status
 
 ```bash
 ayo sync status
@@ -1062,7 +1026,7 @@ ayo sync status
 
 **Expected:** Shows changes since last sync.
 
-### 14.9 Remote Sync
+### 13.9 Remote Sync
 
 ```bash
 # Add remote
@@ -1082,9 +1046,9 @@ ayo sync pull
 
 ---
 
-## 15. Matrix Communication
+## 14. Matrix Communication
 
-### 15.1 Check Status
+### 14.1 Check Status
 
 ```bash
 ayo matrix status
@@ -1092,7 +1056,7 @@ ayo matrix status
 
 **Expected:** Shows Matrix connection state.
 
-### 15.2 List Rooms
+### 14.2 List Rooms
 
 ```bash
 ayo matrix rooms
@@ -1101,26 +1065,26 @@ ayo matrix rooms --session <session-id>
 
 **Expected:** Shows Matrix rooms.
 
-### 15.3 Create Room
+### 14.3 Create Room
 
 ```bash
 ayo matrix create -n "Project Discussion"
-ayo matrix create -n "Code Review" --invite @code,@ayo
+ayo matrix create -n "Code Review" --invite @ayo,@ayo
 ```
 
 **Expected:** Room created with ID.
 
-### 15.4 Send Message
+### 14.4 Send Message
 
 ```bash
 ayo matrix send <room-id> "Hello agents!"
 ayo matrix send <room-id> -f message.md --markdown
-ayo matrix send <room-id> "From @code" --as @code
+ayo matrix send <room-id> "From @ayo" --as @ayo
 ```
 
 **Expected:** Message sent to room.
 
-### 15.5 Read Messages
+### 14.5 Read Messages
 
 ```bash
 ayo matrix read <room-id>
@@ -1130,20 +1094,20 @@ ayo matrix read <room-id> -f  # Follow/stream
 
 **Expected:** Shows room messages.
 
-### 15.6 Room Members
+### 14.6 Room Members
 
 ```bash
 ayo matrix who <room-id>
-ayo matrix invite <room-id> @code
+ayo matrix invite <room-id> @ayo
 ```
 
 **Expected:** Shows/modifies room membership.
 
 ---
 
-## 16. HTTP Server
+## 15. HTTP Server
 
-### 16.1 Start Server
+### 15.1 Start Server
 
 ```bash
 # Default (localhost:random port)
@@ -1161,7 +1125,7 @@ ayo serve -t
 
 **Expected:** Server starts, shows URL.
 
-### 16.2 Test API (in another terminal)
+### 15.2 Test API (in another terminal)
 
 ```bash
 # Health check
@@ -1177,7 +1141,7 @@ curl -X POST http://localhost:8080/v1/chat \
 
 ---
 
-## 17. Global Flags
+## 16. Global Flags
 
 Test these flags work across commands:
 
@@ -1202,9 +1166,9 @@ ayo @ayo "test" --debug
 
 ---
 
-## 18. Error Handling
+## 17. Error Handling
 
-### 18.1 Invalid Agent
+### 17.1 Invalid Agent
 
 ```bash
 ayo @nonexistent
@@ -1212,7 +1176,7 @@ ayo @nonexistent
 
 **Expected:** Clear error message about agent not found.
 
-### 18.2 Service Not Running
+### 17.2 Service Not Running
 
 ```bash
 ayo sandbox service stop
@@ -1221,7 +1185,7 @@ ayo sandbox list
 
 **Expected:** Error indicating service needs to be started.
 
-### 18.3 Invalid Share Path
+### 17.3 Invalid Share Path
 
 ```bash
 ayo share /nonexistent/path
@@ -1229,7 +1193,7 @@ ayo share /nonexistent/path
 
 **Expected:** Error about path not existing.
 
-### 18.4 Invalid Trigger Schedule
+### 17.4 Invalid Trigger Schedule
 
 ```bash
 ayo triggers schedule @ayo "invalid cron" -p "test"
@@ -1239,7 +1203,7 @@ ayo triggers schedule @ayo "invalid cron" -p "test"
 
 ---
 
-## 19. Cleanup
+## 18. Cleanup
 
 After testing, clean up test artifacts:
 
