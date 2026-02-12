@@ -731,7 +731,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openEditor()
 
 	case key.Matches(msg, m.keyMap.History):
-		// TODO: Open history viewer dialog
+		// History viewer not yet implemented (ctrl+h keybinding reserved)
 		return m, nil
 
 	// Viewport scrolling - works when viewport is focused OR when using page keys
