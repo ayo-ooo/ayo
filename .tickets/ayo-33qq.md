@@ -1,6 +1,6 @@
 ---
 id: ayo-33qq
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-02-12T19:47:33Z

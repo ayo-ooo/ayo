@@ -14,7 +14,6 @@ type DiscoveryOptions struct {
 	// These are scanned after agent-specific but before built-in.
 	SharedDirs []string
 	// UserSharedDir is the user's shared skills directory (~/.config/ayo/skills).
-	// Deprecated: Use SharedDirs for multiple directories.
 	UserSharedDir string
 	// BuiltinDir is the directory for installed built-in skills (~/.local/share/ayo/skills).
 	BuiltinDir string
