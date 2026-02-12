@@ -458,7 +458,7 @@ func (p *AppleProvider) Exec(ctx context.Context, id string, opts providers.Exec
 			result.ExitCode = exitErr.ExitCode()
 		} else {
 			result.ExitCode = -1
-			result.Stderr = err.Error()
+			result.Stderr = runErr.Error()
 		}
 	}
 

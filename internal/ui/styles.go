@@ -28,9 +28,7 @@ var (
 	colorTextBright = shared.ColorTextBright
 
 	// Background colors
-	colorBgDark   = shared.ColorBgDark
-	colorBgSubtle = shared.ColorBgSubtle
-	colorBgAccent = shared.ColorBgAccent
+	colorBgDark = shared.ColorBgDark
 )
 
 // Styles holds all the application styles.

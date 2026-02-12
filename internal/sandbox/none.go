@@ -156,13 +156,17 @@ func (p *NoneProvider) Exec(ctx context.Context, id string, opts providers.ExecO
 
 	// Create a context with timeout if specified
 	if opts.Timeout > 0 {
+		// Save values before creating new command
+		oldEnv := cmd.Env
+		oldStdin := cmd.Stdin
+
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
 		defer cancel()
 		cmd = exec.CommandContext(ctx, cmd.Path, cmd.Args[1:]...)
 		cmd.Dir = opts.WorkingDir
-		cmd.Env = cmd.Env
-		cmd.Stdin = cmd.Stdin
+		cmd.Env = oldEnv
+		cmd.Stdin = oldStdin
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 	}
