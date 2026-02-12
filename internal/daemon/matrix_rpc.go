@@ -167,10 +167,8 @@ func (s *Server) handleMatrixRoomsLeave(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	// TODO: Implement leave room functionality
-	// For now, just acknowledge
-	resp, _ := NewResponse(struct{}{}, req.ID)
-	return resp
+	// Leave room functionality not yet implemented
+	return NewErrorResponse(NewError(ErrCodeInternal, "leave room not implemented"), req.ID)
 }
 
 func (s *Server) handleMatrixSend(req *Request) *Response {
