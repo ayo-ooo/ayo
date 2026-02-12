@@ -76,7 +76,7 @@ func executeExternalTool(
 	pluginDir string,
 	baseDir string,
 	params map[string]any,
-	depth int,
+	_ int,
 ) (fantasy.ToolResponse, error) {
 	// Validate required parameters
 	for _, param := range def.Parameters {

@@ -1,6 +1,6 @@
 ---
 id: ayo-cbvp
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-02-12T19:46:48Z

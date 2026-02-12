@@ -1130,7 +1130,7 @@ func (r *Runner) createMemory(ctx context.Context, input memoryInput) {
 // castToStructuredOutput takes the agent's response and casts it to the required output schema.
 // It uses GenerateObject to produce structured output, then validates against the schema.
 // If validation fails, it retries by providing error feedback to the model.
-func (r *Runner) castToStructuredOutput(ctx context.Context, model fantasy.LanguageModel, ag agent.Agent, agentOutput string, ui *uipkg.UI) (string, error) {
+func (r *Runner) castToStructuredOutput(ctx context.Context, model fantasy.LanguageModel, ag agent.Agent, agentOutput string, _ *uipkg.UI) (string, error) {
 	if ag.OutputSchema == nil {
 		return agentOutput, nil
 	}

@@ -1,6 +1,6 @@
 ---
 id: ayo-xqco
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-02-12T19:46:44Z
