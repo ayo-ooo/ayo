@@ -23,9 +23,9 @@ var _ = cli.Output{}
 
 func newAgentsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "agent",
+		Use:     "agents",
 		Short:   "Manage agents",
-		Aliases: []string{"agents"},
+		Aliases: []string{"agent"},
 		Long: `Manage AI agents with custom prompts and tool access.
 
 Agents are stored as directories containing:
