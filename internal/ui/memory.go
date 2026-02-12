@@ -3,10 +3,10 @@ package ui
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
@@ -45,7 +45,7 @@ func (d *MemoryFormationDisplay) StartFormation(id, content string) {
 
 	spinner := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Render("◐")
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Memory")
-	text := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true).Render(truncateMemory(content, 50))
+	text := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true).Render(util.Truncate(content, 50))
 
 	line := fmt.Sprintf("%s %s %s", spinner, label, text)
 	box := style.Render(line)
@@ -72,7 +72,7 @@ func (d *MemoryFormationDisplay) CompleteFormation(id, content string, elapsed t
 
 	check := lipgloss.NewStyle().Foreground(lipgloss.Color("76")).Render("✓")
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Remembered:")
-	text := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true).Render(truncateMemory(content, 45))
+	text := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true).Render(util.Truncate(content, 45))
 	duration := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(fmt.Sprintf("(%s)", elapsed.Round(time.Millisecond)))
 
 	line := fmt.Sprintf("%s %s %s %s", check, label, text, duration)
@@ -100,7 +100,7 @@ func (d *MemoryFormationDisplay) FailFormation(id string, err error) {
 
 	x := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("×")
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Memory failed:")
-	errText := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(truncateMemory(err.Error(), 40))
+	errText := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(util.Truncate(err.Error(), 40))
 
 	line := fmt.Sprintf("%s %s %s", x, label, errText)
 	box := style.Render(line)
@@ -132,11 +132,3 @@ func ShowRetrievedMemories(count int) {
 	fmt.Fprintln(os.Stderr, line)
 }
 
-func truncateMemory(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -184,14 +185,9 @@ func FormatDuration(seconds float64) string {
 }
 
 // TruncateText truncates text with an ellipsis if it exceeds maxLen.
+// Deprecated: Use util.Truncate instead.
 func TruncateText(text string, maxLen int) string {
-	if len(text) <= maxLen {
-		return text
-	}
-	if maxLen <= 3 {
-		return text[:maxLen]
-	}
-	return text[:maxLen-3] + "..."
+	return util.Truncate(text, maxLen)
 }
 
 // SanitizeCommand sanitizes a command string for display.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/google/uuid"
 )
 
@@ -233,7 +234,7 @@ func (o *Observer) processMessage(ctx context.Context, event providers.MessageEv
 
 		if _, err := o.memoryProvider.Create(ctx, mem); err != nil {
 			slog.Debug("failed to store extracted memory",
-				"content", truncate(mem.Content, 50),
+				"content", util.Truncate(mem.Content, 50),
 				"error", err)
 		}
 	}
@@ -321,12 +322,6 @@ func parseExtractionResponse(response string) []providers.Memory {
 
 // Helper functions
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
 
 func splitLines(s string) []string {
 	var lines []string

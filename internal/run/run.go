@@ -22,6 +22,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/util"
 )
 
 // Runner executes agents using Fantasy's Agent abstraction.
@@ -904,8 +905,8 @@ func (r *Runner) generateTitleAsync(modelID, sessionID, userMessage, assistantRe
 	}
 
 	// Truncate messages to avoid excessive token usage
-	userMsg := truncateForTitle(userMessage, 500)
-	assistantMsg := truncateForTitle(assistantResponse, 500)
+	userMsg := util.TruncateTitle(userMessage, 500)
+	assistantMsg := util.TruncateTitle(assistantResponse, 500)
 
 	titlePrompt := fmt.Sprintf("Generate a short, descriptive title (max 50 chars) for this conversation. The title should capture the main topic or intent. Return ONLY the title, no quotes or explanation.\n\nUser: %s\n\nAssistant: %s", userMsg, assistantMsg)
 
@@ -932,15 +933,7 @@ func (r *Runner) generateTitleAsync(modelID, sessionID, userMessage, assistantRe
 	r.services.Sessions.UpdateTitle(ctx, sessionID, title)
 }
 
-// truncateForTitle truncates a string to maxLen for title generation prompts.
-func truncateForTitle(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	s = strings.Join(strings.Fields(s), " ")
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-1] + "…"
-}
+
 
 // maybeFormMemory uses small model to extract memorable content from user messages.
 func (r *Runner) maybeFormMemory(ctx context.Context, ag agent.Agent, userMessage, sessionID string) {

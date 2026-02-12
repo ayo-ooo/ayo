@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -144,15 +145,9 @@ func styleFunc(color, text string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(text)
 }
 
-// truncateFunc truncates text to max length.
+// truncateFunc truncates text to max length for template use.
 func truncateFunc(maxLen int, text string) string {
-	if len(text) <= maxLen {
-		return text
-	}
-	if maxLen <= 3 {
-		return "..."
-	}
-	return text[:maxLen-3] + "..."
+	return util.Truncate(text, maxLen)
 }
 
 // iconFunc returns status icons.

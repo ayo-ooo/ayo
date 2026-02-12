@@ -9,6 +9,7 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/util"
 )
 
 const (
@@ -192,8 +193,8 @@ func (e *Executor) Exec(ctx context.Context, params BashParams) (BashResult, err
 	}
 
 	bashResult := BashResult{
-		Stdout:    truncateOutput(result.Stdout, outputLimitBytes),
-		Stderr:    truncateOutput(result.Stderr, outputLimitBytes),
+		Stdout:    util.TruncateRaw(result.Stdout, outputLimitBytes),
+		Stderr:    util.TruncateRaw(result.Stderr, outputLimitBytes),
 		ExitCode:  result.ExitCode,
 		TimedOut:  result.TimedOut,
 		Truncated: result.Truncated || len(result.Stdout) > outputLimitBytes || len(result.Stderr) > outputLimitBytes,
@@ -221,9 +222,4 @@ func NewBashTool(executor *Executor) fantasy.AgentTool {
 	)
 }
 
-func truncateOutput(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max]
-}
+

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/util"
 )
 
 // MockSmallModel implements SmallModelProvider for testing.
@@ -290,10 +291,10 @@ func TestParseExtractionResponse(t *testing.T) {
 
 func TestHelperFunctions(t *testing.T) {
 	t.Run("truncate", func(t *testing.T) {
-		if truncate("hello", 10) != "hello" {
+		if util.Truncate("hello", 10) != "hello" {
 			t.Error("short string should not be truncated")
 		}
-		if truncate("hello world", 5) != "hello..." {
+		if util.Truncate("hello world", 5) != "he..." {
 			t.Error("long string should be truncated")
 		}
 	})

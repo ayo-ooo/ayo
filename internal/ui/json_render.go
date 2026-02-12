@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/list"
 	"github.com/charmbracelet/lipgloss/table"
@@ -225,16 +226,16 @@ func renderSearchResults(b *strings.Builder, results []any) {
 		}
 
 		// Title
-		b.WriteString("\n  " + titleStyle.Render(truncate(title, 70)) + "\n")
+		b.WriteString("\n  " + titleStyle.Render(util.Truncate(title, 70)) + "\n")
 
 		// URL
 		if url != "" {
-			b.WriteString("  " + urlStyle.Render(truncate(url, 80)) + "\n")
+			b.WriteString("  " + urlStyle.Render(util.Truncate(url, 80)) + "\n")
 		}
 
 		// Content snippet
 		if content != "" {
-			b.WriteString("  " + contentStyle.Render(truncate(content, 100)) + "\n")
+			b.WriteString("  " + contentStyle.Render(util.Truncate(content, 100)) + "\n")
 		}
 
 		// Metadata (date, source)
@@ -276,7 +277,7 @@ func formatKeyName(key string) string {
 func formatValue(v any) string {
 	switch val := v.(type) {
 	case string:
-		return truncate(strings.TrimSpace(val), 60)
+		return util.Truncate(strings.TrimSpace(val), 60)
 	case float64:
 		if val == float64(int64(val)) {
 			return fmt.Sprintf("%d", int64(val))
@@ -335,12 +336,3 @@ func getSortedKeys(obj map[string]any) []string {
 	return result
 }
 
-func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", "")
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
