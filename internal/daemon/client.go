@@ -78,7 +78,7 @@ func (c *Client) IsConnected() bool {
 }
 
 // call sends a request and waits for a response.
-func (c *Client) call(ctx context.Context, method string, params any, result any) error {
+func (c *Client) call(_ context.Context, method string, params any, result any) error {
 	if !c.connected {
 		return fmt.Errorf("not connected")
 	}

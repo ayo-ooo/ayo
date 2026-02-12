@@ -55,7 +55,7 @@ func (s *Server) handleMatrixRoomsList(req *Request) *Response {
 	return resp
 }
 
-func (s *Server) handleMatrixRoomsCreate(ctx context.Context, req *Request) *Response {
+func (s *Server) handleMatrixRoomsCreate(_ context.Context, req *Request) *Response {
 	if s.matrixBroker == nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, "matrix broker not initialized"), req.ID)
 	}
@@ -242,7 +242,7 @@ func (s *Server) handleMatrixRead(req *Request) *Response {
 	return resp
 }
 
-func (s *Server) handleMatrixReadStream(ctx context.Context, req *Request) *Response {
+func (s *Server) handleMatrixReadStream(_ context.Context, req *Request) *Response {
 	// For streaming, we return immediately with any available messages
 	// The client should long-poll
 	return s.handleMatrixRead(req)

@@ -360,7 +360,7 @@ func (c *ConduitProcess) healthCheckLoop(ctx context.Context) {
 }
 
 // monitorProcess waits for the process to exit.
-func (c *ConduitProcess) monitorProcess(ctx context.Context) {
+func (c *ConduitProcess) monitorProcess(_ context.Context) {
 	if c.cmd == nil {
 		return
 	}
