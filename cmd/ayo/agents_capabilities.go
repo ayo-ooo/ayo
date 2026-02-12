@@ -211,7 +211,7 @@ func showAgentCapabilities(ctx context.Context, cfg config.Config, repo *capabil
 	return nil
 }
 
-func listAllCapabilities(ctx context.Context, cfg config.Config, repo *capabilities.Repository) error {
+func listAllCapabilities(ctx context.Context, _ config.Config, repo *capabilities.Repository) error {
 	caps, err := repo.GetAllCapabilities(ctx)
 	if err != nil {
 		return fmt.Errorf("get capabilities: %w", err)
@@ -292,7 +292,7 @@ func listAllCapabilities(ctx context.Context, cfg config.Config, repo *capabilit
 	return nil
 }
 
-func searchCapabilities(ctx context.Context, cfg config.Config, repo *capabilities.Repository, query string) error {
+func searchCapabilities(ctx context.Context, _ config.Config, repo *capabilities.Repository, query string) error {
 	caps, err := repo.SearchCapabilities(ctx, query, 20)
 	if err != nil {
 		return fmt.Errorf("search capabilities: %w", err)

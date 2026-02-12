@@ -58,7 +58,7 @@ Examples:
 	return cmd
 }
 
-func archiveAgentCmd(cfgPath *string) *cobra.Command {
+func archiveAgentCmd(_ *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "archive <handle>",
 		Short: "Archive an @ayo-created agent",
@@ -104,7 +104,7 @@ Examples:
 	return cmd
 }
 
-func unarchiveAgentCmd(cfgPath *string) *cobra.Command {
+func unarchiveAgentCmd(_ *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unarchive <handle>",
 		Short: "Unarchive an @ayo-created agent",

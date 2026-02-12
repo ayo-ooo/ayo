@@ -11,7 +11,7 @@ import (
 )
 
 // runInteractiveChat handles the interactive chat session loop using the alt-screen TUI.
-func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent, debug bool) error {
+func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent, _ bool) error {
 	// Get session ID for display
 	sessionID := runner.GetSessionID(ag.Handle)
 

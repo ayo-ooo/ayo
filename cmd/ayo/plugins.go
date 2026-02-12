@@ -137,7 +137,7 @@ func listPluginsCmd(cfgPath *string) *cobra.Command {
 	}
 }
 
-func installPluginCmd(cfgPath *string) *cobra.Command {
+func installPluginCmd(_ *string) *cobra.Command {
 	var force bool
 	var local string
 	var skipDeps bool
@@ -252,7 +252,7 @@ Examples:
 	return cmd
 }
 
-func showPluginCmd(cfgPath *string) *cobra.Command {
+func showPluginCmd(_ *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <name>",
 		Short: "Show details about an installed plugin",

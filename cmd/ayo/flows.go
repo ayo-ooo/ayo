@@ -726,7 +726,7 @@ Filter by:
 	return cmd
 }
 
-func historyShowCmd(cfgPath *string) *cobra.Command {
+func historyShowCmd(_ *string) *cobra.Command {
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
