@@ -318,11 +318,7 @@ func (s *Server) handleFlowHistory(req *Request) *Response {
 		json.Unmarshal(req.Params, &params)
 	}
 
-	// TODO: Implement when history service is wired to daemon
-	result := FlowHistoryResult{
-		Runs: []FlowRunSummary{},
-	}
-
-	resp, _ := NewResponse(result, req.ID)
-	return resp
+	// Flow history service not yet wired to daemon
+	_ = params // silence unused warning until implemented
+	return NewErrorResponse(NewError(ErrCodeInternal, "flow history not implemented"), req.ID)
 }

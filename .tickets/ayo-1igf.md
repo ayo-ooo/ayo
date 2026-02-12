@@ -1,6 +1,6 @@
 ---
 id: ayo-1igf
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-02-12T19:47:17Z

@@ -1,6 +1,6 @@
 ---
 id: ayo-w2rf
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-02-12T19:47:13Z
