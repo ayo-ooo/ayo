@@ -139,12 +139,11 @@ func Commit(message string) error {
 	}
 
 	// Check if there are staged changes
-	output, err := runGitOutput(sandboxDir, "diff", "--cached", "--quiet")
+	_, err := runGitOutput(sandboxDir, "diff", "--cached", "--quiet")
 	if err == nil {
 		// No changes to commit
 		return nil
 	}
-	_ = output // Suppress unused variable warning
 
 	// Commit changes
 	if err := runGit(sandboxDir, "commit", "-m", message); err != nil {

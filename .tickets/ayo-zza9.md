@@ -1,6 +1,6 @@
 ---
 id: ayo-zza9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-02-12T19:47:40Z
