@@ -1,10 +1,10 @@
 package run
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/ui"
+	"github.com/alexcabrera/ayo/internal/util"
 )
 
 // PrintWriter implements StreamWriter for non-interactive mode.
@@ -69,7 +69,7 @@ func (w *PrintWriter) WriteReasoning(delta string) {
 func (w *PrintWriter) WriteReasoningDone(content string, duration time.Duration) {
 	w.ui.PrintReasoningEnd()
 	if duration > 0 {
-		w.ui.PrintThinkingDone(formatDuration(duration))
+		w.ui.PrintThinkingDone(util.FormatDuration(duration))
 	}
 }
 
@@ -92,7 +92,7 @@ func (w *PrintWriter) WriteToolResult(result ToolResult) {
 		Name:     result.Name,
 		Output:   result.Output,
 		Error:    result.Error,
-		Duration: formatDuration(result.Duration),
+		Duration: util.FormatDuration(result.Duration),
 		Metadata: result.Metadata,
 	}
 	w.ui.PrintToolCallResult(info)
@@ -103,7 +103,7 @@ func (w *PrintWriter) WriteAgentStart(handle, prompt string) {
 }
 
 func (w *PrintWriter) WriteAgentEnd(handle string, duration time.Duration, err error) {
-	w.ui.PrintSubAgentEnd(handle, formatDuration(duration), err != nil)
+	w.ui.PrintSubAgentEnd(handle, util.FormatDuration(duration), err != nil)
 }
 
 func (w *PrintWriter) WriteMemoryEvent(event string, count int) {
@@ -125,10 +125,3 @@ func (w *PrintWriter) WriteDone(response string) {
 // Verify PrintWriter implements StreamWriter
 var _ StreamWriter = (*PrintWriter)(nil)
 
-// formatDuration formats a duration as a human-readable string.
-func formatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	return fmt.Sprintf("%.1fs", d.Seconds())
-}

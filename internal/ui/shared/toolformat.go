@@ -172,16 +172,9 @@ func FormatTodoChange(isNew bool, justCompleted []string, justStarted string, co
 }
 
 // FormatDuration formats a duration for display.
+// Deprecated: Use util.FormatDurationSeconds instead.
 func FormatDuration(seconds float64) string {
-	if seconds < 0.1 {
-		return "<0.1s"
-	}
-	if seconds < 60 {
-		return fmt.Sprintf("%.1fs", seconds)
-	}
-	minutes := int(seconds) / 60
-	secs := int(seconds) % 60
-	return fmt.Sprintf("%dm%ds", minutes, secs)
+	return util.FormatDurationSeconds(seconds)
 }
 
 // TruncateText truncates text with an ellipsis if it exceeds maxLen.

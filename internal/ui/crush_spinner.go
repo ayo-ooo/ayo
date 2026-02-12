@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
@@ -129,7 +130,7 @@ func (s *CrushSpinner) StopWithMessage(message string) {
 	s.closeOnce.Do(func() { close(s.done) })
 
 	elapsed := time.Since(s.startTime)
-	elapsedStr := formatDuration(elapsed)
+	elapsedStr := util.FormatDuration(elapsed)
 
 	if s.isTTY {
 		fmt.Fprint(os.Stderr, "\r\033[K")

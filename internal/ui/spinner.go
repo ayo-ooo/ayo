@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
@@ -210,7 +211,7 @@ func (s *Spinner) StopWithMessage(message string) {
 	}
 
 	elapsed := time.Since(s.startTime)
-	elapsedStr := formatDuration(elapsed)
+	elapsedStr := util.FormatDuration(elapsed)
 
 	if s.isTTY {
 		fmt.Fprint(os.Stderr, "\r\033[K")
@@ -252,16 +253,6 @@ func (s *Spinner) render() {
 	fmt.Fprintf(os.Stderr, "\r\033[K%s%s %s", s.indent, frame, msg)
 }
 
-// formatDuration formats a duration in a human-readable way
-func formatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.0fs", d.Seconds())
-	}
-	return fmt.Sprintf("%.1fm", d.Minutes())
-}
 
 // NewToolSpinner creates the appropriate spinner for tool execution based on style.
 // Styles:
