@@ -771,6 +771,13 @@ func SquadWorkspaceDir(name string) string {
 	return filepath.Join(SquadDir(name), "workspace")
 }
 
+// SquadConstitutionPath returns the path to a squad's SQUAD.md file.
+// This file defines the team's mission, roles, and coordination rules.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/SQUAD.md
+func SquadConstitutionPath(name string) string {
+	return filepath.Join(SquadDir(name), "SQUAD.md")
+}
+
 // SquadAgentHomeDir returns an agent's home directory within a squad.
 // Location: ~/.local/share/ayo/sandboxes/squads/{squad}/agent-homes/{agent}
 func SquadAgentHomeDir(squadName, agentHandle string) string {

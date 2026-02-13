@@ -29,10 +29,12 @@ Ayo is a command-line framework for creating, managing, and orchestrating AI age
 | [Memory](memory.md) | Persistent facts and preferences |
 | [Sessions](sessions.md) | Conversation persistence and resumption |
 
-## Composition & Workflows
+## Multi-Agent Systems
 
 | Guide | Description |
 |-------|-------------|
+| [**Squads**](squads.md) | **Team sandboxes with SQUAD.md constitutions** |
+| [Tickets](tickets.md) | File-based coordination between agents |
 | [Flows](flows.md) | Composable agent pipelines with shell or YAML |
 | [Chaining](chaining.md) | Composing agents via Unix pipes |
 | [Delegation](delegation.md) | Task routing to specialized agents |
@@ -68,6 +70,25 @@ Agents are AI assistants defined as directories with configuration and system pr
 ayo @reviewer "review main.go for security issues"
 ```
 
+### Squads
+
+Squads are isolated sandboxes where multiple agents collaborate. Each squad has a `SQUAD.md` constitution that defines the team's mission, roles, and coordination rules:
+
+```
+~/.local/share/ayo/sandboxes/squads/my-team/
+├── SQUAD.md          # Team constitution (injected into all agents)
+├── .tickets/         # Coordination tickets
+├── workspace/        # Shared code workspace
+└── agent-homes/      # Per-agent directories
+```
+
+```bash
+ayo squad create my-team -a @backend,@frontend,@qa
+$EDITOR ~/.local/share/ayo/sandboxes/squads/my-team/SQUAD.md
+```
+
+All agents in a squad receive the constitution in their system prompt, ensuring shared understanding of mission and coordination.
+
 ### Sandbox Isolation
 
 Agent commands execute in containers, isolated from your host system:
@@ -95,6 +116,15 @@ ayo memory store "I prefer TypeScript"
 ayo memory search "programming preferences"
 ```
 
+### Tickets
+
+Tickets provide file-based coordination between agents:
+
+```bash
+ayo ticket create "Implement auth" -a @backend
+ayo ticket create "Test auth" -a @qa --deps <auth-id>
+```
+
 ### Flows
 
 Flows orchestrate multi-step workflows:
@@ -109,7 +139,9 @@ ayo flows run daily-summary '{"project": "."}'
 ┌─────────────────────────────────────────────────────────────┐
 │  HOST: CLI → LLM calls, memory, orchestration               │
 ├─────────────────────────────────────────────────────────────┤
-│  DAEMON: Sandbox pool, triggers, Matrix communication       │
+│  DAEMON: Sandbox pool, triggers, squad management           │
+├─────────────────────────────────────────────────────────────┤
+│  SQUADS: Isolated team sandboxes with SQUAD.md constitution │
 ├─────────────────────────────────────────────────────────────┤
 │  SANDBOX: Command execution, file operations (isolated)     │
 └─────────────────────────────────────────────────────────────┘
@@ -123,6 +155,7 @@ ayo --help
 
 # Command-specific help
 ayo agents --help
+ayo squad --help
 ayo flows --help
 
 # Check system health
@@ -144,6 +177,17 @@ ayo -c "follow up"          # Continue session
 ayo agents list             # List all
 ayo agents show @name       # Details
 ayo agents create @name     # Create
+
+# Squads
+ayo squad create name       # Create with SQUAD.md
+ayo squad list              # List all
+ayo squad start name        # Start sandbox
+ayo squad stop name         # Stop sandbox
+
+# Tickets
+ayo ticket create "title"   # Create ticket
+ayo ticket list             # List tickets
+ayo ticket ready            # Show ready work
 
 # Flows
 ayo flows list              # List all

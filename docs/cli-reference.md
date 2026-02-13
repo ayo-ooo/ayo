@@ -679,6 +679,170 @@ ayo chain example <agent>
 
 ---
 
+## ayo squad
+
+Manage squads - isolated sandboxes where multiple agents collaborate. Each squad has a `SQUAD.md` constitution that defines the team's mission, roles, and coordination rules.
+
+### ayo squad create
+
+Create a new squad.
+
+```bash
+ayo squad create <name> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--description` | `-d` | Squad description |
+| `--agents` | `-a` | Comma-separated agent handles |
+| `--workspace` | `-w` | Host path to mount as workspace |
+| `--output` | `-o` | Host path for output sync |
+| `--image` | `-i` | Container image |
+| `--ephemeral` | `-e` | Destroy sandbox after session |
+
+Creates the squad with a default `SQUAD.md` template in:
+```
+~/.local/share/ayo/sandboxes/squads/{name}/SQUAD.md
+```
+
+**Examples:**
+
+```bash
+# Basic squad
+ayo squad create alpha
+
+# With agents
+ayo squad create feature -a @backend,@frontend,@qa
+
+# Full options
+ayo squad create my-team \
+  -d "Auth implementation team" \
+  -a @backend,@qa \
+  -w ~/Code/project \
+  -o /tmp/output
+```
+
+### ayo squad list
+
+List all squads.
+
+```bash
+ayo squad list [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | JSON output |
+
+### ayo squad show
+
+Show squad details.
+
+```bash
+ayo squad show <name>
+```
+
+Displays:
+- Squad configuration
+- Agent list
+- SQUAD.md content summary
+- Sandbox status
+
+### ayo squad start
+
+Start a squad's sandbox.
+
+```bash
+ayo squad start <name>
+```
+
+### ayo squad stop
+
+Stop a squad's sandbox.
+
+```bash
+ayo squad stop <name>
+```
+
+### ayo squad destroy
+
+Destroy a squad.
+
+```bash
+ayo squad destroy <name> [--flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--delete-data` | Also delete workspace and context |
+
+### ayo squad add-agent
+
+Add an agent to a squad.
+
+```bash
+ayo squad add-agent <squad> <@agent>
+```
+
+### ayo squad remove-agent
+
+Remove an agent from a squad.
+
+```bash
+ayo squad remove-agent <squad> <@agent>
+```
+
+### ayo squad ticket
+
+Manage tickets within a squad.
+
+```bash
+ayo squad ticket <squad> create "title" [--flags]
+ayo squad ticket <squad> list
+ayo squad ticket <squad> show <id>
+ayo squad ticket <squad> start <id>
+ayo squad ticket <squad> close <id>
+```
+
+Tickets are stored in `~/.local/share/ayo/sandboxes/squads/{squad}/.tickets/`.
+
+### SQUAD.md Constitution
+
+Each squad has a `SQUAD.md` file that serves as the team constitution. Edit it to define:
+
+```markdown
+# Squad: {name}
+
+## Mission
+{What the team is trying to accomplish}
+
+## Context
+{Technical constraints, dependencies, deadlines}
+
+## Agents
+### @backend
+**Role**: Implementation
+**Responsibilities**:
+- Implement API endpoints
+- Write database migrations
+
+### @qa
+**Role**: Quality assurance
+**Responsibilities**:
+- Review code changes
+- Write test cases
+
+## Coordination
+{How agents hand off work, dependency rules}
+
+## Guidelines
+{Team-specific rules, coding style, review process}
+```
+
+When agents start in the squad, this constitution is injected into their system prompt so all team members share the same context.
+
+---
+
 ## ayo sandbox
 
 Manage sandboxed execution environments.

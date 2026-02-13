@@ -74,7 +74,7 @@ go build -o ayo ./cmd/ayo/...
 
 | Command | Description |
 |---------|-------------|
-| `ayo squad create <name>` | Create squad |
+| `ayo squad create <name>` | Create squad (generates SQUAD.md) |
 | `ayo squad list` | List squads |
 | `ayo squad show <name>` | Show squad details |
 | `ayo squad add-agent <squad> @agent` | Add agent |
@@ -157,30 +157,95 @@ ayo ticket ready --assignee @backend
 # Shows: "Implement endpoints"
 ```
 
-### 3. Squad Collaboration
+### 3. Squad Creation with SQUAD.md
 
 ```bash
-# Create squad with output directory
+# Create squad with agents
 ayo squad create alpha \
   -d "Feature team" \
-  -a @architect,@backend \
+  -a @architect,@backend,@qa \
   -o /tmp/alpha-output
 
-# Check squad
+# Verify SQUAD.md was created
+cat ~/.local/share/ayo/sandboxes/squads/alpha/SQUAD.md
+# Shows template with mission, context, roles for each agent
+
+# Edit the constitution to define team purpose
+cat > ~/.local/share/ayo/sandboxes/squads/alpha/SQUAD.md << 'EOF'
+# Squad: alpha
+
+## Mission
+
+Build a user authentication system with login, registration, and password reset.
+
+## Context
+
+- Using Express.js with TypeScript
+- PostgreSQL database with Prisma ORM
+- Must follow OWASP security guidelines
+
+## Agents
+
+### @architect
+**Role**: System design
+**Responsibilities**:
+- Define API schema
+- Make technology decisions
+- Review implementation
+
+### @backend
+**Role**: Implementation
+**Responsibilities**:
+- Implement API endpoints
+- Write database migrations
+- Handle authentication logic
+
+### @qa
+**Role**: Quality assurance
+**Responsibilities**:
+- Review code changes
+- Write test cases
+- Verify security requirements
+
+## Coordination
+
+1. @architect designs schema first
+2. @backend implements based on design
+3. @qa reviews after implementation
+4. Use ticket dependencies to enforce order
+
+## Guidelines
+
+- All endpoints must have tests
+- Follow conventional commit messages
+- Security changes need @qa sign-off
+EOF
+
+# Verify constitution
 ayo squad show alpha
-
-# Add another agent
-ayo squad add-agent alpha @qa
-
-# List squads
-ayo squad list
-
-# Cleanup
-ayo squad stop alpha
-ayo squad destroy alpha --delete-data
 ```
 
-### 4. File Sharing
+### 4. Squad with Tickets and Constitution
+
+```bash
+# Create a squad
+ayo squad create auth-team -a @backend,@qa
+
+# Edit SQUAD.md
+$EDITOR ~/.local/share/ayo/sandboxes/squads/auth-team/SQUAD.md
+
+# Create tickets in the squad
+ayo squad ticket auth-team create "Implement login endpoint" -a @backend
+ayo squad ticket auth-team create "Test login endpoint" -a @qa --depends-on <login-id>
+
+# Verify constitution is in context
+# When agents start, they receive SQUAD.md content in their system prompt
+ayo squad start auth-team
+ayo squad agent auth-team start @backend
+# @backend now knows: mission, its role, coordination rules
+```
+
+### 5. File Sharing
 
 ```bash
 # Share a directory
@@ -200,7 +265,7 @@ ayo sandbox exec --id <id> cat /workspace/project/README.md
 ayo share rm project
 ```
 
-### 5. Memory System
+### 6. Memory System
 
 ```bash
 # Store facts
@@ -214,7 +279,7 @@ ayo memory search "database"
 ayo memory list
 ```
 
-### 6. Triggers
+### 7. Triggers
 
 ```bash
 # Create watch trigger
@@ -276,6 +341,10 @@ ayo sandbox service stop
 
 # Remove test data
 rm -rf /tmp/testproject /tmp/watched /tmp/alpha-output /tmp/test.txt
+
+# Remove test squads
+rm -rf ~/.local/share/ayo/sandboxes/squads/alpha
+rm -rf ~/.local/share/ayo/sandboxes/squads/auth-team
 ```
 
 ---
@@ -355,24 +424,32 @@ ayo ticket ready --assignee @backend
 
 **Flow:** Tickets → Dependency Graph → Agent Work Queue
 
-## Level 5: Squad Isolation
+## Level 5: Squad with Constitution
 
 ```bash
-# Create isolated team sandbox
+# Create squad with SQUAD.md constitution
 ayo squad create feature -a @dev,@qa -o /tmp/output
 
-# Agents share workspace but are isolated from other squads
-# Coordinate via tickets in squad's .tickets/ directory
+# Squad structure:
+# ~/.local/share/ayo/sandboxes/squads/feature/
+# ├── SQUAD.md        ← Team constitution (mission, roles, coordination)
+# ├── .tickets/       ← Coordination tickets
+# ├── .context/       ← Persistent state
+# ├── workspace/      ← Shared code
+# └── agent-homes/    ← Per-agent directories
+
+# Edit constitution to define team
+$EDITOR ~/.local/share/ayo/sandboxes/squads/feature/SQUAD.md
+
+# When agents start, they receive SQUAD.md in their system prompt
+# Each agent knows:
+# - The team's mission
+# - Their specific role and responsibilities
+# - How to coordinate with other agents
+# - Team-specific guidelines
 ```
 
-**Flow:** 
-```
-Squad Sandbox
-├── .tickets/     (coordination)
-├── .context/     (state)
-├── /workspace/   (shared files)
-└── /agent-homes/ (per-agent)
-```
+**Key Concept:** SQUAD.md is the team's constitution. All agents in a squad receive it in their context, ensuring shared understanding of mission, roles, and coordination rules.
 
 ## Level 6: Full Orchestration
 
@@ -381,11 +458,12 @@ Squad Sandbox
 ayo @ayo "Build user auth with tests and docs"
 
 # @ayo internally:
-# 1. Creates squad
+# 1. Creates squad with SQUAD.md defining auth team
 # 2. Creates tickets with dependencies
 # 3. Assigns to specialist agents
-# 4. Monitors progress
-# 5. Syncs output when done
+# 4. Each agent starts with constitution context
+# 5. Monitors progress via tickets
+# 6. Syncs output when done
 ```
 
 **Architecture:**
@@ -399,6 +477,8 @@ ayo @ayo "Build user auth with tests and docs"
     ▼             ▼             ▼
 ┌───────┐    ┌───────┐    ┌───────┐
 │Squad A│    │Squad B│    │Squad C│
+├───────┤    ├───────┤    ├───────┤
+│SQUAD.md│   │SQUAD.md│   │SQUAD.md│
 │tickets│    │tickets│    │tickets│
 │agents │    │agents │    │agents │
 └───────┘    └───────┘    └───────┘
@@ -417,8 +497,52 @@ ayo @ayo "Build user auth with tests and docs"
 ```
 
 **Key Properties:**
+- **Constitution**: SQUAD.md defines mission, roles, coordination for each squad
 - **Isolation**: Squads can't see each other
-- **Coordination**: Tickets, not messages
+- **Coordination**: Tickets within squad, not cross-squad
+- **Context**: All agents in squad share constitution
 - **Visibility**: @ayo sees everything
 - **Persistence**: State survives restarts
 - **Automation**: Triggers for events/schedules
+
+---
+
+## SQUAD.md Reference
+
+The `SQUAD.md` file is the team constitution. Location:
+```
+~/.local/share/ayo/sandboxes/squads/{name}/SQUAD.md
+```
+
+### Template Structure
+
+```markdown
+# Squad: {name}
+
+## Mission
+{What the team is trying to accomplish}
+
+## Context
+{Technical constraints, dependencies, deadlines}
+
+## Agents
+### @agent-handle
+**Role**: {brief role}
+**Responsibilities**:
+- {responsibility 1}
+- {responsibility 2}
+
+## Coordination
+{How agents hand off work, dependency rules}
+
+## Guidelines
+{Team-specific rules, coding style, review process}
+```
+
+### How It Works
+
+1. **Creation**: `ayo squad create` generates a template SQUAD.md
+2. **Editing**: User edits SQUAD.md to define team purpose
+3. **Injection**: When agents start, SQUAD.md is injected into system prompt
+4. **Shared Context**: All agents in squad see same constitution
+5. **Updates**: Edit SQUAD.md, restart agents to pick up changes

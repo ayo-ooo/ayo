@@ -21,6 +21,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
+	"github.com/alexcabrera/ayo/internal/squads"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
 	"github.com/alexcabrera/ayo/internal/util"
 )
@@ -39,6 +40,7 @@ type Runner struct {
 	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
 	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
+	squadName        string                   // squad name for constitution injection (empty = no squad)
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -80,6 +82,7 @@ type RunnerOptions struct {
 	MemoryQueue      *memory.Queue              // Queue for async memory operations
 	StreamWriter     StreamWriter               // Unified stream writer interface
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
+	SquadName        string                     // Squad name for squad context injection (empty = no squad)
 }
 
 // NewRunner creates a runner with all options.
@@ -96,6 +99,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		memoryQueue:      opts.MemoryQueue,
 		streamWriter:     opts.StreamWriter,
 		sandboxProvider:  opts.SandboxProvider,
+		squadName:        opts.SquadName,
 	}, nil
 }
 
@@ -139,6 +143,15 @@ func (r *Runner) Chat(ctx context.Context, ag agent.Agent, input string) (string
 		
 		// Build combined system prompt with memory context
 		systemPrompt := ag.CombinedSystem
+		
+		// Inject squad constitution if running in a squad context
+		if r.squadName != "" {
+			constitution, err := squads.LoadConstitution(r.squadName)
+			if err == nil && constitution != nil {
+				systemPrompt = squads.InjectConstitution(systemPrompt, constitution)
+			}
+		}
+		
 		if r.memoryService != nil && ag.Config.Memory.Enabled {
 			memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", input, ag.Config.Memory)
 			if err == nil && memCtx != nil {

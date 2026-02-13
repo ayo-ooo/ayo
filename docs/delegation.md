@@ -226,3 +226,49 @@ Remove delegates from `~/.config/ayo/ayo.json`.
 
 Use delegation for complex tasks that benefit from specialized agents.
 Use tool aliases for swappable implementations of specific tools.
+
+## Delegation vs Squads
+
+Delegation and squads both enable multi-agent work, but serve different purposes:
+
+| Feature | Delegation | Squads |
+|---------|-----------|--------|
+| **Model** | Synchronous call | Asynchronous coordination |
+| **Isolation** | Same process | Separate sandbox |
+| **State** | None (stateless) | Persistent workspace |
+| **Coordination** | Direct call | Tickets with dependencies |
+| **Context** | Inherits from caller | Shared via SQUAD.md constitution |
+| **Parallelism** | Sequential | Multiple agents work in parallel |
+
+### When to Use Each
+
+**Use Delegation when:**
+- Single subtask that needs a specialist
+- Synchronous call-and-response
+- No shared state needed
+- One agent helps another
+
+**Use Squads when:**
+- Team of agents working on related tasks
+- Parallel work with dependencies
+- Shared workspace and files
+- Need persistent state across sessions
+- Want all agents to share common context via SQUAD.md
+
+### Combined Example
+
+```bash
+# 1. Create squad for feature work
+ayo squad create auth-feature -a @backend,@frontend,@qa
+
+# 2. Edit SQUAD.md to define team
+$EDITOR ~/.local/share/ayo/sandboxes/squads/auth-feature/SQUAD.md
+
+# 3. Agents in squad can still use delegation
+# If @backend has delegation configured, it can delegate to @crush
+# for specific coding subtasks while remaining in the squad
+```
+
+In practice:
+- **Squads** define the team and shared context
+- **Delegation** enables quick specialist help within a squad

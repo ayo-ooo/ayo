@@ -76,6 +76,14 @@ func (s *Service) Create(ctx context.Context, cfg config.SquadConfig) (*Squad, e
 		return nil, fmt.Errorf("save squad config: %w", err)
 	}
 
+	// Create default SQUAD.md constitution
+	if _, err := LoadConstitution(cfg.Name); err != nil {
+		// File doesn't exist, create default
+		if err := CreateDefaultConstitution(cfg.Name, cfg.Agents); err != nil {
+			debug.Log("failed to create default constitution", "squad", cfg.Name, "error", err)
+		}
+	}
+
 	// Create sandbox
 	sb, err := sandbox.EnsureSquadSandbox(ctx, s.provider, cfg.Name)
 	if err != nil {

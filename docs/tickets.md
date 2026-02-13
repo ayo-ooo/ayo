@@ -374,17 +374,76 @@ ayo ticket create "Feature" --ref "jira:PROJ-456" -s my-session
 | `--ref` | | External reference |
 | `--json` | | JSON output |
 
-## Comparison to Matrix
+## Tickets in Squads
 
-The ticket system replaces Matrix for most coordination needs:
+When working within a squad, tickets are stored in the squad's `.tickets/` directory:
 
-| Feature | Tickets | Matrix |
-|---------|---------|--------|
-| Persistence | ✓ Files on disk | Messages in DB |
-| Audit trail | ✓ Git-friendly | Query needed |
-| Dependencies | ✓ Built-in | Manual |
-| Status tracking | ✓ Built-in | Manual |
-| Real-time | Polling | ✓ Push |
-| Complexity | Low | High (homeserver) |
+```
+~/.local/share/ayo/sandboxes/squads/{name}/.tickets/
+├── alpha-a1b2.md    # "Implement auth"
+├── alpha-c3d4.md    # "Write tests"
+└── alpha-e5f6.md    # "Code review"
+```
 
-For most multi-agent workflows, tickets provide simpler, more visible coordination. Matrix remains available for scenarios requiring real-time push messaging.
+### Squad Ticket Commands
+
+```bash
+# Create ticket in squad
+ayo squad ticket my-squad create "Implement login" -a @backend
+
+# List squad tickets
+ayo squad ticket my-squad list
+
+# Show ticket details
+ayo squad ticket my-squad show alpha-a1b2
+
+# Mark complete
+ayo squad ticket my-squad close alpha-a1b2
+```
+
+### Tickets + SQUAD.md
+
+Tickets define *what* needs to be done. The squad's `SQUAD.md` constitution defines *how* agents should work together:
+
+```markdown
+# SQUAD.md coordination section example
+
+## Coordination
+
+1. @backend creates API endpoint
+2. @backend creates ticket for @frontend when ready
+3. @frontend implements UI after @backend ticket closes
+4. @qa reviews after each component completes
+
+Use ticket dependencies:
+- frontend-login depends on backend-login
+- qa-review depends on both
+```
+
+The constitution provides shared context that helps agents interpret tickets consistently.
+
+## Comparison to Other Coordination
+
+| Feature | Tickets | Flows | Delegation |
+|---------|---------|-------|------------|
+| **Persistence** | ✓ Files on disk | None | None |
+| **Parallelism** | ✓ Multiple agents | Sequential | Single call |
+| **Dependencies** | ✓ Built-in | Chained output | Direct call |
+| **Audit trail** | ✓ Git-friendly | None | None |
+| **Isolation** | Squad-scoped | Process-scoped | Process-scoped |
+
+**Use Tickets when:**
+- Work spans multiple agents
+- Need dependency ordering
+- Want audit trail
+- Working within a squad
+
+**Use Flows when:**
+- Work is sequential pipeline
+- Output of one → input of next
+- No parallel work
+
+**Use Delegation when:**
+- Quick synchronous subtask
+- No persistence needed
+- Single agent helps another
