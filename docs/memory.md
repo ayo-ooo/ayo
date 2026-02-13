@@ -1,3 +1,5 @@
+<!-- Scope: Memory system - storage, retrieval, semantic search. For sessions, see sessions.md. -->
+
 # Memory
 
 The memory system stores facts, preferences, and patterns about you that persist across sessions, enabling agents to provide personalized and contextual responses.

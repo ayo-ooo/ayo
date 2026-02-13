@@ -1,5 +1,13 @@
 # Ayo Documentation
 
+This directory contains detailed documentation for the ayo CLI framework.
+
+**For AI coding agents:** Start with AGENTS.md in the repo root for quick reference, then dive into these docs as needed.
+
+**For humans:** Start with [TUTORIAL.md](TUTORIAL.md) for a comprehensive walkthrough.
+
+---
+
 > **ayo** - Agents You Orchestrate
 
 Ayo is a command-line framework for creating, managing, and orchestrating AI agents that operate within isolated sandbox environments.

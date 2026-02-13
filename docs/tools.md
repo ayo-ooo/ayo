@@ -1,3 +1,5 @@
+<!-- Scope: Tool system - bash, memory, todo, agent_call. For agent configuration, see agents.md. -->
+
 # Tools
 
 Tools give agents the ability to take actions. Each agent specifies which tools it can use in its configuration.

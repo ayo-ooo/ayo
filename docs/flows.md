@@ -1,3 +1,5 @@
+<!-- Scope: Flow system - shell flows, YAML flows, execution. For flow YAML schema, see flows-spec.md. -->
+
 # Flows Guide
 
 Flows are composable agent pipelines that orchestrate multi-step workflows. There are two flow types:

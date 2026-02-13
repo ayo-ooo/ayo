@@ -1,3 +1,5 @@
+<!-- Scope: Creating and configuring agents. For tool configuration, see tools.md. For skills, see skills.md. -->
+
 # Agents
 
 Agents are AI assistants with custom system prompts and tool access. Each agent is a directory containing configuration and instructions.

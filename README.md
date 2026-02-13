@@ -1,6 +1,6 @@
 # `ayo` - Agents You Orchestrate
 
-`ayo` is a command-line framework for creating, managing, and orchestrating AI agents that operate within your computing environment.
+`ayo` is a CLI framework for AI agents that actually do things. Create agents, teach them skills, let them execute commands in isolated sandboxes.
 
 ## Philosophy
 
@@ -23,17 +23,30 @@ Ayo extends the Unix philosophy to agent-based computing:
 # Install
 go install github.com/alexcabrera/ayo/cmd/ayo@latest
 
-# Configure API key
-export ANTHROPIC_API_KEY="sk-..."  # or OPENAI_API_KEY, etc.
+# Set API key
+export ANTHROPIC_API_KEY="sk-..."
 
 # Start chatting
 ayo
+```
 
-# Single prompt
+## What Can You Do?
+
+```bash
+# Chat interactively
+ayo
+
+# Single task
 ayo "help me debug this test"
 
-# With file attachment
+# Review a file
 ayo -a main.go "review this code"
+
+# Continue a conversation
+ayo -c "what about edge cases?"
+
+# Use a specialized agent
+ayo @reviewer "check for security issues"
 ```
 
 ## Features

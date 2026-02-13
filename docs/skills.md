@@ -1,3 +1,5 @@
+<!-- Scope: Skill system - creating, attaching, and discovering skills. For agent configuration, see agents.md. -->
+
 # Skills
 
 Skills are reusable instruction sets that teach agents specialized tasks. They follow the [agentskills spec](https://agentskills.org).
