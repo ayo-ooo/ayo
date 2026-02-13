@@ -672,3 +672,37 @@ func LogDir() string {
 func MatrixAgentsFile() string {
 	return filepath.Join(MatrixDataDir(), "agents.json")
 }
+
+// SessionsDir returns the directory for session data including tickets.
+// Location: ~/.local/share/ayo/sessions
+func SessionsDir() string {
+	return filepath.Join(DataDir(), "sessions")
+}
+
+// SessionDir returns the directory for a specific session.
+// Location: ~/.local/share/ayo/sessions/{sessionID}
+func SessionDir(sessionID string) string {
+	return filepath.Join(SessionsDir(), sessionID)
+}
+
+// SessionTicketsDir returns the tickets directory for a specific session.
+// Location: ~/.local/share/ayo/sessions/{sessionID}/.tickets
+func SessionTicketsDir(sessionID string) string {
+	return filepath.Join(SessionDir(sessionID), ".tickets")
+}
+
+// GlobalTicketsDir returns the global tickets directory for cross-session tickets.
+// Location: ~/.local/share/ayo/tickets/.tickets
+func GlobalTicketsDir() string {
+	return filepath.Join(DataDir(), "tickets", ".tickets")
+}
+
+// EnsureSessionTicketsDir creates the tickets directory for a session if it doesn't exist.
+// Returns the path to the directory.
+func EnsureSessionTicketsDir(sessionID string) (string, error) {
+	dir := SessionTicketsDir(sessionID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("create session tickets directory: %w", err)
+	}
+	return dir, nil
+}

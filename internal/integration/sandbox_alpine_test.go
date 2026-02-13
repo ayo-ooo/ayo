@@ -239,9 +239,14 @@ func TestAlpineSandbox_InterAgentMessage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
+	containerName := "ayo-alpine-test-interagent"
+
+	// Clean up any stale container from previous failed runs
+	_ = apple.Delete(ctx, containerName, true)
+
 	// Create sandbox
 	sb, err := apple.Create(ctx, providers.SandboxCreateOptions{
-		Name:    "ayo-alpine-test-interagent",
+		Name:    containerName,
 		Image:   "docker.io/library/alpine:3.21",
 		Network: providers.NetworkConfig{Enabled: true},
 	})

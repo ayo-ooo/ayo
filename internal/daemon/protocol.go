@@ -567,3 +567,157 @@ type FlowRunSummary struct {
 	Duration  int64  `json:"duration_ms,omitempty"`
 	Error     string `json:"error,omitempty"`
 }
+
+// Ticket method names
+const (
+	MethodTicketCreate  = "tickets.create"
+	MethodTicketGet     = "tickets.get"
+	MethodTicketList    = "tickets.list"
+	MethodTicketUpdate  = "tickets.update"
+	MethodTicketDelete  = "tickets.delete"
+	MethodTicketStart   = "tickets.start"
+	MethodTicketClose   = "tickets.close"
+	MethodTicketReopen  = "tickets.reopen"
+	MethodTicketBlock   = "tickets.block"
+	MethodTicketAssign  = "tickets.assign"
+	MethodTicketAddNote = "tickets.add_note"
+	MethodTicketReady   = "tickets.ready"
+	MethodTicketBlocked = "tickets.blocked"
+	MethodTicketAddDep  = "tickets.add_dep"
+	MethodTicketRemDep  = "tickets.remove_dep"
+)
+
+// TicketCreateParams is the request for tickets.create.
+type TicketCreateParams struct {
+	SessionID   string   `json:"session_id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Priority    int      `json:"priority,omitempty"`
+	Assignee    string   `json:"assignee,omitempty"`
+	Deps        []string `json:"deps,omitempty"`
+	Parent      string   `json:"parent,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	ExternalRef string   `json:"external_ref,omitempty"`
+}
+
+// TicketCreateResult is the response to tickets.create.
+type TicketCreateResult struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+// TicketGetParams is the request for tickets.get.
+type TicketGetParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+}
+
+// TicketInfo represents a ticket in RPC responses.
+type TicketInfo struct {
+	ID          string   `json:"id"`
+	Status      string   `json:"status"`
+	Type        string   `json:"type"`
+	Priority    int      `json:"priority"`
+	Assignee    string   `json:"assignee,omitempty"`
+	Deps        []string `json:"deps"`
+	Links       []string `json:"links"`
+	Parent      string   `json:"parent,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Created     int64    `json:"created"`
+	Started     int64    `json:"started,omitempty"`
+	Closed      int64    `json:"closed,omitempty"`
+	Session     string   `json:"session,omitempty"`
+	ExternalRef string   `json:"external_ref,omitempty"`
+	FilePath    string   `json:"file_path"`
+}
+
+// TicketGetResult is the response to tickets.get.
+type TicketGetResult struct {
+	Ticket TicketInfo `json:"ticket"`
+}
+
+// TicketListParams is the request for tickets.list.
+type TicketListParams struct {
+	SessionID string   `json:"session_id"`
+	Status    string   `json:"status,omitempty"`
+	Assignee  string   `json:"assignee,omitempty"`
+	Type      string   `json:"type,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Parent    string   `json:"parent,omitempty"`
+}
+
+// TicketListResult is the response to tickets.list.
+type TicketListResult struct {
+	Tickets []TicketInfo `json:"tickets"`
+}
+
+// TicketUpdateParams is the request for tickets.update.
+type TicketUpdateParams struct {
+	SessionID   string   `json:"session_id"`
+	TicketID    string   `json:"ticket_id"`
+	Title       *string  `json:"title,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Type        *string  `json:"type,omitempty"`
+	Priority    *int     `json:"priority,omitempty"`
+	Assignee    *string  `json:"assignee,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	ExternalRef *string  `json:"external_ref,omitempty"`
+}
+
+// TicketDeleteParams is the request for tickets.delete.
+type TicketDeleteParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+}
+
+// TicketStatusParams is the request for tickets.start/close/reopen/block.
+type TicketStatusParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+}
+
+// TicketAssignParams is the request for tickets.assign.
+type TicketAssignParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+	Assignee  string `json:"assignee"`
+}
+
+// TicketAddNoteParams is the request for tickets.add_note.
+type TicketAddNoteParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+	Content   string `json:"content"`
+}
+
+// TicketReadyParams is the request for tickets.ready.
+type TicketReadyParams struct {
+	SessionID string `json:"session_id"`
+	Assignee  string `json:"assignee,omitempty"`
+}
+
+// TicketReadyResult is the response to tickets.ready.
+type TicketReadyResult struct {
+	Tickets []TicketInfo `json:"tickets"`
+}
+
+// TicketBlockedParams is the request for tickets.blocked.
+type TicketBlockedParams struct {
+	SessionID string `json:"session_id"`
+	Assignee  string `json:"assignee,omitempty"`
+}
+
+// TicketBlockedResult is the response to tickets.blocked.
+type TicketBlockedResult struct {
+	Tickets []TicketInfo `json:"tickets"`
+}
+
+// TicketDepParams is the request for tickets.add_dep and tickets.remove_dep.
+type TicketDepParams struct {
+	SessionID string `json:"session_id"`
+	TicketID  string `json:"ticket_id"`
+	DepID     string `json:"dep_id"`
+}

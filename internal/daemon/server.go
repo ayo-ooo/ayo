@@ -17,6 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	ayosync "github.com/alexcabrera/ayo/internal/sync"
+	"github.com/alexcabrera/ayo/internal/tickets"
 	"github.com/alexcabrera/ayo/internal/version"
 )
 
@@ -36,6 +37,8 @@ type Server struct {
 	connections    atomic.Int32
 	mu             sync.RWMutex
 	running        bool
+	tickets        *tickets.Service
+	ticketWatcher  *TicketWatcher
 }
 
 // ServerConfig configures the daemon server.
@@ -143,6 +146,13 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		Callback: server.handleTriggerEvent,
 	})
 
+	// Create ticket watcher (no runner configured yet - will be set when available)
+	ticketWatcher, err := NewTicketWatcher(TicketWatcherConfig{})
+	if err != nil {
+		return nil, fmt.Errorf("create ticket watcher: %w", err)
+	}
+	server.ticketWatcher = ticketWatcher
+
 	return server, nil
 }
 
@@ -205,6 +215,13 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("start webhook server: %w", err)
 	}
 
+	// Start ticket watcher (optional - don't fail if fsnotify unavailable)
+	if s.ticketWatcher != nil {
+		if err := s.ticketWatcher.Start(ctx); err != nil {
+			// Log warning but don't fail - ticket watching is optional
+		}
+	}
+
 	// Start Conduit Matrix homeserver (optional - don't fail if not available)
 	if s.conduit != nil {
 		if err := s.conduit.Start(ctx); err != nil {
@@ -264,6 +281,11 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Stop webhook server
 	if s.webhookServer != nil {
 		s.webhookServer.Stop(ctx)
+	}
+
+	// Stop ticket watcher
+	if s.ticketWatcher != nil {
+		s.ticketWatcher.Stop(ctx)
 	}
 
 	// Stop Matrix broker
@@ -468,6 +490,37 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleFlowGet(req)
 	case MethodFlowHistory:
 		return s.handleFlowHistory(req)
+	// Ticket methods
+	case MethodTicketCreate:
+		return s.handleTicketCreate(req)
+	case MethodTicketGet:
+		return s.handleTicketGet(req)
+	case MethodTicketList:
+		return s.handleTicketList(req)
+	case MethodTicketUpdate:
+		return s.handleTicketUpdate(req)
+	case MethodTicketDelete:
+		return s.handleTicketDelete(req)
+	case MethodTicketStart:
+		return s.handleTicketStart(req)
+	case MethodTicketClose:
+		return s.handleTicketClose(req)
+	case MethodTicketReopen:
+		return s.handleTicketReopen(req)
+	case MethodTicketBlock:
+		return s.handleTicketBlock(req)
+	case MethodTicketAssign:
+		return s.handleTicketAssign(req)
+	case MethodTicketAddNote:
+		return s.handleTicketAddNote(req)
+	case MethodTicketReady:
+		return s.handleTicketReady(req)
+	case MethodTicketBlocked:
+		return s.handleTicketBlocked(req)
+	case MethodTicketAddDep:
+		return s.handleTicketAddDep(req)
+	case MethodTicketRemDep:
+		return s.handleTicketRemoveDep(req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}

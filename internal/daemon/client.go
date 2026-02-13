@@ -456,3 +456,105 @@ func (c *Client) MatrixRead(ctx context.Context, params MatrixReadParams) (*Matr
 	}
 	return &result, nil
 }
+
+// TicketCreate creates a new ticket.
+func (c *Client) TicketCreate(ctx context.Context, params TicketCreateParams) (*TicketCreateResult, error) {
+	var result TicketCreateResult
+	if err := c.call(ctx, MethodTicketCreate, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TicketGet retrieves a ticket by ID.
+func (c *Client) TicketGet(ctx context.Context, sessionID, ticketID string) (*TicketGetResult, error) {
+	params := TicketGetParams{SessionID: sessionID, TicketID: ticketID}
+	var result TicketGetResult
+	if err := c.call(ctx, MethodTicketGet, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TicketList lists tickets with optional filters.
+func (c *Client) TicketList(ctx context.Context, params TicketListParams) (*TicketListResult, error) {
+	var result TicketListResult
+	if err := c.call(ctx, MethodTicketList, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TicketStart sets a ticket status to in_progress.
+func (c *Client) TicketStart(ctx context.Context, sessionID, ticketID string) error {
+	params := TicketStatusParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketStart, params, nil)
+}
+
+// TicketClose sets a ticket status to closed.
+func (c *Client) TicketClose(ctx context.Context, sessionID, ticketID string) error {
+	params := TicketStatusParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketClose, params, nil)
+}
+
+// TicketReopen reopens a closed ticket.
+func (c *Client) TicketReopen(ctx context.Context, sessionID, ticketID string) error {
+	params := TicketStatusParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketReopen, params, nil)
+}
+
+// TicketBlock sets a ticket status to blocked.
+func (c *Client) TicketBlock(ctx context.Context, sessionID, ticketID string) error {
+	params := TicketStatusParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketBlock, params, nil)
+}
+
+// TicketAssign assigns a ticket to an agent.
+func (c *Client) TicketAssign(ctx context.Context, sessionID, ticketID, assignee string) error {
+	params := TicketAssignParams{SessionID: sessionID, TicketID: ticketID, Assignee: assignee}
+	return c.call(ctx, MethodTicketAssign, params, nil)
+}
+
+// TicketAddNote adds a note to a ticket.
+func (c *Client) TicketAddNote(ctx context.Context, sessionID, ticketID, content string) error {
+	params := TicketAddNoteParams{SessionID: sessionID, TicketID: ticketID, Content: content}
+	return c.call(ctx, MethodTicketAddNote, params, nil)
+}
+
+// TicketReady returns tickets ready to work on (deps resolved).
+func (c *Client) TicketReady(ctx context.Context, sessionID, assignee string) (*TicketReadyResult, error) {
+	params := TicketReadyParams{SessionID: sessionID, Assignee: assignee}
+	var result TicketReadyResult
+	if err := c.call(ctx, MethodTicketReady, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TicketBlocked returns tickets blocked on dependencies.
+func (c *Client) TicketBlocked(ctx context.Context, sessionID, assignee string) (*TicketBlockedResult, error) {
+	params := TicketBlockedParams{SessionID: sessionID, Assignee: assignee}
+	var result TicketBlockedResult
+	if err := c.call(ctx, MethodTicketBlocked, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TicketAddDep adds a dependency to a ticket.
+func (c *Client) TicketAddDep(ctx context.Context, sessionID, ticketID, depID string) error {
+	params := TicketDepParams{SessionID: sessionID, TicketID: ticketID, DepID: depID}
+	return c.call(ctx, MethodTicketAddDep, params, nil)
+}
+
+// TicketRemoveDep removes a dependency from a ticket.
+func (c *Client) TicketRemoveDep(ctx context.Context, sessionID, ticketID, depID string) error {
+	params := TicketDepParams{SessionID: sessionID, TicketID: ticketID, DepID: depID}
+	return c.call(ctx, MethodTicketRemDep, params, nil)
+}
+
+// TicketDelete deletes a ticket.
+func (c *Client) TicketDelete(ctx context.Context, sessionID, ticketID string) error {
+	params := TicketDeleteParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketDelete, params, nil)
+}

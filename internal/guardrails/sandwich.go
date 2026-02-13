@@ -26,8 +26,10 @@ type WrapContext struct {
 	TrustLevel        string // Agent's trust level (sandboxed, privileged, unrestricted)
 	SessionID         string // Current session identifier
 	AgentName         string // Name of the agent being invoked
+	AgentHandle       string // Handle of the agent (e.g., "@coder")
 	OrchestratorAgent string // Name of the orchestrating agent (e.g., "@ayo")
-	SessionRoom       string // Matrix room for the session (e.g., "#session-abc123")
+	SessionRoom       string // Matrix room for the session (deprecated, use TicketsDir)
+	TicketsDir        string // Path to tickets directory (e.g., "/workspace/.tickets")
 }
 
 // Wrap wraps an agent prompt with PREFIX and SUFFIX guardrails.
