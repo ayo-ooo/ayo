@@ -86,6 +86,29 @@ When the agent runs a command:
 
 The `todo` tool enables agents to track multi-step tasks with status updates. It's the default implementation for the `planning` category.
 
+### Todos vs Tickets
+
+Ayo uses a two-tier task management system:
+
+| Tool | Scope | Lifetime | Use For |
+|------|-------|----------|---------|
+| `todo` | Single session | Ephemeral | Near-term steps ("what I'm doing now") |
+| `ticket` | Across sessions | Persistent | Project work items ("what needs to be done") |
+
+**Todos** are the agent's internal working memory for tracking immediate steps. When a session ends, todos are discarded.
+
+**Tickets** persist across sessions and agents. When working on a ticket, an agent creates todos to track its immediate steps, then records progress in ticket notes before the session ends.
+
+```
+Ticket: "Implement auth module"           <- Persistent, shared
+  └── Agent session
+      └── Todos:                          <- Ephemeral, internal
+          - [x] Read existing code
+          - [ ] Implement login endpoint
+```
+
+See [Tickets](tickets.md) for the persistent coordination system.
+
 ### Agent Configuration
 
 ```json

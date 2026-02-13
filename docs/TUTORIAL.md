@@ -1912,7 +1912,8 @@ The `@ayo` namespace is reserved for built-in agents:
 | Agent call | Synchronous delegation |
 | Chaining | Data pipeline (stdin/stdout) |
 | Shared files | Asynchronous collaboration |
-| Matrix | Real-time messaging |
+| Tickets | Task coordination with dependencies |
+| Matrix | Real-time messaging (legacy) |
 
 ### 19.2 Agent Call (Synchronous)
 
@@ -1951,9 +1952,92 @@ Agents in shared sandbox write files for each other:
 @coordinator: reads results, synthesizes
 ```
 
-### 19.5 Matrix (Real-time)
+### 19.5 Tickets (Task Coordination)
 
-Matrix provides publish/subscribe messaging:
+Tickets provide persistent, file-based task coordination. Unlike real-time messaging, tickets create an auditable trail of work and support dependencies between tasks.
+
+**Creating and assigning work:**
+
+```bash
+# Coordinator creates tickets
+ayo ticket create "Implement auth module" -a @backend -s project-session
+ayo ticket create "Write auth tests" -a @tester --deps auth-impl -s project-session
+ayo ticket create "Review auth code" -a @reviewer --deps auth-impl -s project-session
+```
+
+**Working on tickets:**
+
+```bash
+# Agent finds ready work
+ayo ticket ready -a @backend -s project-session
+
+# Claims and starts
+ayo ticket start auth-impl -s project-session
+
+# Adds progress notes
+ayo ticket note auth-impl "Completed JWT implementation" -s project-session
+
+# Marks complete
+ayo ticket close auth-impl -s project-session
+```
+
+**Handling dependencies:**
+
+When `@backend` closes `auth-impl`, the dependent tickets (`auth-tests`, `auth-review`) become "ready" for their assignees.
+
+```bash
+# @tester can now see their ticket is ready
+ayo ticket ready -a @tester -s project-session
+# Shows: auth-tests (deps resolved)
+```
+
+**Benefits over other mechanisms:**
+
+| Feature | Tickets | Agent Call | Shared Files |
+|---------|---------|------------|--------------|
+| Async | ✓ | ✗ | ✓ |
+| Dependencies | ✓ | ✗ | Manual |
+| Audit trail | ✓ | Logs | ✗ |
+| Status tracking | ✓ | ✗ | Manual |
+| Git-friendly | ✓ | ✗ | ✓ |
+
+For comprehensive ticket documentation, see [Tickets](tickets.md).
+
+### 19.6 Two-Tier Task Management
+
+Ayo uses a two-tier approach to task management that separates near-term execution from medium/long-term planning:
+
+| Layer | Tool | Scope | Lifetime | Purpose |
+|-------|------|-------|----------|---------|
+| **Near-term** | `todo` | Single session | Ephemeral | Steps to complete current work |
+| **Medium/Long-term** | `ticket` | Across sessions | Persistent | Project-level work items |
+
+**How they relate:**
+
+```
+Ticket: "Implement authentication module" (proj-a1b2)
+  │
+  └── Agent picks up ticket, starts session
+      │
+      └── Todo list (internal to this session):
+          - [x] Read existing auth code
+          - [x] Design JWT structure
+          - [ ] Implement login endpoint
+          - [ ] Write tests
+```
+
+**Todos** are the agent's internal working memory—a scratchpad for tracking immediate steps. When a session ends (agent stops, context limit reached, handoff), todos disappear.
+
+**Tickets** are the persistent interface between sessions and agents. Progress is captured in ticket notes, ensuring continuity when:
+- An agent's session ends and restarts
+- Work is handed off to a different agent
+- Multiple agents collaborate on related tasks
+
+This separation keeps agents focused (todos for "what am I doing now") while maintaining project visibility (tickets for "what needs to be done").
+
+### 19.7 Matrix (Real-time)
+
+Matrix provides publish/subscribe messaging for scenarios requiring real-time push notifications:
 
 ```bash
 # Agent 1 subscribes to room
@@ -1964,6 +2048,8 @@ ayo matrix send project-room '{"event": "task-complete", "id": 123}'
 
 # Agent 1 receives message
 ```
+
+**Note:** For most coordination needs, tickets are preferred over Matrix. Tickets provide better persistence, dependency management, and audit trails. Matrix remains useful for real-time event streaming where polling is insufficient.
 
 ---
 

@@ -1005,6 +1005,201 @@ ayo matrix send my-room "Message from sandbox"
 
 ---
 
+## ayo ticket
+
+Ticket-based coordination for multi-agent workflows. See [Tickets](tickets.md) for full documentation.
+
+Tickets are markdown files with YAML frontmatter that provide persistent, auditable task tracking between agents.
+
+### ayo ticket list
+
+List tickets in a session.
+
+```bash
+ayo ticket list -s <session> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--session` | `-s` | Session ID (required) |
+| `--status` | | Filter by status: pending, in_progress, blocked, closed |
+| `--assignee` | `-a` | Filter by assignee (e.g., @coder) |
+| `--type` | `-t` | Filter by type: task, bug, feature, subtask |
+| `--json` | | Output in JSON format |
+
+**Examples:**
+
+```bash
+ayo ticket list -s my-session
+ayo ticket list -s my-session --status in_progress
+ayo ticket list -s my-session -a @coder
+```
+
+### ayo ticket create
+
+Create a new ticket.
+
+```bash
+ayo ticket create <title> -s <session> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--session` | `-s` | Session ID (required) |
+| `--assignee` | `-a` | Assign to agent |
+| `--priority` | `-p` | Priority 0-3 (0=critical, 2=default) |
+| `--type` | `-t` | Type: task, bug, feature, subtask |
+| `--deps` | | Comma-separated dependency ticket IDs |
+| `--parent` | | Parent ticket ID (for subtasks) |
+| `--ref` | | External reference (e.g., github:org/repo#123) |
+| `--json` | | Output in JSON format |
+
+**Examples:**
+
+```bash
+ayo ticket create "Implement auth" -s my-session
+ayo ticket create "Fix login bug" -s my-session -a @debugger -p 1 --type bug
+ayo ticket create "Deploy" -s my-session --deps auth-impl,tests
+```
+
+### ayo ticket show
+
+Show ticket details.
+
+```bash
+ayo ticket show <ticket-id> -s <session>
+```
+
+Displays full ticket information including:
+- Status, type, priority
+- Assignee and timestamps
+- Dependencies and links
+- Description and notes
+
+### ayo ticket start
+
+Start working on a ticket (sets status to in_progress).
+
+```bash
+ayo ticket start <ticket-id> -s <session>
+```
+
+### ayo ticket close
+
+Close a ticket (sets status to closed).
+
+```bash
+ayo ticket close <ticket-id> -s <session>
+```
+
+### ayo ticket reopen
+
+Reopen a closed ticket (sets status to pending).
+
+```bash
+ayo ticket reopen <ticket-id> -s <session>
+```
+
+### ayo ticket block
+
+Mark a ticket as blocked.
+
+```bash
+ayo ticket block <ticket-id> -s <session>
+```
+
+### ayo ticket assign
+
+Assign a ticket to an agent.
+
+```bash
+ayo ticket assign <ticket-id> <agent> -s <session>
+```
+
+**Examples:**
+
+```bash
+ayo ticket assign proj-a1b2 @coder -s my-session
+ayo ticket assign proj-a1b2 "" -s my-session  # Unassign
+```
+
+### ayo ticket note
+
+Add a note to a ticket.
+
+```bash
+ayo ticket note <ticket-id> <content> -s <session>
+```
+
+**Examples:**
+
+```bash
+ayo ticket note proj-a1b2 "Completed login endpoint" -s my-session
+ayo ticket note proj-a1b2 "Blocked: waiting for API spec" -s my-session
+```
+
+### ayo ticket ready
+
+List tickets ready to work on (dependencies resolved).
+
+```bash
+ayo ticket ready -s <session> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--assignee` | `-a` | Filter by assignee |
+| `--json` | | Output in JSON format |
+
+### ayo ticket blocked
+
+List tickets blocked on dependencies.
+
+```bash
+ayo ticket blocked -s <session> [--flags]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--assignee` | `-a` | Filter by assignee |
+| `--json` | | Output in JSON format |
+
+### ayo ticket dep
+
+Manage ticket dependencies.
+
+#### ayo ticket dep add
+
+Add a dependency to a ticket.
+
+```bash
+ayo ticket dep add <ticket-id> <dep-id> -s <session>
+```
+
+The system prevents circular dependencies.
+
+#### ayo ticket dep remove
+
+Remove a dependency from a ticket.
+
+```bash
+ayo ticket dep remove <ticket-id> <dep-id> -s <session>
+```
+
+### ayo ticket delete
+
+Delete a ticket.
+
+```bash
+ayo ticket delete <ticket-id> -s <session> [--force]
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation |
+
+---
+
 ## ayo mount
 
 Manage persistent filesystem access for sandboxed agents.

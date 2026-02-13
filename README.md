@@ -60,6 +60,7 @@ ayo @reviewer "check for security issues"
 | **Sessions** | Resume previous conversations |
 | **Chaining** | Compose agents via Unix pipes with JSON schemas |
 | **Delegation** | Route task types to specialist agents |
+| **Tickets** | File-based task coordination between agents |
 | **Sandbox** | Isolated execution environments (Apple Container / systemd-nspawn) |
 | **Flows** | Multi-step workflows with shell scripts or YAML definitions |
 | **Triggers** | Automated execution via cron, file watchers, webhooks |
@@ -82,7 +83,7 @@ ayo @reviewer "check for security issues"
 │  │  Daemon (background service)                           │  │
 │  │  • Sandbox pool management                             │  │
 │  │  • Trigger engine (cron, watch, webhook)               │  │
-│  │  • Inter-agent communication (Matrix/Conduit)          │  │
+│  │  • Ticket coordination (file-based task system)        │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                              │                               │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -114,6 +115,8 @@ ayo @reviewer "check for security issues"
 ├── agents/                       # Built-in agents
 ├── skills/                       # Built-in skills
 ├── plugins/                      # Installed plugins
+├── sessions/                     # Session data with tickets
+│   └── {session-id}/.tickets/    # Ticket files per session
 └── sandbox/                      # Sandbox data
     ├── homes/                    # Agent home directories
     └── workspace/                # Host directory shares
@@ -129,6 +132,7 @@ ayo @reviewer "check for security issues"
 | [Skills](docs/skills.md) | Extending agents with instructions |
 | [Tools](docs/tools.md) | Tool system (bash, memory, delegation) |
 | [Flows](docs/flows.md) | Composable agent pipelines |
+| [Tickets](docs/tickets.md) | Task coordination between agents |
 | [Memory](docs/memory.md) | Persistent facts and preferences |
 | [Sessions](docs/sessions.md) | Conversation persistence |
 | [Chaining](docs/chaining.md) | Composing agents via pipes |
@@ -201,6 +205,12 @@ ayo agents create @name          # Create agent
 ayo flows list                   # List flows
 ayo flows run name [input]       # Run flow
 ayo flows new name               # Create flow
+
+# Tickets (agent coordination)
+ayo ticket list -s session       # List tickets
+ayo ticket create "task" -s ses  # Create ticket
+ayo ticket start id -s session   # Start working
+ayo ticket close id -s session   # Mark complete
 
 # Sandbox
 ayo sandbox list                 # List sandboxes
