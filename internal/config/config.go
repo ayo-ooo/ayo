@@ -228,6 +228,78 @@ type ObserverProviderConfig struct {
 	DebounceMs int `json:"debounce_ms,omitempty"`
 }
 
+// AyoSandboxConfig configures the dedicated @ayo orchestrator sandbox.
+// Location: ~/.config/ayo/ayo-sandbox.json
+type AyoSandboxConfig struct {
+	// Schema enables IDE validation/autocomplete.
+	Schema string `json:"$schema,omitempty"`
+
+	// Image is the container image for @ayo's sandbox.
+	// Defaults to the standard sandbox image.
+	Image string `json:"image,omitempty"`
+
+	// Resources configures CPU, memory, and disk limits for @ayo's sandbox.
+	Resources SandboxResourcesConfig `json:"resources,omitempty"`
+
+	// Packages lists packages to install in @ayo's sandbox during setup.
+	// These are installed via the sandbox's package manager (e.g., apk, apt).
+	Packages []string `json:"packages,omitempty"`
+
+	// Mounts specifies additional paths to mount into @ayo's sandbox.
+	// Format: "host_path:container_path" or just "path" for same path on both.
+	Mounts []string `json:"mounts,omitempty"`
+
+	// Network enables network access in @ayo's sandbox.
+	// Defaults to true.
+	Network *bool `json:"network,omitempty"`
+}
+
+// SquadConfig configures a squad sandbox for agent teams.
+// Location: ~/.config/ayo/squads/{name}.json
+type SquadConfig struct {
+	// Schema enables IDE validation/autocomplete.
+	Schema string `json:"$schema,omitempty"`
+
+	// Name is the squad identifier (derived from filename if not specified).
+	Name string `json:"name,omitempty"`
+
+	// Description provides a human-readable description of the squad's purpose.
+	Description string `json:"description,omitempty"`
+
+	// Image is the container image for the squad sandbox.
+	// Defaults to the standard sandbox image.
+	Image string `json:"image,omitempty"`
+
+	// Resources configures CPU, memory, and disk limits for the squad sandbox.
+	Resources SandboxResourcesConfig `json:"resources,omitempty"`
+
+	// Packages lists packages to install in the squad sandbox during setup.
+	Packages []string `json:"packages,omitempty"`
+
+	// Mounts specifies additional paths to mount into the squad sandbox.
+	// Format: "host_path:container_path" or just "path" for same path on both.
+	Mounts []string `json:"mounts,omitempty"`
+
+	// Network enables network access in the squad sandbox.
+	// Defaults to true.
+	Network *bool `json:"network,omitempty"`
+
+	// Ephemeral indicates whether the squad sandbox is destroyed after the session.
+	// Defaults to false (persistent).
+	Ephemeral bool `json:"ephemeral,omitempty"`
+
+	// Agents lists agent handles that are members of this squad.
+	// Example: ["@frontend", "@backend", "@qa"]
+	Agents []string `json:"agents,omitempty"`
+
+	// WorkspaceMount is the host path to mount as /workspace in the squad sandbox.
+	// This is where agents work on code.
+	WorkspaceMount string `json:"workspace_mount,omitempty"`
+
+	// OutputPath is the host path where work products are synced after completion.
+	OutputPath string `json:"output_path,omitempty"`
+}
+
 // DefaultProvidersConfig returns the default provider configuration.
 func DefaultProvidersConfig() ProvidersConfig {
 	networkEnabled := true
@@ -447,4 +519,175 @@ func GetDefaultTool(toolType string) (string, error) {
 	}
 
 	return cfg.DefaultTools[toolType], nil
+}
+
+// AyoSandboxConfigPath returns the path to the @ayo sandbox config file.
+func AyoSandboxConfigPath() string {
+	return filepath.Join(paths.ConfigDir(), "ayo-sandbox.json")
+}
+
+// DefaultAyoSandboxConfig returns the default @ayo sandbox configuration.
+func DefaultAyoSandboxConfig() AyoSandboxConfig {
+	networkEnabled := true
+	return AyoSandboxConfig{
+		Image: "busybox:latest",
+		Resources: SandboxResourcesConfig{
+			CPUs:     2,
+			MemoryMB: 2048,
+			DiskMB:   10240,
+		},
+		Packages: []string{},
+		Mounts:   []string{},
+		Network:  &networkEnabled,
+	}
+}
+
+// LoadAyoSandboxConfig reads the @ayo sandbox configuration.
+// Returns defaults if the config file doesn't exist.
+func LoadAyoSandboxConfig() (AyoSandboxConfig, error) {
+	cfg := DefaultAyoSandboxConfig()
+
+	data, err := os.ReadFile(AyoSandboxConfigPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("read ayo sandbox config: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, fmt.Errorf("parse ayo sandbox config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// SaveAyoSandboxConfig writes the @ayo sandbox configuration.
+func SaveAyoSandboxConfig(cfg AyoSandboxConfig) error {
+	path := AyoSandboxConfigPath()
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create ayo sandbox config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal ayo sandbox config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write ayo sandbox config: %w", err)
+	}
+
+	return nil
+}
+
+// SquadsConfigDir returns the directory for squad config files.
+func SquadsConfigDir() string {
+	return filepath.Join(paths.ConfigDir(), "squads")
+}
+
+// SquadConfigPath returns the path to a squad's config file.
+func SquadConfigPath(name string) string {
+	return filepath.Join(SquadsConfigDir(), name+".json")
+}
+
+// DefaultSquadConfig returns the default squad configuration.
+func DefaultSquadConfig(name string) SquadConfig {
+	networkEnabled := true
+	return SquadConfig{
+		Name: name,
+		Resources: SandboxResourcesConfig{
+			CPUs:     2,
+			MemoryMB: 2048,
+			DiskMB:   10240,
+		},
+		Packages:  []string{},
+		Mounts:    []string{},
+		Network:   &networkEnabled,
+		Ephemeral: false,
+		Agents:    []string{},
+	}
+}
+
+// LoadSquadConfig reads a squad configuration by name.
+// Returns defaults if the config file doesn't exist.
+func LoadSquadConfig(name string) (SquadConfig, error) {
+	cfg := DefaultSquadConfig(name)
+
+	data, err := os.ReadFile(SquadConfigPath(name))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("read squad config: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, fmt.Errorf("parse squad config: %w", err)
+	}
+
+	// Ensure name is set
+	if cfg.Name == "" {
+		cfg.Name = name
+	}
+
+	return cfg, nil
+}
+
+// SaveSquadConfig writes a squad configuration.
+func SaveSquadConfig(cfg SquadConfig) error {
+	if cfg.Name == "" {
+		return fmt.Errorf("squad name is required")
+	}
+
+	path := SquadConfigPath(cfg.Name)
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create squads config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal squad config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write squad config: %w", err)
+	}
+
+	return nil
+}
+
+// ListSquadConfigs returns the names of all configured squads.
+func ListSquadConfigs() ([]string, error) {
+	dir := SquadsConfigDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read squads directory: %w", err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".json") {
+			names = append(names, strings.TrimSuffix(name, ".json"))
+		}
+	}
+	return names, nil
+}
+
+// DeleteSquadConfig removes a squad configuration file.
+func DeleteSquadConfig(name string) error {
+	path := SquadConfigPath(name)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete squad config: %w", err)
+	}
+	return nil
 }

@@ -753,99 +753,113 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 	var sandboxExecutor *sandbox.Executor
 	var sandboxID string
 	if ag.Config.SandboxEnabled() && r.sandboxProvider != nil {
-		// Create sandbox for this agent
-		// Sanitize handle for container name (remove @ and other invalid chars)
-		safeName := strings.TrimPrefix(ag.Handle, "@")
-		safeName = strings.ReplaceAll(safeName, ".", "-")
-		// Use SandboxUser() to get effective user (explicit or derived from handle)
-		sandboxUser := ag.Config.Sandbox.SandboxUser(ag.Handle)
-
-		// Build mount list
-		mounts := []providers.Mount{{
-			Source:      baseDir,
-			Destination: baseDir,
-			Mode:        providers.MountModeVirtioFS,
-			ReadOnly:    false,
-		}}
-
-		// Add persistent home directory mount if enabled
-		if ag.Config.Sandbox.PersistHomeEnabled() && sandboxUser != "" {
-			hostHomeDir, homeErr := paths.EnsureAgentHomeDir(ag.Handle)
-			if homeErr != nil {
-				return nil, nil, "", fmt.Errorf("create agent home directory: %w", homeErr)
+		// Check if this is the @ayo orchestrator agent - use dedicated sandbox
+		if isAyoAgent(ag.Handle) {
+			sb, ayoErr := r.ensureAyoSandbox(ctx, baseDir)
+			if ayoErr != nil {
+				return nil, nil, "", fmt.Errorf("ensure ayo sandbox: %w", ayoErr)
 			}
-			containerHomeDir := fmt.Sprintf("/home/%s", sandboxUser)
+			sandboxID = sb.ID
+			sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, "ayo")
+			
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Using dedicated @ayo sandbox %s\n", sandboxID)
+			}
+		} else {
+			// Create sandbox for this agent
+			// Sanitize handle for container name (remove @ and other invalid chars)
+			safeName := strings.TrimPrefix(ag.Handle, "@")
+			safeName = strings.ReplaceAll(safeName, ".", "-")
+			// Use SandboxUser() to get effective user (explicit or derived from handle)
+			sandboxUser := ag.Config.Sandbox.SandboxUser(ag.Handle)
+
+			// Build mount list
+			mounts := []providers.Mount{{
+				Source:      baseDir,
+				Destination: baseDir,
+				Mode:        providers.MountModeVirtioFS,
+				ReadOnly:    false,
+			}}
+
+			// Add persistent home directory mount if enabled
+			if ag.Config.Sandbox.PersistHomeEnabled() && sandboxUser != "" {
+				hostHomeDir, homeErr := paths.EnsureAgentHomeDir(ag.Handle)
+				if homeErr != nil {
+					return nil, nil, "", fmt.Errorf("create agent home directory: %w", homeErr)
+				}
+				containerHomeDir := fmt.Sprintf("/home/%s", sandboxUser)
+				mounts = append(mounts, providers.Mount{
+					Source:      hostHomeDir,
+					Destination: containerHomeDir,
+					Mode:        providers.MountModeVirtioFS,
+					ReadOnly:    false,
+				})
+				if r.debug {
+					fmt.Fprintf(os.Stderr, "[sandbox] Mounting persistent home %s -> %s\n", hostHomeDir, containerHomeDir)
+				}
+			}
+
+			// Add Matrix/daemon runtime directory mount for inter-agent communication
 			mounts = append(mounts, providers.Mount{
-				Source:      hostHomeDir,
-				Destination: containerHomeDir,
+				Source:      paths.RuntimeDir(),
+				Destination: "/run/ayo",
 				Mode:        providers.MountModeVirtioFS,
 				ReadOnly:    false,
 			})
 			if r.debug {
-				fmt.Fprintf(os.Stderr, "[sandbox] Mounting persistent home %s -> %s\n", hostHomeDir, containerHomeDir)
+				fmt.Fprintf(os.Stderr, "[sandbox] Mounting daemon socket directory %s -> /run/ayo\n", paths.RuntimeDir())
 			}
-		}
 
-		// Add Matrix/daemon runtime directory mount for inter-agent communication
-		mounts = append(mounts, providers.Mount{
-			Source:      paths.RuntimeDir(),
-			Destination: "/run/ayo",
-			Mode:        providers.MountModeVirtioFS,
-			ReadOnly:    false,
-		})
-		if r.debug {
-			fmt.Fprintf(os.Stderr, "[sandbox] Mounting daemon socket directory %s -> /run/ayo\n", paths.RuntimeDir())
-		}
-
-		sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
-			Name:   fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
-			Image:  ag.Config.Sandbox.SandboxImage(),
-			User:   sandboxUser,
-			Mounts: mounts,
-		})
-		if createErr != nil {
-			return nil, nil, "", fmt.Errorf("create sandbox: %w", createErr)
-		}
-		sandboxID = sb.ID
-
-		// Ensure agent user exists in sandbox before any tool execution
-		// Build dotfiles path from agent directory if it exists
-		var dotfilesPath string
-		if ag.Dir != "" {
-			candidatePath := filepath.Join(ag.Dir, "sandbox", "dotfiles")
-			if info, err := os.Stat(candidatePath); err == nil && info.IsDir() {
-				dotfilesPath = candidatePath
+			sb, createErr := r.sandboxProvider.Create(ctx, providers.SandboxCreateOptions{
+				Name:   fmt.Sprintf("ayo-%s-%d", safeName, time.Now().UnixNano()),
+				Image:  ag.Config.Sandbox.SandboxImage(),
+				User:   sandboxUser,
+				Mounts: mounts,
+			})
+			if createErr != nil {
+				return nil, nil, "", fmt.Errorf("create sandbox: %w", createErr)
 			}
-		}
-		if err := r.sandboxProvider.EnsureAgentUser(ctx, sandboxID, sandboxUser, dotfilesPath); err != nil {
-			// Clean up sandbox on failure
-			_ = r.sandboxProvider.Delete(context.Background(), sandboxID, true)
-			return nil, nil, "", fmt.Errorf("ensure agent user: %w", err)
-		}
-		if r.debug && dotfilesPath != "" {
-			fmt.Fprintf(os.Stderr, "[sandbox] Copied dotfiles from %s\n", dotfilesPath)
-		}
+			sandboxID = sb.ID
 
-		sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, sandboxUser)
-		
-		// Set up session workspace with environment variables
-		sessionID := GetSessionIDFromContext(ctx)
-		sandboxExecutor.SetSession(sessionID, ag.Handle)
-		
-		// Create the workspace directory structure if session ID is available
-		if sessionID != "" {
-			if err := sandboxExecutor.CreateSessionWorkspace(ctx); err != nil {
-				// Log warning but don't fail - workspace is optional
-				if r.debug {
-					fmt.Fprintf(os.Stderr, "[sandbox] Warning: failed to create workspace: %v\n", err)
+			// Ensure agent user exists in sandbox before any tool execution
+			// Build dotfiles path from agent directory if it exists
+			var dotfilesPath string
+			if ag.Dir != "" {
+				candidatePath := filepath.Join(ag.Dir, "sandbox", "dotfiles")
+				if info, err := os.Stat(candidatePath); err == nil && info.IsDir() {
+					dotfilesPath = candidatePath
 				}
-			} else if r.debug {
-				fmt.Fprintf(os.Stderr, "[sandbox] Created workspace at %s\n", sandboxExecutor.WorkspaceDir())
 			}
-		}
-		
-		if r.debug {
-			fmt.Fprintf(os.Stderr, "[sandbox] Created sandbox %s for %s (user=%s)\n", sandboxID, ag.Handle, sandboxUser)
+			if err := r.sandboxProvider.EnsureAgentUser(ctx, sandboxID, sandboxUser, dotfilesPath); err != nil {
+				// Clean up sandbox on failure
+				_ = r.sandboxProvider.Delete(context.Background(), sandboxID, true)
+				return nil, nil, "", fmt.Errorf("ensure agent user: %w", err)
+			}
+			if r.debug && dotfilesPath != "" {
+				fmt.Fprintf(os.Stderr, "[sandbox] Copied dotfiles from %s\n", dotfilesPath)
+			}
+
+			sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, sandboxUser)
+			
+			// Set up session workspace with environment variables
+			sessionID := GetSessionIDFromContext(ctx)
+			sandboxExecutor.SetSession(sessionID, ag.Handle)
+			
+			// Create the workspace directory structure if session ID is available
+			if sessionID != "" {
+				if err := sandboxExecutor.CreateSessionWorkspace(ctx); err != nil {
+					// Log warning but don't fail - workspace is optional
+					if r.debug {
+						fmt.Fprintf(os.Stderr, "[sandbox] Warning: failed to create workspace: %v\n", err)
+					}
+				} else if r.debug {
+					fmt.Fprintf(os.Stderr, "[sandbox] Created workspace at %s\n", sandboxExecutor.WorkspaceDir())
+				}
+			}
+			
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Created sandbox %s for %s (user=%s)\n", sandboxID, ag.Handle, sandboxUser)
+			}
 		}
 	} else if ag.Config.SandboxEnabled() && r.sandboxProvider == nil {
 		if r.debug {
@@ -1235,4 +1249,31 @@ func (r *Runner) fantasyPartsToSessionParts(parts []fantasy.MessagePart) []sessi
 		}
 	}
 	return result
+}
+
+// isAyoAgent checks if the given agent handle is the @ayo orchestrator.
+func isAyoAgent(handle string) bool {
+	return handle == "@ayo" || handle == "ayo"
+}
+
+// ensureAyoSandbox ensures the dedicated @ayo sandbox exists and is running.
+// Returns the sandbox info for use with the sandbox executor.
+func (r *Runner) ensureAyoSandbox(ctx context.Context, baseDir string) (providers.Sandbox, error) {
+	// Use the sandbox package's EnsureAyoSandbox function
+	appleProvider, ok := r.sandboxProvider.(*sandbox.AppleProvider)
+	if !ok {
+		return providers.Sandbox{}, fmt.Errorf("ayo sandbox requires Apple Container provider")
+	}
+	
+	sb, err := sandbox.EnsureAyoSandbox(ctx, appleProvider)
+	if err != nil {
+		return providers.Sandbox{}, err
+	}
+	
+	// Add the current working directory as a mount
+	// This allows @ayo to access the user's project
+	// Note: The mount is configured in EnsureAyoSandbox, but we may want to
+	// add dynamic mounts here in the future
+	
+	return sb, nil
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 func newSetupCmd(cfgPath *string) *cobra.Command {
@@ -134,6 +135,19 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 					}
 				}
 				sui.Blank()
+
+				// 3. Setup @ayo sandbox (if Apple Container available)
+				provider := sandbox.NewAppleProvider()
+				if provider.IsAvailable() {
+					sui.Step("Setting up @ayo sandbox...")
+					sb, err := sandbox.EnsureAyoSandbox(cmd.Context(), provider)
+					if err != nil {
+						sui.Warning(fmt.Sprintf("Sandbox setup skipped: %v", err))
+					} else {
+						sui.SuccessPath("@ayo sandbox", sb.Name)
+					}
+					sui.Blank()
+				}
 
 				// 4. Summary
 				sui.Header("Directory structure:")

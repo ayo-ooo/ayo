@@ -706,3 +706,121 @@ func EnsureSessionTicketsDir(sessionID string) (string, error) {
 	}
 	return dir, nil
 }
+
+// AyoSandboxDir returns the data directory for @ayo's dedicated sandbox.
+// Location: ~/.local/share/ayo/sandboxes/ayo
+func AyoSandboxDir() string {
+	return filepath.Join(DataDir(), "sandboxes", "ayo")
+}
+
+// AyoSandboxHomeDir returns @ayo's persistent home directory within its sandbox.
+// Location: ~/.local/share/ayo/sandboxes/ayo/home
+func AyoSandboxHomeDir() string {
+	return filepath.Join(AyoSandboxDir(), "home")
+}
+
+// AyoSandboxOutputDir returns @ayo's output staging directory.
+// Location: ~/.local/share/ayo/sandboxes/ayo/output
+func AyoSandboxOutputDir() string {
+	return filepath.Join(AyoSandboxDir(), "output")
+}
+
+// EnsureAyoSandboxDirs creates all directories needed for @ayo's sandbox.
+func EnsureAyoSandboxDirs() error {
+	dirs := []string{
+		AyoSandboxDir(),
+		AyoSandboxHomeDir(),
+		AyoSandboxOutputDir(),
+		SquadsDir(),
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create ayo sandbox directory %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+// SquadsDir returns the base data directory for squad sandboxes.
+// Location: ~/.local/share/ayo/sandboxes/squads
+func SquadsDir() string {
+	return filepath.Join(DataDir(), "sandboxes", "squads")
+}
+
+// SquadDir returns the data directory for a specific squad sandbox.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}
+func SquadDir(name string) string {
+	return filepath.Join(SquadsDir(), name)
+}
+
+// SquadTicketsDir returns the tickets directory for a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/.tickets
+func SquadTicketsDir(name string) string {
+	return filepath.Join(SquadDir(name), ".tickets")
+}
+
+// SquadContextDir returns the context directory for a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/.context
+func SquadContextDir(name string) string {
+	return filepath.Join(SquadDir(name), ".context")
+}
+
+// SquadWorkspaceDir returns the workspace directory for a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/workspace
+func SquadWorkspaceDir(name string) string {
+	return filepath.Join(SquadDir(name), "workspace")
+}
+
+// SquadAgentHomeDir returns an agent's home directory within a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{squad}/agent-homes/{agent}
+func SquadAgentHomeDir(squadName, agentHandle string) string {
+	safeName := strings.TrimPrefix(agentHandle, "@")
+	safeName = strings.ReplaceAll(safeName, ".", "-")
+	return filepath.Join(SquadDir(squadName), "agent-homes", safeName)
+}
+
+// EnsureSquadDirs creates all directories needed for a squad sandbox.
+func EnsureSquadDirs(name string) error {
+	dirs := []string{
+		SquadDir(name),
+		SquadTicketsDir(name),
+		SquadContextDir(name),
+		SquadWorkspaceDir(name),
+		filepath.Join(SquadDir(name), "agent-homes"),
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create squad directory %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+// ListSquads returns the names of all squad directories.
+func ListSquads() ([]string, error) {
+	dir := SquadsDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read squads directory: %w", err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	return names, nil
+}
+
+// RemoveSquadDir removes a squad's data directory.
+func RemoveSquadDir(name string) error {
+	dir := SquadDir(name)
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("remove squad directory: %w", err)
+	}
+	return nil
+}

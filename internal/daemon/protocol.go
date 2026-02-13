@@ -128,6 +128,21 @@ const (
 	MethodTriggerRemove     = "trigger.remove"
 	MethodTriggerTest       = "trigger.test"
 	MethodTriggerSetEnabled = "trigger.set_enabled"
+
+	// Squad management methods
+	MethodSquadCreate         = "squads.create"
+	MethodSquadDestroy        = "squads.destroy"
+	MethodSquadList           = "squads.list"
+	MethodSquadGet            = "squads.get"
+	MethodSquadStart          = "squads.start"
+	MethodSquadStop           = "squads.stop"
+	MethodSquadAddAgent       = "squads.add_agent"
+	MethodSquadRemoveAgent    = "squads.remove_agent"
+	MethodSquadTicketsReady   = "squads.tickets_ready"
+	MethodSquadNotifyAgents   = "squads.notify_agents"
+	MethodSquadWaitCompletion = "squads.wait_completion"
+	MethodSquadSyncOutput     = "squads.sync_output"
+	MethodSquadCleanup        = "squads.cleanup"
 )
 
 // Request/Response types for each method
@@ -720,4 +735,165 @@ type TicketDepParams struct {
 	SessionID string `json:"session_id"`
 	TicketID  string `json:"ticket_id"`
 	DepID     string `json:"dep_id"`
+}
+
+// Squad management request/response types
+
+// SquadInfo contains information about a squad.
+type SquadInfo struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Status      string   `json:"status"`
+	Agents      []string `json:"agents,omitempty"`
+	Ephemeral   bool     `json:"ephemeral,omitempty"`
+	TicketsDir  string   `json:"tickets_dir,omitempty"`
+	ContextDir  string   `json:"context_dir,omitempty"`
+	WorkspaceDir string  `json:"workspace_dir,omitempty"`
+}
+
+// SquadCreateParams is the request for squads.create.
+type SquadCreateParams struct {
+	Name           string   `json:"name"`
+	Description    string   `json:"description,omitempty"`
+	Image          string   `json:"image,omitempty"`
+	Ephemeral      bool     `json:"ephemeral,omitempty"`
+	Agents         []string `json:"agents,omitempty"`
+	WorkspaceMount string   `json:"workspace_mount,omitempty"`
+	Packages       []string `json:"packages,omitempty"`
+	OutputPath     string   `json:"output_path,omitempty"`
+}
+
+// SquadCreateResult is the response to squads.create.
+type SquadCreateResult struct {
+	Squad SquadInfo `json:"squad"`
+}
+
+// SquadDestroyParams is the request for squads.destroy.
+type SquadDestroyParams struct {
+	Name       string `json:"name"`
+	DeleteData bool   `json:"delete_data,omitempty"`
+}
+
+// SquadDestroyResult is the response to squads.destroy.
+type SquadDestroyResult struct {
+	Success bool `json:"success"`
+}
+
+// SquadListParams is the request for squads.list.
+type SquadListParams struct{}
+
+// SquadListResult is the response to squads.list.
+type SquadListResult struct {
+	Squads []SquadInfo `json:"squads"`
+}
+
+// SquadGetParams is the request for squads.get.
+type SquadGetParams struct {
+	Name string `json:"name"`
+}
+
+// SquadGetResult is the response to squads.get.
+type SquadGetResult struct {
+	Squad SquadInfo `json:"squad"`
+}
+
+// SquadStartParams is the request for squads.start.
+type SquadStartParams struct {
+	Name string `json:"name"`
+}
+
+// SquadStartResult is the response to squads.start.
+type SquadStartResult struct {
+	Success bool `json:"success"`
+}
+
+// SquadStopParams is the request for squads.stop.
+type SquadStopParams struct {
+	Name string `json:"name"`
+}
+
+// SquadStopResult is the response to squads.stop.
+type SquadStopResult struct {
+	Success bool `json:"success"`
+}
+
+// SquadAddAgentParams is the request for squads.add_agent.
+type SquadAddAgentParams struct {
+	Name        string `json:"name"`
+	AgentHandle string `json:"agent_handle"`
+}
+
+// SquadAddAgentResult is the response to squads.add_agent.
+type SquadAddAgentResult struct {
+	Success bool `json:"success"`
+}
+
+// SquadRemoveAgentParams is the request for squads.remove_agent.
+type SquadRemoveAgentParams struct {
+	Name        string `json:"name"`
+	AgentHandle string `json:"agent_handle"`
+}
+
+// SquadRemoveAgentResult is the response to squads.remove_agent.
+type SquadRemoveAgentResult struct {
+	Success bool `json:"success"`
+}
+
+// SquadTicketsReadyParams is the request for squads.tickets_ready.
+// Called by @ayo after creating tickets in a squad to trigger agent spawning.
+type SquadTicketsReadyParams struct {
+	Name string `json:"name"` // Squad name
+}
+
+// SquadTicketsReadyResult is the response to squads.tickets_ready.
+type SquadTicketsReadyResult struct {
+	TicketsFound  int      `json:"tickets_found"`
+	AgentsSpawned []string `json:"agents_spawned,omitempty"`
+}
+
+// SquadNotifyAgentsParams is the request for squads.notify_agents.
+type SquadNotifyAgentsParams struct {
+	Name string `json:"name"` // Squad name
+}
+
+// SquadNotifyAgentsResult is the response to squads.notify_agents.
+type SquadNotifyAgentsResult struct {
+	SessionsSpawned []string `json:"sessions_spawned,omitempty"`
+	TicketsAssigned int      `json:"tickets_assigned"`
+}
+
+// SquadWaitCompletionParams is the request for squads.wait_completion.
+type SquadWaitCompletionParams struct {
+	Name    string `json:"name"`    // Squad name
+	Timeout int    `json:"timeout"` // Timeout in seconds (0 = no timeout)
+}
+
+// SquadWaitCompletionResult is the response to squads.wait_completion.
+type SquadWaitCompletionResult struct {
+	Completed     bool   `json:"completed"`
+	TicketsClosed int    `json:"tickets_closed"`
+	TicketsOpen   int    `json:"tickets_open"`
+	TimedOut      bool   `json:"timed_out,omitempty"`
+}
+
+// SquadSyncOutputParams is the request for squads.sync_output.
+type SquadSyncOutputParams struct {
+	Name       string `json:"name"`        // Squad name
+	TargetPath string `json:"target_path"` // Target directory on host
+}
+
+// SquadSyncOutputResult is the response to squads.sync_output.
+type SquadSyncOutputResult struct {
+	FilesCopied int `json:"files_copied"`
+	BytesCopied int `json:"bytes_copied"`
+}
+
+// SquadCleanupParams is the request for squads.cleanup.
+type SquadCleanupParams struct {
+	Name string `json:"name"` // Squad name
+}
+
+// SquadCleanupResult is the response to squads.cleanup.
+type SquadCleanupResult struct {
+	Success bool `json:"success"`
 }

@@ -38,6 +38,7 @@ func newRootCmd() *cobra.Command {
 	var modelOverride string
 	var sessionID string
 	var continueSession bool
+	var outputDir string
 
 	cmd := &cobra.Command{
 		Use:           "ayo [@agent] [prompt]",
@@ -106,7 +107,12 @@ Examples:
 					handle = agent.NormalizeHandle(args[0])
 					promptArgs = args[1:]
 				} else {
-					// First arg is not an agent handle: use default agent with all args as prompt
+					// First arg is not an agent handle
+					// Check if it looks like a potential subcommand typo
+					if looksLikeSubcommand(args[0]) {
+						return fmt.Errorf("unknown command %q\n\nTo send a prompt to an agent, use quotes:\n  ayo \"your prompt here\"\n\nFor available commands, run: ayo --help", args[0])
+					}
+					// Use default agent with all args as prompt
 					handle = agent.DefaultAgent
 					promptArgs = args
 				}
@@ -295,6 +301,10 @@ Examples:
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
 	cmd.Flags().BoolVarP(&continueSession, "continue", "c", false, "continue the most recent session")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "continue a specific session by ID")
+	cmd.Flags().StringVarP(&outputDir, "output", "o", "", "target directory for work products (default: current directory)")
+
+	// Make outputDir accessible globally for squad operations
+	_ = outputDir // Used by squad commands via flag lookup
 
 	// Subcommands
 	cmd.AddCommand(newSetupCmd(&cfgPath))
@@ -314,6 +324,7 @@ Examples:
 	cmd.AddCommand(newTriggerCmd())
 	cmd.AddCommand(newMatrixCmd())
 	cmd.AddCommand(newTicketCmd())
+	cmd.AddCommand(newSquadCmd())
 
 	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
 	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))
@@ -408,4 +419,39 @@ func getLatestSession(ctx context.Context, services *session.Services) (session.
 		return session.Session{}, errors.New("no sessions found")
 	}
 	return sessions[0], nil
+}
+
+// looksLikeSubcommand checks if a string looks like it could be a mistyped subcommand.
+// Returns true if the string is a single lowercase word that resembles command syntax.
+func looksLikeSubcommand(s string) bool {
+	// Must be non-empty
+	if s == "" {
+		return false
+	}
+
+	// If it contains spaces, it's probably a prompt
+	if strings.Contains(s, " ") {
+		return false
+	}
+
+	// If it starts with special chars like quotes, brackets, etc., it's probably data
+	if strings.ContainsAny(string(s[0]), `"'[{(<>`) {
+		return false
+	}
+
+	// If it's all lowercase letters, hyphens, or underscores (command-like pattern)
+	for _, r := range s {
+		if !((r >= 'a' && r <= 'z') || r == '-' || r == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// knownSubcommands returns a list of all registered subcommand names.
+var knownSubcommands = []string{
+	"setup", "agents", "skills", "flows", "chain", "sessions", "memory",
+	"doctor", "plugins", "serve", "sandbox", "share", "backup", "sync",
+	"triggers", "matrix", "ticket", "tickets", "squad", "squads", "service", "daemon",
 }

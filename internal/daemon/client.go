@@ -558,3 +558,63 @@ func (c *Client) TicketDelete(ctx context.Context, sessionID, ticketID string) e
 	params := TicketDeleteParams{SessionID: sessionID, TicketID: ticketID}
 	return c.call(ctx, MethodTicketDelete, params, nil)
 }
+
+// Squad management client methods
+
+// SquadCreate creates a new squad.
+func (c *Client) SquadCreate(ctx context.Context, params SquadCreateParams) (*SquadCreateResult, error) {
+	var result SquadCreateResult
+	if err := c.call(ctx, MethodSquadCreate, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SquadDestroy destroys a squad.
+func (c *Client) SquadDestroy(ctx context.Context, name string, deleteData bool) error {
+	params := SquadDestroyParams{Name: name, DeleteData: deleteData}
+	return c.call(ctx, MethodSquadDestroy, params, nil)
+}
+
+// SquadList lists all squads.
+func (c *Client) SquadList(ctx context.Context) (*SquadListResult, error) {
+	var result SquadListResult
+	if err := c.call(ctx, MethodSquadList, SquadListParams{}, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SquadGet gets a squad by name.
+func (c *Client) SquadGet(ctx context.Context, name string) (*SquadGetResult, error) {
+	params := SquadGetParams{Name: name}
+	var result SquadGetResult
+	if err := c.call(ctx, MethodSquadGet, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SquadStart starts a squad sandbox.
+func (c *Client) SquadStart(ctx context.Context, name string) error {
+	params := SquadStartParams{Name: name}
+	return c.call(ctx, MethodSquadStart, params, nil)
+}
+
+// SquadStop stops a squad sandbox.
+func (c *Client) SquadStop(ctx context.Context, name string) error {
+	params := SquadStopParams{Name: name}
+	return c.call(ctx, MethodSquadStop, params, nil)
+}
+
+// SquadAddAgent adds an agent to a squad.
+func (c *Client) SquadAddAgent(ctx context.Context, name, agentHandle string) error {
+	params := SquadAddAgentParams{Name: name, AgentHandle: agentHandle}
+	return c.call(ctx, MethodSquadAddAgent, params, nil)
+}
+
+// SquadRemoveAgent removes an agent from a squad.
+func (c *Client) SquadRemoveAgent(ctx context.Context, name, agentHandle string) error {
+	params := SquadRemoveAgentParams{Name: name, AgentHandle: agentHandle}
+	return c.call(ctx, MethodSquadRemoveAgent, params, nil)
+}

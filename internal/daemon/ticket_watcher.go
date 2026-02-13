@@ -20,16 +20,26 @@ type AgentRunner interface {
 	RunWithTicket(ctx context.Context, agentHandle, sessionID, ticketID string) error
 }
 
+// TicketClosedHandler is called when a ticket is closed.
+type TicketClosedHandler func(contextID, ticketID string, isSquad bool)
+
 // TicketWatcher watches ticket directories and spawns agents when tickets are assigned.
 type TicketWatcher struct {
 	watcher *fsnotify.Watcher
 	service *tickets.Service
 	runner  AgentRunner
 
+	// Callback for ticket closures
+	onTicketClosed TicketClosedHandler
+
 	// Track watched sessions and running agents
 	mu              sync.RWMutex
 	watchedSessions map[string]bool             // sessionID -> watched
+	watchedSquads   map[string]bool             // squadName -> watched
 	runningAgents   map[string]context.CancelFunc // ticketID -> cancel func
+
+	// Track previous ticket states for change detection
+	ticketStates    map[string]tickets.Status     // ticketID -> last known status
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -37,7 +47,8 @@ type TicketWatcher struct {
 
 // TicketWatcherConfig configures the ticket watcher.
 type TicketWatcherConfig struct {
-	Runner AgentRunner
+	Runner         AgentRunner
+	OnTicketClosed TicketClosedHandler
 }
 
 // NewTicketWatcher creates a new ticket watcher.
@@ -51,8 +62,11 @@ func NewTicketWatcher(cfg TicketWatcherConfig) (*TicketWatcher, error) {
 		watcher:         watcher,
 		service:         tickets.NewService(paths.SessionsDir()),
 		runner:          cfg.Runner,
+		onTicketClosed:  cfg.OnTicketClosed,
 		watchedSessions: make(map[string]bool),
+		watchedSquads:   make(map[string]bool),
 		runningAgents:   make(map[string]context.CancelFunc),
+		ticketStates:    make(map[string]tickets.Status),
 		stopCh:          make(chan struct{}),
 	}, nil
 }
@@ -208,14 +222,30 @@ func (tw *TicketWatcher) handleEvent(ctx context.Context, path string, event fsn
 		return
 	}
 
-	// Extract session ID from path: .../sessions/{sessionID}/.tickets/{ticketID}.md
-	dir := filepath.Dir(path)                  // .tickets dir
-	sessionDir := filepath.Dir(dir)            // session dir
-	sessionID := filepath.Base(sessionDir)
+	// Determine if this is a session or squad ticket
+	// Session: .../sessions/{sessionID}/.tickets/{ticketID}.md
+	// Squad:   .../squads/{squadName}/tickets/{ticketID}.md
+	dir := filepath.Dir(path) // .tickets or tickets dir
+	parentDir := filepath.Dir(dir)
+	grandParentDir := filepath.Dir(parentDir)
+
+	var contextID string
+	var isSquad bool
+
+	squadsDir := paths.SquadsDir()
+	if grandParentDir == squadsDir {
+		// This is a squad ticket
+		contextID = filepath.Base(parentDir)
+		isSquad = true
+	} else {
+		// This is a session ticket
+		contextID = filepath.Base(parentDir)
+		isSquad = false
+	}
 
 	switch {
 	case event.Has(fsnotify.Create), event.Has(fsnotify.Write):
-		tw.handleTicketChange(ctx, sessionID, path)
+		tw.handleTicketChange(ctx, contextID, path, isSquad)
 
 	case event.Has(fsnotify.Remove):
 		// Ticket was deleted - cancel any running agent
@@ -225,11 +255,32 @@ func (tw *TicketWatcher) handleEvent(ctx context.Context, path string, event fsn
 }
 
 // handleTicketChange processes a ticket create/update event.
-func (tw *TicketWatcher) handleTicketChange(ctx context.Context, sessionID, path string) {
+func (tw *TicketWatcher) handleTicketChange(ctx context.Context, contextID, path string, isSquad bool) {
 	// Parse the ticket
 	ticket, err := tickets.Parse(path)
 	if err != nil {
 		return // Unparseable file, skip
+	}
+
+	// Check for status change to closed
+	tw.mu.Lock()
+	previousStatus := tw.ticketStates[ticket.ID]
+	tw.ticketStates[ticket.ID] = ticket.Status
+	tw.mu.Unlock()
+
+	// If ticket is now closed and wasn't before, notify
+	if ticket.Status == tickets.StatusClosed && previousStatus != tickets.StatusClosed {
+		// Cancel any running agent
+		tw.cancelAgent(ticket.ID)
+
+		// Notify via callback
+		if tw.onTicketClosed != nil {
+			tw.onTicketClosed(contextID, ticket.ID, isSquad)
+		}
+
+		// Check dependents
+		tw.CheckDependents(ctx, contextID, ticket.ID)
+		return
 	}
 
 	// Check if ticket is assigned and ready to work
@@ -244,12 +295,12 @@ func (tw *TicketWatcher) handleTicketChange(ctx context.Context, sessionID, path
 	}
 
 	// Check if dependencies are resolved
-	if !tw.areDepsResolved(sessionID, ticket) {
+	if !tw.areDepsResolved(contextID, ticket) {
 		return // Blocked by dependencies
 	}
 
 	// Ensure agent is running for this ticket
-	tw.ensureAgentRunning(ctx, sessionID, ticket)
+	tw.ensureAgentRunning(ctx, contextID, ticket)
 }
 
 // areDepsResolved checks if all ticket dependencies are closed.
@@ -356,4 +407,61 @@ func (tw *TicketWatcher) WatchedSessions() int {
 	tw.mu.RLock()
 	defer tw.mu.RUnlock()
 	return len(tw.watchedSessions)
+}
+
+// WatchSquad adds a watch on a squad's ticket directory.
+func (tw *TicketWatcher) WatchSquad(squadName string) error {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+
+	if tw.watchedSquads[squadName] {
+		return nil // Already watching
+	}
+
+	ticketsDir := paths.SquadTicketsDir(squadName)
+	if err := os.MkdirAll(ticketsDir, 0755); err != nil {
+		return err
+	}
+
+	if err := tw.watcher.Add(ticketsDir); err != nil {
+		return err
+	}
+
+	tw.watchedSquads[squadName] = true
+	return nil
+}
+
+// UnwatchSquad removes a watch from a squad's ticket directory.
+func (tw *TicketWatcher) UnwatchSquad(squadName string) error {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+
+	if !tw.watchedSquads[squadName] {
+		return nil // Not watching
+	}
+
+	ticketsDir := paths.SquadTicketsDir(squadName)
+	if err := tw.watcher.Remove(ticketsDir); err != nil {
+		// Ignore error if directory doesn't exist
+		if !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	delete(tw.watchedSquads, squadName)
+	return nil
+}
+
+// WatchedSquads returns the number of watched squads.
+func (tw *TicketWatcher) WatchedSquads() int {
+	tw.mu.RLock()
+	defer tw.mu.RUnlock()
+	return len(tw.watchedSquads)
+}
+
+// IsSquadWatched returns true if the squad is being watched.
+func (tw *TicketWatcher) IsSquadWatched(squadName string) bool {
+	tw.mu.RLock()
+	defer tw.mu.RUnlock()
+	return tw.watchedSquads[squadName]
 }

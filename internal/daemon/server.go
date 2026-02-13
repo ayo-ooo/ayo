@@ -16,6 +16,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
+	"github.com/alexcabrera/ayo/internal/squads"
 	ayosync "github.com/alexcabrera/ayo/internal/sync"
 	"github.com/alexcabrera/ayo/internal/tickets"
 	"github.com/alexcabrera/ayo/internal/version"
@@ -31,6 +32,7 @@ type Server struct {
 	webhookServer  *WebhookServer
 	conduit        *ConduitProcess
 	matrixBroker   *MatrixBroker
+	squadRPC       *SquadRPC
 	startTime      time.Time
 	shutdownCh     chan struct{}
 	wg             sync.WaitGroup
@@ -152,6 +154,15 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("create ticket watcher: %w", err)
 	}
 	server.ticketWatcher = ticketWatcher
+
+	// Create squad service and RPC handler
+	// Note: Using AppleProvider if available, otherwise nil (squad features disabled)
+	var squadService *squads.Service
+	if appleProvider, ok := provider.(*sandbox.AppleProvider); ok {
+		squadService = squads.NewService(appleProvider)
+	}
+	squadTicketService := tickets.NewSquadTicketService()
+	server.squadRPC = NewSquadRPC(squadService, squadTicketService, ticketWatcher)
 
 	return server, nil
 }
@@ -521,6 +532,33 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleTicketAddDep(req)
 	case MethodTicketRemDep:
 		return s.handleTicketRemoveDep(req)
+	// Squad methods
+	case MethodSquadCreate:
+		return s.handleSquadCreate(ctx, req)
+	case MethodSquadDestroy:
+		return s.handleSquadDestroy(ctx, req)
+	case MethodSquadList:
+		return s.handleSquadList(ctx, req)
+	case MethodSquadGet:
+		return s.handleSquadGet(ctx, req)
+	case MethodSquadStart:
+		return s.handleSquadStart(ctx, req)
+	case MethodSquadStop:
+		return s.handleSquadStop(ctx, req)
+	case MethodSquadAddAgent:
+		return s.handleSquadAddAgent(ctx, req)
+	case MethodSquadRemoveAgent:
+		return s.handleSquadRemoveAgent(ctx, req)
+	case MethodSquadTicketsReady:
+		return s.handleSquadTicketsReady(ctx, req)
+	case MethodSquadNotifyAgents:
+		return s.handleSquadNotifyAgents(ctx, req)
+	case MethodSquadWaitCompletion:
+		return s.handleSquadWaitCompletion(ctx, req)
+	case MethodSquadSyncOutput:
+		return s.handleSquadSyncOutput(ctx, req)
+	case MethodSquadCleanup:
+		return s.handleSquadCleanup(ctx, req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}
@@ -997,4 +1035,123 @@ func triggerToInfo(t *Trigger) TriggerInfo {
 		WebhookSecret: t.Config.WebhookSecret,
 		WebhookFormat: t.Config.WebhookFormat,
 	}
+}
+
+// Squad RPC handlers - delegate to squadRPC
+
+func (s *Server) handleSquadCreate(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadCreate(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadDestroy(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadDestroy(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadList(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadList(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadGet(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadGet(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadStart(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadStart(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadStop(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadStop(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadAddAgent(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadAddAgent(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadRemoveAgent(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadRemoveAgent(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadTicketsReady(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadTicketsReady(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadNotifyAgents(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadNotifyAgents(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadWaitCompletion(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadWaitCompletion(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadSyncOutput(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadSyncOutput(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadCleanup(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadCleanup(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
 }
