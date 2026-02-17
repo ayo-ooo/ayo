@@ -605,6 +605,7 @@ const (
 // TicketCreateParams is the request for tickets.create.
 type TicketCreateParams struct {
 	SessionID   string   `json:"session_id"`
+	SquadName   string   `json:"squad_name,omitempty"`
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
 	Type        string   `json:"type,omitempty"`
@@ -625,6 +626,7 @@ type TicketCreateResult struct {
 // TicketGetParams is the request for tickets.get.
 type TicketGetParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	TicketID  string `json:"ticket_id"`
 }
 
@@ -657,6 +659,7 @@ type TicketGetResult struct {
 // TicketListParams is the request for tickets.list.
 type TicketListParams struct {
 	SessionID string   `json:"session_id"`
+	SquadName string   `json:"squad_name,omitempty"`
 	Status    string   `json:"status,omitempty"`
 	Assignee  string   `json:"assignee,omitempty"`
 	Type      string   `json:"type,omitempty"`
@@ -691,12 +694,14 @@ type TicketDeleteParams struct {
 // TicketStatusParams is the request for tickets.start/close/reopen/block.
 type TicketStatusParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	TicketID  string `json:"ticket_id"`
 }
 
 // TicketAssignParams is the request for tickets.assign.
 type TicketAssignParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	TicketID  string `json:"ticket_id"`
 	Assignee  string `json:"assignee"`
 }
@@ -704,6 +709,7 @@ type TicketAssignParams struct {
 // TicketAddNoteParams is the request for tickets.add_note.
 type TicketAddNoteParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	TicketID  string `json:"ticket_id"`
 	Content   string `json:"content"`
 }
@@ -711,6 +717,7 @@ type TicketAddNoteParams struct {
 // TicketReadyParams is the request for tickets.ready.
 type TicketReadyParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	Assignee  string `json:"assignee,omitempty"`
 }
 
@@ -722,6 +729,7 @@ type TicketReadyResult struct {
 // TicketBlockedParams is the request for tickets.blocked.
 type TicketBlockedParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	Assignee  string `json:"assignee,omitempty"`
 }
 
@@ -733,6 +741,7 @@ type TicketBlockedResult struct {
 // TicketDepParams is the request for tickets.add_dep and tickets.remove_dep.
 type TicketDepParams struct {
 	SessionID string `json:"session_id"`
+	SquadName string `json:"squad_name,omitempty"`
 	TicketID  string `json:"ticket_id"`
 	DepID     string `json:"dep_id"`
 }

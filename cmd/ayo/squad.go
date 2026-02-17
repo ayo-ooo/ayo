@@ -70,6 +70,7 @@ Examples:
 	cmd.AddCommand(squadStopCmd())
 	cmd.AddCommand(squadAddAgentCmd())
 	cmd.AddCommand(squadRemoveAgentCmd())
+	cmd.AddCommand(squadTicketCmd())
 
 	return cmd
 }
@@ -393,4 +394,197 @@ func squadRemoveAgentCmd() *cobra.Command {
 	return cmd
 }
 
+func squadTicketCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ticket <squad> <command>",
+		Short: "Manage tickets within a squad",
+		Long: `Manage tickets within a squad's .tickets directory.
+
+Examples:
+  ayo squad ticket myteam create "Implement login" -a @backend
+  ayo squad ticket myteam list
+  ayo squad ticket myteam show abc-1234
+  ayo squad ticket myteam start abc-1234
+  ayo squad ticket myteam close abc-1234`,
+	}
+
+	cmd.AddCommand(squadTicketCreateCmd())
+	cmd.AddCommand(squadTicketListCmd())
+	cmd.AddCommand(squadTicketStartCmd())
+	cmd.AddCommand(squadTicketCloseCmd())
+
+	return cmd
+}
+
+func squadTicketCreateCmd() *cobra.Command {
+	var (
+		assignee    string
+		description string
+		deps        []string
+		priority    int
+		ticketType  string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create <squad> <title>",
+		Short: "Create a ticket in a squad",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			title := args[1]
+			ctx := cmd.Context()
+
+			client := daemon.NewClient()
+			if err := client.Connect(ctx); err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			result, err := client.TicketCreate(ctx, daemon.TicketCreateParams{
+				SquadName:   squadName,
+				Title:       title,
+				Description: description,
+				Type:        ticketType,
+				Priority:    priority,
+				Assignee:    assignee,
+				Deps:        deps,
+			})
+			if err != nil {
+				return fmt.Errorf("create ticket: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result)
+			}
+
+			fmt.Printf("✓ Created: %s\n", result.ID)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&assignee, "assignee", "a", "", "Assign to agent")
+	cmd.Flags().StringVarP(&description, "description", "d", "", "Ticket description")
+	cmd.Flags().StringSliceVar(&deps, "deps", nil, "Dependency ticket IDs")
+	cmd.Flags().IntVarP(&priority, "priority", "p", 2, "Priority 0-4 (0=highest)")
+	cmd.Flags().StringVarP(&ticketType, "type", "t", "task", "Type (epic, feature, task, bug, chore)")
+
+	return cmd
+}
+
+func squadTicketListCmd() *cobra.Command {
+	var (
+		status   string
+		assignee string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list <squad>",
+		Short: "List tickets in a squad",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			ctx := cmd.Context()
+
+			client := daemon.NewClient()
+			if err := client.Connect(ctx); err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			result, err := client.TicketList(ctx, daemon.TicketListParams{
+				SquadName: squadName,
+				Status:    status,
+				Assignee:  assignee,
+			})
+			if err != nil {
+				return fmt.Errorf("list tickets: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result)
+			}
+
+			if len(result.Tickets) == 0 {
+				fmt.Println("No tickets")
+				return nil
+			}
+
+			for _, t := range result.Tickets {
+				assigneeStr := ""
+				if t.Assignee != "" {
+					assigneeStr = t.Assignee + "  "
+				}
+				fmt.Printf("%s  %s  %s%s\n",
+					ticketIDStyle.Render(t.ID),
+					statusStyle(t.Status).Render(t.Status),
+					assigneeStr,
+					t.Title)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status")
+	cmd.Flags().StringVarP(&assignee, "assignee", "a", "", "Filter by assignee")
+
+	return cmd
+}
+
+func squadTicketStartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start <squad> <ticket-id>",
+		Short: "Start working on a ticket",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			ticketID := args[1]
+			ctx := cmd.Context()
+
+			client := daemon.NewClient()
+			if err := client.Connect(ctx); err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.TicketStartSquad(ctx, squadName, ticketID); err != nil {
+				return fmt.Errorf("start ticket: %w", err)
+			}
+
+			if !globalOutput.JSON {
+				fmt.Printf("▶ Started: %s\n", ticketID)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func squadTicketCloseCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "close <squad> <ticket-id>",
+		Short: "Close a ticket",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			ticketID := args[1]
+			ctx := cmd.Context()
+
+			client := daemon.NewClient()
+			if err := client.Connect(ctx); err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			if err := client.TicketCloseSquad(ctx, squadName, ticketID); err != nil {
+				return fmt.Errorf("close ticket: %w", err)
+			}
+
+			if !globalOutput.JSON {
+				fmt.Printf("✓ Closed: %s\n", ticketID)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
 

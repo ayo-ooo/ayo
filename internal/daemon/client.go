@@ -491,9 +491,21 @@ func (c *Client) TicketStart(ctx context.Context, sessionID, ticketID string) er
 	return c.call(ctx, MethodTicketStart, params, nil)
 }
 
+// TicketStartSquad sets a ticket status to in_progress for a squad ticket.
+func (c *Client) TicketStartSquad(ctx context.Context, squadName, ticketID string) error {
+	params := TicketStatusParams{SquadName: squadName, TicketID: ticketID}
+	return c.call(ctx, MethodTicketStart, params, nil)
+}
+
 // TicketClose sets a ticket status to closed.
 func (c *Client) TicketClose(ctx context.Context, sessionID, ticketID string) error {
 	params := TicketStatusParams{SessionID: sessionID, TicketID: ticketID}
+	return c.call(ctx, MethodTicketClose, params, nil)
+}
+
+// TicketCloseSquad sets a ticket status to closed for a squad ticket.
+func (c *Client) TicketCloseSquad(ctx context.Context, squadName, ticketID string) error {
+	params := TicketStatusParams{SquadName: squadName, TicketID: ticketID}
 	return c.call(ctx, MethodTicketClose, params, nil)
 }
 

@@ -40,6 +40,7 @@ type Server struct {
 	mu             sync.RWMutex
 	running        bool
 	tickets        *tickets.Service
+	squadTickets   *tickets.SquadTicketService
 	ticketWatcher  *TicketWatcher
 }
 
@@ -162,6 +163,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		squadService = squads.NewService(appleProvider)
 	}
 	squadTicketService := tickets.NewSquadTicketService()
+	server.squadTickets = squadTicketService
 	server.squadRPC = NewSquadRPC(squadService, squadTicketService, ticketWatcher)
 
 	return server, nil

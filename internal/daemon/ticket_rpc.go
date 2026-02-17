@@ -18,6 +18,26 @@ func (s *Server) ticketService() *tickets.Service {
 	return s.tickets
 }
 
+// squadTicketService returns the squad ticket service.
+func (s *Server) squadTicketService() *tickets.SquadTicketService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.squadTickets == nil {
+		s.squadTickets = tickets.NewSquadTicketService()
+	}
+	return s.squadTickets
+}
+
+// getTicketService returns the appropriate service and identifier.
+// If squadName is provided, returns squad ticket service with squadName as identifier.
+// Otherwise returns session ticket service with sessionID as identifier.
+func (s *Server) getTicketService(sessionID, squadName string) (*tickets.Service, string) {
+	if squadName != "" {
+		return s.squadTicketService().Service, squadName
+	}
+	return s.ticketService(), sessionID
+}
+
 // ticketToInfo converts a Ticket to TicketInfo for RPC responses.
 func ticketToInfo(t *tickets.Ticket) TicketInfo {
 	info := TicketInfo{
@@ -61,15 +81,15 @@ func (s *Server) handleTicketCreate(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id is required"), req.ID)
+	if params.SessionID == "" && params.SquadName == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name is required"), req.ID)
 	}
 	if params.Title == "" {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, "title is required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	ticket, err := svc.Create(params.SessionID, tickets.CreateOptions{
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	ticket, err := svc.Create(identifier, tickets.CreateOptions{
 		Title:       params.Title,
 		Description: params.Description,
 		Type:        tickets.Type(params.Type),
@@ -98,12 +118,12 @@ func (s *Server) handleTicketGet(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	ticket, err := svc.Get(params.SessionID, params.TicketID)
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	ticket, err := svc.Get(identifier, params.TicketID)
 	if err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
@@ -121,12 +141,12 @@ func (s *Server) handleTicketList(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id is required"), req.ID)
+	if params.SessionID == "" && params.SquadName == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name is required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	ticketList, err := svc.List(params.SessionID, tickets.Filter{
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	ticketList, err := svc.List(identifier, tickets.Filter{
 		Status:   tickets.Status(params.Status),
 		Assignee: params.Assignee,
 		Type:     tickets.Type(params.Type),
@@ -222,17 +242,17 @@ func (s *Server) handleTicketStart(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.Start(params.SessionID, params.TicketID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.Start(identifier, params.TicketID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -246,17 +266,17 @@ func (s *Server) handleTicketClose(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.Close(params.SessionID, params.TicketID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.Close(identifier, params.TicketID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -270,17 +290,17 @@ func (s *Server) handleTicketReopen(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.Reopen(params.SessionID, params.TicketID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.Reopen(identifier, params.TicketID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -294,17 +314,17 @@ func (s *Server) handleTicketBlock(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.Block(params.SessionID, params.TicketID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.Block(identifier, params.TicketID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -318,17 +338,17 @@ func (s *Server) handleTicketAssign(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.Assign(params.SessionID, params.TicketID, params.Assignee); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.Assign(identifier, params.TicketID, params.Assignee); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -342,20 +362,20 @@ func (s *Server) handleTicketAddNote(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id and ticket_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, and ticket_id are required"), req.ID)
 	}
 	if params.Content == "" {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, "content is required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.AddNote(params.SessionID, params.TicketID, params.Content); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.AddNote(identifier, params.TicketID, params.Content); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -369,12 +389,12 @@ func (s *Server) handleTicketReady(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id is required"), req.ID)
+	if params.SessionID == "" && params.SquadName == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name is required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	ticketList, err := svc.Ready(params.SessionID, params.Assignee)
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	ticketList, err := svc.Ready(identifier, params.Assignee)
 	if err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
@@ -395,12 +415,12 @@ func (s *Server) handleTicketBlocked(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id is required"), req.ID)
+	if params.SessionID == "" && params.SquadName == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name is required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	ticketList, err := svc.Blocked(params.SessionID, params.Assignee)
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	ticketList, err := svc.Blocked(identifier, params.Assignee)
 	if err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
@@ -421,17 +441,17 @@ func (s *Server) handleTicketAddDep(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" || params.DepID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id, ticket_id and dep_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" || params.DepID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, ticket_id and dep_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.AddDep(params.SessionID, params.TicketID, params.DepID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.AddDep(identifier, params.TicketID, params.DepID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
@@ -445,17 +465,17 @@ func (s *Server) handleTicketRemoveDep(req *Request) *Response {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
 	}
 
-	if params.SessionID == "" || params.TicketID == "" || params.DepID == "" {
-		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id, ticket_id and dep_id are required"), req.ID)
+	if (params.SessionID == "" && params.SquadName == "") || params.TicketID == "" || params.DepID == "" {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, "session_id or squad_name, ticket_id and dep_id are required"), req.ID)
 	}
 
-	svc := s.ticketService()
-	if err := svc.RemoveDep(params.SessionID, params.TicketID, params.DepID); err != nil {
+	svc, identifier := s.getTicketService(params.SessionID, params.SquadName)
+	if err := svc.RemoveDep(identifier, params.TicketID, params.DepID); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
 	}
 
 	// Return updated ticket
-	ticket, _ := svc.Get(params.SessionID, params.TicketID)
+	ticket, _ := svc.Get(identifier, params.TicketID)
 	result := TicketGetResult{
 		Ticket: ticketToInfo(ticket),
 	}
