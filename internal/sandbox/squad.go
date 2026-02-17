@@ -183,22 +183,6 @@ func DeleteSquadSandbox(ctx context.Context, provider *AppleProvider, name strin
 	return nil
 }
 
-// ListSquadSandboxes returns all squad sandboxes.
-func ListSquadSandboxes(ctx context.Context, provider *AppleProvider) ([]providers.Sandbox, error) {
-	all, err := provider.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var squads []providers.Sandbox
-	for _, sb := range all {
-		if len(sb.Name) > len(SquadSandboxPrefix) && sb.Name[:len(SquadSandboxPrefix)] == SquadSandboxPrefix {
-			squads = append(squads, sb)
-		}
-	}
-	return squads, nil
-}
-
 // EnsureSquadAgentUser ensures an agent user exists in a squad sandbox.
 func EnsureSquadAgentUser(ctx context.Context, provider *AppleProvider, squadName, agentHandle string) error {
 	containerName := SquadSandboxName(squadName)

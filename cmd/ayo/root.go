@@ -322,7 +322,6 @@ Examples:
 	cmd.AddCommand(newBackupCmd())
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newTriggerCmd())
-	cmd.AddCommand(newMatrixCmd())
 	cmd.AddCommand(newTicketCmd())
 	cmd.AddCommand(newSquadCmd())
 
@@ -453,5 +452,5 @@ func looksLikeSubcommand(s string) bool {
 var knownSubcommands = []string{
 	"setup", "agents", "skills", "flows", "chain", "sessions", "memory",
 	"doctor", "plugins", "serve", "sandbox", "share", "backup", "sync",
-	"triggers", "matrix", "ticket", "tickets", "squad", "squads", "service", "daemon",
+	"triggers", "ticket", "tickets", "squad", "squads", "service", "daemon",
 }

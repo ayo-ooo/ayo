@@ -52,7 +52,7 @@ Ayo is a command-line framework for creating, managing, and orchestrating AI age
 | Guide | Description |
 |-------|-------------|
 | [Flows Specification](flows-spec.md) | YAML flow schema reference |
-| [Offline Architecture](offline-architecture.md) | Browser-based offline mode |
+| [CLI Reference](reference/README.md) | Complete command-line reference |
 
 ## Key Concepts
 

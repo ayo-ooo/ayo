@@ -13,7 +13,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/daemon"
+	"github.com/alexcabrera/ayo/internal/db"
+	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/version"
 )
 
@@ -77,7 +81,25 @@ in the current terminal for debugging.`,
 				}
 			}
 
+			// Load config for agent loading
+			appConfig, err := config.Load(*cfgPath)
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+
+			// Connect to database for session persistence
+			dbConn, queries, err := db.ConnectWithQueries(ctx, paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("connect to database: %w", err)
+			}
+			defer dbConn.Close()
+
+			// Initialize session services
+			services := session.NewServices(dbConn, queries)
+
 			cfg := daemon.DefaultServerConfig()
+			cfg.Config = appConfig
+			cfg.Services = services
 
 			server, err := daemon.NewServer(cfg)
 			if err != nil {

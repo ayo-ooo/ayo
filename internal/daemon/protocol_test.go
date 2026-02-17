@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -24,18 +23,6 @@ func TestNewRequest(t *testing.T) {
 			method: MethodSandboxAcquire,
 			params: SandboxAcquireParams{Agent: "test", Timeout: 30},
 			id:     2,
-		},
-		{
-			name:   "matrix status request",
-			method: MethodMatrixStatus,
-			params: nil,
-			id:     3,
-		},
-		{
-			name:   "matrix send request",
-			method: MethodMatrixSend,
-			params: MatrixSendParams{RoomID: "!test:ayo.local", Content: "hello"},
-			id:     4,
 		},
 	}
 
@@ -75,14 +62,9 @@ func TestNewResponse(t *testing.T) {
 			id:     1,
 		},
 		{
-			name:   "matrix status response",
-			result: MatrixStatusResult{},
-			id:     2,
-		},
-		{
 			name:   "nil result",
 			result: nil,
-			id:     3,
+			id:     2,
 		},
 	}
 
@@ -127,106 +109,5 @@ func TestNewErrorResponse(t *testing.T) {
 	}
 	if resp.Error.Message != "method not found" {
 		t.Errorf("Error.Message = %v, want 'method not found'", resp.Error.Message)
-	}
-}
-
-func TestMatrixTypes(t *testing.T) {
-	// Test that Matrix types can be serialized/deserialized
-	t.Run("MatrixSendParams", func(t *testing.T) {
-		params := MatrixSendParams{
-			AsAgent: "test-agent",
-			RoomID:  "!session-123:ayo.local",
-			Content: "Hello world",
-		}
-		data, err := json.Marshal(params)
-		if err != nil {
-			t.Fatalf("Marshal failed: %v", err)
-		}
-		var decoded MatrixSendParams
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("Unmarshal failed: %v", err)
-		}
-		if decoded.AsAgent != params.AsAgent {
-			t.Errorf("AsAgent mismatch")
-		}
-		if decoded.RoomID != params.RoomID {
-			t.Errorf("RoomID mismatch")
-		}
-		if decoded.Content != params.Content {
-			t.Errorf("Content mismatch")
-		}
-	})
-
-	t.Run("MatrixRoomsMembersResult", func(t *testing.T) {
-		result := MatrixRoomsMembersResult{
-			Members: []MemberInfo{
-				{UserID: "@agent1:ayo.local", DisplayName: "agent1", IsAgent: true, Handle: "agent1"},
-				{UserID: "@agent2:ayo.local", DisplayName: "agent2", IsAgent: true, Handle: "agent2"},
-			},
-		}
-		data, err := json.Marshal(result)
-		if err != nil {
-			t.Fatalf("Marshal failed: %v", err)
-		}
-		var decoded MatrixRoomsMembersResult
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("Unmarshal failed: %v", err)
-		}
-		if len(decoded.Members) != 2 {
-			t.Errorf("Expected 2 members, got %d", len(decoded.Members))
-		}
-		if decoded.Members[0].Handle != "agent1" {
-			t.Errorf("First member handle mismatch")
-		}
-	})
-
-	t.Run("MatrixReadResult", func(t *testing.T) {
-		result := MatrixReadResult{
-			Messages: []*QueuedMessage{
-				{
-					EventID: "$abc123",
-					Sender:  "@agent1:ayo.local",
-					Content: "Hello",
-				},
-			},
-			HasMore: true,
-		}
-		data, err := json.Marshal(result)
-		if err != nil {
-			t.Fatalf("Marshal failed: %v", err)
-		}
-		var decoded MatrixReadResult
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("Unmarshal failed: %v", err)
-		}
-		if len(decoded.Messages) != 1 {
-			t.Errorf("Expected 1 message, got %d", len(decoded.Messages))
-		}
-		if !decoded.HasMore {
-			t.Errorf("Expected HasMore to be true")
-		}
-	})
-}
-
-func TestMatrixMethodConstants(t *testing.T) {
-	// Verify Matrix method constants are defined
-	methods := []string{
-		MethodMatrixStatus,
-		MethodMatrixRoomsList,
-		MethodMatrixRoomsCreate,
-		MethodMatrixRoomsMembers,
-		MethodMatrixRoomsInvite,
-		MethodMatrixSend,
-		MethodMatrixRead,
-	}
-
-	for _, method := range methods {
-		if method == "" {
-			t.Errorf("Method constant is empty")
-		}
-		// All matrix methods should have "matrix." prefix
-		if len(method) < 7 || method[:7] != "matrix." {
-			t.Errorf("Method %q should start with 'matrix.'", method)
-		}
 	}
 }

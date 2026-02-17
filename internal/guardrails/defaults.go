@@ -95,22 +95,6 @@ ayo ticket create "Review auth implementation" -a @reviewer --deps <your-ticket-
 5. Check for more work
 
 Your identity: {{ .AgentHandle }}
-{{ else if .SessionRoom }}
-## Inter-Agent Communication
-
-You are part of a multi-agent system. Communicate via Matrix chat using these commands:
-- ` + "`ayo matrix read {{ .SessionRoom }}`" + ` - Read messages from other agents
-- ` + "`ayo matrix send {{ .SessionRoom }} 'message'`" + ` - Send a message
-- ` + "`ayo matrix who {{ .SessionRoom }}`" + ` - See who else is in the session
-
-Protocol:
-1. Check for context at start: ` + "`ayo matrix read {{ .SessionRoom }} 10`" + `
-2. Report progress: ` + "`ayo matrix send {{ .SessionRoom }} 'Starting task...'`" + `
-3. Report completion with output
-4. Check for messages during long tasks
-
-Session room: {{ .SessionRoom }}
-Your identity: {{ .AgentName }}
 {{ end }}`
 
 // LegacyGuardrails is the original single-prompt guardrails for backward compatibility.

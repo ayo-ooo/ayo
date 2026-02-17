@@ -108,17 +108,6 @@ type FinishData struct {
 	Message *string    `json:"message,omitempty"`
 }
 
-// ParseLine parses a JSONL line and returns the type and raw data.
-func ParseLine(line []byte) (LineType, json.RawMessage, error) {
-	var base struct {
-		Type LineType `json:"type"`
-	}
-	if err := json.Unmarshal(line, &base); err != nil {
-		return "", nil, err
-	}
-	return base.Type, line, nil
-}
-
 // ParseSessionHeader parses a session header from a JSONL line.
 func ParseSessionHeader(line []byte) (*SessionHeader, error) {
 	var header SessionHeader

@@ -13,9 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
+	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/squads"
 	ayosync "github.com/alexcabrera/ayo/internal/sync"
 	"github.com/alexcabrera/ayo/internal/tickets"
@@ -24,14 +26,14 @@ import (
 
 // Server is the daemon server that manages ayo resources.
 type Server struct {
+	config         config.Config
+	services       *session.Services
 	listener       net.Listener
 	pool           *sandbox.Pool
 	provider       providers.SandboxProvider
 	sessionManager *DaemonSessionManager
 	triggerEngine  *TriggerEngine
 	webhookServer  *WebhookServer
-	conduit        *ConduitProcess
-	matrixBroker   *MatrixBroker
 	squadRPC       *SquadRPC
 	startTime      time.Time
 	shutdownCh     chan struct{}
@@ -46,11 +48,14 @@ type Server struct {
 
 // ServerConfig configures the daemon server.
 type ServerConfig struct {
+	Config          config.Config
+	Services        *session.Services // optional, for session persistence
 	SocketPath      string
 	PoolConfig      sandbox.PoolConfig
 	IdleTimeout     time.Duration
 	WebhookBindAddr string // optional, defaults to "127.0.0.1:0"
 	WebhookSecret   string // optional HMAC secret for webhooks
+	MaxConcurrent   int    // max concurrent agent executions (default: 3)
 }
 
 // DefaultServerConfig returns the default server configuration.
@@ -122,18 +127,16 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	// Create session manager
 	sessionManager := NewDaemonSessionManager(cfg.IdleTimeout)
 
-	// Create Conduit process manager
-	conduit := NewConduitProcess()
-
-	// Create Matrix broker
-	matrixBroker := NewMatrixBroker(paths.MatrixSocket(), "ayo.local")
+	// Create ticket service
+	ticketService := tickets.NewService(paths.SessionsDir())
 
 	server := &Server{
+		config:         cfg.Config,
+		services:       cfg.Services,
 		provider:       provider,
 		pool:           pool,
 		sessionManager: sessionManager,
-		conduit:        conduit,
-		matrixBroker:   matrixBroker,
+		tickets:        ticketService,
 		shutdownCh:     make(chan struct{}),
 	}
 
@@ -149,8 +152,20 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		Callback: server.handleTriggerEvent,
 	})
 
-	// Create ticket watcher (no runner configured yet - will be set when available)
-	ticketWatcher, err := NewTicketWatcher(TicketWatcherConfig{})
+	// Create agent runner for ticket-based spawning
+	agentRunner := NewDaemonAgentRunner(DaemonAgentRunnerConfig{
+		Config:          cfg.Config,
+		Services:        cfg.Services,
+		SandboxProvider: provider,
+		TicketService:   ticketService,
+		MaxConcurrent:   cfg.MaxConcurrent,
+	})
+
+	// Create ticket watcher with runner
+	ticketWatcher, err := NewTicketWatcher(TicketWatcherConfig{
+		Runner:         agentRunner,
+		OnTicketClosed: server.handleTicketClosed,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("create ticket watcher: %w", err)
 	}
@@ -235,21 +250,6 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		}
 	}
 
-	// Start Conduit Matrix homeserver (optional - don't fail if not available)
-	if s.conduit != nil {
-		if err := s.conduit.Start(ctx); err != nil {
-			// Log warning but don't fail - Matrix is optional
-			// In production, this would use proper logging
-		} else {
-			// Start Matrix broker if Conduit started
-			if s.matrixBroker != nil {
-				if err := s.matrixBroker.Connect(ctx); err != nil {
-					// Log warning but don't fail
-				}
-			}
-		}
-	}
-
 	// Write PID file
 	if err := s.writePIDFile(); err != nil {
 		s.listener.Close()
@@ -299,16 +299,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Stop ticket watcher
 	if s.ticketWatcher != nil {
 		s.ticketWatcher.Stop(ctx)
-	}
-
-	// Stop Matrix broker
-	if s.matrixBroker != nil {
-		s.matrixBroker.Disconnect()
-	}
-
-	// Stop Conduit
-	if s.conduit != nil {
-		s.conduit.Stop()
 	}
 
 	// Stop sandbox pool
@@ -473,27 +463,6 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleTriggerTest(req)
 	case MethodTriggerSetEnabled:
 		return s.handleTriggerSetEnabled(req)
-	// Matrix methods
-	case MethodMatrixStatus:
-		return s.handleMatrixStatus(req)
-	case MethodMatrixRoomsList:
-		return s.handleMatrixRoomsList(req)
-	case MethodMatrixRoomsCreate:
-		return s.handleMatrixRoomsCreate(ctx, req)
-	case MethodMatrixRoomsMembers:
-		return s.handleMatrixRoomsMembers(req)
-	case MethodMatrixRoomsInvite:
-		return s.handleMatrixRoomsInvite(req)
-	case MethodMatrixRoomsJoin:
-		return s.handleMatrixRoomsJoin(req)
-	case MethodMatrixRoomsLeave:
-		return s.handleMatrixRoomsLeave(req)
-	case MethodMatrixSend:
-		return s.handleMatrixSend(req)
-	case MethodMatrixRead:
-		return s.handleMatrixRead(req)
-	case MethodMatrixReadStream:
-		return s.handleMatrixReadStream(ctx, req)
 	// Flow methods
 	case MethodFlowRun:
 		return s.handleFlowRun(ctx, req)
@@ -863,6 +832,13 @@ func (s *Server) handleTriggerEvent(event TriggerEvent) {
 
 	// TODO: In the future, we could inject the prompt and context into the agent session
 	// For now, just log that the trigger fired
+}
+
+// handleTicketClosed handles a ticket being closed.
+// This is called by the TicketWatcher when a ticket transitions to closed status.
+func (s *Server) handleTicketClosed(contextID, ticketID string, isSquad bool) {
+	// Log the closure for now
+	// Future: could notify other agents, update metrics, etc.
 }
 
 // Trigger management handlers

@@ -689,7 +689,7 @@ Some operations require persistence beyond a single command:
 - **Sandbox pool**: Pre-warmed containers for fast startup
 - **Triggers**: Cron schedules and file watchers
 - **Sessions**: Managing long-running agent interactions
-- **Communication**: Matrix homeserver for inter-agent messaging
+- **Tickets**: File-based task coordination for multi-agent workflows
 
 The **daemon** is a background process that provides these services.
 
@@ -1545,26 +1545,6 @@ Agents can leave files in `/shared` for each other:
 @ayo reads results
 ```
 
-### 14.3 Matrix Communication
-
-For real-time inter-agent messaging, Ayo includes a Matrix homeserver (Conduit):
-
-```bash
-# Check status
-ayo matrix status
-
-# Create a room
-ayo matrix create project-discussion
-
-# Send a message
-ayo matrix send project-discussion "Starting code review"
-
-# Read messages
-ayo matrix read project-discussion 20
-```
-
-Agents can use Matrix to coordinate, share findings, and request assistance.
-
 ---
 
 # Part VI: Automation and Workflows
@@ -1913,7 +1893,6 @@ The `@ayo` namespace is reserved for built-in agents:
 | Chaining | Data pipeline (stdin/stdout) |
 | Shared files | Asynchronous collaboration |
 | Tickets | Task coordination with dependencies |
-| Matrix | Real-time messaging (legacy) |
 
 ### 19.2 Agent Call (Synchronous)
 
@@ -2034,22 +2013,6 @@ Ticket: "Implement authentication module" (proj-a1b2)
 - Multiple agents collaborate on related tasks
 
 This separation keeps agents focused (todos for "what am I doing now") while maintaining project visibility (tickets for "what needs to be done").
-
-### 19.7 Matrix (Real-time)
-
-Matrix provides publish/subscribe messaging for scenarios requiring real-time push notifications:
-
-```bash
-# Agent 1 subscribes to room
-ayo matrix read project-room --stream
-
-# Agent 2 publishes
-ayo matrix send project-room '{"event": "task-complete", "id": 123}'
-
-# Agent 1 receives message
-```
-
-**Note:** For most coordination needs, tickets are preferred over Matrix. Tickets provide better persistence, dependency management, and audit trails. Matrix remains useful for real-time event streaming where polling is insufficient.
 
 ---
 
