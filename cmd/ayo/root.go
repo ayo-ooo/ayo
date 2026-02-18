@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/cli"
+	"github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/ui"
 	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
@@ -121,9 +123,8 @@ Examples:
 					if !squads.ValidateHandle(squadHandle) {
 						return fmt.Errorf("invalid squad handle: %s", args[0])
 					}
-					// Squad invocation is parsed but not yet implemented
-					// This enables ticket am-yfaq to implement the actual invocation
-					return fmt.Errorf("squad invocation not yet implemented: %s\n\nUse 'ayo squad' commands to manage squads.", squadHandle)
+					prompt := strings.Join(args[1:], " ")
+					return invokeSquad(cmd.Context(), squadHandle, prompt)
 				} else {
 					// First arg is not an agent handle
 					// Check if it looks like a potential subcommand typo
@@ -585,4 +586,41 @@ func completeHandles(toComplete string) ([]string, cobra.ShellCompDirective) {
 	}
 
 	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+// invokeSquad dispatches work to a squad synchronously via the daemon.
+// It connects to the daemon, sends the prompt, waits for a result, and prints output.
+func invokeSquad(ctx context.Context, handle, prompt string) error {
+	client, err := daemon.ConnectOrStart(ctx)
+	if err != nil {
+		return fmt.Errorf("connect to daemon: %w", err)
+	}
+	defer client.Close()
+
+	name := squads.StripPrefix(handle)
+	result, err := client.SquadDispatch(ctx, daemon.SquadDispatchParams{
+		Name:           name,
+		Prompt:         prompt,
+		StartIfStopped: true,
+	})
+	if err != nil {
+		return fmt.Errorf("dispatch to squad: %w", err)
+	}
+
+	if result.Error != "" {
+		return fmt.Errorf("squad error: %s", result.Error)
+	}
+
+	if result.Raw != "" {
+		fmt.Println(result.Raw)
+	} else if result.Output != nil {
+		// Structured output - encode as JSON
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(result.Output); err != nil {
+			return fmt.Errorf("encode output: %w", err)
+		}
+	}
+
+	return nil
 }
