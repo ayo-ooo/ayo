@@ -437,6 +437,72 @@ func (r *SquadRPC) HandleSquadCleanup(ctx context.Context, params json.RawMessag
 	return SquadCleanupResult{Success: true}, nil
 }
 
+// HandleSquadDispatch handles squads.dispatch.
+// Dispatches work to a squad synchronously and returns the result.
+func (r *SquadRPC) HandleSquadDispatch(ctx context.Context, params json.RawMessage) (any, *Error) {
+	var p SquadDispatchParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, NewError(ErrCodeInvalidParams, "invalid params: "+err.Error())
+	}
+
+	if p.Name == "" {
+		return nil, NewError(ErrCodeInvalidParams, "name is required")
+	}
+
+	// Strip # prefix if present
+	name := squads.StripPrefix(p.Name)
+
+	// Get the squad
+	squad, err := r.service.Get(ctx, name)
+	if err != nil {
+		return nil, NewError(ErrCodeInternal, "failed to get squad: "+err.Error())
+	}
+
+	// Start if not running and StartIfStopped is set
+	if !squad.IsRunning() && p.StartIfStopped {
+		if err := r.service.Start(ctx, name); err != nil {
+			return nil, NewError(ErrCodeInternal, "failed to start squad: "+err.Error())
+		}
+		// Re-get squad after start
+		squad, err = r.service.Get(ctx, name)
+		if err != nil {
+			return nil, NewError(ErrCodeInternal, "failed to get squad after start: "+err.Error())
+		}
+	}
+
+	// Create dispatch input
+	input := squads.DispatchInput{
+		Prompt: p.Prompt,
+		Data:   p.Data,
+	}
+
+	// Dispatch and get result
+	result, err := squad.Dispatch(ctx, input)
+	if err != nil {
+		// Check if it's a validation error
+		if valErr, ok := err.(*squads.ValidationError); ok {
+			return SquadDispatchResult{
+				Error: valErr.Error(),
+			}, nil
+		}
+		return nil, NewError(ErrCodeInternal, "dispatch failed: "+err.Error())
+	}
+
+	// Validate output if schema exists
+	if err := squad.ValidateOutput(result); err != nil {
+		return SquadDispatchResult{
+			Output: result.Output,
+			Raw:    result.Raw,
+			Error:  "output validation failed: " + err.Error(),
+		}, nil
+	}
+
+	return SquadDispatchResult{
+		Output: result.Output,
+		Raw:    result.Raw,
+	}, nil
+}
+
 // squadToInfo converts a Squad to SquadInfo for RPC responses.
 func squadToInfo(squad *squads.Squad, service *squads.Service) SquadInfo {
 	info := SquadInfo{

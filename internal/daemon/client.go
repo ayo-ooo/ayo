@@ -571,3 +571,12 @@ func (c *Client) SquadRemoveAgent(ctx context.Context, name, agentHandle string)
 	params := SquadRemoveAgentParams{Name: name, AgentHandle: agentHandle}
 	return c.call(ctx, MethodSquadRemoveAgent, params, nil)
 }
+
+// SquadDispatch dispatches work to a squad synchronously.
+func (c *Client) SquadDispatch(ctx context.Context, params SquadDispatchParams) (*SquadDispatchResult, error) {
+	var result SquadDispatchResult
+	if err := c.call(ctx, MethodSquadDispatch, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

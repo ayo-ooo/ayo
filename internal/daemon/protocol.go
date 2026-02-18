@@ -143,6 +143,7 @@ const (
 	MethodSquadWaitCompletion = "squads.wait_completion"
 	MethodSquadSyncOutput     = "squads.sync_output"
 	MethodSquadCleanup        = "squads.cleanup"
+	MethodSquadDispatch       = "squads.dispatch"
 )
 
 // Request/Response types for each method
@@ -790,4 +791,36 @@ type SquadCleanupParams struct {
 // SquadCleanupResult is the response to squads.cleanup.
 type SquadCleanupResult struct {
 	Success bool `json:"success"`
+}
+
+// SquadDispatchParams is the request for squads.dispatch.
+type SquadDispatchParams struct {
+	// Name is the squad name (without # prefix).
+	Name string `json:"name"`
+
+	// Prompt is a free-form text prompt for the squad.
+	Prompt string `json:"prompt,omitempty"`
+
+	// Data contains structured input data.
+	// If the squad has an input schema, this data is validated against it.
+	Data map[string]any `json:"data,omitempty"`
+
+	// StartIfStopped starts the squad if it's not running.
+	StartIfStopped bool `json:"start_if_stopped,omitempty"`
+
+	// Timeout is the maximum time to wait for a result in seconds.
+	// If zero, a default timeout is used.
+	Timeout int `json:"timeout,omitempty"`
+}
+
+// SquadDispatchResult is the response to squads.dispatch.
+type SquadDispatchResult struct {
+	// Output contains structured output data.
+	Output map[string]any `json:"output,omitempty"`
+
+	// Raw is the raw text output if not structured.
+	Raw string `json:"raw,omitempty"`
+
+	// Error contains any error message from the squad.
+	Error string `json:"error,omitempty"`
 }

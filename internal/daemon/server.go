@@ -530,6 +530,8 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleSquadSyncOutput(ctx, req)
 	case MethodSquadCleanup:
 		return s.handleSquadCleanup(ctx, req)
+	case MethodSquadDispatch:
+		return s.handleSquadDispatch(ctx, req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}
@@ -1127,6 +1129,15 @@ func (s *Server) handleSquadSyncOutput(ctx context.Context, req *Request) *Respo
 
 func (s *Server) handleSquadCleanup(ctx context.Context, req *Request) *Response {
 	result, err := s.squadRPC.HandleSquadCleanup(ctx, req.Params)
+	if err != nil {
+		return NewErrorResponse(err, req.ID)
+	}
+	resp, _ := NewResponse(result, req.ID)
+	return resp
+}
+
+func (s *Server) handleSquadDispatch(ctx context.Context, req *Request) *Response {
+	result, err := s.squadRPC.HandleSquadDispatch(ctx, req.Params)
 	if err != nil {
 		return NewErrorResponse(err, req.ID)
 	}
