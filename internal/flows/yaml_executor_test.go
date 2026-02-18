@@ -58,6 +58,11 @@ func (m *mockAgentInvoker) Invoke(ctx context.Context, agent, prompt string) (st
 	return "default response from " + agent, nil
 }
 
+func (m *mockAgentInvoker) InvokeInSquad(ctx context.Context, squad, agent, prompt string) (string, error) {
+	// For tests, just delegate to Invoke with squad prefix
+	return m.Invoke(ctx, agent, prompt)
+}
+
 func TestYAMLExecutor_SimpleShell(t *testing.T) {
 	executor := NewYAMLExecutor()
 

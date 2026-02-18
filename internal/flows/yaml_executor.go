@@ -18,6 +18,9 @@ import (
 type AgentInvoker interface {
 	// Invoke sends a prompt to an agent and returns the response.
 	Invoke(ctx context.Context, agent, prompt string) (string, error)
+
+	// InvokeInSquad invokes an agent within a specific squad's sandbox context.
+	InvokeInSquad(ctx context.Context, squad, agent, prompt string) (string, error)
 }
 
 // YAMLExecutor executes YAML-defined multi-step flows.
@@ -336,15 +339,21 @@ func (e *YAMLExecutor) executeAgentStep(ctx context.Context, step *FlowStep, sr 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Invoke agent
-	response, err := e.AgentInvoker.Invoke(ctx, step.Agent, prompt)
-	if err != nil {
+	// Invoke agent - use squad context if specified
+	var response string
+	var invokeErr error
+	if step.Squad != "" {
+		response, invokeErr = e.AgentInvoker.InvokeInSquad(ctx, step.Squad, step.Agent, prompt)
+	} else {
+		response, invokeErr = e.AgentInvoker.Invoke(ctx, step.Agent, prompt)
+	}
+	if invokeErr != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			sr.Status = StepStatusTimeout
 			sr.Error = fmt.Sprintf("timeout after %v", timeout)
 		} else {
 			sr.Status = StepStatusFailed
-			sr.Error = err.Error()
+			sr.Error = invokeErr.Error()
 		}
 		return
 	}

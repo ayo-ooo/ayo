@@ -15,6 +15,7 @@ import (
 // Duplicated here to avoid import cycle (flows depends on daemon for execution).
 type AgentInvoker interface {
 	Invoke(ctx context.Context, agent, prompt string) (string, error)
+	InvokeInSquad(ctx context.Context, squad, agent, prompt string) (string, error)
 }
 
 // SandboxAwareInvoker invokes agents via the daemon client.
@@ -48,6 +49,43 @@ func (i *SandboxAwareInvoker) Invoke(ctx context.Context, agentName, prompt stri
 	}
 
 	return result.Response, nil
+}
+
+// InvokeInSquad invokes an agent within a specific squad's sandbox context.
+func (i *SandboxAwareInvoker) InvokeInSquad(ctx context.Context, squad, agentName, prompt string) (string, error) {
+	if i.client == nil {
+		return "", fmt.Errorf("daemon client not initialized")
+	}
+
+	// Normalize squad name (remove # prefix if present)
+	squadName := squad
+	if len(squadName) > 0 && squadName[0] == '#' {
+		squadName = squadName[1:]
+	}
+
+	// Use squad dispatch with agent targeting
+	result, err := i.client.SquadDispatch(ctx, SquadDispatchParams{
+		Name:           squadName,
+		Prompt:         fmt.Sprintf("@%s %s", normalizeAgentHandle(agentName), prompt),
+		StartIfStopped: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("invoke agent %q in squad %q: %w", agentName, squadName, err)
+	}
+
+	if result.Error != "" {
+		return "", fmt.Errorf("squad %q error: %s", squadName, result.Error)
+	}
+
+	return result.Raw, nil
+}
+
+// normalizeAgentHandle removes @ prefix if present.
+func normalizeAgentHandle(handle string) string {
+	if len(handle) > 0 && handle[0] == '@' {
+		return handle[1:]
+	}
+	return handle
 }
 
 // ServerAgentInvoker invokes agents directly within the daemon server context.
@@ -89,4 +127,16 @@ func (i *ServerAgentInvoker) Invoke(ctx context.Context, agentName, prompt strin
 	}
 
 	return result.Response, nil
+}
+
+// InvokeInSquad invokes an agent within a specific squad's sandbox context.
+// For server-side invocation, this requires the squad RPC system which is
+// handled by dispatching to the squad. The ServerAgentInvoker needs a client
+// to dispatch to squads, so it stores one.
+func (i *ServerAgentInvoker) InvokeInSquad(ctx context.Context, squad, agentName, prompt string) (string, error) {
+	// Server-side squad invocation is not directly supported
+	// because we can't dispatch from within a dispatch.
+	// Instead, return an error instructing to use the client-side invoker
+	// for squad-based invocations.
+	return "", fmt.Errorf("server-side InvokeInSquad not supported; use SandboxAwareInvoker for squad context")
 }
