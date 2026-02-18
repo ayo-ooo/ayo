@@ -61,10 +61,11 @@ func (p *Plugin) Close() error {
 }
 
 // Tools returns the fantasy tools that this planner provides.
-// Tool definitions will be implemented in am-0011.
+// Tool definitions are in tools.go.
 func (p *Plugin) Tools() []fantasy.AgentTool {
-	// Tools will be added in am-0011 (Implement ayo-todos tool definitions)
-	return nil
+	return []fantasy.AgentTool{
+		p.newTodosTool(),
+	}
 }
 
 // Instructions returns text to inject into agent system prompts.

@@ -86,10 +86,12 @@ func TestPlugin_Close(t *testing.T) {
 
 func TestPlugin_Tools(t *testing.T) {
 	p := &Plugin{}
-	// Currently returns nil (tools to be implemented in am-0011)
 	tools := p.Tools()
-	if tools != nil {
-		t.Errorf("Tools() = %v, want nil (not yet implemented)", tools)
+	if len(tools) != 1 {
+		t.Errorf("Tools() returned %d tools, want 1", len(tools))
+	}
+	if len(tools) > 0 && tools[0].Info().Name != ToolName {
+		t.Errorf("Tools()[0].Info().Name = %q, want %q", tools[0].Info().Name, ToolName)
 	}
 }
 
