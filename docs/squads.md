@@ -225,6 +225,194 @@ ayo squad init myteam --mission "Build the auth system" \
   --agents @backend,@frontend
 ```
 
+## The # Symbol: Quick Squad Dispatch
+
+The `#` symbol provides a shorthand for sending work to squads:
+
+```bash
+# Send a prompt to a squad
+ayo #myteam "implement the login feature"
+
+# Equivalent to
+ayo squad dispatch myteam "implement the login feature"
+```
+
+This syntax routes the prompt to the squad's designated input handler (configured via the `input_accepts` frontmatter field, defaulting to the squad lead).
+
+### How Dispatch Works
+
+1. **Parse**: The `#squad` prefix identifies the target squad
+2. **Route**: The prompt is sent to the agent specified in `input_accepts`
+3. **Execute**: The receiving agent processes the prompt within the squad sandbox
+4. **Coordinate**: The agent may create tickets, delegate to other agents, or complete the work directly
+
+### Combined Dispatch
+
+You can dispatch to both an agent and a squad:
+
+```bash
+# Send to @backend within #myteam squad
+ayo @backend #myteam "implement the login API"
+```
+
+When both are specified:
+- The squad provides the sandbox and context (SQUAD.md)
+- The specified agent receives and handles the prompt
+- This overrides the squad's `input_accepts` setting for this dispatch
+
+## Squad Lead and @ayo-in-squad
+
+When `@ayo` operates inside a squad, it becomes `@ayo-in-squad` with a modified tool set optimized for coordination rather than direct execution.
+
+### Why a Different Identity?
+
+The squad lead (`@ayo` by default) serves as the orchestrator:
+- **Receives dispatches**: Handles prompts sent to the squad without a specific agent target
+- **Coordinates work**: Creates tickets, assigns agents, manages dependencies
+- **Synthesizes results**: Combines output from multiple agents into cohesive responses
+
+### Restricted Tools
+
+`@ayo-in-squad` has access to:
+| Tool Category | Description |
+|---------------|-------------|
+| **Ticket tools** | Create, assign, close, and manage tickets |
+| **Agent dispatch** | Delegate work to squad members |
+| **Read-only file access** | View workspace files (not modify directly) |
+| **Communication** | Respond to the user, ask clarifying questions |
+
+Notably restricted:
+- **No direct file editing**: Must delegate to specialized agents
+- **No bash execution**: Must use agents with sandbox access
+- **No external tools**: API calls, web fetch, etc. go through agents
+
+This separation ensures the lead coordinates rather than doing everything itself, enabling true multi-agent collaboration.
+
+### Configuring a Different Lead
+
+Set the `lead` field in SQUAD.md frontmatter:
+
+```yaml
+---
+lead: "@architect"
+input_accepts: "@architect"
+---
+```
+
+The lead agent receives the squad context and coordination tools regardless of their base configuration.
+
+## I/O Schemas
+
+Squads can define input/output contracts using JSON Schema files, enabling type-safe integration with flows and external systems.
+
+### Schema Files
+
+Place schema files in the squad's root directory:
+
+```
+~/.local/share/ayo/sandboxes/squads/{name}/
+├── SQUAD.md
+├── input.jsonschema      # Optional: defines expected input structure
+├── output.jsonschema     # Optional: defines output structure
+└── ...
+```
+
+### Input Schema
+
+Defines the structure of data the squad expects to receive:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "feature_name": {
+      "type": "string",
+      "description": "Name of the feature to implement"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "default": "medium"
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["feature_name"]
+}
+```
+
+### Output Schema
+
+Defines the structure of data the squad produces:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "partial"]
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": ["status", "summary"]
+}
+```
+
+### Schema Validation
+
+When schemas are present:
+
+1. **Input validation**: Dispatched data is validated against `input.jsonschema` before processing
+2. **Output validation**: Squad output is validated against `output.jsonschema` before returning
+3. **Error handling**: Validation failures return detailed error messages
+
+### Use with Flows
+
+Schemas enable squads to participate in typed flows:
+
+```yaml
+# flow.yaml
+name: feature-pipeline
+steps:
+  - id: plan
+    agent: "@planner"
+    output_schema: "planning-output.jsonschema"
+  
+  - id: implement
+    squad: "#dev-team"
+    input: "${{ steps.plan.output }}"
+    # Squad's input.jsonschema validates the planning output
+    # Squad's output.jsonschema defines what flows to the next step
+  
+  - id: review
+    agent: "@reviewer"
+    input: "${{ steps.implement.output }}"
+```
+
+### Schema Commands
+
+```bash
+# Validate input against squad schema
+ayo squad validate myteam --input data.json
+
+# View squad schemas
+ayo squad schema myteam show
+
+# Set schema from file
+ayo squad schema myteam set --input schema.json --output out-schema.json
+```
+
 ## Squad Lifecycle
 
 ### Create
