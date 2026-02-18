@@ -349,3 +349,72 @@ func TestServiceTicketsDir(t *testing.T) {
 		t.Errorf("ticketsDir = %q, want %q", got, expected)
 	}
 }
+
+func TestNewDirectService(t *testing.T) {
+	tmpDir := t.TempDir()
+	svc := NewDirectService(tmpDir)
+
+	// Verify it's in direct mode
+	if !svc.IsDirectMode() {
+		t.Error("Expected direct mode to be true")
+	}
+
+	// Create a ticket using empty session ID (direct mode ignores it)
+	ticket, err := svc.Create("", CreateOptions{
+		Title: "Direct mode ticket",
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Verify file is created directly in baseDir
+	expectedPath := filepath.Join(tmpDir, ticket.ID+".md")
+	if ticket.FilePath != expectedPath {
+		t.Errorf("FilePath = %q, want %q", ticket.FilePath, expectedPath)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(ticket.FilePath); err != nil {
+		t.Errorf("Ticket file not created: %v", err)
+	}
+
+	// Get the ticket back
+	got, err := svc.Get("", ticket.ID)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if got.ID != ticket.ID {
+		t.Errorf("ID = %q, want %q", got.ID, ticket.ID)
+	}
+
+	// List tickets
+	tickets, err := svc.List("", Filter{})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(tickets) != 1 {
+		t.Errorf("Expected 1 ticket, got %d", len(tickets))
+	}
+}
+
+func TestDirectServiceTicketsDir(t *testing.T) {
+	svc := NewDirectService("/planner/state")
+
+	// In direct mode, ticketsDir should return baseDir directly
+	expected := "/planner/state"
+	if got := svc.ticketsDir("ignored"); got != expected {
+		t.Errorf("ticketsDir = %q, want %q", got, expected)
+	}
+}
+
+func TestServiceBaseDir(t *testing.T) {
+	svc := NewService("/my/base/dir")
+	if got := svc.BaseDir(); got != "/my/base/dir" {
+		t.Errorf("BaseDir() = %q, want %q", got, "/my/base/dir")
+	}
+
+	directSvc := NewDirectService("/direct/path")
+	if got := directSvc.BaseDir(); got != "/direct/path" {
+		t.Errorf("BaseDir() = %q, want %q", got, "/direct/path")
+	}
+}

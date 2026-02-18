@@ -10,17 +10,40 @@ import (
 
 // Service provides ticket operations for a base directory.
 type Service struct {
-	baseDir string // e.g., ~/.local/share/ayo/sessions
+	baseDir    string // e.g., ~/.local/share/ayo/sessions
+	directMode bool   // If true, baseDir IS the tickets directory (no sessionID nesting)
 }
 
-// NewService creates a new ticket service.
+// NewService creates a new ticket service that organizes tickets under:
+// {baseDir}/{sessionID}/.tickets/{ticketID}.md
 func NewService(baseDir string) *Service {
-	return &Service{baseDir: baseDir}
+	return &Service{baseDir: baseDir, directMode: false}
+}
+
+// NewDirectService creates a ticket service that stores tickets directly in:
+// {baseDir}/{ticketID}.md
+// This is useful for planner state directories where no session nesting is needed.
+func NewDirectService(baseDir string) *Service {
+	return &Service{baseDir: baseDir, directMode: true}
 }
 
 // ticketsDir returns the .tickets directory for a session.
 func (s *Service) ticketsDir(sessionID string) string {
+	if s.directMode {
+		// In direct mode, baseDir IS the tickets directory
+		return s.baseDir
+	}
 	return filepath.Join(s.baseDir, sessionID, ".tickets")
+}
+
+// BaseDir returns the base directory path used by this service.
+func (s *Service) BaseDir() string {
+	return s.baseDir
+}
+
+// IsDirectMode returns true if the service operates in direct mode.
+func (s *Service) IsDirectMode() bool {
+	return s.directMode
 }
 
 // ticketPath returns the file path for a ticket.
