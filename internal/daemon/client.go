@@ -580,3 +580,12 @@ func (c *Client) SquadDispatch(ctx context.Context, params SquadDispatchParams) 
 	}
 	return &result, nil
 }
+
+// AgentInvoke invokes an agent directly (not in a squad).
+func (c *Client) AgentInvoke(ctx context.Context, params AgentInvokeParams) (*AgentInvokeResult, error) {
+	var result AgentInvokeResult
+	if err := c.call(ctx, MethodAgentInvoke, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

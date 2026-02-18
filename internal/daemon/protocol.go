@@ -144,6 +144,9 @@ const (
 	MethodSquadSyncOutput     = "squads.sync_output"
 	MethodSquadCleanup        = "squads.cleanup"
 	MethodSquadDispatch       = "squads.dispatch"
+
+	// Agent invocation methods
+	MethodAgentInvoke = "agent.invoke"
 )
 
 // Request/Response types for each method
@@ -822,5 +825,32 @@ type SquadDispatchResult struct {
 	Raw string `json:"raw,omitempty"`
 
 	// Error contains any error message from the squad.
+	Error string `json:"error,omitempty"`
+}
+
+// AgentInvokeParams is the request for agent.invoke.
+type AgentInvokeParams struct {
+	// Agent is the agent handle (e.g., "@ayo", "@backend").
+	Agent string `json:"agent"`
+
+	// Prompt is the task or question for the agent.
+	Prompt string `json:"prompt"`
+
+	// SessionID optionally specifies an existing session to continue.
+	SessionID string `json:"session_id,omitempty"`
+
+	// Skills are additional skills to enable for this invocation.
+	Skills []string `json:"skills,omitempty"`
+}
+
+// AgentInvokeResult is the response to agent.invoke.
+type AgentInvokeResult struct {
+	// SessionID is the session ID used for this invocation.
+	SessionID string `json:"session_id"`
+
+	// Response is the agent's response text.
+	Response string `json:"response"`
+
+	// Error contains any error message from the agent.
 	Error string `json:"error,omitempty"`
 }

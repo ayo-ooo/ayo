@@ -532,6 +532,9 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleSquadCleanup(ctx, req)
 	case MethodSquadDispatch:
 		return s.handleSquadDispatch(ctx, req)
+	// Agent invocation
+	case MethodAgentInvoke:
+		return s.handleAgentInvoke(ctx, req)
 	default:
 		return NewErrorResponse(NewError(ErrCodeMethodNotFound, "method not found: "+req.Method), req.ID)
 	}
