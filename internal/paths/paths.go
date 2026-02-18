@@ -719,6 +719,23 @@ func EnsureAyoSandboxDirs() error {
 	return nil
 }
 
+// AyoAgentHomeDir returns the home directory for an agent running in @ayo's sandbox.
+// Location: ~/.local/share/ayo/sandboxes/ayo/home/{agent}
+func AyoAgentHomeDir(agentHandle string) string {
+	// Strip @ prefix if present
+	name := strings.TrimPrefix(agentHandle, "@")
+	return filepath.Join(AyoSandboxHomeDir(), name)
+}
+
+// EnsureAyoAgentHomeDir creates the home directory for an agent in @ayo's sandbox.
+func EnsureAyoAgentHomeDir(agentHandle string) (string, error) {
+	homeDir := AyoAgentHomeDir(agentHandle)
+	if err := os.MkdirAll(homeDir, 0755); err != nil {
+		return "", fmt.Errorf("create agent home directory: %w", err)
+	}
+	return homeDir, nil
+}
+
 // SquadsDir returns the base data directory for squad sandboxes.
 // Location: ~/.local/share/ayo/sandboxes/squads
 func SquadsDir() string {

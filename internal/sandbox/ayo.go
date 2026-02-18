@@ -186,6 +186,12 @@ func CloseAyoPlanners(manager *planners.SandboxPlannerManager) error {
 	return manager.ClosePlanners("ayo")
 }
 
+// EnsureAgentHome creates and returns the home directory for an agent running in @ayo's sandbox.
+// The directory persists across sessions at ~/.local/share/ayo/sandboxes/ayo/home/{agent}/
+func EnsureAgentHome(agentHandle string) (string, error) {
+	return paths.EnsureAyoAgentHomeDir(agentHandle)
+}
+
 // parseMountSpec parses a mount spec string into a Mount.
 // Format: "host_path:container_path" or "path" (same on both).
 func parseMountSpec(spec string) (providers.Mount, error) {

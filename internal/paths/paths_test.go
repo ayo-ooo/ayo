@@ -269,3 +269,57 @@ func TestEnsureAgentHomeDir(t *testing.T) {
 		t.Error("EnsureAgentHomeDir: path is not a directory")
 	}
 }
+
+func TestAyoAgentHomeDir(t *testing.T) {
+	tests := []struct {
+		handle   string
+		wantName string
+	}{
+		{"@ayo", "ayo"},
+		{"@my-agent", "my-agent"},
+		{"my-agent", "my-agent"},
+		{"@test.agent", "test.agent"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.handle, func(t *testing.T) {
+			dir := AyoAgentHomeDir(tt.handle)
+
+			// Should end with the agent name
+			if !strings.HasSuffix(dir, tt.wantName) {
+				t.Errorf("AyoAgentHomeDir(%q) = %s, want to end with %s", tt.handle, dir, tt.wantName)
+			}
+
+			// Should be under AyoSandboxHomeDir
+			if !strings.HasPrefix(dir, AyoSandboxHomeDir()) {
+				t.Errorf("AyoAgentHomeDir should be under AyoSandboxHomeDir: got %s", dir)
+			}
+		})
+	}
+}
+
+func TestEnsureAyoAgentHomeDir(t *testing.T) {
+	handle := "@test-ayo-agent"
+	safeName := "test-ayo-agent"
+
+	// Test the function creates the directory
+	dir, err := EnsureAyoAgentHomeDir(handle)
+	if err != nil {
+		t.Errorf("EnsureAyoAgentHomeDir failed: %v", err)
+	}
+	if !strings.HasSuffix(dir, safeName) {
+		t.Errorf("EnsureAyoAgentHomeDir(%q) = %s, want to end with %s", handle, dir, safeName)
+	}
+
+	// Verify the directory was actually created
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Errorf("EnsureAyoAgentHomeDir: directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("EnsureAyoAgentHomeDir: path is not a directory")
+	}
+
+	// Clean up
+	os.RemoveAll(dir)
+}
