@@ -26,17 +26,18 @@ func (s Status) Valid() bool {
 type Type string
 
 const (
-	TypeEpic    Type = "epic"
-	TypeFeature Type = "feature"
-	TypeTask    Type = "task"
-	TypeBug     Type = "bug"
-	TypeChore   Type = "chore"
+	TypeEpic       Type = "epic"
+	TypeFeature    Type = "feature"
+	TypeTask       Type = "task"
+	TypeBug        Type = "bug"
+	TypeChore      Type = "chore"
+	TypeEscalation Type = "escalation"
 )
 
 // Valid returns true if the type is a known value.
 func (t Type) Valid() bool {
 	switch t {
-	case TypeEpic, TypeFeature, TypeTask, TypeBug, TypeChore:
+	case TypeEpic, TypeFeature, TypeTask, TypeBug, TypeChore, TypeEscalation:
 		return true
 	}
 	return false
