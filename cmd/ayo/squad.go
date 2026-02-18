@@ -4,12 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"charm.land/fantasy/schema"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/alexcabrera/ayo/internal/daemon"
+	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/squads"
 )
 
 // Squad status styles
@@ -71,6 +75,7 @@ Examples:
 	cmd.AddCommand(squadAddAgentCmd())
 	cmd.AddCommand(squadRemoveAgentCmd())
 	cmd.AddCommand(squadTicketCmd())
+	cmd.AddCommand(squadSchemaCmd())
 
 	return cmd
 }
@@ -586,5 +591,281 @@ func squadTicketCloseCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func squadSchemaCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "schema",
+		Short: "Manage squad I/O schemas",
+		Long: `Manage JSON schemas for squad input/output validation.
+
+Squads can optionally define input.jsonschema and output.jsonschema files
+to enable structured I/O with validation.
+
+Examples:
+  # Initialize template schemas
+  ayo squad schema init dev-team
+
+  # Show current schemas
+  ayo squad schema show dev-team
+
+  # Validate schemas are syntactically correct
+  ayo squad schema validate dev-team`,
+	}
+
+	cmd.AddCommand(squadSchemaInitCmd())
+	cmd.AddCommand(squadSchemaShowCmd())
+	cmd.AddCommand(squadSchemaValidateCmd())
+
+	return cmd
+}
+
+func squadSchemaInitCmd() *cobra.Command {
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "init <squad>",
+		Short: "Create template I/O schemas",
+		Long:  "Creates template input.jsonschema and output.jsonschema files in the squad directory.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			squadDir := paths.SquadDir(squadName)
+
+			// Check squad exists
+			if _, err := os.Stat(squadDir); os.IsNotExist(err) {
+				return fmt.Errorf("squad %q does not exist", squadName)
+			}
+
+			// Template schemas
+			inputSchema := `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Input schema for squad %s",
+  "properties": {
+    "task": {
+      "type": "string",
+      "description": "Description of the task to perform"
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of requirements"
+    }
+  },
+  "required": ["task"]
+}
+`
+			outputSchema := `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Output schema for squad %s",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "partial"],
+      "description": "Overall result status"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Summary of work completed"
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of files modified"
+    }
+  },
+  "required": ["status", "summary"]
+}
+`
+			inputPath := filepath.Join(squadDir, "input.jsonschema")
+			outputPath := filepath.Join(squadDir, "output.jsonschema")
+
+			// Check for existing files
+			if !force {
+				if _, err := os.Stat(inputPath); err == nil {
+					return fmt.Errorf("input.jsonschema already exists (use --force to overwrite)")
+				}
+				if _, err := os.Stat(outputPath); err == nil {
+					return fmt.Errorf("output.jsonschema already exists (use --force to overwrite)")
+				}
+			}
+
+			// Write input schema
+			if err := os.WriteFile(inputPath, []byte(fmt.Sprintf(inputSchema, squadName)), 0644); err != nil {
+				return fmt.Errorf("write input.jsonschema: %w", err)
+			}
+
+			// Write output schema
+			if err := os.WriteFile(outputPath, []byte(fmt.Sprintf(outputSchema, squadName)), 0644); err != nil {
+				return fmt.Errorf("write output.jsonschema: %w", err)
+			}
+
+			if !globalOutput.JSON {
+				fmt.Printf("✓ Created %s\n", inputPath)
+				fmt.Printf("✓ Created %s\n", outputPath)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing schema files")
+	return cmd
+}
+
+func squadSchemaShowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show <squad>",
+		Short: "Display squad schemas",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			squadDir := paths.SquadDir(squadName)
+
+			// Check squad exists
+			if _, err := os.Stat(squadDir); os.IsNotExist(err) {
+				return fmt.Errorf("squad %q does not exist", squadName)
+			}
+
+			schemas, err := squads.LoadSquadSchemas(squadName)
+			if err != nil {
+				return fmt.Errorf("load schemas: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"squad":  squadName,
+					"input":  schemas.Input,
+					"output": schemas.Output,
+				})
+			}
+
+			// Human-readable output
+			fmt.Printf("Squad: %s\n\n", squadNameStyle.Render(squadName))
+
+			if schemas.HasInputSchema() {
+				fmt.Println("Input Schema (input.jsonschema):")
+				printSchemaDetails(schemas.Input)
+			} else {
+				fmt.Println("Input Schema: " + squadMutedStyle.Render("not defined (free-form)"))
+			}
+
+			fmt.Println()
+
+			if schemas.HasOutputSchema() {
+				fmt.Println("Output Schema (output.jsonschema):")
+				printSchemaDetails(schemas.Output)
+			} else {
+				fmt.Println("Output Schema: " + squadMutedStyle.Render("not defined (free-form)"))
+			}
+
+			return nil
+		},
+	}
+	return cmd
+}
+
+func squadSchemaValidateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "validate <squad>",
+		Short: "Validate squad schemas",
+		Long:  "Check that squad schema files are valid JSON Schema.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			squadDir := paths.SquadDir(squadName)
+
+			// Check squad exists
+			if _, err := os.Stat(squadDir); os.IsNotExist(err) {
+				return fmt.Errorf("squad %q does not exist", squadName)
+			}
+
+			inputPath := filepath.Join(squadDir, "input.jsonschema")
+			outputPath := filepath.Join(squadDir, "output.jsonschema")
+
+			var errors []string
+			var valid []string
+
+			// Validate input schema
+			if _, err := os.Stat(inputPath); err == nil {
+				data, err := os.ReadFile(inputPath)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("input.jsonschema: %v", err))
+				} else {
+					var s any
+					if err := json.Unmarshal(data, &s); err != nil {
+						errors = append(errors, fmt.Sprintf("input.jsonschema: invalid JSON: %v", err))
+					} else {
+						valid = append(valid, "input.jsonschema")
+					}
+				}
+			}
+
+			// Validate output schema
+			if _, err := os.Stat(outputPath); err == nil {
+				data, err := os.ReadFile(outputPath)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("output.jsonschema: %v", err))
+				} else {
+					var s any
+					if err := json.Unmarshal(data, &s); err != nil {
+						errors = append(errors, fmt.Sprintf("output.jsonschema: invalid JSON: %v", err))
+					} else {
+						valid = append(valid, "output.jsonschema")
+					}
+				}
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"squad":  squadName,
+					"valid":  valid,
+					"errors": errors,
+				})
+			}
+
+			if len(valid) > 0 {
+				for _, v := range valid {
+					fmt.Printf("✓ %s is valid\n", v)
+				}
+			}
+			if len(errors) > 0 {
+				for _, e := range errors {
+					fmt.Printf("✗ %s\n", e)
+				}
+				return fmt.Errorf("validation failed")
+			}
+
+			if len(valid) == 0 && len(errors) == 0 {
+				fmt.Println(squadMutedStyle.Render("No schema files found"))
+			}
+
+			return nil
+		},
+	}
+	return cmd
+}
+
+func printSchemaDetails(s *schema.Schema) {
+	fmt.Printf("  Type: %s\n", s.Type)
+	if s.Description != "" {
+		fmt.Printf("  Description: %s\n", s.Description)
+	}
+	if len(s.Properties) > 0 {
+		fmt.Println("  Properties:")
+		for name, prop := range s.Properties {
+			required := ""
+			for _, r := range s.Required {
+				if r == name {
+					required = " (required)"
+					break
+				}
+			}
+			desc := ""
+			if prop.Description != "" {
+				desc = " - " + prop.Description
+			}
+			fmt.Printf("    %s: %s%s%s\n", name, prop.Type, required, desc)
+		}
+	}
 }
 
