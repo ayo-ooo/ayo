@@ -79,10 +79,9 @@ func (s *Server) runYAMLFlow(ctx context.Context, req *Request, flow *flows.YAML
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Create executor
-	// Note: AgentInvoker not set - flows via daemon RPC cannot invoke agents.
-	// This is a known limitation; agent steps will fail with "agent invoker not configured".
+	// Create executor with agent invoker
 	executor := flows.NewYAMLExecutor()
+	executor.AgentInvoker = NewServerAgentInvoker(s.config)
 
 	// Execute
 	result, err := executor.Execute(ctx, flow, params.Params)
