@@ -7,36 +7,37 @@
 ## Table of Contents
 
 1. [Preface: What This Manual Is](#preface-what-this-manual-is)
-2. [Part I: Foundations](#part-i-foundations)
+2. [Quick Start: The Unified Mental Model](#quick-start-the-unified-mental-model)
+3. [Part I: Foundations](#part-i-foundations)
    - [Chapter 1: The Philosophy of Agent-Based Systems](#chapter-1-the-philosophy-of-agent-based-systems)
    - [Chapter 2: First Principles of Ayo](#chapter-2-first-principles-of-ayo)
    - [Chapter 3: The Anatomy of an Agent](#chapter-3-the-anatomy-of-an-agent)
-3. [Part II: The Architecture](#part-ii-the-architecture)
+4. [Part II: The Architecture](#part-ii-the-architecture)
    - [Chapter 4: System Organization](#chapter-4-system-organization)
    - [Chapter 5: The Sandbox: Isolation and Safety](#chapter-5-the-sandbox-isolation-and-safety)
    - [Chapter 6: The Daemon: Background Intelligence](#chapter-6-the-daemon-background-intelligence)
-4. [Part III: Working with Agents](#part-iii-working-with-agents)
+5. [Part III: Working with Agents](#part-iii-working-with-agents)
    - [Chapter 7: Your First Agent](#chapter-7-your-first-agent)
    - [Chapter 8: Tools and Capabilities](#chapter-8-tools-and-capabilities)
    - [Chapter 9: Skills: Teaching Agents](#chapter-9-skills-teaching-agents)
-5. [Part IV: State and Memory](#part-iv-state-and-memory)
+6. [Part IV: State and Memory](#part-iv-state-and-memory)
    - [Chapter 10: Sessions: Conversational Continuity](#chapter-10-sessions-conversational-continuity)
    - [Chapter 11: Memory: Persistent Knowledge](#chapter-11-memory-persistent-knowledge)
-6. [Part V: Multi-Agent Systems](#part-v-multi-agent-systems)
+7. [Part V: Multi-Agent Systems](#part-v-multi-agent-systems)
    - [Chapter 12: Delegation: Task Routing](#chapter-12-delegation-task-routing)
    - [Chapter 13: Agent Pipelines: Unix Pipes](#chapter-13-agent-pipelines-unix-pipes)
-   - [Chapter 14: Collaboration: Shared Sandboxes](#chapter-14-collaboration-shared-sandboxes)
-7. [Part VI: Automation and Workflows](#part-vi-automation-and-workflows)
+   - [Chapter 14: Squads: Team Collaboration](#chapter-14-squads-team-collaboration)
+8. [Part VI: Automation and Workflows](#part-vi-automation-and-workflows)
    - [Chapter 15: Flows: Composable Pipelines](#chapter-15-flows-composable-pipelines)
    - [Chapter 16: Triggers: Automated Execution](#chapter-16-triggers-automated-execution)
-8. [Part VII: Advanced Topics](#part-vii-advanced-topics)
+9. [Part VII: Advanced Topics](#part-vii-advanced-topics)
    - [Chapter 17: Plugins: Extending the System](#chapter-17-plugins-extending-the-system)
    - [Chapter 18: Trust Levels and Guardrails](#chapter-18-trust-levels-and-guardrails)
    - [Chapter 19: Inter-Agent Communication](#chapter-19-inter-agent-communication)
-9. [Appendices](#appendices)
-   - [Appendix A: Configuration Reference](#appendix-a-configuration-reference)
-   - [Appendix B: CLI Command Reference](#appendix-b-cli-command-reference)
-   - [Appendix C: Troubleshooting](#appendix-c-troubleshooting)
+10. [Appendices](#appendices)
+    - [Appendix A: Configuration Reference](#appendix-a-configuration-reference)
+    - [Appendix B: CLI Command Reference](#appendix-b-cli-command-reference)
+    - [Appendix C: Troubleshooting](#appendix-c-troubleshooting)
 
 ---
 
@@ -52,6 +53,61 @@ The reader is assumed to have:
 - Curiosity about how to harness AI for practical tasks
 
 No prior experience with AI agents or prompt engineering is required.
+
+---
+
+## Quick Start: The Unified Mental Model
+
+Before diving into the details, here's the core mental model for working with ayo:
+
+### The Five Primitives
+
+| Primitive | Symbol | Purpose |
+|-----------|--------|---------|
+| **Agents** | `@name` | Intelligent entities that execute tasks |
+| **Skills** | `+domain` | Domain knowledge attached to agents |
+| **Squads** | `#team` | Team sandboxes where agents collaborate |
+| **Flows** | `.yaml/.sh` | Automated pipelines of steps |
+| **Planners** | (config) | Work tracking (todos, tickets) |
+
+### Your First Commands
+
+```bash
+# Talk to the default agent
+ayo "What can you do?"
+
+# Invoke a specific agent
+ayo @ayo "Help me debug this code"
+
+# Attach domain knowledge
+ayo @ayo +typescript "Review this React component"
+
+# Dispatch to a team
+ayo #dev-team "Build a user authentication system"
+
+# Agent in a team context
+ayo @backend #dev-team "Implement the login API"
+```
+
+### When to Use What
+
+```
+Do I know the exact steps?
+├── Yes → Use a FLOW (automated pipeline)
+└── No → Is work collaborative?
+    ├── Yes → Use a SQUAD (#team dispatch)
+    └── No → Use an AGENT directly (@name)
+```
+
+### Progressive Complexity
+
+1. **Start simple**: `ayo "your question"` — just ask
+2. **Add expertise**: `ayo +python "..."` — attach skills
+3. **Specify agent**: `ayo @coder "..."` — pick the right agent
+4. **Team up**: `ayo #team "..."` — use squads for complex work
+5. **Automate**: Create flows for repeatable pipelines
+
+For the complete mental model and decision tree, see [Architecture Overview](architecture.md).
 
 ---
 
@@ -1506,44 +1562,122 @@ ayo @analyzer '{"code":"..."}' \
 
 ---
 
-## Chapter 14: Collaboration: Shared Sandboxes
+## Chapter 14: Squads: Team Collaboration
 
-### 14.1 Multi-Agent Sandboxes
+### 14.1 What is a Squad?
 
-By default, each agent gets its own sandbox. But agents can share a sandbox for collaboration:
+A **squad** is an isolated team environment where multiple agents collaborate on shared work. Think of it as a project room where agents have:
+
+- **Shared workspace**: All agents see the same files
+- **Team context**: The `SQUAD.md` file defines mission and roles
+- **Coordination**: Tickets track who's doing what
+- **Isolation**: The sandbox protects the host system
+
+### 14.2 The # Symbol: Squad Dispatch
+
+Just as `@` targets an agent, `#` targets a squad:
 
 ```bash
-# Start a sandbox
-ayo sandbox list
-# → sandbox-abc123
+# Dispatch work to a squad
+ayo #dev-team "Build a user authentication system"
 
-# Join another agent to it
-ayo sandbox join abc123 @researcher
-
-# Both agents now share:
-# - /shared directory
-# - Network namespace
-# - Process visibility
+# The squad lead receives this and coordinates the team
 ```
 
-### 14.2 The Shared Filesystem
+You can combine both to target a specific agent within a squad:
 
-Inside a shared sandbox:
-
-```
-/home/ayo/           # @ayo's private home
-/home/researcher/    # @researcher's private home
-/shared/             # Shared between all agents
-/workspace/          # Shared host directories
+```bash
+# Send to @backend operating within #dev-team
+ayo @backend #dev-team "Implement the login API"
 ```
 
-Agents can leave files in `/shared` for each other:
+### 14.3 Creating and Using Squads
+
+```bash
+# Create a squad with agents
+ayo squad create dev-team --agents @frontend,@backend,@qa
+
+# Edit the team constitution
+$EDITOR ~/.local/share/ayo/sandboxes/squads/dev-team/SQUAD.md
+
+# Start the squad
+ayo squad start dev-team
+
+# Dispatch work
+ayo #dev-team "Implement user registration feature"
+
+# Monitor progress
+ayo squad status dev-team
+```
+
+### 14.4 The SQUAD.md Constitution
+
+Every squad has a `SQUAD.md` file that all agents receive in their context:
+
+```markdown
+---
+planners:
+  near_term: ayo-todos
+  long_term: ayo-tickets
+lead: "@ayo"
+---
+# Squad: dev-team
+
+## Mission
+Build a production-ready authentication system.
+
+## Agents
+
+### @backend
+**Role**: API development
+**Responsibilities**: Endpoints, database, security
+
+### @frontend  
+**Role**: UI development
+**Responsibilities**: Components, state, UX
+
+### @qa
+**Role**: Quality assurance
+**Responsibilities**: Testing, review, edge cases
+
+## Coordination
+1. @backend implements API first
+2. @frontend builds UI after API ready
+3. @qa reviews all changes
+```
+
+### 14.5 Squad Filesystem
+
+Inside the squad sandbox:
 
 ```
-@ayo writes /shared/research-request.json
-@researcher reads, processes, writes /shared/research-results.json
-@ayo reads results
+/workspace/          # Shared code (mounted from host or created)
+~/.tickets/          # Coordination tickets
+/home/{agent}/       # Per-agent private directories
+/context/            # Read-only reference materials
 ```
+
+### 14.6 Planners and Work Tracking
+
+Squads use **planners** for work tracking:
+
+| Planner | Scope | Purpose |
+|---------|-------|---------|
+| `ayo-todos` | Session | Track current work items |
+| `ayo-tickets` | Persistent | Track work across sessions |
+
+Planners give agents tools like `tk create`, `tk close` for managing their work.
+
+### 14.7 When to Use Squads
+
+| Use Squads When | Use Direct Agents When |
+|-----------------|------------------------|
+| Work is collaborative | Task is self-contained |
+| Multiple perspectives needed | Single agent sufficient |
+| Persistent workspace required | No shared state needed |
+| Goals are open-ended | Steps are well-defined |
+
+For detailed squad documentation, see [Squads Guide](squads.md).
 
 ---
 
