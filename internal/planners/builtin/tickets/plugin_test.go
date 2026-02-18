@@ -116,9 +116,24 @@ func TestPlugin_Close(t *testing.T) {
 func TestPlugin_Tools(t *testing.T) {
 	p := &Plugin{}
 	tools := p.Tools()
-	// Tools() returns nil until am-92x6 implements tool definitions
-	if tools != nil {
-		t.Errorf("Tools() = %v, want nil (tools not yet implemented)", tools)
+	// Should return 6 tools: create, list, start, close, block, note
+	if len(tools) != 6 {
+		t.Errorf("Tools() returned %d tools, want 6", len(tools))
+	}
+
+	// Verify tool names
+	expectedNames := []string{
+		ToolTicketCreate,
+		ToolTicketList,
+		ToolTicketStart,
+		ToolTicketClose,
+		ToolTicketBlock,
+		ToolTicketNote,
+	}
+	for i, tool := range tools {
+		if tool.Info().Name != expectedNames[i] {
+			t.Errorf("Tools()[%d].Info().Name = %q, want %q", i, tool.Info().Name, expectedNames[i])
+		}
 	}
 }
 

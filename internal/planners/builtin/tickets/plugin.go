@@ -62,10 +62,15 @@ func (p *Plugin) Close() error {
 }
 
 // Tools returns the fantasy tools that this planner provides.
-// Tool definitions will be implemented in am-92x6.
 func (p *Plugin) Tools() []fantasy.AgentTool {
-	// Tools will be added in am-92x6 (Implement ayo-tickets tool definitions)
-	return nil
+	return []fantasy.AgentTool{
+		p.newCreateTool(),
+		p.newListTool(),
+		p.newStartTool(),
+		p.newCloseTool(),
+		p.newBlockTool(),
+		p.newNoteTool(),
+	}
 }
 
 // Instructions returns text to inject into agent system prompts.
