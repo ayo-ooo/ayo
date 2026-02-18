@@ -47,7 +47,25 @@ The file lives in the squad's root directory, making it:
 
 ### File Format
 
+SQUAD.md files support optional YAML frontmatter for configuration settings. The frontmatter is delimited by `---` markers:
+
+#### Frontmatter Fields
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `planners.near_term` | Near-term planner plugin for session-scoped work tracking | `ayo-todos` |
+| `planners.long_term` | Long-term planner plugin for persistent coordination | `ayo-tickets` |
+| `lead` | Agent handle that serves as squad lead | `@ayo` |
+| `input_accepts` | Agent handle that receives direct input | Same as `lead` |
+
 ```markdown
+---
+planners:
+  near_term: custom-todos
+  long_term: custom-tickets
+lead: "@architect"
+input_accepts: "@frontend"
+---
 # Squad: {name}
 
 ## Mission

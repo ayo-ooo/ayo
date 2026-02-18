@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/paths"
 )
@@ -140,11 +143,32 @@ func ClearContext(squadName string) error {
 
 // Constitution represents the parsed SQUAD.md file.
 type Constitution struct {
-	// Raw is the raw markdown content.
+	// Raw is the raw markdown content (without frontmatter).
 	Raw string
 
 	// SquadName is the squad this constitution belongs to.
 	SquadName string
+
+	// Frontmatter contains parsed YAML frontmatter fields.
+	Frontmatter ConstitutionFrontmatter
+}
+
+// ConstitutionFrontmatter represents the YAML frontmatter in SQUAD.md.
+type ConstitutionFrontmatter struct {
+	// Name is the squad name (optional, usually derived from directory).
+	Name string `yaml:"name"`
+
+	// Planners configures which planners this squad should use.
+	// Falls back to global config if not specified.
+	Planners config.PlannersConfig `yaml:"planners"`
+
+	// Lead specifies which agent is the squad lead.
+	// Defaults to @ayo if not specified.
+	Lead string `yaml:"lead"`
+
+	// InputAccepts specifies which agent receives input directly.
+	// Defaults to Lead if not specified.
+	InputAccepts string `yaml:"input_accepts"`
 }
 
 // LoadConstitution loads the SQUAD.md file for a squad.
@@ -159,10 +183,57 @@ func LoadConstitution(squadName string) (*Constitution, error) {
 		return nil, fmt.Errorf("read SQUAD.md: %w", err)
 	}
 
+	frontmatter, body, err := parseFrontmatter(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse SQUAD.md frontmatter: %w", err)
+	}
+
 	return &Constitution{
-		Raw:       string(data),
-		SquadName: squadName,
+		Raw:         body,
+		SquadName:   squadName,
+		Frontmatter: frontmatter,
 	}, nil
+}
+
+// parseFrontmatter extracts YAML frontmatter from markdown content.
+// Frontmatter must be delimited by "---" at the start and end.
+// Returns the parsed frontmatter, the remaining body, and any error.
+func parseFrontmatter(content string) (ConstitutionFrontmatter, string, error) {
+	var fm ConstitutionFrontmatter
+
+	// Check for frontmatter delimiter
+	if !strings.HasPrefix(content, "---") {
+		return fm, content, nil
+	}
+
+	// Find the closing delimiter
+	// Skip the first "---" and find the next one
+	rest := content[3:]
+	if len(rest) > 0 && rest[0] == '\n' {
+		rest = rest[1:]
+	}
+
+	closeIdx := strings.Index(rest, "\n---")
+	if closeIdx == -1 {
+		// No closing delimiter, treat entire content as body
+		return fm, content, nil
+	}
+
+	// Extract frontmatter YAML
+	frontmatterYAML := rest[:closeIdx]
+
+	// Extract body (skip the closing "---" and optional newline)
+	body := rest[closeIdx+4:]
+	if len(body) > 0 && body[0] == '\n' {
+		body = body[1:]
+	}
+
+	// Parse YAML
+	if err := yaml.Unmarshal([]byte(frontmatterYAML), &fm); err != nil {
+		return fm, "", fmt.Errorf("invalid YAML: %w", err)
+	}
+
+	return fm, body, nil
 }
 
 // SaveConstitution saves the SQUAD.md file for a squad.
