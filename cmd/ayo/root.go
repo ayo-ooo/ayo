@@ -22,6 +22,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/ui"
@@ -41,8 +42,8 @@ func newRootCmd() *cobra.Command {
 	var outputDir string
 
 	cmd := &cobra.Command{
-		Use:           "ayo [@agent] [prompt]",
-		Short:         "Run AI agents",
+		Use:           "ayo [@agent | #squad] [prompt]",
+		Short:         "Run AI agents and squads",
 		Long: `ayo - Agents You Orchestrate
 
 Run AI agents that can execute tasks, use tools, and chain together via Unix pipes.
@@ -52,6 +53,7 @@ Examples:
   ayo "tell me a joke"          Run single prompt with @ayo
   ayo @myagent                  Start interactive chat with @myagent
   ayo @myagent "do something"   Run single prompt with @myagent
+  ayo #frontend "build feature" Dispatch prompt to squad (coming soon)
   ayo -a file.txt "analyze"     Attach file to prompt
   ayo -c "follow up"            Continue most recent session
   ayo -s abc123 "follow up"     Continue a specific session by ID`,
@@ -106,6 +108,15 @@ Examples:
 					// First arg is an agent handle
 					handle = agent.NormalizeHandle(args[0])
 					promptArgs = args[1:]
+				} else if squads.IsSquadHandle(args[0]) {
+					// First arg is a squad handle (#squad-name)
+					squadHandle := squads.NormalizeHandle(args[0])
+					if !squads.ValidateHandle(squadHandle) {
+						return fmt.Errorf("invalid squad handle: %s", args[0])
+					}
+					// Squad invocation is parsed but not yet implemented
+					// This enables ticket am-yfaq to implement the actual invocation
+					return fmt.Errorf("squad invocation not yet implemented: %s\n\nUse 'ayo squad' commands to manage squads.", squadHandle)
 				} else {
 					// First arg is not an agent handle
 					// Check if it looks like a potential subcommand typo
@@ -446,6 +457,60 @@ func looksLikeSubcommand(s string) bool {
 	}
 
 	return true
+}
+
+// InvocationType represents the type of invocation parsed from CLI args.
+type InvocationType string
+
+const (
+	InvocationTypeAgent InvocationType = "agent"
+	InvocationTypeSquad InvocationType = "squad"
+)
+
+// ParsedInvocation holds the result of parsing CLI arguments.
+type ParsedInvocation struct {
+	Type       InvocationType
+	Handle     string
+	PromptArgs []string
+}
+
+// ParseInvocation parses CLI arguments to determine the invocation type.
+// Returns the type (agent or squad), the handle, and remaining args as prompt.
+func ParseInvocation(args []string) ParsedInvocation {
+	if len(args) == 0 {
+		return ParsedInvocation{
+			Type:       InvocationTypeAgent,
+			Handle:     agent.DefaultAgent,
+			PromptArgs: nil,
+		}
+	}
+
+	first := args[0]
+
+	// Check for agent handle (@agent)
+	if strings.HasPrefix(first, "@") {
+		return ParsedInvocation{
+			Type:       InvocationTypeAgent,
+			Handle:     agent.NormalizeHandle(first),
+			PromptArgs: args[1:],
+		}
+	}
+
+	// Check for squad handle (#squad)
+	if squads.IsSquadHandle(first) {
+		return ParsedInvocation{
+			Type:       InvocationTypeSquad,
+			Handle:     squads.NormalizeHandle(first),
+			PromptArgs: args[1:],
+		}
+	}
+
+	// Default to @ayo agent with all args as prompt
+	return ParsedInvocation{
+		Type:       InvocationTypeAgent,
+		Handle:     agent.DefaultAgent,
+		PromptArgs: args,
+	}
 }
 
 // knownSubcommands returns a list of all registered subcommand names.
