@@ -26,6 +26,10 @@ type Squad struct {
 
 	// Status is the current squad status.
 	Status SquadStatus
+
+	// Schemas contains input/output JSON schemas for validation.
+	// Nil if no schemas are defined (free-form mode).
+	Schemas *SquadSchemas
 }
 
 // SquadStatus represents the status of a squad.
@@ -90,11 +94,18 @@ func (s *Service) Create(ctx context.Context, cfg config.SquadConfig) (*Squad, e
 		}
 	}
 
+	// Load schemas (optional)
+	schemas, err := LoadSquadSchemas(cfg.Name)
+	if err != nil {
+		return nil, fmt.Errorf("load squad schemas: %w", err)
+	}
+
 	squad := &Squad{
 		Name:    cfg.Name,
 		Config:  cfg,
 		Sandbox: &sb,
 		Status:  SquadStatusRunning,
+		Schemas: schemas,
 	}
 
 	s.squads[cfg.Name] = squad
@@ -118,13 +129,20 @@ func (s *Service) Get(ctx context.Context, name string) (*Squad, error) {
 		return nil, fmt.Errorf("load squad config: %w", err)
 	}
 
+	// Load schemas (optional)
+	schemas, err := LoadSquadSchemas(name)
+	if err != nil {
+		return nil, fmt.Errorf("load squad schemas: %w", err)
+	}
+
 	// Check if sandbox exists
 	sb, sandboxErr := sandbox.GetSquadSandbox(ctx, s.provider, name)
 
 	squad := &Squad{
-		Name:   name,
-		Config: cfg,
-		Status: SquadStatusStopped,
+		Name:    name,
+		Config:  cfg,
+		Status:  SquadStatusStopped,
+		Schemas: schemas,
 	}
 
 	if sandboxErr == nil {
