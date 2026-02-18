@@ -7,6 +7,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
 )
 
@@ -203,4 +204,26 @@ func EnsureSquadAgentUser(ctx context.Context, provider *AppleProvider, squadNam
 	dotfilesPath := paths.AgentHomeDir(agentHandle)
 
 	return provider.EnsureAgentUser(ctx, containerName, agentHandle, dotfilesPath)
+}
+
+// InitSquadPlanners initializes the planners for a squad sandbox.
+// The override parameter allows squad-specific planner configuration from SQUAD.md frontmatter.
+// Returns the initialized planners, which can be used to get tools and instructions.
+func InitSquadPlanners(manager *planners.SandboxPlannerManager, squadName string, override *config.PlannersConfig) (*planners.SandboxPlanners, error) {
+	sandboxDir := paths.SquadDir(squadName)
+	squadPlanners, err := manager.GetPlanners(squadName, sandboxDir, override)
+	if err != nil {
+		return nil, fmt.Errorf("init squad %s planners: %w", squadName, err)
+	}
+	debug.Log("initialized squad planners",
+		"squad", squadName,
+		"near", squadPlanners.NearTerm.Name(),
+		"long", squadPlanners.LongTerm.Name())
+	return squadPlanners, nil
+}
+
+// CloseSquadPlanners closes the planners for a squad sandbox.
+// This should be called when shutting down a squad to release resources.
+func CloseSquadPlanners(manager *planners.SandboxPlannerManager, squadName string) error {
+	return manager.ClosePlanners(squadName)
 }

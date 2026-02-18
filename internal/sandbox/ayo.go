@@ -7,6 +7,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
 )
 
@@ -162,6 +163,27 @@ func StopAyoSandbox(ctx context.Context, provider *AppleProvider) error {
 // DeleteAyoSandbox deletes the @ayo sandbox.
 func DeleteAyoSandbox(ctx context.Context, provider *AppleProvider, force bool) error {
 	return provider.Delete(ctx, AyoSandboxName, force)
+}
+
+// InitAyoPlanners initializes the planners for @ayo's sandbox.
+// This should be called after EnsureAyoSandbox to set up work tracking.
+// Returns the initialized planners, which can be used to get tools and instructions.
+func InitAyoPlanners(manager *planners.SandboxPlannerManager) (*planners.SandboxPlanners, error) {
+	sandboxDir := paths.AyoSandboxDir()
+	ayoPlanners, err := manager.GetPlanners("ayo", sandboxDir, nil) // Use global defaults
+	if err != nil {
+		return nil, fmt.Errorf("init ayo planners: %w", err)
+	}
+	debug.Log("initialized ayo planners",
+		"near", ayoPlanners.NearTerm.Name(),
+		"long", ayoPlanners.LongTerm.Name())
+	return ayoPlanners, nil
+}
+
+// CloseAyoPlanners closes the planners for @ayo's sandbox.
+// This should be called when shutting down @ayo to release resources.
+func CloseAyoPlanners(manager *planners.SandboxPlannerManager) error {
+	return manager.ClosePlanners("ayo")
 }
 
 // parseMountSpec parses a mount spec string into a Mount.
