@@ -206,3 +206,53 @@ func TestDiscoverYAMLFlows_NonexistentDir(t *testing.T) {
 		t.Error("expected nil flows for nonexistent dir")
 	}
 }
+
+func TestParseYAMLFlow_WithSquad(t *testing.T) {
+	data := []byte(`
+version: 1
+name: squad-flow
+description: A flow that uses squads
+steps:
+  - id: review
+    type: agent
+    agent: "@reviewer"
+    squad: "#frontend-team"
+    prompt: "Review the code"
+  - id: deploy
+    type: agent
+    agent: "@deployer"
+    prompt: "Deploy the code"
+    depends_on: [review]
+`)
+
+	flow, err := ParseYAMLFlowBytes(data)
+	if err != nil {
+		t.Fatalf("ParseYAMLFlowBytes failed: %v", err)
+	}
+
+	if flow.Name != "squad-flow" {
+		t.Errorf("expected name 'squad-flow', got %q", flow.Name)
+	}
+	if len(flow.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(flow.Steps))
+	}
+
+	// Check first step has squad
+	if flow.Steps[0].ID != "review" {
+		t.Errorf("expected step id 'review', got %q", flow.Steps[0].ID)
+	}
+	if flow.Steps[0].Squad != "#frontend-team" {
+		t.Errorf("expected squad '#frontend-team', got %q", flow.Steps[0].Squad)
+	}
+	if flow.Steps[0].Agent != "@reviewer" {
+		t.Errorf("expected agent '@reviewer', got %q", flow.Steps[0].Agent)
+	}
+
+	// Check second step has no squad (empty string)
+	if flow.Steps[1].ID != "deploy" {
+		t.Errorf("expected step id 'deploy', got %q", flow.Steps[1].ID)
+	}
+	if flow.Steps[1].Squad != "" {
+		t.Errorf("expected empty squad, got %q", flow.Steps[1].Squad)
+	}
+}

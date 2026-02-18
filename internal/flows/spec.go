@@ -72,6 +72,12 @@ type FlowStep struct {
 	// Example: "@summarizer"
 	Agent string `yaml:"agent,omitempty" json:"agent,omitempty"`
 
+	// Squad is the squad to run the agent in (for type: agent).
+	// If specified, the agent runs in the squad's sandbox with squad context.
+	// If empty, the agent runs in the @ayo sandbox.
+	// Example: "#frontend-team"
+	Squad string `yaml:"squad,omitempty" json:"squad,omitempty"`
+
 	// Prompt is the prompt to send to the agent.
 	Prompt string `yaml:"prompt,omitempty" json:"prompt,omitempty"`
 
