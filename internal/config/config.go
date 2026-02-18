@@ -99,6 +99,9 @@ type Config struct {
 	// Example: {"search": "searxng"}
 	// This allows agents to use generic tool types that resolve to user-configured tools.
 	DefaultTools map[string]string `json:"default_tools,omitempty"`
+
+	// Planners configures the default near-term and long-term planners.
+	Planners PlannersConfig `json:"planners,omitempty"`
 }
 
 // FlowsConfig configures the flows system.
@@ -110,6 +113,36 @@ type FlowsConfig struct {
 	// HistoryMaxRuns is the maximum number of flow runs to keep.
 	// Excess runs are pruned (oldest first). Default: 1000.
 	HistoryMaxRuns int `json:"history_max_runs,omitempty"`
+}
+
+// PlannersConfig configures the default planners for work coordination.
+type PlannersConfig struct {
+	// NearTerm is the name of the near-term planner to use.
+	// Near-term planners handle session-scoped work tracking (e.g., todos).
+	// Default: "ayo-todos"
+	NearTerm string `json:"near_term,omitempty" toml:"near_term" yaml:"near_term"`
+
+	// LongTerm is the name of the long-term planner to use.
+	// Long-term planners handle persistent work coordination (e.g., tickets).
+	// Default: "ayo-tickets"
+	LongTerm string `json:"long_term,omitempty" toml:"long_term" yaml:"long_term"`
+}
+
+// WithDefaults returns a copy of the config with default planner values applied.
+func (c PlannersConfig) WithDefaults() PlannersConfig {
+	result := c
+	if result.NearTerm == "" {
+		result.NearTerm = "ayo-todos"
+	}
+	if result.LongTerm == "" {
+		result.LongTerm = "ayo-tickets"
+	}
+	return result
+}
+
+// IsEmpty returns true if no planners are configured.
+func (c PlannersConfig) IsEmpty() bool {
+	return c.NearTerm == "" && c.LongTerm == ""
 }
 
 // ProvidersConfig configures the pluggable provider system.

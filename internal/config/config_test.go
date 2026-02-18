@@ -253,3 +253,108 @@ func TestLoadProvidersConfig(t *testing.T) {
 		t.Errorf("expected sandbox CPUs 4, got %d", cfg.Providers.Sandbox.Resources.CPUs)
 	}
 }
+
+func TestPlannersConfig_WithDefaults(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  PlannersConfig
+		want PlannersConfig
+	}{
+		{
+			name: "empty config gets defaults",
+			cfg:  PlannersConfig{},
+			want: PlannersConfig{NearTerm: "ayo-todos", LongTerm: "ayo-tickets"},
+		},
+		{
+			name: "partial config gets partial defaults",
+			cfg:  PlannersConfig{NearTerm: "custom-todos"},
+			want: PlannersConfig{NearTerm: "custom-todos", LongTerm: "ayo-tickets"},
+		},
+		{
+			name: "full config unchanged",
+			cfg:  PlannersConfig{NearTerm: "custom-todos", LongTerm: "custom-tickets"},
+			want: PlannersConfig{NearTerm: "custom-todos", LongTerm: "custom-tickets"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.WithDefaults()
+			if got != tt.want {
+				t.Errorf("PlannersConfig.WithDefaults() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlannersConfig_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  PlannersConfig
+		want bool
+	}{
+		{
+			name: "empty config",
+			cfg:  PlannersConfig{},
+			want: true,
+		},
+		{
+			name: "near term only",
+			cfg:  PlannersConfig{NearTerm: "ayo-todos"},
+			want: false,
+		},
+		{
+			name: "long term only",
+			cfg:  PlannersConfig{LongTerm: "ayo-tickets"},
+			want: false,
+		},
+		{
+			name: "both set",
+			cfg:  PlannersConfig{NearTerm: "a", LongTerm: "b"},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.IsEmpty(); got != tt.want {
+				t.Errorf("PlannersConfig.IsEmpty() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadPlannersConfig(t *testing.T) {
+	// Create a temp config file
+	tmpFile, err := os.CreateTemp("", "ayo-config-*.json")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Write JSON config with planners
+	configJSON := `{
+		"planners": {
+			"near_term": "custom-todos",
+			"long_term": "custom-tickets"
+		}
+	}`
+	if _, err := tmpFile.WriteString(configJSON); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	tmpFile.Close()
+
+	// Load config
+	cfg, err := Load(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	// Verify loaded values
+	if cfg.Planners.NearTerm != "custom-todos" {
+		t.Errorf("expected near_term 'custom-todos', got %q", cfg.Planners.NearTerm)
+	}
+	if cfg.Planners.LongTerm != "custom-tickets" {
+		t.Errorf("expected long_term 'custom-tickets', got %q", cfg.Planners.LongTerm)
+	}
+}
