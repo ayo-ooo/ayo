@@ -732,3 +732,208 @@ func TestLoadManifestWithProviders(t *testing.T) {
 		t.Errorf("providers[1].EntryPoint = %q, want %q", m.Providers[1].EntryPoint, "bin/sandbox")
 	}
 }
+
+func TestValidPlannerType(t *testing.T) {
+	tests := []struct {
+		pt   PlannerType
+		want bool
+	}{
+		{PlannerTypeNear, true},
+		{PlannerTypeLong, true},
+		{PlannerType("invalid"), false},
+		{PlannerType(""), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.pt), func(t *testing.T) {
+			if got := ValidPlannerType(tt.pt); got != tt.want {
+				t.Errorf("ValidPlannerType(%q) = %v, want %v", tt.pt, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlannerValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		m       Manifest
+		wantErr error
+	}{
+		{
+			name: "valid near planner",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-todos", Type: PlannerTypeNear},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid long planner",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-tickets", Type: PlannerTypeLong},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "multiple valid planners",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-todos", Type: PlannerTypeNear},
+					{Name: "my-tickets", Type: PlannerTypeLong},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "planner missing name",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Type: PlannerTypeNear},
+				},
+			},
+			wantErr: ErrMissingPlannerName,
+		},
+		{
+			name: "planner invalid type",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-planner", Type: PlannerType("invalid")},
+				},
+			},
+			wantErr: ErrInvalidPlannerType,
+		},
+		{
+			name: "planner empty type",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-planner", Type: ""},
+				},
+			},
+			wantErr: ErrInvalidPlannerType,
+		},
+		{
+			name: "duplicate planner name within same type",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-todos", Type: PlannerTypeNear},
+					{Name: "my-todos", Type: PlannerTypeNear},
+				},
+			},
+			wantErr: ErrDuplicatePlannerName,
+		},
+		{
+			name: "same name different types is valid",
+			m: Manifest{
+				Name:        "test",
+				Version:     "1.0.0",
+				Description: "test",
+				Planners: []PlannerDef{
+					{Name: "my-planner", Type: PlannerTypeNear},
+					{Name: "my-planner", Type: PlannerTypeLong},
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.m.Validate()
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Errorf("Expected error %v, got nil", tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadManifestWithPlanners(t *testing.T) {
+	dir := t.TempDir()
+
+	manifest := `{
+		"name": "test-plugin",
+		"version": "1.0.0",
+		"description": "A test plugin with planners",
+		"planners": [
+			{
+				"name": "custom-todos",
+				"type": "near",
+				"description": "Custom todo planner"
+			},
+			{
+				"name": "custom-tickets",
+				"type": "long",
+				"description": "Custom ticket planner",
+				"entry_point": "bin/planner",
+				"config": {
+					"path": "/custom/path"
+				}
+			}
+		]
+	}`
+
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest failed: %v", err)
+	}
+
+	if len(m.Planners) != 2 {
+		t.Fatalf("got %d planners, want 2", len(m.Planners))
+	}
+
+	// Check first planner
+	if m.Planners[0].Name != "custom-todos" {
+		t.Errorf("planners[0].Name = %q, want %q", m.Planners[0].Name, "custom-todos")
+	}
+	if m.Planners[0].Type != PlannerTypeNear {
+		t.Errorf("planners[0].Type = %q, want %q", m.Planners[0].Type, PlannerTypeNear)
+	}
+	if m.Planners[0].Description != "Custom todo planner" {
+		t.Errorf("planners[0].Description = %q, want %q", m.Planners[0].Description, "Custom todo planner")
+	}
+
+	// Check second planner
+	if m.Planners[1].Name != "custom-tickets" {
+		t.Errorf("planners[1].Name = %q, want %q", m.Planners[1].Name, "custom-tickets")
+	}
+	if m.Planners[1].Type != PlannerTypeLong {
+		t.Errorf("planners[1].Type = %q, want %q", m.Planners[1].Type, PlannerTypeLong)
+	}
+	if m.Planners[1].EntryPoint != "bin/planner" {
+		t.Errorf("planners[1].EntryPoint = %q, want %q", m.Planners[1].EntryPoint, "bin/planner")
+	}
+	if m.Planners[1].Config["path"] != "/custom/path" {
+		t.Errorf("planners[1].Config[path] = %v, want /custom/path", m.Planners[1].Config["path"])
+	}
+}

@@ -31,6 +31,8 @@ const (
 	PluginTypeEmbedding PluginType = "embedding"
 	// PluginTypeObserver indicates the plugin provides an observer provider.
 	PluginTypeObserver PluginType = "observer"
+	// PluginTypePlanner indicates the plugin provides a planner.
+	PluginTypePlanner PluginType = "planner"
 )
 
 // Manifest represents the plugin manifest (manifest.json).
@@ -92,6 +94,10 @@ type Manifest struct {
 	// Providers lists provider implementations this plugin provides.
 	// Each provider must have a unique name within its type (memory, sandbox, etc.).
 	Providers []ProviderDef `json:"providers,omitempty"`
+
+	// Planners lists planner implementations this plugin provides.
+	// Each planner must have a unique name and specify its type (near or long).
+	Planners []PlannerDef `json:"planners,omitempty"`
 }
 
 // ProviderDef describes a provider implementation in a plugin.
@@ -112,6 +118,41 @@ type ProviderDef struct {
 	// Config contains provider-specific default configuration.
 	// These values are merged with user config when the provider is activated.
 	Config map[string]any `json:"config,omitempty"`
+}
+
+// PlannerType specifies the type of planner (near-term or long-term).
+type PlannerType string
+
+const (
+	// PlannerTypeNear is for near-term planning (session-scoped todos).
+	PlannerTypeNear PlannerType = "near"
+	// PlannerTypeLong is for long-term planning (persistent tickets).
+	PlannerTypeLong PlannerType = "long"
+)
+
+// PlannerDef describes a planner implementation in a plugin.
+type PlannerDef struct {
+	// Name is the unique identifier for this planner (e.g., "ayo-todos", "ayo-tickets").
+	Name string `json:"name"`
+
+	// Type specifies whether this is a near-term or long-term planner.
+	// Must be "near" or "long".
+	Type PlannerType `json:"type"`
+
+	// Description briefly describes what this planner does.
+	Description string `json:"description,omitempty"`
+
+	// EntryPoint is the path to the planner implementation (Go plugin .so or binary).
+	// For built-in planners, this may be empty.
+	EntryPoint string `json:"entry_point,omitempty"`
+
+	// Config contains planner-specific default configuration.
+	Config map[string]any `json:"config,omitempty"`
+}
+
+// ValidPlannerType checks if a PlannerType is valid.
+func ValidPlannerType(t PlannerType) bool {
+	return t == PlannerTypeNear || t == PlannerTypeLong
 }
 
 // Dependencies specifies external requirements for a plugin.
@@ -243,6 +284,9 @@ var (
 	ErrInvalidProviderType   = errors.New("manifest: provider type must be memory, sandbox, embedding, or observer")
 	ErrMissingProviderName   = errors.New("manifest: provider name is required")
 	ErrDuplicateProviderName = errors.New("manifest: duplicate provider name")
+	ErrInvalidPlannerType    = errors.New("manifest: planner type must be 'near' or 'long'")
+	ErrMissingPlannerName    = errors.New("manifest: planner name is required")
+	ErrDuplicatePlannerName  = errors.New("manifest: duplicate planner name")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -304,6 +348,11 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 
+	// Validate planners
+	if err := m.validatePlanners(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -330,6 +379,30 @@ func (m *Manifest) validateProviders() error {
 		key := string(p.Type) + ":" + p.Name
 		if seen[key] {
 			return fmt.Errorf("%w: %s/%s", ErrDuplicateProviderName, p.Type, p.Name)
+		}
+		seen[key] = true
+	}
+
+	return nil
+}
+
+// validatePlanners checks that planner definitions are valid.
+func (m *Manifest) validatePlanners() error {
+	seen := make(map[string]bool)
+
+	for i, p := range m.Planners {
+		if p.Name == "" {
+			return fmt.Errorf("%w (planner %d)", ErrMissingPlannerName, i)
+		}
+
+		if !ValidPlannerType(p.Type) {
+			return fmt.Errorf("%w: got %q for planner %q", ErrInvalidPlannerType, p.Type, p.Name)
+		}
+
+		// Check for duplicates within the same type
+		key := string(p.Type) + ":" + p.Name
+		if seen[key] {
+			return fmt.Errorf("%w: %s/%s", ErrDuplicatePlannerName, p.Type, p.Name)
 		}
 		seen[key] = true
 	}
