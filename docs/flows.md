@@ -151,6 +151,65 @@ Invoke an AI agent:
     {{ steps.read-code.stdout }}
 ```
 
+#### Squad Steps
+
+Dispatch work to a squad for collaborative execution:
+
+```yaml
+- id: implement
+  type: squad
+  squad: "#dev-team"
+  prompt: |
+    Implement the feature described in:
+    {{ steps.plan.stdout }}
+  input: "{{ steps.plan.output }}"    # Validated against squad's input.jsonschema
+  timeout: 30m                        # Optional timeout
+  startup: auto                       # auto | manual | required
+```
+
+**Squad step fields:**
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `squad` | Target squad (e.g., `#dev-team`) | Yes |
+| `prompt` | Instructions for the squad | No |
+| `input` | Structured input data (validated against `input.jsonschema`) | No |
+| `timeout` | Maximum execution time | No |
+| `startup` | Squad startup behavior (see below) | No |
+
+**Startup modes:**
+
+| Mode | Behavior |
+|------|----------|
+| `auto` | Start squad if not running, reuse if running (default) |
+| `manual` | Assume squad is already running, fail if not |
+| `required` | Always start a fresh squad, stop when done |
+
+**Example with schema validation:**
+
+```yaml
+steps:
+  - id: plan
+    type: agent
+    agent: "@planner"
+    prompt: "Create a development plan for: {{ params.feature }}"
+    output_schema: planning-output.jsonschema  # Validate planner output
+
+  - id: implement
+    type: squad
+    squad: "#dev-team"
+    input: "{{ steps.plan.output }}"
+    # Squad's input.jsonschema validates the incoming data
+    # Squad's output.jsonschema defines the structure returned
+    depends_on: [plan]
+
+  - id: review
+    type: agent
+    agent: "@reviewer"
+    input: "{{ steps.implement.output }}"
+    depends_on: [implement]
+```
+
 ### Dependencies and Parallel Execution
 
 Steps run in parallel unless they have dependencies:
@@ -652,3 +711,108 @@ During execution, these variables are available:
 | `AYO_FLOW_RUN_ID` | Unique run identifier (ULID) |
 | `AYO_FLOW_DIR` | Directory containing the flow |
 | `AYO_FLOW_INPUT_FILE` | Temp file with input (for large inputs) |
+
+---
+
+## Flows vs Squad Dispatch
+
+Flows and squads can both orchestrate multi-agent work. Here's when to use each:
+
+### Use Flows When
+
+| Scenario | Why Flows Work Better |
+|----------|----------------------|
+| **Known, repeatable steps** | Flow steps are explicit and versioned |
+| **Pipeline processing** | Output from one step feeds the next |
+| **Mixed step types** | Combine shell, agent, and squad steps |
+| **Scheduled execution** | Built-in cron and watch triggers |
+| **Cross-squad orchestration** | Flows can invoke multiple squads |
+| **Auditable pipelines** | Flow runs are logged and replayable |
+
+### Use Squad Dispatch When
+
+| Scenario | Why Squad Dispatch Works Better |
+|----------|--------------------------------|
+| **Unknown steps** | Squad lead determines approach |
+| **Parallel collaboration** | Multiple agents work simultaneously |
+| **Iterative work** | Agents adapt as they learn more |
+| **Persistent workspace** | Files persist across sessions |
+| **Human-like delegation** | "Build this feature" without specifying how |
+
+### Decision Tree
+
+```
+                Is the workflow...
+                       │
+         ┌─────────────┴─────────────┐
+         │                           │
+   Known steps?              Unknown steps?
+   (do X, then Y)           (achieve goal G)
+         │                           │
+         ▼                           ▼
+      ┌──────┐                ┌────────────┐
+      │ FLOW │                │   SQUAD    │
+      │      │                │  DISPATCH  │
+      └──────┘                └────────────┘
+```
+
+### Combining Both
+
+Flows can orchestrate squads, giving you the best of both:
+
+```yaml
+# Pipeline that uses squads for implementation
+version: 1
+name: feature-pipeline
+steps:
+  - id: requirements
+    type: agent
+    agent: "@pm"
+    prompt: "Break down this feature request: {{ params.request }}"
+
+  - id: design
+    type: squad
+    squad: "#architecture"
+    input: "{{ steps.requirements.output }}"
+    depends_on: [requirements]
+
+  - id: implement
+    type: squad
+    squad: "#dev-team"
+    input: "{{ steps.design.output }}"
+    depends_on: [design]
+
+  - id: test
+    type: squad
+    squad: "#qa-team"
+    input: |
+      {
+        "implementation": {{ steps.implement.output | tojson }},
+        "requirements": {{ steps.requirements.output | tojson }}
+      }
+    depends_on: [implement]
+
+  - id: deploy
+    type: shell
+    run: ./deploy.sh
+    when: "{{ steps.test.output.passed == true }}"
+    depends_on: [test]
+```
+
+This flow:
+1. Uses an agent to break down requirements
+2. Dispatches to `#architecture` squad for design
+3. Dispatches to `#dev-team` squad for implementation
+4. Dispatches to `#qa-team` squad for testing
+5. Runs deployment if tests pass
+
+Each squad handles its work autonomously while the flow orchestrates the overall pipeline.
+
+---
+
+## See Also
+
+- [Architecture Overview](architecture.md) - Mental model and decision tree
+- [Squads](squads.md) - Team sandboxes and SQUAD.md
+- [I/O Schemas](io-schemas.md) - Schema validation for flows and squads
+- [Flow Specification](flows-spec.md) - YAML schema reference
