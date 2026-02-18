@@ -321,8 +321,9 @@ type Agent struct {
 	OutputSchema    *schema.Schema // JSON schema for output formatting (optional)
 
 	// Squad lead fields (set when agent is a squad lead)
-	IsSquadLead bool   // True if this agent is a squad lead
-	SquadName   string // Name of the squad this agent leads (empty if not squad lead)
+	IsSquadLead     bool     // True if this agent is a squad lead
+	SquadName       string   // Name of the squad this agent leads (empty if not squad lead)
+	RestrictedTools []string // Tools this agent is not allowed to use (set by RestrictToolsForSquadLead)
 }
 
 // TrustLevel returns the trust level for this agent.

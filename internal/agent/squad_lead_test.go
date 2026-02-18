@@ -186,3 +186,170 @@ func TestCreateSquadLead_PreservesOtherFields(t *testing.T) {
 		t.Errorf("BuiltIn = %v, want %v", lead.BuiltIn, baseAyo.BuiltIn)
 	}
 }
+
+func TestCreateSquadLead_SetsRestrictedTools(t *testing.T) {
+	baseAyo := Agent{
+		Handle:         "@ayo",
+		CombinedSystem: "Base system prompt.",
+	}
+
+	constitution := &squads.Constitution{
+		Raw:       "# Mission",
+		SquadName: "test-squad",
+	}
+
+	lead, err := CreateSquadLead(baseAyo, constitution)
+	if err != nil {
+		t.Fatalf("CreateSquadLead failed: %v", err)
+	}
+
+	// Should have restricted tools set
+	if len(lead.RestrictedTools) == 0 {
+		t.Error("expected RestrictedTools to be set")
+	}
+
+	// Should include the standard restricted tools
+	for _, tool := range SquadLeadRestrictedTools {
+		if !lead.IsToolRestricted(tool) {
+			t.Errorf("expected tool %q to be restricted", tool)
+		}
+	}
+}
+
+func TestAgent_IsToolRestricted(t *testing.T) {
+	tests := []struct {
+		name       string
+		agent      Agent
+		toolName   string
+		restricted bool
+	}{
+		{
+			name:       "tool in restricted list",
+			agent:      Agent{RestrictedTools: []string{"dispatch_squad", "invoke_agent"}},
+			toolName:   "dispatch_squad",
+			restricted: true,
+		},
+		{
+			name:       "tool not in restricted list",
+			agent:      Agent{RestrictedTools: []string{"dispatch_squad"}},
+			toolName:   "bash",
+			restricted: false,
+		},
+		{
+			name:       "empty restricted list",
+			agent:      Agent{},
+			toolName:   "dispatch_squad",
+			restricted: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.agent.IsToolRestricted(tt.toolName); got != tt.restricted {
+				t.Errorf("IsToolRestricted(%q) = %v, want %v", tt.toolName, got, tt.restricted)
+			}
+		})
+	}
+}
+
+func TestAgent_FilterRestrictedTools(t *testing.T) {
+	tests := []struct {
+		name     string
+		agent    Agent
+		tools    []string
+		expected []string
+	}{
+		{
+			name:     "filters restricted tools",
+			agent:    Agent{RestrictedTools: []string{"dispatch_squad", "invoke_agent"}},
+			tools:    []string{"bash", "dispatch_squad", "edit", "invoke_agent", "view"},
+			expected: []string{"bash", "edit", "view"},
+		},
+		{
+			name:     "no restricted tools",
+			agent:    Agent{},
+			tools:    []string{"bash", "dispatch_squad", "edit"},
+			expected: []string{"bash", "dispatch_squad", "edit"},
+		},
+		{
+			name:     "all tools restricted",
+			agent:    Agent{RestrictedTools: []string{"a", "b", "c"}},
+			tools:    []string{"a", "b", "c"},
+			expected: []string{},
+		},
+		{
+			name:     "no tools provided",
+			agent:    Agent{RestrictedTools: []string{"dispatch_squad"}},
+			tools:    []string{},
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.agent.FilterRestrictedTools(tt.tools)
+			if len(got) != len(tt.expected) {
+				t.Errorf("FilterRestrictedTools() = %v, want %v", got, tt.expected)
+				return
+			}
+			for i, tool := range got {
+				if tool != tt.expected[i] {
+					t.Errorf("FilterRestrictedTools()[%d] = %q, want %q", i, tool, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestAgent_RestrictToolsForSquadLead(t *testing.T) {
+	t.Run("adds base restrictions", func(t *testing.T) {
+		agent := Agent{IsSquadLead: true}
+		agent.RestrictToolsForSquadLead()
+
+		if len(agent.RestrictedTools) != len(SquadLeadRestrictedTools) {
+			t.Errorf("RestrictedTools length = %d, want %d", len(agent.RestrictedTools), len(SquadLeadRestrictedTools))
+		}
+	})
+
+	t.Run("adds additional restrictions", func(t *testing.T) {
+		agent := Agent{IsSquadLead: true}
+		agent.RestrictToolsForSquadLead("custom_tool", "another_tool")
+
+		expectedLen := len(SquadLeadRestrictedTools) + 2
+		if len(agent.RestrictedTools) != expectedLen {
+			t.Errorf("RestrictedTools length = %d, want %d", len(agent.RestrictedTools), expectedLen)
+		}
+
+		if !agent.IsToolRestricted("custom_tool") {
+			t.Error("expected custom_tool to be restricted")
+		}
+		if !agent.IsToolRestricted("another_tool") {
+			t.Error("expected another_tool to be restricted")
+		}
+	})
+
+	t.Run("does nothing for non-squad-lead", func(t *testing.T) {
+		agent := Agent{IsSquadLead: false}
+		agent.RestrictToolsForSquadLead("tool")
+
+		if len(agent.RestrictedTools) != 0 {
+			t.Errorf("RestrictedTools should be empty for non-squad-lead, got %v", agent.RestrictedTools)
+		}
+	})
+
+	t.Run("does not duplicate restrictions", func(t *testing.T) {
+		agent := Agent{IsSquadLead: true}
+		agent.RestrictToolsForSquadLead(SquadLeadRestrictedTools[0])
+
+		// Should not have duplicates
+		count := 0
+		for _, tool := range agent.RestrictedTools {
+			if tool == SquadLeadRestrictedTools[0] {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("expected %q to appear once, got %d times", SquadLeadRestrictedTools[0], count)
+		}
+	})
+}
