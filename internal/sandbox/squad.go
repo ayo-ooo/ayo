@@ -75,6 +75,18 @@ func EnsureSquadSandbox(ctx context.Context, provider *AppleProvider, name strin
 			Destination: "/workspace",
 			Mode:        providers.MountModeVirtioFS,
 		},
+		// Near-term planner state directory
+		{
+			Source:      paths.SquadPlannerNearDir(name),
+			Destination: "/.planner.near",
+			Mode:        providers.MountModeVirtioFS,
+		},
+		// Long-term planner state directory
+		{
+			Source:      paths.SquadPlannerLongDir(name),
+			Destination: "/.planner.long",
+			Mode:        providers.MountModeVirtioFS,
+		},
 	}
 
 	// Add workspace mount if configured

@@ -689,12 +689,26 @@ func AyoSandboxOutputDir() string {
 	return filepath.Join(AyoSandboxDir(), "output")
 }
 
+// AyoSandboxPlannerNearDir returns @ayo's near-term planner state directory.
+// Location: ~/.local/share/ayo/sandboxes/ayo/.planner.near
+func AyoSandboxPlannerNearDir() string {
+	return filepath.Join(AyoSandboxDir(), ".planner.near")
+}
+
+// AyoSandboxPlannerLongDir returns @ayo's long-term planner state directory.
+// Location: ~/.local/share/ayo/sandboxes/ayo/.planner.long
+func AyoSandboxPlannerLongDir() string {
+	return filepath.Join(AyoSandboxDir(), ".planner.long")
+}
+
 // EnsureAyoSandboxDirs creates all directories needed for @ayo's sandbox.
 func EnsureAyoSandboxDirs() error {
 	dirs := []string{
 		AyoSandboxDir(),
 		AyoSandboxHomeDir(),
 		AyoSandboxOutputDir(),
+		AyoSandboxPlannerNearDir(),
+		AyoSandboxPlannerLongDir(),
 		SquadsDir(),
 	}
 	for _, dir := range dirs {
@@ -735,6 +749,18 @@ func SquadWorkspaceDir(name string) string {
 	return filepath.Join(SquadDir(name), "workspace")
 }
 
+// SquadPlannerNearDir returns the near-term planner state directory for a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/.planner.near
+func SquadPlannerNearDir(name string) string {
+	return filepath.Join(SquadDir(name), ".planner.near")
+}
+
+// SquadPlannerLongDir returns the long-term planner state directory for a squad.
+// Location: ~/.local/share/ayo/sandboxes/squads/{name}/.planner.long
+func SquadPlannerLongDir(name string) string {
+	return filepath.Join(SquadDir(name), ".planner.long")
+}
+
 // SquadConstitutionPath returns the path to a squad's SQUAD.md file.
 // This file defines the team's mission, roles, and coordination rules.
 // Location: ~/.local/share/ayo/sandboxes/squads/{name}/SQUAD.md
@@ -757,6 +783,8 @@ func EnsureSquadDirs(name string) error {
 		SquadTicketsDir(name),
 		SquadContextDir(name),
 		SquadWorkspaceDir(name),
+		SquadPlannerNearDir(name),
+		SquadPlannerLongDir(name),
 		filepath.Join(SquadDir(name), "agent-homes"),
 	}
 	for _, dir := range dirs {

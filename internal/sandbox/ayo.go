@@ -68,6 +68,18 @@ func EnsureAyoSandbox(ctx context.Context, provider *AppleProvider) (providers.S
 			Destination: "/squads",
 			Mode:        providers.MountModeVirtioFS,
 		},
+		// Near-term planner state directory
+		{
+			Source:      paths.AyoSandboxPlannerNearDir(),
+			Destination: "/.planner.near",
+			Mode:        providers.MountModeVirtioFS,
+		},
+		// Long-term planner state directory
+		{
+			Source:      paths.AyoSandboxPlannerLongDir(),
+			Destination: "/.planner.long",
+			Mode:        providers.MountModeVirtioFS,
+		},
 	}
 
 	// Add custom mounts from config
