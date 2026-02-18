@@ -1,6 +1,6 @@
 ---
 id: am-rozh
-status: open
+status: closed
 deps: [am-0011]
 links: []
 created: 2026-02-18T03:24:06Z

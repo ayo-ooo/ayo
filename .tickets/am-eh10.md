@@ -1,6 +1,6 @@
 ---
 id: am-eh10
-status: open
+status: closed
 deps: [am-92x6]
 links: []
 created: 2026-02-18T03:24:29Z

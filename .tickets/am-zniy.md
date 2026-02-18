@@ -1,6 +1,6 @@
 ---
 id: am-zniy
-status: open
+status: closed
 deps: [am-mw6n]
 links: []
 created: 2026-02-18T03:17:40Z

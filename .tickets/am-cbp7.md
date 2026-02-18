@@ -1,6 +1,6 @@
 ---
 id: am-cbp7
-status: open
+status: closed
 deps: [am-mrpg, am-tzub]
 links: []
 created: 2026-02-18T03:14:39Z

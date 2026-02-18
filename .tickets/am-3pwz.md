@@ -1,6 +1,6 @@
 ---
 id: am-3pwz
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-18T03:19:29Z

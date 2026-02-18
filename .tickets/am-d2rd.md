@@ -1,6 +1,6 @@
 ---
 id: am-d2rd
-status: open
+status: closed
 deps: [am-2wpf, am-mh6x]
 links: []
 created: 2026-02-18T03:19:02Z

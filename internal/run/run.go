@@ -41,6 +41,7 @@ type Runner struct {
 	streamWriter     StreamWriter             // nil = use default PrintWriter
 	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
 	squadName        string                   // squad name for constitution injection (empty = no squad)
+	dispatcher       *Dispatcher              // nil = no semantic dispatch
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -83,6 +84,7 @@ type RunnerOptions struct {
 	StreamWriter     StreamWriter               // Unified stream writer interface
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
 	SquadName        string                     // Squad name for squad context injection (empty = no squad)
+	Dispatcher       *Dispatcher                // Dispatcher for semantic routing decisions
 }
 
 // NewRunner creates a runner with all options.
@@ -100,6 +102,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		streamWriter:     opts.StreamWriter,
 		sandboxProvider:  opts.SandboxProvider,
 		squadName:        opts.SquadName,
+		dispatcher:       opts.Dispatcher,
 	}, nil
 }
 
@@ -132,6 +135,25 @@ func (r *Runner) StartMemoryQueue() {
 	if r.memoryQueue != nil {
 		r.memoryQueue.Start()
 	}
+}
+
+// Dispatcher returns the dispatcher for semantic routing decisions, or nil if not configured.
+func (r *Runner) Dispatcher() *Dispatcher {
+	return r.dispatcher
+}
+
+// DecideDispatch uses semantic search to determine where to route a prompt.
+// Returns the best target (@ayo, @agent, or #squad) based on embedding similarity.
+// If no dispatcher is configured, returns @ayo as the default target.
+func (r *Runner) DecideDispatch(ctx context.Context, prompt string) (*DispatchDecision, error) {
+	if r.dispatcher == nil {
+		return &DispatchDecision{
+			Target:     "@ayo",
+			Confidence: 1.0,
+			Reason:     "no dispatcher configured",
+		}, nil
+	}
+	return r.dispatcher.Decide(ctx, prompt)
 }
 
 // Chat sends a message in an interactive session, maintaining conversation history.

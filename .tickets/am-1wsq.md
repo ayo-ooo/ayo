@@ -1,6 +1,6 @@
 ---
 id: am-1wsq
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-18T03:13:07Z

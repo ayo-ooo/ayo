@@ -1,6 +1,6 @@
 ---
 id: am-qret
-status: open
+status: closed
 deps: [am-2u05, am-rozh, am-eh10]
 links: []
 created: 2026-02-18T03:14:24Z

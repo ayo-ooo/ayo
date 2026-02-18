@@ -1,6 +1,6 @@
 ---
 id: am-2wpf
-status: open
+status: closed
 deps: [am-r6do]
 links: []
 created: 2026-02-18T03:18:48Z

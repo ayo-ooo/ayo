@@ -1,6 +1,6 @@
 ---
 id: am-plyy
-status: open
+status: closed
 deps: [am-d2rd]
 links: []
 created: 2026-02-18T03:19:20Z

@@ -1,6 +1,6 @@
 ---
 id: am-3pxg
-status: open
+status: closed
 deps: [am-drxw, am-s0ya]
 links: []
 created: 2026-02-18T03:17:15Z

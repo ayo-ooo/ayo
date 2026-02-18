@@ -1,6 +1,6 @@
 ---
 id: am-vego
-status: open
+status: closed
 deps: [am-rvt0]
 links: []
 created: 2026-02-18T03:18:20Z

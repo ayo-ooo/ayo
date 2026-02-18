@@ -1,6 +1,6 @@
 ---
 id: am-cjgk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-18T03:19:50Z

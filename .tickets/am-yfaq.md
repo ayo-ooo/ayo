@@ -1,6 +1,6 @@
 ---
 id: am-yfaq
-status: open
+status: closed
 deps: [am-hsum, am-ek2o, am-rvt0, am-vego]
 links: []
 created: 2026-02-18T03:18:10Z

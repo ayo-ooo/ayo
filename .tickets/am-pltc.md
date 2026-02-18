@@ -1,6 +1,6 @@
 ---
 id: am-pltc
-status: open
+status: closed
 deps: [am-3pwz]
 links: []
 created: 2026-02-18T03:19:55Z
