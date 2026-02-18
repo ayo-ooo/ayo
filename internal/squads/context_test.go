@@ -516,3 +516,94 @@ func TestConstitutionFrontmatter_GetInputAcceptsAgent(t *testing.T) {
 		})
 	}
 }
+
+func TestSquad_CanAcceptInput(t *testing.T) {
+	tests := []struct {
+		name  string
+		squad Squad
+		want  bool
+	}{
+		{
+			name: "running with lead ready",
+			squad: Squad{
+				Status:    SquadStatusRunning,
+				LeadReady: true,
+			},
+			want: true,
+		},
+		{
+			name: "running without lead ready",
+			squad: Squad{
+				Status:    SquadStatusRunning,
+				LeadReady: false,
+			},
+			want: false,
+		},
+		{
+			name: "stopped with lead ready",
+			squad: Squad{
+				Status:    SquadStatusStopped,
+				LeadReady: true,
+			},
+			want: false,
+		},
+		{
+			name: "stopped without lead ready",
+			squad: Squad{
+				Status:    SquadStatusStopped,
+				LeadReady: false,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.squad.CanAcceptInput(); got != tt.want {
+				t.Errorf("CanAcceptInput() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSquad_IsRunning(t *testing.T) {
+	tests := []struct {
+		name  string
+		squad Squad
+		want  bool
+	}{
+		{
+			name:  "running",
+			squad: Squad{Status: SquadStatusRunning},
+			want:  true,
+		},
+		{
+			name:  "stopped",
+			squad: Squad{Status: SquadStatusStopped},
+			want:  false,
+		},
+		{
+			name:  "creating",
+			squad: Squad{Status: SquadStatusCreating},
+			want:  false,
+		},
+		{
+			name:  "failed",
+			squad: Squad{Status: SquadStatusFailed},
+			want:  false,
+		},
+		{
+			name:  "unknown",
+			squad: Squad{Status: SquadStatusUnknown},
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.squad.IsRunning(); got != tt.want {
+				t.Errorf("IsRunning() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

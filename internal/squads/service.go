@@ -30,6 +30,25 @@ type Squad struct {
 	// Schemas contains input/output JSON schemas for validation.
 	// Nil if no schemas are defined (free-form mode).
 	Schemas *SquadSchemas
+
+	// Constitution is the squad's SQUAD.md constitution.
+	// Loaded during squad initialization.
+	Constitution *Constitution
+
+	// LeadReady indicates the squad lead is ready to accept input.
+	// Set to true when the squad has been fully initialized.
+	LeadReady bool
+}
+
+// CanAcceptInput returns true if the squad is ready to accept input.
+// The squad must be running and have its lead ready.
+func (sq *Squad) CanAcceptInput() bool {
+	return sq.Status == SquadStatusRunning && sq.LeadReady
+}
+
+// IsRunning returns true if the squad is currently running.
+func (sq *Squad) IsRunning() bool {
+	return sq.Status == SquadStatusRunning
 }
 
 // SquadStatus represents the status of a squad.
@@ -100,12 +119,21 @@ func (s *Service) Create(ctx context.Context, cfg config.SquadConfig) (*Squad, e
 		return nil, fmt.Errorf("load squad schemas: %w", err)
 	}
 
+	// Load constitution for squad lead (may have been created above or already existed)
+	constitution, err := LoadConstitution(cfg.Name)
+	if err != nil {
+		debug.Log("failed to load constitution", "squad", cfg.Name, "error", err)
+		// Continue without constitution - squad can still function
+	}
+
 	squad := &Squad{
-		Name:    cfg.Name,
-		Config:  cfg,
-		Sandbox: &sb,
-		Status:  SquadStatusRunning,
-		Schemas: schemas,
+		Name:         cfg.Name,
+		Config:       cfg,
+		Sandbox:      &sb,
+		Status:       SquadStatusRunning,
+		Schemas:      schemas,
+		Constitution: constitution,
+		LeadReady:    constitution != nil, // Lead is ready if we have a constitution
 	}
 
 	s.squads[cfg.Name] = squad
@@ -135,20 +163,26 @@ func (s *Service) Get(ctx context.Context, name string) (*Squad, error) {
 		return nil, fmt.Errorf("load squad schemas: %w", err)
 	}
 
+	// Load constitution for squad lead
+	constitution, _ := LoadConstitution(name)
+
 	// Check if sandbox exists
 	sb, sandboxErr := sandbox.GetSquadSandbox(ctx, s.provider, name)
 
 	squad := &Squad{
-		Name:    name,
-		Config:  cfg,
-		Status:  SquadStatusStopped,
-		Schemas: schemas,
+		Name:         name,
+		Config:       cfg,
+		Status:       SquadStatusStopped,
+		Schemas:      schemas,
+		Constitution: constitution,
+		LeadReady:    false, // Not ready until squad is running
 	}
 
 	if sandboxErr == nil {
 		squad.Sandbox = &sb
 		if sb.Status == providers.SandboxStatusRunning {
 			squad.Status = SquadStatusRunning
+			squad.LeadReady = squad.Constitution != nil
 		}
 	}
 
@@ -205,7 +239,14 @@ func (s *Service) Start(ctx context.Context, name string) error {
 	squad.Sandbox = &sb
 	squad.Status = SquadStatusRunning
 
-	debug.Log("squad started", "name", name)
+	// Load constitution if not already loaded
+	if squad.Constitution == nil {
+		squad.Constitution, _ = LoadConstitution(name)
+	}
+	// Mark lead as ready if we have a constitution
+	squad.LeadReady = squad.Constitution != nil
+
+	debug.Log("squad started", "name", name, "lead_ready", squad.LeadReady)
 	return nil
 }
 
