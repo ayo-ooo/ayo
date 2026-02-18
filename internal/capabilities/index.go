@@ -1,7 +1,12 @@
 package capabilities
 
 import (
+	"context"
 	"time"
+
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/embedding"
+	"github.com/alexcabrera/ayo/internal/squads"
 )
 
 // EntityType distinguishes between agents and squads in the index.
@@ -186,4 +191,88 @@ func (a *IndexedAgent) HasEmbedding() bool {
 // HasEmbedding returns true if the squad has a computed embedding.
 func (s *IndexedSquad) HasEmbedding() bool {
 	return len(s.Embedding) > 0
+}
+
+// LazyEntityIndex wraps EntityIndex with an embedder for lazy invalidation.
+// When embeddings are requested, it checks the content hash and re-embeds if stale.
+type LazyEntityIndex struct {
+	*EntityIndex
+	embedder embedding.Embedder
+}
+
+// NewLazyEntityIndex creates a new lazy entity index with an embedder.
+func NewLazyEntityIndex(embedder embedding.Embedder) *LazyEntityIndex {
+	return &LazyEntityIndex{
+		EntityIndex: NewEntityIndex(),
+		embedder:    embedder,
+	}
+}
+
+// GetAgentEmbedding returns the embedding for an agent, re-computing if stale.
+// If the agent's content hash differs from the stored hash, the embedding is recomputed.
+func (idx *LazyEntityIndex) GetAgentEmbedding(ctx context.Context, ag agent.Agent) ([]float32, error) {
+	currentHash := ComputeAgentHash(ag)
+
+	// Check if we have a cached entry with matching hash
+	stored := idx.GetAgent(ag.Handle)
+	if stored != nil && !stored.NeedsUpdate(currentHash) && stored.HasEmbedding() {
+		return stored.Embedding, nil // Cache hit
+	}
+
+	// Re-embed: compute text from agent capabilities
+	text := ag.Config.Description
+	if ag.System != "" {
+		text += "\n\n" + ag.System
+	}
+
+	emb, err := idx.embedder.Embed(ctx, text)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update index
+	idx.UpsertAgent(IndexedAgent{
+		Handle:      ag.Handle,
+		Description: ag.Config.Description,
+		ContentHash: currentHash,
+		Embedding:   emb,
+		UpdatedAt:   time.Now(),
+	})
+
+	return emb, nil
+}
+
+// GetSquadEmbedding returns the embedding for a squad, re-computing if stale.
+// If the squad's content hash differs from the stored hash, the embedding is recomputed.
+func (idx *LazyEntityIndex) GetSquadEmbedding(ctx context.Context, constitution *squads.Constitution, squadName string) ([]float32, error) {
+	if constitution == nil {
+		return nil, nil
+	}
+
+	currentHash := ComputeSquadHash(constitution)
+
+	// Check if we have a cached entry with matching hash
+	stored := idx.GetSquad(squadName)
+	if stored != nil && !stored.NeedsUpdate(currentHash) && stored.HasEmbedding() {
+		return stored.Embedding, nil // Cache hit
+	}
+
+	// Re-embed: compute text from squad constitution
+	text := constitution.Raw
+
+	emb, err := idx.embedder.Embed(ctx, text)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update index
+	idx.UpsertSquad(IndexedSquad{
+		Name:        squadName,
+		Mission:     constitution.Raw, // Use raw content as mission description
+		ContentHash: currentHash,
+		Embedding:   emb,
+		UpdatedAt:   time.Now(),
+	})
+
+	return emb, nil
 }

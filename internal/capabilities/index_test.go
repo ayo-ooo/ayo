@@ -1,8 +1,12 @@
 package capabilities
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"github.com/alexcabrera/ayo/internal/agent"
+	"github.com/alexcabrera/ayo/internal/squads"
 )
 
 func TestEntityIndex_GetAgent(t *testing.T) {
@@ -299,5 +303,133 @@ func TestIndexedSquad_Fields(t *testing.T) {
 	}
 	if !squad.HasOutputSchema {
 		t.Error("HasOutputSchema should be true")
+	}
+}
+
+// testEmbedder is a mock embedder for testing lazy invalidation.
+type testEmbedder struct {
+	embedCount int
+	embedding  []float32
+}
+
+func (e *testEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+	e.embedCount++
+	return e.embedding, nil
+}
+
+func (e *testEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	result := make([][]float32, len(texts))
+	for i := range texts {
+		result[i], _ = e.Embed(ctx, texts[i])
+	}
+	return result, nil
+}
+
+func (e *testEmbedder) Dimension() int {
+	return len(e.embedding)
+}
+
+func (e *testEmbedder) Close() error {
+	return nil
+}
+
+func TestLazyEntityIndex_GetAgentEmbedding_CacheHit(t *testing.T) {
+	embedder := &testEmbedder{embedding: []float32{1.0, 2.0, 3.0}}
+	idx := NewLazyEntityIndex(embedder)
+
+	ag := agent.Agent{
+		Handle: "@test",
+		Config: agent.Config{Description: "Test agent"},
+		System: "Test system",
+	}
+
+	// First call - should embed
+	emb1, err := idx.GetAgentEmbedding(context.Background(), ag)
+	if err != nil {
+		t.Fatalf("GetAgentEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 1 {
+		t.Errorf("Expected 1 embed call, got %d", embedder.embedCount)
+	}
+	if len(emb1) != 3 {
+		t.Errorf("Expected 3-dim embedding, got %d", len(emb1))
+	}
+
+	// Second call with same content - should hit cache
+	emb2, err := idx.GetAgentEmbedding(context.Background(), ag)
+	if err != nil {
+		t.Fatalf("GetAgentEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 1 {
+		t.Errorf("Expected still 1 embed call (cache hit), got %d", embedder.embedCount)
+	}
+	if len(emb2) != 3 {
+		t.Errorf("Expected 3-dim embedding, got %d", len(emb2))
+	}
+}
+
+func TestLazyEntityIndex_GetAgentEmbedding_Invalidation(t *testing.T) {
+	embedder := &testEmbedder{embedding: []float32{1.0, 2.0, 3.0}}
+	idx := NewLazyEntityIndex(embedder)
+
+	ag := agent.Agent{
+		Handle: "@test",
+		Config: agent.Config{Description: "Test agent"},
+		System: "Test system",
+	}
+
+	// First call - should embed
+	_, err := idx.GetAgentEmbedding(context.Background(), ag)
+	if err != nil {
+		t.Fatalf("GetAgentEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 1 {
+		t.Errorf("Expected 1 embed call, got %d", embedder.embedCount)
+	}
+
+	// Modify agent content
+	ag.System = "Modified system"
+
+	// Second call with different content - should re-embed
+	_, err = idx.GetAgentEmbedding(context.Background(), ag)
+	if err != nil {
+		t.Fatalf("GetAgentEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 2 {
+		t.Errorf("Expected 2 embed calls (invalidation), got %d", embedder.embedCount)
+	}
+}
+
+func TestLazyEntityIndex_GetSquadEmbedding_CacheHit(t *testing.T) {
+	embedder := &testEmbedder{embedding: []float32{4.0, 5.0, 6.0}}
+	idx := NewLazyEntityIndex(embedder)
+
+	constitution := &squads.Constitution{
+		Raw:       "# Test Squad\n\nTest mission",
+		SquadName: "test-squad",
+	}
+
+	// First call - should embed
+	emb1, err := idx.GetSquadEmbedding(context.Background(), constitution, "test-squad")
+	if err != nil {
+		t.Fatalf("GetSquadEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 1 {
+		t.Errorf("Expected 1 embed call, got %d", embedder.embedCount)
+	}
+	if len(emb1) != 3 {
+		t.Errorf("Expected 3-dim embedding, got %d", len(emb1))
+	}
+
+	// Second call with same content - should hit cache
+	emb2, err := idx.GetSquadEmbedding(context.Background(), constitution, "test-squad")
+	if err != nil {
+		t.Fatalf("GetSquadEmbedding failed: %v", err)
+	}
+	if embedder.embedCount != 1 {
+		t.Errorf("Expected still 1 embed call (cache hit), got %d", embedder.embedCount)
+	}
+	if len(emb2) != 3 {
+		t.Errorf("Expected 3-dim embedding, got %d", len(emb2))
 	}
 }
