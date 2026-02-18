@@ -192,6 +192,42 @@ func EnsureAgentHome(agentHandle string) (string, error) {
 	return paths.EnsureAyoAgentHomeDir(agentHandle)
 }
 
+// AgentHomeMount returns a mount configuration for an agent's home directory in @ayo's sandbox.
+// The host path is created if it doesn't exist.
+// Returns the mount and the container home path for the agent.
+func AgentHomeMount(agentHandle string) (providers.Mount, string, error) {
+	hostPath, err := paths.EnsureAyoAgentHomeDir(agentHandle)
+	if err != nil {
+		return providers.Mount{}, "", fmt.Errorf("create agent home: %w", err)
+	}
+
+	// Strip @ prefix for container path
+	name := agentHandle
+	if len(name) > 0 && name[0] == '@' {
+		name = name[1:]
+	}
+	containerPath := "/home/" + name
+
+	mount := providers.Mount{
+		Source:      hostPath,
+		Destination: containerPath,
+		Mode:        providers.MountModeVirtioFS,
+		ReadOnly:    false,
+	}
+
+	return mount, containerPath, nil
+}
+
+// AgentHomeContainerPath returns the container path where an agent's home would be mounted.
+// This does not create the directory, only computes the path.
+func AgentHomeContainerPath(agentHandle string) string {
+	name := agentHandle
+	if len(name) > 0 && name[0] == '@' {
+		name = name[1:]
+	}
+	return "/home/" + name
+}
+
 // parseMountSpec parses a mount spec string into a Mount.
 // Format: "host_path:container_path" or "path" (same on both).
 func parseMountSpec(spec string) (providers.Mount, error) {
