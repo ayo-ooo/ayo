@@ -121,6 +121,7 @@ type ToolSetOptions struct {
 	DisableTodo        bool
 	SandboxExecutor    *sandbox.Executor
 	CapabilitySearcher *capabilities.CapabilitySearcher // Optional for find_agent tool
+	PlannerTools       []fantasy.AgentTool              // Tools from planner plugins
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
@@ -215,6 +216,17 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 		}
 	}
 
+	// Add planner tools (from SandboxPlanners.NearTerm.Tools() and LongTerm.Tools())
+	// These are always-available like todo, not subject to allowedTools filtering
+	for _, plannerTool := range opts.PlannerTools {
+		toolName := plannerTool.Info().Name
+		// Skip if a tool with this name is already loaded (avoid collisions)
+		if !loadedTools[toolName] {
+			fantasyTools = append(fantasyTools, plannerTool)
+			loadedTools[toolName] = true
+		}
+	}
+
 	return FantasyToolSet{
 		tools:           fantasyTools,
 		allowedList:     allowed,
@@ -245,6 +257,21 @@ func (ts *FantasyToolSet) Close() error {
 		}
 	}
 	return lastErr
+}
+
+// GetPlannerTools extracts tools from SandboxPlanners for use with ToolSetOptions.
+// This collects tools from both near-term and long-term planners.
+func GetPlannerTools(nearTerm, longTerm interface{ Tools() []fantasy.AgentTool }) []fantasy.AgentTool {
+	var tools []fantasy.AgentTool
+
+	if nearTerm != nil {
+		tools = append(tools, nearTerm.Tools()...)
+	}
+	if longTerm != nil {
+		tools = append(tools, longTerm.Tools()...)
+	}
+
+	return tools
 }
 
 // resolveWorkingDir is shared between old and new tool implementations.

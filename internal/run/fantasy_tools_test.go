@@ -1,11 +1,33 @@
 package run
 
 import (
+	"context"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 )
+
+// NewMockPlannerTool creates a simple mock tool for testing planner tool injection.
+func NewMockPlannerTool(name, description string) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		name,
+		description,
+		func(ctx context.Context, params struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("mock response"), nil
+		},
+	)
+}
+
+// mockPlannerWithTools implements the interface needed for GetPlannerTools.
+type mockPlannerWithTools struct {
+	tools []fantasy.AgentTool
+}
+
+func (m *mockPlannerWithTools) Tools() []fantasy.AgentTool {
+	return m.tools
+}
 
 func TestNewFantasyToolSetWithOptions_TodoAlwaysAvailable(t *testing.T) {
 	// Test that todo is available by default, even with empty allowed list
@@ -176,5 +198,90 @@ func TestNewFantasyToolSet_WithoutSandboxExecutor(t *testing.T) {
 	// Verify no sandbox executor
 	if ts.sandboxExecutor != nil {
 		t.Error("expected no sandbox executor")
+	}
+}
+
+func TestNewFantasyToolSet_WithPlannerTools(t *testing.T) {
+	// Create a mock planner tool
+	mockTool := NewMockPlannerTool("test_planner_tool", "Test planner tool")
+
+	ts := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools: []string{"bash"},
+		DisableTodo:  true,
+		PlannerTools: []fantasy.AgentTool{mockTool},
+	})
+	defer ts.Close()
+
+	// Should have bash + planner tool
+	tools := ts.Tools()
+	if len(tools) != 2 {
+		t.Errorf("expected 2 tools (bash + planner), got %d", len(tools))
+	}
+
+	hasPlannerTool := false
+	for _, tool := range tools {
+		if tool.Info().Name == "test_planner_tool" {
+			hasPlannerTool = true
+		}
+	}
+	if !hasPlannerTool {
+		t.Error("expected planner tool to be included")
+	}
+}
+
+func TestNewFantasyToolSet_PlannerToolsNoCollision(t *testing.T) {
+	// Test that planner tools don't duplicate existing tools
+	mockTool := NewMockPlannerTool("bash", "This should not override bash")
+
+	ts := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools: []string{"bash"},
+		DisableTodo:  true,
+		PlannerTools: []fantasy.AgentTool{mockTool},
+	})
+	defer ts.Close()
+
+	// Should still have only 1 bash tool (not duplicated)
+	tools := ts.Tools()
+	bashCount := 0
+	for _, tool := range tools {
+		if tool.Info().Name == "bash" {
+			bashCount++
+		}
+	}
+	if bashCount != 1 {
+		t.Errorf("expected 1 bash tool (no collision), got %d", bashCount)
+	}
+}
+
+func TestGetPlannerTools(t *testing.T) {
+	// Test helper with both planners
+	nearTerm := &mockPlannerWithTools{tools: []fantasy.AgentTool{
+		NewMockPlannerTool("near_tool", "Near term tool"),
+	}}
+	longTerm := &mockPlannerWithTools{tools: []fantasy.AgentTool{
+		NewMockPlannerTool("long_tool", "Long term tool"),
+	}}
+
+	tools := GetPlannerTools(nearTerm, longTerm)
+	if len(tools) != 2 {
+		t.Errorf("expected 2 tools, got %d", len(tools))
+	}
+}
+
+func TestGetPlannerTools_NilPlanners(t *testing.T) {
+	tools := GetPlannerTools(nil, nil)
+	if len(tools) != 0 {
+		t.Errorf("expected 0 tools for nil planners, got %d", len(tools))
+	}
+}
+
+func TestGetPlannerTools_PartialPlanners(t *testing.T) {
+	nearTerm := &mockPlannerWithTools{tools: []fantasy.AgentTool{
+		NewMockPlannerTool("near_tool", "Near term tool"),
+	}}
+
+	tools := GetPlannerTools(nearTerm, nil)
+	if len(tools) != 1 {
+		t.Errorf("expected 1 tool (near-term only), got %d", len(tools))
 	}
 }
