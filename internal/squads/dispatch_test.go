@@ -249,6 +249,77 @@ func TestSquad_Dispatch(t *testing.T) {
 		if result == nil {
 			t.Error("expected non-nil result")
 		}
+		// Default routing to @ayo
+		if result.RoutedTo != "@ayo" {
+			t.Errorf("expected RoutedTo @ayo, got %q", result.RoutedTo)
+		}
+	})
+
+	t.Run("dispatch routes to explicit target agent", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+		}
+
+		result, err := squad.Dispatch(context.Background(), DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "@backend",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RoutedTo != "@backend" {
+			t.Errorf("expected RoutedTo @backend, got %q", result.RoutedTo)
+		}
+	})
+
+	t.Run("dispatch routes to input_accepts from constitution", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					InputAccepts: "@frontend",
+				},
+			},
+		}
+
+		result, err := squad.Dispatch(context.Background(), DispatchInput{
+			Prompt: "hello",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RoutedTo != "@frontend" {
+			t.Errorf("expected RoutedTo @frontend, got %q", result.RoutedTo)
+		}
+	})
+
+	t.Run("explicit target overrides input_accepts", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					InputAccepts: "@frontend",
+				},
+			},
+		}
+
+		result, err := squad.Dispatch(context.Background(), DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "@qa",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Explicit target should override constitution
+		if result.RoutedTo != "@qa" {
+			t.Errorf("expected RoutedTo @qa, got %q", result.RoutedTo)
+		}
 	})
 }
 
@@ -274,4 +345,78 @@ func isValidationError(err error, target **ValidationError) bool {
 		return true
 	}
 	return false
+}
+
+func TestSquad_GetTargetAgent(t *testing.T) {
+	t.Run("returns default @ayo when no constitution", func(t *testing.T) {
+		squad := &Squad{Name: "test"}
+
+		target := squad.GetTargetAgent(DispatchInput{Prompt: "hello"})
+		if target != "@ayo" {
+			t.Errorf("expected @ayo, got %q", target)
+		}
+	})
+
+	t.Run("returns input_accepts from constitution", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					InputAccepts: "@backend",
+				},
+			},
+		}
+
+		target := squad.GetTargetAgent(DispatchInput{Prompt: "hello"})
+		if target != "@backend" {
+			t.Errorf("expected @backend, got %q", target)
+		}
+	})
+
+	t.Run("returns lead when input_accepts not set", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					Lead: "@architect",
+				},
+			},
+		}
+
+		target := squad.GetTargetAgent(DispatchInput{Prompt: "hello"})
+		if target != "@architect" {
+			t.Errorf("expected @architect (lead), got %q", target)
+		}
+	})
+
+	t.Run("explicit target overrides constitution", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					InputAccepts: "@backend",
+				},
+			},
+		}
+
+		target := squad.GetTargetAgent(DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "@qa",
+		})
+		if target != "@qa" {
+			t.Errorf("expected @qa (explicit), got %q", target)
+		}
+	})
+
+	t.Run("adds @ prefix to explicit target if missing", func(t *testing.T) {
+		squad := &Squad{Name: "test"}
+
+		target := squad.GetTargetAgent(DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "frontend",
+		})
+		if target != "@frontend" {
+			t.Errorf("expected @frontend, got %q", target)
+		}
+	})
 }

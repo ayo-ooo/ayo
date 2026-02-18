@@ -16,6 +16,10 @@ type DispatchInput struct {
 	// Data contains structured input data.
 	// If the squad has an input schema, this data is validated against it.
 	Data map[string]any `json:"data,omitempty"`
+
+	// TargetAgent overrides the default input routing.
+	// If set, input is sent to this agent instead of input_accepts/lead.
+	TargetAgent string `json:"target_agent,omitempty"`
 }
 
 // DispatchResult represents the result of a squad invocation.
@@ -29,6 +33,9 @@ type DispatchResult struct {
 
 	// Error contains any error message from the squad.
 	Error string `json:"error,omitempty"`
+
+	// RoutedTo indicates which agent received the input.
+	RoutedTo string `json:"routed_to,omitempty"`
 }
 
 // ValidationError is returned when input or output fails schema validation.
@@ -89,9 +96,36 @@ func (s *Squad) ValidateOutput(result *DispatchResult) error {
 	return nil
 }
 
+// GetTargetAgent determines which agent should receive the dispatch input.
+// Priority:
+//  1. Explicit TargetAgent in the input (command-line override)
+//  2. InputAccepts from SQUAD.md frontmatter
+//  3. Lead from SQUAD.md frontmatter
+//  4. Default: @ayo
+func (s *Squad) GetTargetAgent(input DispatchInput) string {
+	// Explicit target in input takes priority
+	if input.TargetAgent != "" {
+		agent := input.TargetAgent
+		if len(agent) > 0 && agent[0] != '@' {
+			agent = "@" + agent
+		}
+		return agent
+	}
+
+	// Use constitution routing if available
+	if s.Constitution != nil {
+		return s.Constitution.Frontmatter.GetInputAcceptsAgent()
+	}
+
+	// Default to @ayo
+	return "@ayo"
+}
+
 // Dispatch dispatches work to the squad after validating input.
-// This is a synchronous operation that waits for the squad to complete.
-// The actual execution logic will be implemented by the daemon/invoker.
+// Input is routed to the appropriate agent based on:
+// 1. Explicit TargetAgent in input
+// 2. InputAccepts from SQUAD.md
+// 3. Lead from SQUAD.md (default @ayo)
 func (s *Squad) Dispatch(ctx context.Context, input DispatchInput) (*DispatchResult, error) {
 	// Validate input
 	if err := s.ValidateInput(input); err != nil {
@@ -104,10 +138,14 @@ func (s *Squad) Dispatch(ctx context.Context, input DispatchInput) (*DispatchRes
 			s.Name, s.Status, s.LeadReady)
 	}
 
-	// TODO: Actual dispatch implementation will be added by am-vego (daemon RPC)
-	// For now, return a placeholder indicating dispatch was validated
+	// Determine target agent for input routing
+	targetAgent := s.GetTargetAgent(input)
+
+	// TODO: Actual invocation of target agent will be added by am-2wpf (AgentInvoker)
+	// For now, return result indicating successful routing
 	return &DispatchResult{
-		Raw: fmt.Sprintf("dispatch to %s validated (prompt: %s)", s.Name, input.Prompt),
+		Raw:      fmt.Sprintf("dispatch to %s routed to %s (prompt: %s)", s.Name, targetAgent, input.Prompt),
+		RoutedTo: targetAgent,
 	}, nil
 }
 
