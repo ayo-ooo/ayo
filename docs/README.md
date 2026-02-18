@@ -17,6 +17,7 @@ Ayo is a command-line framework for creating, managing, and orchestrating AI age
 | Guide | Description |
 |-------|-------------|
 | **[Tutorial](TUTORIAL.md)** | **Comprehensive guide: philosophy, architecture, and practice** |
+| [Architecture](architecture.md) | Unified mental model and decision tree |
 | [Getting Started](getting-started.md) | Quick installation and first steps |
 
 ## Core Guides
