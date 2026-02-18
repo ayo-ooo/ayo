@@ -4,6 +4,7 @@ package todos
 
 import (
 	"context"
+	"path/filepath"
 
 	"charm.land/fantasy"
 	"github.com/alexcabrera/ayo/internal/planners"
@@ -16,7 +17,7 @@ const PluginName = "ayo-todos"
 // It provides session-scoped todo list management for agents.
 type Plugin struct {
 	stateDir string
-	// state will be added in am-efcd (Implement ayo-todos state persistence)
+	state    *State
 }
 
 // New returns a factory function that creates new Plugin instances.
@@ -41,13 +42,21 @@ func (p *Plugin) Type() planners.PlannerType {
 
 // Init initializes the planner, loading any persisted state.
 func (p *Plugin) Init(ctx context.Context) error {
-	// State loading will be implemented in am-efcd
+	statePath := p.statePath()
+	state, err := LoadState(statePath)
+	if err != nil {
+		return err
+	}
+	p.state = state
 	return nil
 }
 
 // Close releases any resources held by the planner.
+// Saves state before closing.
 func (p *Plugin) Close() error {
-	// State saving will be implemented in am-efcd
+	if p.state != nil {
+		return p.state.Save(p.statePath())
+	}
 	return nil
 }
 
@@ -68,6 +77,17 @@ func (p *Plugin) Instructions() string {
 // StateDir returns the directory where this planner stores its state.
 func (p *Plugin) StateDir() string {
 	return p.stateDir
+}
+
+// State returns the current state for this planner.
+// Returns nil if Init has not been called.
+func (p *Plugin) State() *State {
+	return p.state
+}
+
+// statePath returns the full path to the state file.
+func (p *Plugin) statePath() string {
+	return filepath.Join(p.stateDir, StateFile)
 }
 
 // Register adds the ayo-todos plugin to the default registry.
