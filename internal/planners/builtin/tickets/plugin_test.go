@@ -2,6 +2,7 @@ package tickets
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/alexcabrera/ayo/internal/planners"
@@ -140,9 +141,22 @@ func TestPlugin_Tools(t *testing.T) {
 func TestPlugin_Instructions(t *testing.T) {
 	p := &Plugin{}
 	instructions := p.Instructions()
-	// Instructions() returns "" until am-eh10 implements instructions
-	if instructions != "" {
-		t.Errorf("Instructions() = %q, want empty string (instructions not yet implemented)", instructions)
+	// Instructions should return TicketsInstructions constant
+	if instructions == "" {
+		t.Error("Instructions() should not be empty")
+	}
+	if instructions != TicketsInstructions {
+		t.Errorf("Instructions() should return TicketsInstructions constant")
+	}
+	// Verify key content is present
+	if !strings.Contains(instructions, "Long-Term Work Planning") {
+		t.Error("Instructions should contain 'Long-Term Work Planning'")
+	}
+	if !strings.Contains(instructions, "ticket_create") {
+		t.Error("Instructions should document ticket_create tool")
+	}
+	if !strings.Contains(instructions, "ticket_close") {
+		t.Error("Instructions should document ticket_close tool")
 	}
 }
 

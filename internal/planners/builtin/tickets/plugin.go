@@ -74,11 +74,50 @@ func (p *Plugin) Tools() []fantasy.AgentTool {
 }
 
 // Instructions returns text to inject into agent system prompts.
-// Instructions will be implemented in am-eh10.
+// This explains how and when to use the ticket tools.
 func (p *Plugin) Instructions() string {
-	// Instructions will be added in am-eh10 (Add ayo-tickets instructions for system prompt)
-	return ""
+	return TicketsInstructions
 }
+
+// TicketsInstructions contains the system prompt instructions for the ticket tools.
+const TicketsInstructions = `## Long-Term Work Planning
+
+Use ticket tools for persistent work tracking across sessions:
+
+**When to use:**
+- Work items that may span multiple sessions
+- Tasks with dependencies on other work
+- Tracking larger initiatives or epics
+- Coordinating work with other agents
+
+**Available tools:**
+- ticket_create: Create new work items with title, description, type, priority
+- ticket_list: List tickets with optional filters (status, type, assignee)
+- ticket_start: Begin working on a ticket (sets status to in_progress)
+- ticket_close: Mark a ticket as complete (with optional closing message)
+- ticket_block: Mark a ticket as blocked
+- ticket_note: Add timestamped progress notes to a ticket
+
+**Ticket states:**
+- open: Ready to be worked on
+- in_progress: Currently being worked on
+- blocked: Cannot proceed (dependency, external, etc.)
+- closed: Work completed
+
+**Ticket types:**
+- task: Standard unit of work (default)
+- feature: New functionality
+- bug: Defect to fix
+- chore: Maintenance work
+- epic: Large initiative containing sub-tickets
+
+**Best practices:**
+- Create tickets for work that won't be completed immediately
+- Use dependencies to track blockers
+- Add notes as you make progress
+- Close tickets with a summary message
+- Use ticket_list to see what's ready to work on
+`
 
 // StateDir returns the directory where this planner stores its state.
 func (p *Plugin) StateDir() string {
