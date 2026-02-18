@@ -171,6 +171,35 @@ type ConstitutionFrontmatter struct {
 	InputAccepts string `yaml:"input_accepts"`
 }
 
+// WithDefaults returns a copy with default values applied.
+func (f ConstitutionFrontmatter) WithDefaults() ConstitutionFrontmatter {
+	result := f
+	if result.Lead == "" {
+		result.Lead = "@ayo"
+	}
+	if result.InputAccepts == "" {
+		result.InputAccepts = result.Lead
+	}
+	result.Planners = result.Planners.WithDefaults()
+	return result
+}
+
+// GetInputAcceptsAgent returns the agent that should receive direct input.
+// Returns the normalized agent handle (with @ prefix).
+func (f ConstitutionFrontmatter) GetInputAcceptsAgent() string {
+	if f.InputAccepts == "" {
+		if f.Lead == "" {
+			return "@ayo"
+		}
+		return f.Lead
+	}
+	// Ensure @ prefix
+	if len(f.InputAccepts) > 0 && f.InputAccepts[0] != '@' {
+		return "@" + f.InputAccepts
+	}
+	return f.InputAccepts
+}
+
 // LoadConstitution loads the SQUAD.md file for a squad.
 // Returns nil if the file doesn't exist.
 func LoadConstitution(squadName string) (*Constitution, error) {

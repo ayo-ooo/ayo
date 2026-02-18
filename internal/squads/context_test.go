@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/alexcabrera/ayo/internal/config"
 )
 
 func TestParseFrontmatter(t *testing.T) {
@@ -387,4 +389,130 @@ func createTestSquadMD(t *testing.T, dir, content string) string {
 		t.Fatalf("failed to create SQUAD.md: %v", err)
 	}
 	return path
+}
+
+func TestConstitutionFrontmatter_WithDefaults(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    ConstitutionFrontmatter
+		wantLead string
+		wantInput string
+		wantNear string
+		wantLong string
+	}{
+		{
+			name:     "empty frontmatter gets all defaults",
+			input:    ConstitutionFrontmatter{},
+			wantLead: "@ayo",
+			wantInput: "@ayo",
+			wantNear: "ayo-todos",
+			wantLong: "ayo-tickets",
+		},
+		{
+			name: "lead specified, input_accepts defaults to lead",
+			input: ConstitutionFrontmatter{
+				Lead: "@architect",
+			},
+			wantLead: "@architect",
+			wantInput: "@architect",
+			wantNear: "ayo-todos",
+			wantLong: "ayo-tickets",
+		},
+		{
+			name: "input_accepts specified, uses it",
+			input: ConstitutionFrontmatter{
+				Lead:         "@architect",
+				InputAccepts: "@frontend",
+			},
+			wantLead: "@architect",
+			wantInput: "@frontend",
+			wantNear: "ayo-todos",
+			wantLong: "ayo-tickets",
+		},
+		{
+			name: "all specified, no defaults applied",
+			input: ConstitutionFrontmatter{
+				Lead:         "@lead",
+				InputAccepts: "@receiver",
+				Planners: config.PlannersConfig{
+					NearTerm: "custom-todos",
+					LongTerm: "custom-tickets",
+				},
+			},
+			wantLead: "@lead",
+			wantInput: "@receiver",
+			wantNear: "custom-todos",
+			wantLong: "custom-tickets",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.input.WithDefaults()
+			if result.Lead != tt.wantLead {
+				t.Errorf("Lead = %q, want %q", result.Lead, tt.wantLead)
+			}
+			if result.InputAccepts != tt.wantInput {
+				t.Errorf("InputAccepts = %q, want %q", result.InputAccepts, tt.wantInput)
+			}
+			if result.Planners.NearTerm != tt.wantNear {
+				t.Errorf("Planners.NearTerm = %q, want %q", result.Planners.NearTerm, tt.wantNear)
+			}
+			if result.Planners.LongTerm != tt.wantLong {
+				t.Errorf("Planners.LongTerm = %q, want %q", result.Planners.LongTerm, tt.wantLong)
+			}
+		})
+	}
+}
+
+func TestConstitutionFrontmatter_GetInputAcceptsAgent(t *testing.T) {
+	tests := []struct {
+		name  string
+		input ConstitutionFrontmatter
+		want  string
+	}{
+		{
+			name:  "empty defaults to @ayo",
+			input: ConstitutionFrontmatter{},
+			want:  "@ayo",
+		},
+		{
+			name: "uses lead when input_accepts empty",
+			input: ConstitutionFrontmatter{
+				Lead: "@architect",
+			},
+			want: "@architect",
+		},
+		{
+			name: "uses input_accepts when specified",
+			input: ConstitutionFrontmatter{
+				Lead:         "@architect",
+				InputAccepts: "@frontend",
+			},
+			want: "@frontend",
+		},
+		{
+			name: "adds @ prefix if missing",
+			input: ConstitutionFrontmatter{
+				InputAccepts: "backend",
+			},
+			want: "@backend",
+		},
+		{
+			name: "preserves @ prefix",
+			input: ConstitutionFrontmatter{
+				InputAccepts: "@backend",
+			},
+			want: "@backend",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.input.GetInputAcceptsAgent()
+			if got != tt.want {
+				t.Errorf("GetInputAcceptsAgent() = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
