@@ -1,6 +1,8 @@
-# Agent Chaining
+# I/O Schemas
 
-Agents with structured I/O schemas can be composed via Unix pipes. The output of one agent becomes the input to the next.
+> **Note**: This document focuses on agent I/O schema definitions. For orchestrating agents in pipelines, see [Flows](flows.md).
+
+Agents with structured I/O schemas can be composed via Unix pipes or through flow steps. The output of one agent becomes the input to the next.
 
 ## Overview
 
@@ -76,12 +78,12 @@ Agents can define optional JSON schemas:
 }
 ```
 
-## Chain Commands
+## Schema Commands
 
-### List Chainable Agents
+### List Agents with Schemas
 
 ```bash
-ayo chain ls
+ayo flow schema ls
 ```
 
 Shows agents with input or output schemas.
@@ -89,46 +91,46 @@ Shows agents with input or output schemas.
 ### Inspect Schemas
 
 ```bash
-ayo chain inspect @my-agent
+ayo flow schema inspect @my-agent
 ```
 
 Shows input and output schemas with descriptions.
 
 ```bash
-ayo chain inspect @my-agent --json
+ayo flow schema inspect @my-agent --json
 ```
 
 ### Find Compatible Agents
 
 ```bash
 # What can receive this agent's output?
-ayo chain from @code-reviewer
+ayo flow schema from @code-reviewer
 
 # What can feed into this agent?
-ayo chain to @issue-reporter
+ayo flow schema to @issue-reporter
 ```
 
 ### Validate Input
 
 ```bash
 # Validate JSON against input schema
-ayo chain validate @my-agent '{"files": ["main.go"]}'
+ayo flow schema validate @my-agent '{"files": ["main.go"]}'
 
 # Or via stdin
-echo '{"files": ["main.go"]}' | ayo chain validate @my-agent
+echo '{"files": ["main.go"]}' | ayo flow schema validate @my-agent
 ```
 
 ### Generate Example
 
 ```bash
-ayo chain example @my-agent
+ayo flow schema example @my-agent
 ```
 
 Generates example JSON matching the input schema.
 
 ## Schema Compatibility
 
-When piping agents, schemas are checked for compatibility:
+When piping agents or connecting flow steps, schemas are checked for compatibility:
 
 1. **Exact match**: Output schema identical to input schema
 2. **Structural match**: Output has all required fields of input (superset OK)
@@ -136,7 +138,7 @@ When piping agents, schemas are checked for compatibility:
 
 If incompatible, validation fails with a clear error.
 
-## Creating Chainable Agents
+## Creating Agents with Schemas
 
 ### Step 1: Create Schemas
 
@@ -187,16 +189,16 @@ ayo agents create @analyzer \
 
 ```bash
 # Verify schemas
-ayo chain inspect @analyzer
+ayo flow schema inspect @analyzer
 
 # Validate input
-ayo chain validate @analyzer '{"code": "print(x)", "language": "python"}'
+ayo flow schema validate @analyzer '{"code": "print(x)", "language": "python"}'
 
 # Run agent
 ayo @analyzer '{"code": "print(x)", "language": "python"}'
 ```
 
-## Chaining Example
+## Piping Example
 
 ### Two-Agent Pipeline
 
@@ -215,17 +217,17 @@ ayo @analyzer '{"code": "..."}' \
   | ayo @reporter
 ```
 
-## Chain Context
+## Pipeline Context
 
-When agents are chained, context is passed via environment variable:
+When agents are piped, context is passed via environment variable:
 
 ```
-AYO_CHAIN_CONTEXT={"depth":1,"source":"@code-reviewer","source_description":"Code review agent"}
+AYO_PIPELINE_CONTEXT={"depth":1,"source":"@code-reviewer","source_description":"Code review agent"}
 ```
 
 This allows downstream agents to understand the pipeline context.
 
-Freeform agents (without input schema) receive a preamble describing the chain context.
+Freeform agents (without input schema) receive a preamble describing the pipeline context.
 
 ## Pipeline Behavior
 
@@ -239,7 +241,20 @@ The full UI (spinners, reasoning, tool calls) is always visible on stderr.
 
 ## Tips
 
-- Use `--json` flag on chain commands for machine-readable output
-- Test schemas with `ayo chain validate` before running pipelines
-- Use `ayo chain example` to generate test input
-- Chain discovery shows which agents can connect
+- Use `--json` flag on schema commands for machine-readable output
+- Test schemas with `ayo flow schema validate` before running pipelines
+- Use `ayo flow schema example` to generate test input
+- Schema discovery shows which agents can connect
+
+## Deprecated Commands
+
+The following commands are deprecated and will be removed in a future release:
+
+| Deprecated | Replacement |
+|------------|-------------|
+| `ayo chain ls` | `ayo flow schema ls` |
+| `ayo chain inspect` | `ayo flow schema inspect` |
+| `ayo chain from` | `ayo flow schema from` |
+| `ayo chain to` | `ayo flow schema to` |
+| `ayo chain validate` | `ayo flow schema validate` |
+| `ayo chain example` | `ayo flow schema example` |

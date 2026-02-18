@@ -36,7 +36,7 @@ Ayo is a command-line framework for creating, managing, and orchestrating AI age
 | [**Squads**](squads.md) | **Team sandboxes with SQUAD.md constitutions** |
 | [Tickets](tickets.md) | File-based coordination between agents |
 | [Flows](flows.md) | Composable agent pipelines with shell or YAML |
-| [Chaining](chaining.md) | Composing agents via Unix pipes |
+| [I/O Schemas](io-schemas.md) | Structured I/O for agent pipelines |
 | [Delegation](delegation.md) | Task routing to specialized agents |
 
 ## System & Configuration

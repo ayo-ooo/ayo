@@ -22,6 +22,7 @@ For comprehensive documentation, see `docs/`.
 | Full system guide | docs/TUTORIAL.md | Deep understanding of architecture |
 | Agent creation | docs/agents.md | Creating/modifying agents |
 | **Squads & SQUAD.md** | docs/squads.md | Multi-agent team coordination |
+| **Planners** | docs/planners.md | Work coordination plugins |
 | Tickets | docs/tickets.md | File-based coordination |
 | Skills system | docs/skills.md | Adding knowledge to agents |
 | Tools | docs/tools.md | Tool system, bash, memory |
@@ -39,6 +40,7 @@ For comprehensive documentation, see `docs/`.
 | internal/sandbox/ | Container management |
 | internal/squads/ | Squad management, SQUAD.md loading |
 | internal/tickets/ | Ticket-based coordination |
+| internal/planners/ | Planner plugin system (near/long-term) |
 | internal/daemon/ | Background service |
 | internal/providers/ | LLM API integrations |
 | internal/memory/ | Persistent knowledge |
@@ -56,6 +58,12 @@ For comprehensive documentation, see `docs/`.
 - Location: `~/.local/share/ayo/sandboxes/squads/{name}/`
 
 **SQUAD.md**: Constitution file injected into all agents' system prompts. Defines mission, agent roles, coordination rules. See `docs/squads.md`.
+
+**Planners**: Pluggable modules for work coordination. Two types:
+- Near-term (`ayo-todos`): Session-scoped task tracking
+- Long-term (`ayo-tickets`): Persistent ticket-based coordination
+- Interface: `internal/planners/interface.go` defines `PlannerPlugin`
+- Each sandbox can have custom planners via config or SQUAD.md frontmatter
 
 ## Common Commands
 

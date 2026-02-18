@@ -24,7 +24,7 @@
    - [Chapter 11: Memory: Persistent Knowledge](#chapter-11-memory-persistent-knowledge)
 6. [Part V: Multi-Agent Systems](#part-v-multi-agent-systems)
    - [Chapter 12: Delegation: Task Routing](#chapter-12-delegation-task-routing)
-   - [Chapter 13: Chaining: Unix Pipes for Agents](#chapter-13-chaining-unix-pipes-for-agents)
+   - [Chapter 13: Agent Pipelines: Unix Pipes](#chapter-13-agent-pipelines-unix-pipes)
    - [Chapter 14: Collaboration: Shared Sandboxes](#chapter-14-collaboration-shared-sandboxes)
 7. [Part VI: Automation and Workflows](#part-vi-automation-and-workflows)
    - [Chapter 15: Flows: Composable Pipelines](#chapter-15-flows-composable-pipelines)
@@ -438,7 +438,7 @@ When output validation is enabled:
 2. LLM structured output features are used when available
 3. Output is validated before returning
 
-Schemas enable **type-safe chaining**: the output of one agent can be piped to another, with confidence that the data will be compatible.
+Schemas enable **type-safe pipelines**: the output of one agent can be piped to another, with confidence that the data will be compatible.
 
 ---
 
@@ -1402,9 +1402,9 @@ The user may or may not see the delegation, depending on the agent's communicati
 
 ---
 
-## Chapter 13: Chaining: Unix Pipes for Agents
+## Chapter 13: Agent Pipelines: Unix Pipes
 
-### 13.1 The Chaining Philosophy
+### 13.1 The Pipeline Philosophy
 
 Unix pipes revolutionized computing by enabling simple programs to compose:
 
@@ -1425,7 +1425,7 @@ Each agent:
 
 ### 13.2 Schema-Based Compatibility
 
-For reliable chaining, agents define JSON schemas:
+For reliable pipelines, agents define JSON schemas:
 
 **Producer** (`@analyzer/output.jsonschema`):
 ```json
@@ -1471,23 +1471,23 @@ For reliable chaining, agents define JSON schemas:
 
 The system validates that producer output is compatible with consumer input.
 
-### 13.3 Chain Discovery
+### 13.3 Schema Discovery
 
 ```bash
-# List chainable agents
-ayo chain ls
+# List agents with I/O schemas
+ayo flow schema ls
 
 # What can receive @analyzer's output?
-ayo chain from @analyzer
+ayo flow schema from @analyzer
 
 # What can feed into @reporter?
-ayo chain to @reporter
+ayo flow schema to @reporter
 
 # Validate input
-ayo chain validate @reporter '{"findings": [...]}'
+ayo flow schema validate @reporter '{"findings": [...]}'
 
 # Generate example input
-ayo chain example @reporter
+ayo flow schema example @reporter
 ```
 
 ### 13.4 Multi-Stage Pipelines
@@ -1553,7 +1553,7 @@ Agents can leave files in `/shared` for each other:
 
 ### 15.1 What Flows Provide
 
-While agent chaining (pipes) handles simple linear composition, **flows** handle complex workflows:
+While agent pipelines (pipes) handle simple linear composition, **flows** handle complex workflows:
 
 - Multi-step sequences
 - Parallel execution
@@ -1890,7 +1890,7 @@ The `@ayo` namespace is reserved for built-in agents:
 | Mechanism | Use Case |
 |-----------|----------|
 | Agent call | Synchronous delegation |
-| Chaining | Data pipeline (stdin/stdout) |
+| Pipeline | Data pipeline (stdin/stdout) |
 | Shared files | Asynchronous collaboration |
 | Tickets | Task coordination with dependencies |
 
@@ -1910,7 +1910,7 @@ The `agent_call` tool invokes another agent and waits for response:
 
 Caller blocks until callee completes.
 
-### 19.3 Chaining (Streaming)
+### 19.3 Pipelines (Streaming)
 
 Pipe agents for data transformation:
 
@@ -2212,16 +2212,16 @@ This separation keeps agents focused (todos for "what am I doing now") while mai
 | `ayo triggers enable ID` | Enable trigger |
 | `ayo triggers disable ID` | Disable trigger |
 
-### Chain Commands
+### Schema Commands (deprecated: use `ayo flow schema`)
 
 | Command | Description |
 |---------|-------------|
-| `ayo chain ls` | List chainable agents |
-| `ayo chain inspect @agent` | Show schemas |
-| `ayo chain from @agent` | Find compatible consumers |
-| `ayo chain to @agent` | Find compatible producers |
-| `ayo chain validate @agent JSON` | Validate input |
-| `ayo chain example @agent` | Generate example input |
+| `ayo flow schema ls` | List agents with I/O schemas |
+| `ayo flow schema inspect @agent` | Show schemas |
+| `ayo flow schema from @agent` | Find compatible consumers |
+| `ayo flow schema to @agent` | Find compatible producers |
+| `ayo flow schema validate @agent JSON` | Validate input |
+| `ayo flow schema example @agent` | Generate example input |
 
 ### Plugin Commands
 

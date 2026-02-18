@@ -31,8 +31,8 @@ func newAgentsCmd(cfgPath *string) *cobra.Command {
 Agents are stored as directories containing:
   config.json      Agent configuration
   system.md        System prompt
-  input.jsonschema Optional input validation (for chaining)
-  output.jsonschema Optional output format (for chaining)
+  input.jsonschema Optional input validation (for pipelines)
+  output.jsonschema Optional output format (for pipelines)
   skills/          Optional agent-specific skills
 
 Locations:
@@ -257,7 +257,7 @@ func createAgentCmd(cfgPath *string) *cobra.Command {
 		ignoreBuiltinSkills bool
 		ignoreSharedSkills  bool
 
-		// Chaining
+		// I/O Schemas
 		inputSchema  string
 		outputSchema string
 
@@ -292,7 +292,7 @@ Examples:
     -t bash,memory \
     --skills debugging
 
-  # Chainable agent with schemas
+  # Agent with I/O schemas for pipelines
   ayo agents create @analyzer \
     -m gpt-5.2 \
     -f system.md \
@@ -387,7 +387,7 @@ Examples:
 					fmt.Printf("  Skills: %s\n", strings.Join(ag.Config.Skills, ", "))
 				}
 				if ag.HasInputSchema() || ag.HasOutputSchema() {
-					fmt.Println("  Chaining: enabled")
+					fmt.Println("  I/O Schemas: enabled")
 				}
 
 				return nil
@@ -410,7 +410,7 @@ Examples:
 	cmd.Flags().BoolVar(&ignoreBuiltinSkills, "ignore-builtin-skills", false, "don't load built-in skills")
 	cmd.Flags().BoolVar(&ignoreSharedSkills, "ignore-shared-skills", false, "don't load user shared skills")
 
-	// Schema flags for chaining
+	// Schema flags for pipelines
 	cmd.Flags().StringVar(&inputSchema, "input-schema", "", "JSON schema file for validating stdin input")
 	cmd.Flags().StringVar(&outputSchema, "output-schema", "", "JSON schema file for structuring stdout output")
 

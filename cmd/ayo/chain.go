@@ -17,9 +17,10 @@ import (
 
 func newChainCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "chain",
-		Short: "Explore and validate agent chaining",
-		Long:  "Commands for discovering compatible agents and validating chain connections.",
+		Use:        "chain",
+		Short:      "[DEPRECATED] Use 'ayo flow schema' instead",
+		Long:       "DEPRECATED: The 'chain' command group is deprecated. Use 'ayo flow schema' instead.",
+		Deprecated: "use 'ayo flow schema' subcommands instead",
 	}
 
 	cmd.AddCommand(newChainLsCmd(cfgPath))

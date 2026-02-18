@@ -13,7 +13,7 @@ Agents are AI assistants with custom system prompts and tool access. Each agent 
 │  config.json       Model, tools, skills configuration       │
 │  system.md         System prompt (behavior instructions)    │
 │  skills/           Agent-specific skills (optional)         │
-│  *.jsonschema      Structured I/O for chaining (optional)   │
+│  *.jsonschema      Structured I/O for pipelines (optional)   │
 ├─────────────────────────────────────────────────────────────┤
 │  Tools             bash, agent_call, plan                   │
 │  Skills            Instruction sets loaded at runtime       │
@@ -152,8 +152,8 @@ ayo agents create @reviewer -m gpt-5.2 -f system.md
 ├── skills/             # Agent-specific skills (optional)
 │   └── my-skill/
 │       └── SKILL.md
-├── input.jsonschema    # Input schema for chaining (optional)
-└── output.jsonschema   # Output schema for chaining (optional)
+├── input.jsonschema    # Input schema for pipelines (optional)
+└── output.jsonschema   # Output schema for pipelines (optional)
 ```
 
 ### Locations
@@ -345,9 +345,9 @@ Agents can delegate specific task types to other agents. See [Delegation](delega
 }
 ```
 
-## Agent Chaining
+## Agent I/O Schemas
 
-Agents with I/O schemas can be composed via Unix pipes. See [Chaining](chaining.md) for details.
+Agents with I/O schemas can be composed via Unix pipes. See [I/O Schemas](pipelines.md) for details.
 
 ```bash
 ayo @analyzer '{"code":"..."}' | ayo @reporter
