@@ -69,11 +69,43 @@ func (p *Plugin) Tools() []fantasy.AgentTool {
 }
 
 // Instructions returns text to inject into agent system prompts.
-// Instructions will be implemented in am-rozh.
+// This explains how and when to use the todos tool.
 func (p *Plugin) Instructions() string {
-	// Instructions will be added in am-rozh (Add ayo-todos instructions for system prompt)
-	return ""
+	return TodosInstructions
 }
+
+// TodosInstructions contains the system prompt instructions for the todos tool.
+const TodosInstructions = `## Near-Term Task Management
+
+Use the todos tool to track progress on complex, multi-step tasks:
+
+**When to use:**
+- Tasks requiring 3+ distinct steps
+- Multi-file changes that need tracking
+- Work that benefits from explicit progress tracking
+
+**How to use:**
+- Create specific, actionable todo items
+- Keep exactly ONE task in_progress at a time
+- Mark tasks complete IMMEDIATELY after finishing
+- Update todos proactively as work progresses
+
+**Task states:**
+- pending: Not yet started
+- in_progress: Currently working on (only one)
+- completed: Finished successfully
+
+**Required fields for each todo:**
+- content: What needs to be done (imperative form, e.g., "Run tests")
+- active_form: Present continuous form (e.g., "Running tests")
+- status: One of pending, in_progress, completed
+
+**Best practices:**
+- Break complex tasks into smaller steps
+- Don't batch completions; mark done immediately
+- Remove irrelevant tasks from the list
+- The user can see your todo list in real-time
+`
 
 // StateDir returns the directory where this planner stores its state.
 func (p *Plugin) StateDir() string {

@@ -97,9 +97,11 @@ func TestPlugin_Tools(t *testing.T) {
 
 func TestPlugin_Instructions(t *testing.T) {
 	p := &Plugin{}
-	// Currently returns empty (instructions to be implemented in am-rozh)
 	instructions := p.Instructions()
-	if instructions != "" {
-		t.Errorf("Instructions() = %q, want empty (not yet implemented)", instructions)
+	if instructions == "" {
+		t.Error("Instructions() should not be empty")
+	}
+	if instructions != TodosInstructions {
+		t.Errorf("Instructions() = %q, want TodosInstructions", instructions)
 	}
 }
