@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestParseInvocation(t *testing.T) {
@@ -170,6 +172,49 @@ func TestLooksLikeSubcommand(t *testing.T) {
 			result := looksLikeSubcommand(tt.input)
 			if result != tt.expected {
 				t.Errorf("looksLikeSubcommand(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCompleteHandles(t *testing.T) {
+	tests := []struct {
+		name       string
+		toComplete string
+		expectDir  cobra.ShellCompDirective
+	}{
+		{
+			name:       "empty string returns directive",
+			toComplete: "",
+			expectDir:  cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:       "@ prefix returns directive",
+			toComplete: "@",
+			expectDir:  cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:       "# prefix returns directive",
+			toComplete: "#",
+			expectDir:  cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:       "agent prefix returns directive",
+			toComplete: "@my",
+			expectDir:  cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:       "squad prefix returns directive",
+			toComplete: "#front",
+			expectDir:  cobra.ShellCompDirectiveNoFileComp,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, dir := completeHandles(tt.toComplete)
+			if dir != tt.expectDir {
+				t.Errorf("completeHandles(%q) directive = %v, want %v", tt.toComplete, dir, tt.expectDir)
 			}
 		})
 	}

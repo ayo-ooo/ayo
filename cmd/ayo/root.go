@@ -60,6 +60,13 @@ Examples:
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			// Only complete first argument (handle)
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return completeHandles(toComplete)
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Enable debug logging if --debug flag is set
 			if debugFlag {
@@ -518,4 +525,64 @@ var knownSubcommands = []string{
 	"setup", "agents", "skills", "flows", "chain", "sessions", "memory",
 	"doctor", "plugins", "serve", "sandbox", "share", "backup", "sync",
 	"triggers", "ticket", "tickets", "squad", "squads", "service", "daemon",
+}
+
+// completeHandles returns completion suggestions for agent (@) and squad (#) handles.
+func completeHandles(toComplete string) ([]string, cobra.ShellCompDirective) {
+	var completions []string
+
+	// Load config for agent listing
+	cfg, err := config.Load(paths.ConfigFile())
+	if err != nil {
+		cfg = config.Config{}
+	}
+
+	// If completing a # prefix, suggest squad names
+	if strings.HasPrefix(toComplete, "#") {
+		prefix := strings.TrimPrefix(toComplete, "#")
+		squadNames, err := paths.ListSquads()
+		if err == nil {
+			for _, name := range squadNames {
+				if strings.HasPrefix(name, prefix) {
+					completions = append(completions, "#"+name)
+				}
+			}
+		}
+		return completions, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// If completing a @ prefix, suggest agent handles
+	if strings.HasPrefix(toComplete, "@") {
+		prefix := toComplete
+		agents, err := agent.ListHandles(cfg)
+		if err == nil {
+			for _, handle := range agents {
+				if strings.HasPrefix(handle, prefix) {
+					completions = append(completions, handle)
+				}
+			}
+		}
+		return completions, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// No prefix yet - suggest both @ agents and # squads
+	agents, err := agent.ListHandles(cfg)
+	if err == nil {
+		for _, handle := range agents {
+			if strings.HasPrefix(handle, toComplete) || strings.HasPrefix(handle, "@"+toComplete) {
+				completions = append(completions, handle)
+			}
+		}
+	}
+
+	squadNames, err := paths.ListSquads()
+	if err == nil {
+		for _, name := range squadNames {
+			if strings.HasPrefix(name, toComplete) || strings.HasPrefix("#"+name, toComplete) {
+				completions = append(completions, "#"+name)
+			}
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
