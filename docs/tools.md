@@ -1,4 +1,4 @@
-<!-- Scope: Tool system - bash, memory, todo, agent_call. For agent configuration, see agents.md. -->
+<!-- Scope: Tool system - bash, memory, agent_call. For planner tools (todos, tickets), see planners.md. For agent configuration, see agents.md. -->
 
 # Tools
 
@@ -9,13 +9,14 @@ Tools give agents the ability to take actions. Each agent specifies which tools 
 | Tool | Description |
 |------|-------------|
 | `bash` | Execute shell commands (default) |
-| `todo` | Track multi-step tasks with status updates |
 | `memory` | Search, store, and manage memories |
 | `agent_call` | Delegate tasks to other agents |
 | `file_request` | Request access to host files from sandbox |
 | `publish` | Publish files from sandbox to host |
 | `find_agent` | Discover agents by capability |
 | `request_access` | Request filesystem access from user |
+
+**Planner-provided tools:** Task management tools (`todos`, `ticket_*`) are provided by [Planners](planners.md), not built into ayo directly.
 
 ## Tool Categories
 
@@ -24,10 +25,9 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 | Category | Default | Description |
 |----------|---------|-------------|
 | `shell` | `bash` | Command execution |
-| `plan` | (none) | Task tracking (provided by planners) |
 | `search` | (none) | Web search (requires plugin) |
 
-**Note:** The `plan` category has no built-in default—it's populated by the active planner plugins (see [Planners](planners.md)).
+**Note:** The legacy `plan` category has been replaced by the planner system. See [Planners](planners.md) for near-term and long-term planning tools.
 
 **Resolution order:**
 1. Check `default_tools` in config for user override
@@ -47,7 +47,7 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 **Agent config:**
 ```json
 {
-  "allowed_tools": ["bash", "plan"]  // "plan" filled by active planner
+  "allowed_tools": ["bash", "search"]  // "search" resolved via default_tools
 }
 ```
 
@@ -88,105 +88,34 @@ When the agent runs a command:
 - Dangerous commands trigger guardrail warnings
 - Long-running commands timeout after 30s (configurable)
 
-## Todo Tool
+## Task Management (via Planners)
 
-The `todo` tool enables agents to track multi-step tasks with status updates. It's the default implementation for the `planning` category.
+Task management tools are provided by the **planner system**, not as built-in tools:
 
-### Todos vs Tickets
+| Planner | Type | Tools Provided |
+|---------|------|----------------|
+| `ayo-todos` | Near-term | `todos` - Session-scoped task tracking |
+| `ayo-tickets` | Long-term | `ticket_create`, `ticket_list`, `ticket_start`, `ticket_close`, etc. |
 
-Ayo uses a two-tier task management system:
+**Near-term planners** handle immediate work within a session (todos, step-by-step breakdowns).
 
-| Tool | Scope | Lifetime | Use For |
-|------|-------|----------|---------|
-| `todo` | Single session | Ephemeral | Near-term steps ("what I'm doing now") |
-| `ticket` | Across sessions | Persistent | Project work items ("what needs to be done") |
+**Long-term planners** handle persistent project coordination (tickets, issues, kanban boards).
 
-**Todos** are the agent's internal working memory for tracking immediate steps. When a session ends, todos are discarded.
+Planners are swappable via configuration—different sandboxes can use different planning systems. See [Planners](planners.md) for complete documentation.
 
-**Tickets** persist across sessions and agents. When working on a ticket, an agent creates todos to track its immediate steps, then records progress in ticket notes before the session ends.
+### Configuration
 
-```
-Ticket: "Implement auth module"           <- Persistent, shared
-  └── Agent session
-      └── Todos:                          <- Ephemeral, internal
-          - [x] Read existing code
-          - [ ] Implement login endpoint
-```
-
-See [Tickets](tickets.md) for the persistent coordination system.
-
-### Agent Configuration
+Planners are configured globally or per-squad:
 
 ```json
+// ~/.config/ayo/ayo.json
 {
-  "allowed_tools": ["bash", "todo"]
+  "planners": {
+    "near_term": "ayo-todos",
+    "long_term": "ayo-tickets"
+  }
 }
 ```
-
-Or use the category:
-
-```json
-{
-  "allowed_tools": ["bash", "planning"]
-}
-```
-
-### Parameters
-
-```json
-{
-  "todos": [
-    {
-      "content": "What needs to be done (imperative form)",
-      "active_form": "Present continuous form (e.g., 'Running tests')",
-      "status": "pending | in_progress | completed"
-    }
-  ]
-}
-```
-
-### Example
-
-```json
-{
-  "todos": [
-    {
-      "content": "Implement user authentication",
-      "active_form": "Implementing user authentication",
-      "status": "completed"
-    },
-    {
-      "content": "Write tests for auth module",
-      "active_form": "Writing tests for auth module",
-      "status": "in_progress"
-    },
-    {
-      "content": "Add documentation",
-      "active_form": "Adding documentation",
-      "status": "pending"
-    }
-  ]
-}
-```
-
-### Todo States
-
-| State | Description |
-|-------|-------------|
-| `pending` | Not yet started |
-| `in_progress` | Currently working on |
-| `completed` | Finished successfully |
-
-### Rules
-
-- Each todo needs both `content` (imperative) and `active_form` (present continuous)
-- Exactly ONE todo should be `in_progress` at any time
-- The full todo list is provided on each call (replacement, not incremental)
-- Todos persist within the session
-
-### Storage
-
-Todo data is stored in a dedicated SQLite database at `~/.local/share/ayo/tools/todo/todo.db`, keyed by session ID.
 
 ## Memory Tool
 
@@ -336,7 +265,6 @@ Default timeouts:
 | Tool | Default Timeout |
 |------|-----------------|
 | `bash` | 30 seconds |
-| `todo` | N/A (instant) |
 | `memory` | 30 seconds |
 | `agent_call` | No timeout |
 

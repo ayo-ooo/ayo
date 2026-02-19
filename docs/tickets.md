@@ -20,12 +20,12 @@ Each ticket contains:
 
 ## Two-Tier Task Management
 
-Ayo uses a two-tier system for task management:
+Ayo uses a two-tier system for task management, provided by [Planners](planners.md):
 
-| Layer | Tool | Scope | Lifetime | Purpose |
-|-------|------|-------|----------|---------|
-| **Near-term** | `todo` | Single session | Ephemeral | Steps to complete current work |
-| **Medium/Long-term** | `ticket` | Across sessions | Persistent | Project-level work items |
+| Layer | Planner | Tool | Scope | Lifetime | Purpose |
+|-------|---------|------|-------|----------|---------|
+| **Near-term** | `ayo-todos` | `todos` | Single session | Ephemeral | Steps to complete current work |
+| **Long-term** | `ayo-tickets` | `ticket_*` | Across sessions | Persistent | Project-level work items |
 
 ### How They Work Together
 

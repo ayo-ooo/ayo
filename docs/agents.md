@@ -15,7 +15,8 @@ Agents are AI assistants with custom system prompts and tool access. Each agent 
 │  skills/           Agent-specific skills (optional)         │
 │  *.jsonschema      Structured I/O for pipelines (optional)   │
 ├─────────────────────────────────────────────────────────────┤
-│  Tools             bash, agent_call, plan                   │
+│  Tools             bash, agent_call, memory                │
+│  Planners          todos, tickets (via planner plugins)    │
 │  Skills            Instruction sets loaded at runtime       │
 │  Guardrails        Safety constraints (enabled by default)  │
 └─────────────────────────────────────────────────────────────┘
@@ -178,7 +179,6 @@ User agents take precedence over built-in agents with the same name.
   "ignore_shared_skills": false,
   "guardrails": true,
   "trust": "sandboxed",
-  "disable_todo": false,
   "delegates": {
     "coding": "@crush"
   }
@@ -198,8 +198,9 @@ User agents take precedence over built-in agents with the same name.
 | `ignore_shared_skills` | bool | `false` | Skip user shared skills |
 | `guardrails` | bool | `true` | Safety guardrails |
 | `trust` | string | `"sandboxed"` | Trust level (see below) |
-| `disable_todo` | bool | `false` | Disable built-in todo tool |
 | `delegates` | object | | Task type to agent mappings |
+
+**Note:** Task management tools (todos, tickets) are provided by [Planners](planners.md), not configured per-agent.
 
 #### Trust Levels
 

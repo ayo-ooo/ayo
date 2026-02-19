@@ -137,7 +137,6 @@ Each session stores:
 | `created_at` | When session started |
 | `updated_at` | Last activity |
 | `source` | Origin (ayo, crush, etc.) |
-| `plan` | Current plan state (JSON) |
 
 ## Messages
 
@@ -149,22 +148,17 @@ Each message in a session includes:
 | `content` | Message text |
 | `created_at` | Timestamp |
 
-## Todos in Sessions
+## Planner State
 
-When an agent uses the `todo` tool, the todos are stored on the session:
+Task management is handled by [Planners](planners.md), not stored on sessions directly. Planner state is stored in the sandbox's planner directories:
 
-```bash
-# View session to see plan
-ayo sessions show abc123
-
-# Continue session - plan is restored
-ayo sessions continue abc123
+```
+~/.local/share/ayo/sandboxes/ayo/
+├── .planner.near/    # Near-term planner (todos)
+└── .planner.long/    # Long-term planner (tickets)
 ```
 
-The todo list persists across:
-- Session continuation
-- Agent interruption (Ctrl+C)
-- Tool failures
+When you continue a session, the active planners maintain their state automatically.
 
 ## Common Workflows
 

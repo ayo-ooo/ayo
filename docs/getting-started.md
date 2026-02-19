@@ -112,7 +112,7 @@ ayo -a file1.txt -a file2.txt "compare these files"
 
 - Execute shell commands via the `bash` tool
 - Delegate to other agents via `agent_call`
-- Track multi-step tasks with the `todo` tool
+- Track tasks via planners (todos for near-term, tickets for long-term)
 - Create and manage other agents and skills
 - Use any attached skills for specialized tasks
 

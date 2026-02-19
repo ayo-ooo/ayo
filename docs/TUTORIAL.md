@@ -1067,9 +1067,10 @@ Some tool names are **categories** that resolve to specific implementations:
 
 | Category | Default | Description |
 |----------|---------|-------------|
-| `planning` | `todo` | Task tracking |
 | `shell` | `bash` | Command execution |
 | `search` | (none) | Web search |
+
+**Note:** Task tracking (todos, tickets) is now handled by [Planners](planners.md), not tool categories.
 
 Categories allow users to swap implementations without changing agent configs:
 
