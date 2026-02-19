@@ -210,6 +210,14 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("create runtime dir: %w", err)
 	}
 
+	// Ensure all mount source directories exist before creating sandboxes
+	// This is needed for the pool's default mounts to work
+	for _, mount := range s.pool.Config().Mounts {
+		if err := os.MkdirAll(mount.Source, 0755); err != nil {
+			return fmt.Errorf("create mount source dir %s: %w", mount.Source, err)
+		}
+	}
+
 	// Start listening
 	var err error
 	if runtime.GOOS == "windows" {
@@ -226,6 +234,15 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 	if err := s.pool.Start(ctx); err != nil {
 		s.listener.Close()
 		return fmt.Errorf("start pool: %w", err)
+	}
+
+	// Pre-warm @ayo sandbox so first invocation is fast
+	if appleProvider, ok := s.provider.(*sandbox.AppleProvider); ok {
+		go func() {
+			if _, err := sandbox.EnsureAyoSandbox(ctx, appleProvider); err != nil {
+				// Log but don't fail - @ayo sandbox is optional enhancement
+			}
+		}()
 	}
 
 	// Start session manager

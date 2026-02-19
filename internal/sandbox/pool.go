@@ -45,6 +45,11 @@ func NewPool(config PoolConfig, provider providers.SandboxProvider) *Pool {
 	}
 }
 
+// Config returns the pool configuration.
+func (p *Pool) Config() PoolConfig {
+	return p.config
+}
+
 // Start initializes the pool with warm sandboxes.
 func (p *Pool) Start(ctx context.Context) error {
 	p.mu.Lock()

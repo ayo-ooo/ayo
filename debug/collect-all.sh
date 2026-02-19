@@ -71,7 +71,7 @@ if $JSON_OUTPUT; then
     
     echo "}"
 else
-    cat <<'EOF'
+    cat <<'HEADER'
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
 ║                         AYO DIAGNOSTIC REPORT                                 ║
@@ -81,8 +81,8 @@ else
   This report contains comprehensive diagnostic information for debugging
   ayo issues. Include the entire report when asking for help.
 
-  Generated: EOF
-    echo "$(date)"
+HEADER
+    echo "  Generated: $(date)"
     echo ""
 
     # System Info

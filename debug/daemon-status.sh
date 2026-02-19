@@ -42,9 +42,23 @@ for arg in "$@"; do
     esac
 done
 
-SOCKET_PATH="${XDG_RUNTIME_DIR:-/tmp}/ayo/daemon.sock"
-LOG_PATH="${XDG_STATE_HOME:-$HOME/.local/state}/ayo/daemon.log"
-PID_PATH="${XDG_RUNTIME_DIR:-/tmp}/ayo/daemon.pid"
+# Detect dev mode: check if we're in a git repo with .local/share/ayo/
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [[ -d "$REPO_ROOT/.local/share/ayo" ]]; then
+    # Dev mode: use repo-local paths
+    DATA_DIR="$REPO_ROOT/.local/share/ayo"
+    STATE_DIR="$REPO_ROOT/.local/state/ayo"
+else
+    # Production mode: use standard XDG paths
+    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/ayo"
+    STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/ayo"
+fi
+
+SOCKET_PATH="$DATA_DIR/daemon.sock"
+LOG_PATH="$STATE_DIR/daemon.log"
+PID_PATH="$DATA_DIR/daemon.pid"
 
 divider() {
     if ! $JSON_OUTPUT; then
@@ -91,7 +105,7 @@ if $JSON_OUTPUT; then
     # Get daemon status via ayo if available
     daemon_status="{}"
     if command -v ayo &>/dev/null && $DAEMON_RUNNING; then
-        daemon_status=$(ayo status --json 2>/dev/null || echo '{}')
+        daemon_status=$(ayo sandbox service status --json 2>/dev/null || echo '{}')
     fi
     
     cat <<EOF
@@ -138,7 +152,7 @@ else
     section "Ayo Status Command"
     if command -v ayo &>/dev/null; then
         if $DAEMON_RUNNING; then
-            ayo status 2>&1 | sed 's/^/  /' || echo "  Error getting status"
+            ayo sandbox service status 2>&1 | sed 's/^/  /' || echo "  Error getting status"
         else
             echo "  Daemon not running - cannot get detailed status"
             echo "  Start with: ayo sandbox service start"
@@ -149,10 +163,10 @@ else
 
     if $DAEMON_RUNNING; then
         section "Active Sessions"
-        ayo daemon sessions 2>&1 | head -20 | sed 's/^/  /' || echo "  Error listing sessions"
+        ayo session list --limit 10 2>&1 | head -20 | sed 's/^/  /' || echo "  No active sessions"
 
         section "Registered Triggers"
-        ayo triggers list --json 2>/dev/null | jq -r '.[] | "  \(.id)  \(.type)  \(.agent)"' 2>/dev/null || echo "  Error listing triggers or none registered"
+        ayo trigger list --json 2>/dev/null | jq -r '.[] | "  \(.id)  \(.type)  \(.agent)"' 2>/dev/null || echo "  No triggers registered"
     fi
 
     if $SHOW_LOGS; then

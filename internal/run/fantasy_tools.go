@@ -19,8 +19,10 @@ import (
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/sandbox"
+	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/tools"
 	"github.com/alexcabrera/ayo/internal/tools/findagent"
+	"github.com/alexcabrera/ayo/internal/tools/requestaccess"
 )
 
 // Tool parameter types for Fantasy
@@ -122,6 +124,8 @@ type ToolSetOptions struct {
 	SandboxExecutor    *sandbox.Executor
 	CapabilitySearcher *capabilities.CapabilitySearcher // Optional for find_agent tool
 	PlannerTools       []fantasy.AgentTool              // Tools from planner plugins
+	ShareService       *share.Service                   // Optional for request_access tool
+	SessionID          string                           // Session ID for session-scoped shares
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
@@ -204,6 +208,16 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 			if opts.CapabilitySearcher != nil {
 				fantasyTools = append(fantasyTools, findagent.NewFindAgentTool(findagent.ToolConfig{
 					Searcher: opts.CapabilitySearcher,
+				}))
+				loadedTools[resolvedName] = true
+			}
+		case "request_access":
+			// Only add if share service is configured
+			if opts.ShareService != nil {
+				fantasyTools = append(fantasyTools, requestaccess.NewRequestAccessTool(requestaccess.ToolConfig{
+					ShareService:  opts.ShareService,
+					SessionID:     opts.SessionID,
+					SessionScoped: nil, // Default to true (session-scoped shares)
 				}))
 				loadedTools[resolvedName] = true
 			}

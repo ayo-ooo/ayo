@@ -203,29 +203,39 @@ func listAgentsCmd(cfgPath *string) *cobra.Command {
 				// Header
 				fmt.Println()
 				fmt.Println(headerStyle.Render("  Agents"))
-				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 60)))
+				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 80)))
 				fmt.Println()
 
 				// Column headers
-				fmt.Printf("  %-20s %-18s %-12s\n",
+				fmt.Printf("  %-12s %-14s %-10s %s\n",
 					countStyle.Render("NAME"),
 					countStyle.Render("TRUST"),
-					countStyle.Render("TYPE"))
+					countStyle.Render("TYPE"),
+					countStyle.Render("DESCRIPTION"))
 
 				if len(agents) == 0 {
 					fmt.Println()
 					fmt.Printf("    %s\n", emptyStyle.Render("No agents match the filters"))
 				} else {
 					for _, a := range agents {
-						fmt.Printf("  %-20s %-18s %-12s\n",
+						// Truncate description if too long
+						desc := a.desc
+						if len(desc) > 45 {
+							desc = desc[:42] + "..."
+						}
+						if desc == "" {
+							desc = emptyStyle.Render("(no description)")
+						}
+						fmt.Printf("  %-12s %-14s %-10s %s\n",
 							handleStyle.Render(a.handle),
 							formatTrust(a.trust),
-							descStyle.Render(a.agentType))
+							descStyle.Render(a.agentType),
+							desc)
 					}
 				}
 
 				fmt.Println()
-				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 60)))
+				fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 80)))
 				fmt.Println(countStyle.Render(fmt.Sprintf("  %d agents", len(agents))))
 				fmt.Println()
 

@@ -23,6 +23,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/cli"
@@ -216,6 +217,12 @@ Examples:
 					})
 				}
 
+				// Create share service for request_access tool
+				shareSvc := share.NewService()
+				if err := shareSvc.Load(); err != nil {
+					debug.Log("Failed to load share service", "error", err)
+				}
+
 				runner, err := run.NewRunner(cfg, debugFlag, run.RunnerOptions{
 					Services:         services,
 					MemoryService:    memSvc,
@@ -223,6 +230,7 @@ Examples:
 					SmallModel:       smallModelSvc,
 					MemoryQueue:      memQueue,
 					SandboxProvider:  selectSandboxProvider(),
+					ShareService:     shareSvc,
 				})
 				if err != nil {
 					return err

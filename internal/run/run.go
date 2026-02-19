@@ -20,6 +20,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
+	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/squads"
 	uipkg "github.com/alexcabrera/ayo/internal/ui"
@@ -42,6 +43,7 @@ type Runner struct {
 	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
 	squadName        string                   // squad name for constitution injection (empty = no squad)
 	dispatcher       *Dispatcher              // nil = no semantic dispatch
+	shareService     *share.Service           // nil = no share service for request_access
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -85,6 +87,7 @@ type RunnerOptions struct {
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
 	SquadName        string                     // Squad name for squad context injection (empty = no squad)
 	Dispatcher       *Dispatcher                // Dispatcher for semantic routing decisions
+	ShareService     *share.Service             // Share service for request_access tool
 }
 
 // NewRunner creates a runner with all options.
@@ -103,6 +106,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		sandboxProvider:  opts.SandboxProvider,
 		squadName:        opts.SquadName,
 		dispatcher:       opts.Dispatcher,
+		shareService:     opts.ShareService,
 	}, nil
 }
 
@@ -909,6 +913,8 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		Depth:           r.depth,
 		DisableTodo:     ag.Config.DisableTodo,
 		SandboxExecutor: sandboxExecutor,
+		ShareService:    r.shareService,
+		SessionID:       sandboxID, // Use sandbox ID for session-scoped shares
 	})
 
 	fantasyAgent := fantasy.NewAgent(

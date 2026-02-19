@@ -20,6 +20,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/session/jsonl"
+	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/ui"
 )
@@ -505,6 +506,10 @@ Supports session ID prefix matching and title search.`,
 			memQueue.Start()
 			defer memQueue.Stop(5 * time.Second)
 
+			// Create share service for request_access tool
+			shareSvc := share.NewService()
+			_ = shareSvc.Load() // Ignore error - service works without persisted shares
+
 			// Create runner with services
 			runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
 				Services:         services,
@@ -513,6 +518,7 @@ Supports session ID prefix matching and title search.`,
 				SmallModel:       smallModelSvc,
 				MemoryQueue:      memQueue,
 				SandboxProvider:  selectSandboxProvider(),
+				ShareService:     shareSvc,
 			})
 			if err != nil {
 				return err
