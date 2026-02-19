@@ -12,6 +12,10 @@ Tools give agents the ability to take actions. Each agent specifies which tools 
 | `todo` | Track multi-step tasks with status updates |
 | `memory` | Search, store, and manage memories |
 | `agent_call` | Delegate tasks to other agents |
+| `file_request` | Request access to host files from sandbox |
+| `publish` | Publish files from sandbox to host |
+| `find_agent` | Discover agents by capability |
+| `request_access` | Request filesystem access from user |
 
 ## Tool Categories
 
@@ -19,9 +23,11 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 
 | Category | Default | Description |
 |----------|---------|-------------|
-| `planning` | `todo` | Task tracking during execution |
 | `shell` | `bash` | Command execution |
+| `plan` | (none) | Task tracking (provided by planners) |
 | `search` | (none) | Web search (requires plugin) |
+
+**Note:** The `plan` category has no built-in default—it's populated by the active planner plugins (see [Planners](planners.md)).
 
 **Resolution order:**
 1. Check `default_tools` in config for user override
@@ -41,7 +47,7 @@ Ayo supports **tool categories** - semantic slots that can be filled by differen
 **Agent config:**
 ```json
 {
-  "allowed_tools": ["bash", "planning"]  // "planning" resolves to "todo"
+  "allowed_tools": ["bash", "plan"]  // "plan" filled by active planner
 }
 ```
 

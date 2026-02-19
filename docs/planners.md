@@ -43,12 +43,15 @@ Long-term planners handle persistent project coordination:
 
 ### Global Defaults
 
-Set default planners in `~/.config/ayo/config.toml`:
+Set default planners in `~/.config/ayo/ayo.json`:
 
-```toml
-[planners]
-near_term = "ayo-todos"
-long_term = "ayo-tickets"
+```json
+{
+  "planners": {
+    "near_term": "ayo-todos",
+    "long_term": "ayo-tickets"
+  }
+}
 ```
 
 ### Per-Squad Overrides

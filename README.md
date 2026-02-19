@@ -515,14 +515,14 @@ steps:
 | [Squads](docs/squads.md) | Team sandboxes with SQUAD.md constitutions |
 | [Tickets](docs/tickets.md) | File-based task coordination |
 | [Flows](docs/flows.md) | Composable agent pipelines |
-| [Chaining](docs/chaining.md) | Unix pipe composition |
+| [Planners](docs/planners.md) | Work coordination plugins (todos, tickets) |
 | [Delegation](docs/delegation.md) | Task routing to specialists |
 
 ### Reference
 
 | Guide | Description |
 |-------|-------------|
-| [CLI Reference](docs/reference/README.md) | Complete command documentation |
+| [CLI Reference](docs/cli-reference.md) | Complete command documentation |
 | [Configuration](docs/configuration.md) | Config files and directories |
 | [Plugins](docs/plugins.md) | Extending ayo |
 | [Flows Specification](docs/flows-spec.md) | YAML flow schema |

@@ -1240,112 +1240,101 @@ ayo ticket delete <ticket-id> -s <session> [--force]
 
 ---
 
-## ayo mount
+## ayo share
 
-Manage persistent filesystem access for sandboxed agents.
+Share host directories with sandboxed agents.
 
-Grants persist across sessions and allow agents to access host filesystem paths. Project-level mounts (`.ayo.json`) and session mounts (`--mount` flag) can only restrict access to paths already granted here—they cannot grant new access.
+Shares create symlinks in a workspace directory that is mounted into sandboxes. Changes take effect immediately without requiring sandbox restart. Shared directories appear at `/workspace/{name}` inside the sandbox.
 
-### ayo mount add
+### ayo share add
 
-Grant filesystem access to a path.
+Share a host directory.
 
 ```bash
-ayo mount add <path> [--flags]
+ayo share add <path> [--flags]
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--ro` | Grant read-only access (default is read-write) |
-| `--json` | Output in JSON format |
-
-Aliases: `ayo mount grant`
+| `--as` | Custom name for the share |
+| `--session` | Remove share when session ends |
 
 **Features:**
 - Paths are resolved to absolute paths
 - Supports `~/` home directory expansion
-- Warns if path doesn't exist (but still grants for future use)
+- Name is derived from path basename unless `--as` is specified
 
 **Examples:**
 
 ```bash
-ayo mount add .                  # Current directory, read-write
-ayo mount add ~/Documents --ro   # Read-only access to Documents
-ayo mount add /tmp/project       # Absolute path
+ayo share add ~/Code/myproject           # Share with auto-generated name
+ayo share add . --as project             # Share current directory as 'project'
+ayo share add ~/data --session           # Share for this session only
 ```
 
 **Output:**
 ```
-✓ Granted readwrite access to /Users/you/project
+✓ Shared /Users/you/project → /workspace/project
 ```
 
-### ayo mount list
+### ayo share list
 
-List all filesystem grants.
+List all shares.
 
 ```bash
-ayo mount list [--json]
+ayo share list [--json]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output in JSON format |
 
-Aliases: `ayo mount ls`
+Aliases: `ayo share ls`
 
 **Output:**
 ```
-PATH              MODE       GRANTED
-/Users/you/proj   readwrite  2026-02-07
-/Users/you/docs   readonly   2026-02-06
+  Shares
+  ──────────────────────────────────────────────────
+
+  ● project → /workspace/project
+    /Users/you/project  2 hours ago
+
+  ○ data → /workspace/data (session)
+    /Users/you/data  10 minutes ago
+
+  Access at /workspace/{name} inside sandbox
 ```
 
-**JSON Output:**
-```json
-[
-  {"path": "/Users/you/proj", "mode": "readwrite", "granted_at": "2026-02-07T10:30:00Z"},
-  {"path": "/Users/you/docs", "mode": "readonly", "granted_at": "2026-02-06T14:00:00Z"}
-]
-```
+Session shares (temporary) are marked with ○, permanent shares with ●.
 
-### ayo mount rm
+### ayo share rm
 
-Remove filesystem access.
+Remove a share.
 
 ```bash
-ayo mount rm <path> [--flags]
-ayo mount rm --all
+ayo share rm [name|path]
+ayo share rm --all
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--all` | Remove all grants |
-| `--json` | Output in JSON format |
+| `--all` | Remove all shares |
 
-Aliases: `ayo mount revoke`
+Aliases: `ayo share remove`
 
 **Examples:**
 
 ```bash
-ayo mount rm ~/Documents         # Remove specific grant
-ayo mount rm --all               # Remove all grants
+ayo share rm project              # Remove by name
+ayo share rm ~/Code/project       # Remove by path
+ayo share rm --all                # Remove all shares
 ```
 
 **Output:**
 ```
-✓ Revoked access to /Users/you/Documents
-✓ Revoked 3 grant(s)
+✓ Removed share: project
+✓ Removed 3 share(s)
 ```
-
-### Mount Hierarchy
-
-Mounts work in a three-tier hierarchy:
-
-1. **Global grants** (`ayo mount add`) - Defines maximum accessible paths
-2. **Project mounts** (`.ayo.json` `mounts` array) - Restricts to project-relevant paths
-3. **Session mounts** (`--mount` flag) - Further restricts for specific sessions
-
-Each tier can only narrow access, never expand it. A project cannot access paths not granted globally.
 
 ---
 
@@ -1629,16 +1618,15 @@ ayo sync pull [remote]
 
 ---
 
-## ayo status
+## ayo sandbox service status
 
-Show system and service status.
+Show sandbox service status.
 
 ```bash
-ayo status
+ayo sandbox service status
 ```
 
 Displays:
-- CLI version
 - Service status (running/not running)
 - Service PID and uptime
 - Sandbox pool statistics

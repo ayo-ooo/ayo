@@ -12,9 +12,13 @@ Skills are reusable instruction sets that teach agents specialized tasks. They f
 | `debugging` | Systematic debugging techniques |
 | `coding` | Source code creation guidelines |
 | `memory` | Memory tool usage guidelines |
+| `memory-usage` | How to use memory retrieval effectively |
+| `memory-worthy` | Guidelines for what's worth remembering |
 | `plugins` | Plugin management guidance |
 | `agent-discovery` | Discovering and inspecting agents |
 | `flows` | Composable agent pipelines and automation |
+| `sandbox` | Working in sandboxed environments |
+| `session-summary` | Generating session summaries |
 
 ## Skill Discovery
 

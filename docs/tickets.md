@@ -146,7 +146,7 @@ ayo ticket show proj-a1b2 -s my-session
 
 ```
                     ┌─────────────┐
-                    │   pending   │
+                    │    open     │
                     └──────┬──────┘
                            │ start
                            ▼
@@ -161,7 +161,7 @@ ayo ticket show proj-a1b2 -s my-session
             ▲                    │ reopen
             │                    ▼
             │             ┌─────────────┐
-            └─────────────│   pending   │
+            └─────────────│    open     │
                           └─────────────┘
 ```
 
@@ -169,7 +169,7 @@ ayo ticket show proj-a1b2 -s my-session
 
 | Status | Meaning |
 |--------|---------|
-| `pending` | Not yet started, waiting for assignment or dependencies |
+| `open` | Not yet started, waiting for assignment or dependencies |
 | `in_progress` | Actively being worked on |
 | `blocked` | Cannot proceed (dependency, external blocker) |
 | `closed` | Completed |
@@ -198,15 +198,17 @@ The system prevents dependency cycles—you can't create circular dependencies.
 | `task` | General work item (default) |
 | `bug` | Defect to fix |
 | `feature` | New functionality |
-| `subtask` | Child of another ticket |
+| `epic` | Large initiative with child tickets |
+| `chore` | Maintenance or cleanup work |
+| `escalation` | Issue requiring elevated attention |
 
 ```bash
 # Create a bug ticket
 ayo ticket create "Login fails with special chars" --type bug -s my-session
 
-# Create subtasks
-ayo ticket create "Implement endpoint" --parent auth-impl -s my-session
-ayo ticket create "Write tests" --parent auth-impl -s my-session
+# Create child tickets under an epic
+ayo ticket create "Implement endpoint" --parent auth-epic -s my-session
+ayo ticket create "Write tests" --parent auth-epic -s my-session
 ```
 
 ## Priority
@@ -219,6 +221,7 @@ Priority is a number where lower = more urgent:
 | 1 | High |
 | 2 | Medium (default) |
 | 3 | Low |
+| 4 | Backlog |
 
 ```bash
 ayo ticket create "Security vulnerability" -p 0 -s my-session

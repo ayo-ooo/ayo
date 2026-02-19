@@ -100,6 +100,7 @@ Supported providers:
 - `anthropic` - Anthropic API
 - `google` - Google AI API
 - `openrouter` - OpenRouter (multiple providers)
+- `ollama` - Local Ollama models
 
 ## Environment Variables
 

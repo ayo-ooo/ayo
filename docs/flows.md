@@ -151,7 +151,9 @@ Invoke an AI agent:
     {{ steps.read-code.stdout }}
 ```
 
-#### Squad Steps
+#### Squad Steps (Planned)
+
+> **Note**: Squad steps are planned but not yet implemented. Currently only `shell` and `agent` step types are supported.
 
 Dispatch work to a squad for collaborative execution:
 

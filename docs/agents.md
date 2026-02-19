@@ -177,6 +177,8 @@ User agents take precedence over built-in agents with the same name.
   "ignore_builtin_skills": false,
   "ignore_shared_skills": false,
   "guardrails": true,
+  "trust": "sandboxed",
+  "disable_todo": false,
   "delegates": {
     "coding": "@crush"
   }
@@ -195,7 +197,19 @@ User agents take precedence over built-in agents with the same name.
 | `ignore_builtin_skills` | bool | `false` | Skip built-in skills |
 | `ignore_shared_skills` | bool | `false` | Skip user shared skills |
 | `guardrails` | bool | `true` | Safety guardrails |
+| `trust` | string | `"sandboxed"` | Trust level (see below) |
+| `disable_todo` | bool | `false` | Disable built-in todo tool |
 | `delegates` | object | | Task type to agent mappings |
+
+#### Trust Levels
+
+The `trust` field controls sandbox behavior and orchestration visibility:
+
+| Level | Description |
+|-------|-------------|
+| `sandboxed` | Default. Agent runs in full sandbox with guardrails enabled. Can be orchestrated by @ayo. |
+| `privileged` | Allows host filesystem access via mount grants. Guardrails still enabled. Can be orchestrated by @ayo. |
+| `unrestricted` | Runs without sandbox or guardrails. **Cannot** be orchestrated by @ayo—invisible to capability discovery. Use with extreme caution. |
 
 ### system.md
 
