@@ -112,6 +112,30 @@ To use ayo-todos-db instead of the default:
 }
 ```
 
+### ayo-goals
+
+Goal-oriented near-term planner focusing on outcomes rather than tasks:
+
+**Tools:**
+- `goals` - Set and track session goals with milestones and progress
+
+**Features:**
+- Outcome-focused planning (goals vs tasks)
+- Progress percentage tracking (0-100%)
+- Milestones as checkpoints toward goals
+- Notes for context and learnings
+- States: active, achieved, abandoned
+
+To use ayo-goals instead of the default:
+
+```json
+{
+  "planners": {
+    "near_term": "ayo-goals"
+  }
+}
+```
+
 ### ayo-tickets
 
 The default long-term planner providing file-based ticket management:
