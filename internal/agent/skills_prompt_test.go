@@ -8,12 +8,12 @@ import (
 )
 
 func TestBuildSkillsPromptEmpty(t *testing.T) {
-	result := buildSkillsPrompt(nil)
+	result := buildSkillsPrompt(nil, false)
 	if result != "" {
 		t.Errorf("expected empty string, got %q", result)
 	}
 
-	result = buildSkillsPrompt([]skills.Metadata{})
+	result = buildSkillsPrompt([]skills.Metadata{}, false)
 	if result != "" {
 		t.Errorf("expected empty string, got %q", result)
 	}
@@ -25,7 +25,7 @@ func TestBuildSkillsPromptBasic(t *testing.T) {
 		{Name: "skill-a", Description: "Description A", Path: "/path/to/a/SKILL.md"},
 	}
 
-	result := buildSkillsPrompt(metas)
+	result := buildSkillsPrompt(metas, false)
 
 	// Should contain available_skills tags
 	if !strings.Contains(result, "<available_skills>") {
@@ -71,7 +71,7 @@ func TestBuildSkillsPromptWithResources(t *testing.T) {
 		},
 	}
 
-	result := buildSkillsPrompt(metas)
+	result := buildSkillsPrompt(metas, false)
 
 	if !strings.Contains(result, "<resources>") {
 		t.Error("missing resources tag")
@@ -99,7 +99,7 @@ func TestBuildSkillsPromptNoResources(t *testing.T) {
 		},
 	}
 
-	result := buildSkillsPrompt(metas)
+	result := buildSkillsPrompt(metas, false)
 
 	if strings.Contains(result, "<resources>") {
 		t.Error("should not have resources tag when no resources exist")
@@ -115,7 +115,7 @@ func TestBuildSkillsPromptXMLEscaping(t *testing.T) {
 		},
 	}
 
-	result := buildSkillsPrompt(metas)
+	result := buildSkillsPrompt(metas, false)
 
 	if strings.Contains(result, "<special>") {
 		t.Error("< should be escaped")
@@ -146,5 +146,44 @@ func TestEscapeXML(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("escapeXML(%q) = %q, want %q", tt.input, result, tt.expected)
 		}
+	}
+}
+
+func TestBuildSkillsPromptSandboxMode(t *testing.T) {
+	metas := []skills.Metadata{
+		{
+			Name:        "test-skill",
+			Description: "Test skill description",
+			Path:        "/host/path/to/SKILL.md",
+			HasScripts:  true,
+			HasRefs:     true,
+		},
+	}
+
+	// In sandbox mode, paths and resources should be omitted
+	result := buildSkillsPrompt(metas, true)
+
+	// Should not contain host paths
+	if strings.Contains(result, "/host/path") {
+		t.Error("sandbox mode should not include host paths")
+	}
+	if strings.Contains(result, "<location>") {
+		t.Error("sandbox mode should not include location elements")
+	}
+	if strings.Contains(result, "<resources>") {
+		t.Error("sandbox mode should not include resources elements")
+	}
+
+	// Should still contain skill name and description
+	if !strings.Contains(result, "<name>test-skill</name>") {
+		t.Error("sandbox mode should still include skill name")
+	}
+	if !strings.Contains(result, "<description>Test skill description</description>") {
+		t.Error("sandbox mode should still include skill description")
+	}
+
+	// Should not mention cat <location>
+	if strings.Contains(result, "cat <location>") {
+		t.Error("sandbox mode should not mention cat <location>")
 	}
 }

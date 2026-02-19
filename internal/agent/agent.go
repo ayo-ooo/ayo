@@ -511,7 +511,8 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 	}
 
 	// Build environment context block (placed at top of system prompt)
-	envContext := buildEnvContext()
+	sandboxMode := agentConfig.SandboxEnabled()
+	envContext := buildEnvContext(sandboxMode)
 
 	// Assemble system prompt: envContext + guardrails + prefix + agent + suffix
 	combinedParts := make([]string, 0, 5)
@@ -539,7 +540,7 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 			IgnoreShared:  agentConfig.IgnoreSharedSkills,
 		},
 	)
-	skillsPrompt := buildSkillsPrompt(discovery.Skills)
+	skillsPrompt := buildSkillsPrompt(discovery.Skills, sandboxMode)
 	toolsPrompt := BuildToolsPrompt(agentConfig.AllowedTools)
 
 	// Load input schema if present
@@ -628,7 +629,9 @@ func buildDelegateContext(cfg config.Config, agentDelegates map[string]string) s
 // buildEnvContext returns environment information for the system prompt.
 // This is placed at the top so the model has immediate context about
 // the runtime environment and current time.
-func buildEnvContext() string {
+// When sandboxMode is true, host-specific paths are omitted since the agent
+// will run in an isolated container with different paths.
+func buildEnvContext(sandboxMode bool) string {
 	var b strings.Builder
 	b.WriteString("<environment>\n")
 
@@ -640,19 +643,27 @@ func buildEnvContext() string {
 	b.WriteString(fmt.Sprintf("os: %s\n", runtime.GOOS))
 	b.WriteString(fmt.Sprintf("arch: %s\n", runtime.GOARCH))
 
-	// Working directory
-	if wd, err := os.Getwd(); err == nil {
-		b.WriteString(fmt.Sprintf("cwd: %s\n", wd))
+	if sandboxMode {
+		// Sandbox mode: use sandbox-relative paths
+		b.WriteString("mode: sandboxed\n")
+		b.WriteString("cwd: /workspace\n")
+		b.WriteString("home: /home/agent\n")
+		b.WriteString("shared: /shared\n")
+	} else {
+		// Host mode: use actual host paths
+		if wd, err := os.Getwd(); err == nil {
+			b.WriteString(fmt.Sprintf("cwd: %s\n", wd))
+		}
+		if home, err := os.UserHomeDir(); err == nil {
+			b.WriteString(fmt.Sprintf("home: %s\n", home))
+		}
 	}
 
-	// Shell (from environment)
-	if shell := os.Getenv("SHELL"); shell != "" {
-		b.WriteString(fmt.Sprintf("shell: %s\n", shell))
-	}
-
-	// Home directory
-	if home, err := os.UserHomeDir(); err == nil {
-		b.WriteString(fmt.Sprintf("home: %s\n", home))
+	// Shell (from environment) - only in host mode
+	if !sandboxMode {
+		if shell := os.Getenv("SHELL"); shell != "" {
+			b.WriteString(fmt.Sprintf("shell: %s\n", shell))
+		}
 	}
 
 	b.WriteString("</environment>")

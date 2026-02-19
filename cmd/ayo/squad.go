@@ -107,20 +107,25 @@ func squadListCmd() *cobra.Command {
 				return nil
 			}
 
+			// Header
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#a78bfa"))
+			fmt.Println()
+			fmt.Println(headerStyle.Render("  Squads"))
+			fmt.Println(squadMutedStyle.Render("  " + strings.Repeat("─", 60)))
+			fmt.Println()
+
 			for _, squad := range result.Squads {
 				status := squadStatusColor(squad.Status).Render(fmt.Sprintf("[%s]", squad.Status))
 				name := squadNameStyle.Render(squad.Name)
 				
-				line := fmt.Sprintf("%s %s", name, status)
+				fmt.Printf("  %s %s\n", name, status)
 				if squad.Description != "" {
-					line += " - " + squadMutedStyle.Render(squad.Description)
+					fmt.Printf("    %s\n", squadMutedStyle.Render(squad.Description))
 				}
-				fmt.Println(line)
-
 				if len(squad.Agents) > 0 {
-					agents := squadMutedStyle.Render("  agents: " + strings.Join(squad.Agents, ", "))
-					fmt.Println(agents)
+					fmt.Printf("    %s %s\n", squadMutedStyle.Render("Agents:"), strings.Join(squad.Agents, ", "))
 				}
+				fmt.Println()
 			}
 
 			return nil

@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -117,8 +118,10 @@ func newSandboxListCmd() *cobra.Command {
 						CreatedAt: sb.CreatedAt,
 					})
 				}
-				globalOutput.PrintData(out, "")
-				return nil
+				// Output raw array for jq compatibility (e.g., .[0].id)
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(out)
 			}
 
 			// Quiet mode: just list IDs

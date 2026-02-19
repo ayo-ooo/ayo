@@ -491,14 +491,14 @@ Exit codes:
 
 func validateFlowCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "validate <path>",
-		Short: "Validate a flow file or directory",
+		Use:   "validate <name-or-path>",
+		Short: "Validate a flow by name or path",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := args[0]
+			nameOrPath := args[0]
 
-			// Try to load the flow
-			flow, err := flows.DiscoverOne(path)
+			// Try to find flow by name or path
+			flow, err := flows.FindByName(nameOrPath, paths.FlowsDirs())
 			if err != nil {
 				// Styled error output
 				errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444"))

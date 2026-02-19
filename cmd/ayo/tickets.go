@@ -836,6 +836,16 @@ func printTicketFull(t daemon.TicketInfo) {
 		fmt.Println()
 		fmt.Println(t.Description)
 	}
+
+	if len(t.Notes) > 0 {
+		fmt.Println()
+		fmt.Println(ticketTitleStyle.Render("## Notes"))
+		fmt.Println()
+		for _, note := range t.Notes {
+			ts := time.Unix(note.Timestamp, 0).Format("2006-01-02 15:04")
+			fmt.Printf("  %s  %s\n", ticketMutedStyle.Render(ts), note.Content)
+		}
+	}
 }
 
 func resolveTicketArg(ctx context.Context, client *daemon.Client, sessionID string, args []string, prompt string) (string, error) {

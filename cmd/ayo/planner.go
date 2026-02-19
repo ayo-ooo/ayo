@@ -183,21 +183,12 @@ func showPlannerCmd(cfgPath *string) *cobra.Command {
 					fmt.Printf("%s none\n", labelStyle.Render("Tools:"))
 				}
 
-				// Instructions preview
+				// Instructions - show full content
 				instructions := plugin.Instructions()
 				if instructions != "" {
-					// Show first 3 lines
-					lines := strings.Split(instructions, "\n")
-					preview := lines
-					if len(lines) > 3 {
-						preview = lines[:3]
-					}
 					fmt.Printf("%s\n", labelStyle.Render("Instructions:"))
-					for _, line := range preview {
+					for _, line := range strings.Split(instructions, "\n") {
 						fmt.Printf("  %s\n", line)
-					}
-					if len(lines) > 3 {
-						fmt.Printf("  ...(%d more lines)\n", len(lines)-3)
 					}
 				}
 

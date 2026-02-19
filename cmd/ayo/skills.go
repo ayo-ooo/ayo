@@ -145,13 +145,9 @@ func listSkillsCmd(cfgPath *string) *cobra.Command {
 					name := nameStyle.Render(s.Name)
 					fmt.Printf("  %s %s\n", icon, name)
 
-					// Description (truncated, indented)
-					desc := s.Description
-					if len(desc) > 52 {
-						desc = desc[:49] + "..."
-					}
-					if desc != "" {
-						fmt.Printf("    %s\n", descStyle.Render(desc))
+					// Description (full width)
+					if s.Description != "" {
+						fmt.Printf("    %s\n", descStyle.Render(s.Description))
 					}
 				}
 

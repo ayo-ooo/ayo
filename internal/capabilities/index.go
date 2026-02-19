@@ -225,6 +225,9 @@ func (idx *LazyEntityIndex) GetAgentEmbedding(ctx context.Context, ag agent.Agen
 		text += "\n\n" + ag.System
 	}
 
+	// Truncate to avoid exceeding model context limits
+	text = truncateForEmbedding(text)
+
 	emb, err := idx.embedder.Embed(ctx, text)
 	if err != nil {
 		return nil, err
@@ -258,7 +261,7 @@ func (idx *LazyEntityIndex) GetSquadEmbedding(ctx context.Context, constitution 
 	}
 
 	// Re-embed: compute text from squad constitution
-	text := constitution.Raw
+	text := truncateForEmbedding(constitution.Raw)
 
 	emb, err := idx.embedder.Embed(ctx, text)
 	if err != nil {
@@ -275,4 +278,27 @@ func (idx *LazyEntityIndex) GetSquadEmbedding(ctx context.Context, constitution 
 	})
 
 	return emb, nil
+}
+
+// maxEmbeddingChars is the maximum characters to send for embedding.
+// nomic-embed-text has an 8192 token limit, which is roughly 32k chars.
+// We use a conservative limit to account for tokenization overhead.
+const maxEmbeddingChars = 24000
+
+// truncateForEmbedding truncates text to fit within embedding model context limits.
+func truncateForEmbedding(text string) string {
+	if len(text) <= maxEmbeddingChars {
+		return text
+	}
+	// Truncate at word boundary if possible
+	truncated := text[:maxEmbeddingChars]
+	if lastSpace := len(truncated) - 1; lastSpace > maxEmbeddingChars-100 {
+		for i := len(truncated) - 1; i > maxEmbeddingChars-100; i-- {
+			if truncated[i] == ' ' || truncated[i] == '\n' {
+				truncated = truncated[:i]
+				break
+			}
+		}
+	}
+	return truncated
 }

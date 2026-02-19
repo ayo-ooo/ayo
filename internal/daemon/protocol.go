@@ -521,23 +521,30 @@ type TicketGetParams struct {
 
 // TicketInfo represents a ticket in RPC responses.
 type TicketInfo struct {
-	ID          string   `json:"id"`
-	Status      string   `json:"status"`
-	Type        string   `json:"type"`
-	Priority    int      `json:"priority"`
-	Assignee    string   `json:"assignee,omitempty"`
-	Deps        []string `json:"deps"`
-	Links       []string `json:"links"`
-	Parent      string   `json:"parent,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Created     int64    `json:"created"`
-	Started     int64    `json:"started,omitempty"`
-	Closed      int64    `json:"closed,omitempty"`
-	Session     string   `json:"session,omitempty"`
-	ExternalRef string   `json:"external_ref,omitempty"`
-	FilePath    string   `json:"file_path"`
+	ID          string       `json:"id"`
+	Status      string       `json:"status"`
+	Type        string       `json:"type"`
+	Priority    int          `json:"priority"`
+	Assignee    string       `json:"assignee,omitempty"`
+	Deps        []string     `json:"deps"`
+	Links       []string     `json:"links"`
+	Parent      string       `json:"parent,omitempty"`
+	Tags        []string     `json:"tags,omitempty"`
+	Title       string       `json:"title"`
+	Description string       `json:"description,omitempty"`
+	Notes       []NoteInfo   `json:"notes,omitempty"`
+	Created     int64        `json:"created"`
+	Started     int64        `json:"started,omitempty"`
+	Closed      int64        `json:"closed,omitempty"`
+	Session     string       `json:"session,omitempty"`
+	ExternalRef string       `json:"external_ref,omitempty"`
+	FilePath    string       `json:"file_path"`
+}
+
+// NoteInfo represents a ticket note in RPC responses.
+type NoteInfo struct {
+	Timestamp int64  `json:"timestamp"`
+	Content   string `json:"content"`
 }
 
 // TicketGetResult is the response to tickets.get.

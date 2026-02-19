@@ -48,6 +48,37 @@ func DiscoverOne(path string) (*Flow, error) {
 	return loadSimpleFlow(path, FlowSourceUser)
 }
 
+// FindByName searches for a flow by name in the standard flow directories.
+// Returns the flow if found, or an error if not found.
+func FindByName(name string, dirs []string) (*Flow, error) {
+	// First check if 'name' is an existing path
+	if info, err := os.Stat(name); err == nil {
+		if info.IsDir() {
+			return loadPackagedFlow(name, FlowSourceUser)
+		}
+		return loadSimpleFlow(name, FlowSourceUser)
+	}
+
+	// Search in provided directories
+	for _, dir := range dirs {
+		source := sourceFromPath(dir)
+
+		// Check for packaged flow (directory with flow.sh)
+		pkgPath := filepath.Join(dir, name)
+		if flow, err := loadPackagedFlow(pkgPath, source); err == nil {
+			return flow, nil
+		}
+
+		// Check for simple flow (name.sh)
+		simplePath := filepath.Join(dir, name+".sh")
+		if flow, err := loadSimpleFlow(simplePath, source); err == nil {
+			return flow, nil
+		}
+	}
+
+	return nil, os.ErrNotExist
+}
+
 // discoverInDir finds all flows in a single directory.
 func discoverInDir(dir string, source FlowSource) ([]Flow, error) {
 	entries, err := os.ReadDir(dir)

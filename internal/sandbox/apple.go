@@ -668,6 +668,9 @@ func isAppleContainerAvailable() bool {
 // EnsureAgentUser ensures a Unix user exists for the agent in the sandbox.
 // If dotfilesPath is non-empty, copies dotfiles from that host directory to the user's home.
 func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHandle string, dotfilesPath string) error {
+	// Sanitize agent handle to valid Unix username
+	username := SanitizeUsername(agentHandle)
+
 	// Resolve container ID
 	containerID, err := p.resolveContainerID(ctx, id)
 	if err != nil {
@@ -676,42 +679,42 @@ func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHan
 
 	// Check if we've already created this user in this sandbox instance
 	sb, ok := p.sandboxes[id]
-	if ok && sb.createdUsers != nil && sb.createdUsers[agentHandle] {
-		debug.Log("agent user already tracked as created", "agent", agentHandle)
+	if ok && sb.createdUsers != nil && sb.createdUsers[username] {
+		debug.Log("agent user already tracked as created", "agent", agentHandle, "username", username)
 		return nil
 	}
 
 	// Check if user already exists in container
-	if err := p.execSimple(ctx, containerID, "id", agentHandle); err == nil {
-		debug.Log("agent user already exists", "agent", agentHandle)
+	if err := p.execSimple(ctx, containerID, "id", username); err == nil {
+		debug.Log("agent user already exists", "agent", agentHandle, "username", username)
 		// Track that user exists
 		if ok && sb.createdUsers != nil {
-			sb.createdUsers[agentHandle] = true
+			sb.createdUsers[username] = true
 		}
 		return nil // User exists
 	}
 
-	debug.Log("creating agent user", "agent", agentHandle, "container", containerID)
+	debug.Log("creating agent user", "agent", agentHandle, "username", username, "container", containerID)
 
 	// Create user with adduser (Alpine/BusyBox-compatible)
 	// -D: don't assign a password
 	// -s /bin/sh: set shell
-	// -h /home/{agent}: set home directory
-	if err := p.execSimple(ctx, containerID, "adduser", "-D", "-s", "/bin/sh", agentHandle); err != nil {
-		return fmt.Errorf("failed to create user %s: %w", agentHandle, err)
+	// -h /home/{username}: set home directory
+	if err := p.execSimple(ctx, containerID, "adduser", "-D", "-s", "/bin/sh", username); err != nil {
+		return fmt.Errorf("failed to create user %s (from %s): %w", username, agentHandle, err)
 	}
 
 	// Track that we created this user
 	if ok && sb.createdUsers != nil {
-		sb.createdUsers[agentHandle] = true
+		sb.createdUsers[username] = true
 	}
 
-	debug.Log("agent user created", "agent", agentHandle)
+	debug.Log("agent user created", "agent", agentHandle, "username", username)
 
 	// Copy agent dotfiles if provided
 	if dotfilesPath != "" {
-		if err := p.copyDotfiles(ctx, containerID, agentHandle, dotfilesPath); err != nil {
-			debug.Log("failed to copy dotfiles", "agent", agentHandle, "error", err)
+		if err := p.copyDotfiles(ctx, containerID, username, dotfilesPath); err != nil {
+			debug.Log("failed to copy dotfiles", "agent", agentHandle, "username", username, "error", err)
 			// Not fatal - user is still created
 		}
 	}
@@ -773,6 +776,56 @@ func (p *AppleProvider) copyDotfiles(ctx context.Context, containerID, agentHand
 	}
 
 	return nil
+}
+
+// SanitizeUsername converts an agent handle to a valid Unix username.
+// Unix usernames must:
+// - Start with a lowercase letter or underscore
+// - Contain only lowercase letters, digits, underscores, or hyphens
+// - Be at most 32 characters
+func SanitizeUsername(handle string) string {
+	// Strip @ prefix
+	name := strings.TrimPrefix(handle, "@")
+
+	// Convert to lowercase
+	name = strings.ToLower(name)
+
+	// Replace invalid characters with underscores
+	var result strings.Builder
+	for i, r := range name {
+		if i == 0 {
+			// First character must be letter or underscore
+			if (r >= 'a' && r <= 'z') || r == '_' {
+				result.WriteRune(r)
+			} else if r >= '0' && r <= '9' {
+				// Prefix with underscore if starts with digit
+				result.WriteRune('_')
+				result.WriteRune(r)
+			} else {
+				result.WriteRune('_')
+			}
+		} else {
+			// Subsequent characters can be letter, digit, underscore, or hyphen
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+				result.WriteRune(r)
+			} else {
+				result.WriteRune('_')
+			}
+		}
+	}
+
+	// Truncate to 32 characters
+	username := result.String()
+	if len(username) > 32 {
+		username = username[:32]
+	}
+
+	// Ensure non-empty
+	if username == "" {
+		username = "agent"
+	}
+
+	return username
 }
 
 // Verify AppleProvider implements SandboxProvider.

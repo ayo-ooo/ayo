@@ -72,6 +72,16 @@ func ticketToInfo(t *tickets.Ticket) TicketInfo {
 	if info.Tags == nil {
 		info.Tags = []string{}
 	}
+	// Convert notes
+	if len(t.Notes) > 0 {
+		info.Notes = make([]NoteInfo, len(t.Notes))
+		for i, note := range t.Notes {
+			info.Notes[i] = NoteInfo{
+				Timestamp: note.Timestamp.Unix(),
+				Content:   note.Content,
+			}
+		}
+	}
 	return info
 }
 

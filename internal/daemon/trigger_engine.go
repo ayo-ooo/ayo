@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -303,12 +304,27 @@ func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
 	return nil
 }
 
+// normalizeCronSchedule converts a 5-field standard cron expression to
+// a 6-field expression (with seconds) expected by robfig/cron.
+// If already 6 fields, returns unchanged.
+func normalizeCronSchedule(schedule string) string {
+	fields := strings.Fields(schedule)
+	if len(fields) == 5 {
+		// Standard cron (minute hour day month weekday) -> add "0" for seconds
+		return "0 " + schedule
+	}
+	return schedule
+}
+
 func (e *TriggerEngine) registerCronTrigger(trigger *Trigger) error {
 	if trigger.Config.Schedule == "" {
 		return fmt.Errorf("cron trigger requires schedule")
 	}
 
-	entryID, err := e.cron.AddFunc(trigger.Config.Schedule, func() {
+	// Normalize schedule to 6-field cron (with seconds)
+	schedule := normalizeCronSchedule(trigger.Config.Schedule)
+
+	entryID, err := e.cron.AddFunc(schedule, func() {
 		e.fireTrigger(trigger.ID, map[string]any{
 			"scheduled_at": time.Now(),
 		})
@@ -318,7 +334,7 @@ func (e *TriggerEngine) registerCronTrigger(trigger *Trigger) error {
 	}
 
 	e.cronJobs[trigger.ID] = entryID
-	e.logger.Info("registered cron trigger", "id", trigger.ID, "schedule", trigger.Config.Schedule, "agent", trigger.Agent)
+	e.logger.Info("registered cron trigger", "id", trigger.ID, "schedule", schedule, "agent", trigger.Agent)
 	return nil
 }
 
@@ -382,8 +398,11 @@ func (e *TriggerEngine) handleWatchEvent(event fsnotify.Event) {
 	dir := filepath.Dir(event.Name)
 	triggerIDs, ok := e.watchDirs[dir]
 	if !ok {
+		e.logger.Debug("watch event for unregistered directory", "dir", dir, "file", event.Name, "op", event.Op.String())
 		return
 	}
+
+	e.logger.Debug("handling watch event", "dir", dir, "file", event.Name, "op", event.Op.String(), "triggers", len(triggerIDs))
 
 	for _, triggerID := range triggerIDs {
 		trigger, ok := e.triggers[triggerID]
@@ -393,6 +412,7 @@ func (e *TriggerEngine) handleWatchEvent(event fsnotify.Event) {
 
 		// Check if event matches patterns
 		if !e.matchesWatchEvent(trigger, event) {
+			e.logger.Debug("watch event did not match trigger", "trigger", triggerID, "file", event.Name)
 			continue
 		}
 
