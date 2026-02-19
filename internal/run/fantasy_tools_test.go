@@ -29,63 +29,62 @@ func (m *mockPlannerWithTools) Tools() []fantasy.AgentTool {
 	return m.tools
 }
 
-func TestNewFantasyToolSetWithOptions_TodoAlwaysAvailable(t *testing.T) {
-	// Test that todo is available by default, even with empty allowed list
+func TestNewFantasyToolSetWithOptions_DefaultBash(t *testing.T) {
+	// Test that bash is available by default with empty allowed list
 	ts := NewFantasyToolSetWithOptions(nil, "", nil, 0, false)
 	defer ts.Close()
 
-	// Should have at least todo and bash
+	// Should have bash by default
 	tools := ts.Tools()
-	hasTodo := false
 	hasBash := false
 	for _, tool := range tools {
 		info := tool.Info()
-		if info.Name == "todo" {
-			hasTodo = true
-		}
 		if info.Name == "bash" {
 			hasBash = true
 		}
 	}
 
-	if !hasTodo {
-		t.Error("expected todo tool to be always available by default")
-	}
 	if !hasBash {
 		t.Error("expected bash tool to be available by default")
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_TodoDisabled(t *testing.T) {
-	// Test that todo is not available when disableTodo=true
-	ts := NewFantasyToolSetWithOptions([]string{"bash"}, "", nil, 0, true)
+func TestNewFantasyToolSetWithOptions_PlannerToolsProvided(t *testing.T) {
+	// Test that planner tools are included when provided via PlannerTools option
+	mockTodosTool := NewMockPlannerTool("todos", "Mock todos tool from planner")
+
+	ts := NewFantasyToolSet(ToolSetOptions{
+		AllowedTools: []string{"bash"},
+		PlannerTools: []fantasy.AgentTool{mockTodosTool},
+	})
 	defer ts.Close()
 
 	tools := ts.Tools()
+	hasTodos := false
 	for _, tool := range tools {
 		info := tool.Info()
-		if info.Name == "todo" {
-			t.Error("expected todo tool to be disabled when disableTodo=true")
+		if info.Name == "todos" {
+			hasTodos = true
 		}
+	}
+
+	if !hasTodos {
+		t.Error("expected todos tool from planners to be available")
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_TodoNotDuplicated(t *testing.T) {
-	// Test that explicitly listing "todo" in allowed doesn't duplicate it
-	ts := NewFantasyToolSetWithOptions([]string{"bash", "todo"}, "", nil, 0, false)
+func TestNewFantasyToolSetWithOptions_LegacyTodoIgnored(t *testing.T) {
+	// Test that explicitly listing "todo" or "todos" in allowed is ignored
+	// (these are now provided by planners, not built-in)
+	ts := NewFantasyToolSetWithOptions([]string{"bash", "todo", "todos"}, "", nil, 0, false)
 	defer ts.Close()
 
 	tools := ts.Tools()
-	todoCount := 0
 	for _, tool := range tools {
 		info := tool.Info()
-		if info.Name == "todo" {
-			todoCount++
+		if info.Name == "todo" || info.Name == "todos" {
+			t.Error("legacy todo/todos names should be ignored in allowed list")
 		}
-	}
-
-	if todoCount != 1 {
-		t.Errorf("expected exactly 1 todo tool, got %d", todoCount)
 	}
 }
 
@@ -127,15 +126,16 @@ func TestNewFantasyToolSetWithOptions_PlanCategoryResolution(t *testing.T) {
 }
 
 func TestNewFantasyToolSetWithOptions_StatefulToolsTracked(t *testing.T) {
-	// Test that stateful tools (todo) are tracked for cleanup
+	// Test that stateful tools are tracked for cleanup when planner tools are provided
+	// Without planner tools, there are no stateful tools (the built-in todo was removed)
 	ts := NewFantasyToolSetWithOptions(nil, "", nil, 0, false)
 
-	// Should have at least one stateful tool (todo)
-	if len(ts.statefulTools) == 0 {
-		t.Error("expected stateful tools to be tracked for cleanup")
+	// Without planner tools, statefulTools should be empty
+	if len(ts.statefulTools) != 0 {
+		t.Errorf("expected no stateful tools without planner injection, got %d", len(ts.statefulTools))
 	}
 
-	// Close should not error
+	// Close should not error even with no stateful tools
 	if err := ts.Close(); err != nil {
 		t.Errorf("Close() error = %v", err)
 	}
@@ -155,7 +155,6 @@ func TestNewFantasyToolSet_WithSandboxExecutor(t *testing.T) {
 	ts := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools:    []string{"bash"},
 		SandboxExecutor: executor,
-		DisableTodo:     true, // Simplify test
 	})
 	defer ts.Close()
 
@@ -180,7 +179,6 @@ func TestNewFantasyToolSet_WithoutSandboxExecutor(t *testing.T) {
 	// Test that local bash is used when no sandbox executor provided
 	ts := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools: []string{"bash"},
-		DisableTodo:  true,
 	})
 	defer ts.Close()
 
@@ -207,7 +205,6 @@ func TestNewFantasyToolSet_WithPlannerTools(t *testing.T) {
 
 	ts := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools: []string{"bash"},
-		DisableTodo:  true,
 		PlannerTools: []fantasy.AgentTool{mockTool},
 	})
 	defer ts.Close()
@@ -235,7 +232,6 @@ func TestNewFantasyToolSet_PlannerToolsNoCollision(t *testing.T) {
 
 	ts := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools: []string{"bash"},
-		DisableTodo:  true,
 		PlannerTools: []fantasy.AgentTool{mockTool},
 	})
 	defer ts.Close()

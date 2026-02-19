@@ -120,7 +120,6 @@ type ToolSetOptions struct {
 	BaseDir            string
 	MemoryQueue        *memory.Queue
 	Depth              int
-	DisableTodo        bool
 	SandboxExecutor    *sandbox.Executor
 	CapabilitySearcher *capabilities.CapabilitySearcher // Optional for find_agent tool
 	PlannerTools       []fantasy.AgentTool              // Tools from planner plugins
@@ -129,15 +128,14 @@ type ToolSetOptions struct {
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
-// The disableTodo flag controls whether the built-in todo tool is included.
-// By default (disableTodo=false), todo is always available regardless of allowed list.
-func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int, disableTodo bool) FantasyToolSet {
+// Deprecated: Use NewFantasyToolSet with ToolSetOptions directly.
+// Task management tools are now provided by planners via PlannerTools option.
+func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int, _ bool) FantasyToolSet {
 	return NewFantasyToolSet(ToolSetOptions{
 		AllowedTools: allowed,
 		BaseDir:      baseDir,
 		MemoryQueue:  memQueue,
 		Depth:        depth,
-		DisableTodo:  disableTodo,
 	})
 }
 
@@ -158,14 +156,6 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 	// Track stateful tools that need cleanup
 	var statefulTools []tools.StatefulTool
 
-	// Always add todo first (unless disabled) - it's an always-available tool
-	if !opts.DisableTodo {
-		todoTool := NewTodoTool()
-		fantasyTools = append(fantasyTools, todoTool)
-		statefulTools = append(statefulTools, todoTool)
-		loadedTools["todo"] = true
-	}
-
 	// Default to bash if no tools specified
 	allowed := opts.AllowedTools
 	if len(allowed) == 0 {
@@ -173,8 +163,8 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 	}
 
 	for _, name := range allowed {
-		// Skip todo and old planning name - todo is handled above
-		if name == "todo" || name == "planning" {
+		// Skip old planning names - task management now via planners
+		if name == "todo" || name == "todos" || name == "planning" {
 			continue
 		}
 

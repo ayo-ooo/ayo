@@ -72,11 +72,6 @@ type Config struct {
 	// Unrestricted agents cannot be orchestrated by @ayo.
 	TrustLevel TrustLevel `json:"trust,omitempty"`
 	
-	// DisableTodo disables the built-in todo tool for this agent.
-	// By default, todo is always available to all agents.
-	// Set to true to disable the todo tool.
-	DisableTodo bool `json:"disable_todo,omitempty"`
-	
 	// Guardrails configuration
 	// When true (default), ayo applies safety guardrails to the agent's system prompt.
 	// Set to false to disable guardrails (dangerous - use with caution).

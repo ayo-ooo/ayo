@@ -911,7 +911,6 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		BaseDir:         baseDir,
 		MemoryQueue:     r.memoryQueue,
 		Depth:           r.depth,
-		DisableTodo:     ag.Config.DisableTodo,
 		SandboxExecutor: sandboxExecutor,
 		ShareService:    r.shareService,
 		SessionID:       sandboxID, // Use sandbox ID for session-scoped shares
