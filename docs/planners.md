@@ -78,7 +78,7 @@ planners:
 
 ### ayo-todos
 
-The default near-term planner providing a simple todo list:
+The default near-term planner providing a simple todo list with JSON storage:
 
 **Tools:**
 - `todos` - Create, update, and manage todo items
@@ -87,6 +87,30 @@ The default near-term planner providing a simple todo list:
 - Session-scoped task tracking
 - Status tracking (pending, in_progress, completed)
 - Progress display in UI
+- Lightweight JSON file storage
+
+### ayo-todos-db
+
+Alternative near-term planner using SQLite for better performance:
+
+**Tools:**
+- `todos` - Same tool interface as ayo-todos
+
+**Features:**
+- All features of ayo-todos
+- SQLite storage for better performance with large lists
+- Better concurrent access handling
+- Independent database in `.planner.near/todos.db`
+
+To use ayo-todos-db instead of the default:
+
+```json
+{
+  "planners": {
+    "near_term": "ayo-todos-db"
+  }
+}
+```
 
 ### ayo-tickets
 
