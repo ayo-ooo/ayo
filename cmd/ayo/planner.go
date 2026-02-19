@@ -13,6 +13,7 @@ import (
 
 	// Import planner plugins to register them
 	_ "github.com/alexcabrera/ayo/internal/planners/builtin/goals"
+	_ "github.com/alexcabrera/ayo/internal/planners/builtin/kanban"
 	_ "github.com/alexcabrera/ayo/internal/planners/builtin/tickets"
 	_ "github.com/alexcabrera/ayo/internal/planners/builtin/todos"
 	_ "github.com/alexcabrera/ayo/internal/planners/builtin/todosdb"

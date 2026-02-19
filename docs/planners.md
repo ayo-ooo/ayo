@@ -152,6 +152,29 @@ The default long-term planner providing file-based ticket management:
 - Priority and assignment tracking
 - Git-friendly workflow
 
+### ayo-kanban
+
+Visual kanban board for work flow management:
+
+**Tools:**
+- `kanban` - Manage kanban board with actions: board, add, move, update, remove
+
+**Features:**
+- Visual columns: backlog → ready → in_progress → review → done
+- WIP (Work In Progress) limits per column
+- Card priority and positioning
+- Independent SQLite database in `.planner.long/kanban.db`
+
+To use ayo-kanban instead of the default:
+
+```json
+{
+  "planners": {
+    "long_term": "ayo-kanban"
+  }
+}
+```
+
 ## State Management
 
 Planners store state in dedicated directories within each sandbox:
