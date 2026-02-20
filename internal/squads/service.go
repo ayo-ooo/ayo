@@ -38,6 +38,10 @@ type Squad struct {
 	// LeadReady indicates the squad lead is ready to accept input.
 	// Set to true when the squad has been fully initialized.
 	LeadReady bool
+
+	// Invoker is used to invoke agents within the squad context.
+	// If nil, dispatch returns routing info only without actual invocation.
+	Invoker AgentInvoker
 }
 
 // CanAcceptInput returns true if the squad is ready to accept input.

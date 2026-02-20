@@ -17,6 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
@@ -40,10 +41,12 @@ type Runner struct {
 	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
 	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
-	sandboxProvider  providers.SandboxProvider // nil = no sandbox, run locally
-	squadName        string                   // squad name for constitution injection (empty = no squad)
-	dispatcher       *Dispatcher              // nil = no semantic dispatch
-	shareService     *share.Service           // nil = no share service for request_access
+	sandboxProvider  providers.SandboxProvider      // nil = no sandbox, run locally
+	squadName        string                         // squad name for constitution injection (empty = no squad)
+	dispatcher       *Dispatcher                    // nil = no semantic dispatch
+	shareService     *share.Service                 // nil = no share service for request_access
+	plannerManager   *planners.SandboxPlannerManager // nil = no planners
+	ayoPlanners      *planners.SandboxPlanners       // cached planners for @ayo sandbox
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -86,8 +89,9 @@ type RunnerOptions struct {
 	StreamWriter     StreamWriter               // Unified stream writer interface
 	SandboxProvider  providers.SandboxProvider  // Sandbox provider for isolated execution
 	SquadName        string                     // Squad name for squad context injection (empty = no squad)
-	Dispatcher       *Dispatcher                // Dispatcher for semantic routing decisions
-	ShareService     *share.Service             // Share service for request_access tool
+	Dispatcher       *Dispatcher                    // Dispatcher for semantic routing decisions
+	ShareService     *share.Service                 // Share service for request_access tool
+	PlannerManager   *planners.SandboxPlannerManager // Planner manager for per-sandbox planners
 }
 
 // NewRunner creates a runner with all options.
@@ -107,6 +111,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		squadName:        opts.SquadName,
 		dispatcher:       opts.Dispatcher,
 		shareService:     opts.ShareService,
+		plannerManager:   opts.PlannerManager,
 	}, nil
 }
 
@@ -446,6 +451,15 @@ func (r *Runner) ContinueSessionWithPrompt(ctx context.Context, ag agent.Agent, 
 	var msgs []fantasy.Message
 
 	systemPrompt := ag.CombinedSystem
+	
+	// Inject squad constitution if running in a squad context
+	if r.squadName != "" {
+		constitution, err := squads.LoadConstitution(r.squadName)
+		if err == nil && constitution != nil {
+			systemPrompt = squads.InjectConstitution(systemPrompt, constitution)
+		}
+	}
+	
 	if r.memoryService != nil && ag.Config.Memory.Enabled {
 		memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", prompt, ag.Config.Memory)
 		if err == nil && memCtx != nil {
@@ -523,6 +537,15 @@ func (r *Runner) buildMessagesWithAttachments(ctx context.Context, ag agent.Agen
 	
 	// Build combined system prompt with memory context
 	systemPrompt := ag.CombinedSystem
+	
+	// Inject squad constitution if running in a squad context
+	if r.squadName != "" {
+		constitution, err := squads.LoadConstitution(r.squadName)
+		if err == nil && constitution != nil {
+			systemPrompt = squads.InjectConstitution(systemPrompt, constitution)
+		}
+	}
+	
 	if r.memoryService != nil && ag.Config.Memory.Enabled {
 		memCtx, err := agent.BuildMemoryContext(ctx, r.memoryService, ag.Handle, "", prompt, ag.Config.Memory)
 		if err == nil && memCtx != nil {
@@ -799,7 +822,25 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 				return nil, nil, "", fmt.Errorf("ensure ayo sandbox: %w", ayoErr)
 			}
 			sandboxID = sb.ID
-			sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, baseDir, "ayo")
+			// Use /home/ayo as the default working directory since the host's baseDir
+			// doesn't exist in the @ayo sandbox (it only mounts specific paths)
+			sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, "/home/ayo", "ayo")
+			
+			// Initialize planners for @ayo sandbox if manager is available
+			if r.plannerManager != nil && r.ayoPlanners == nil {
+				ayoPlanners, plannerErr := r.plannerManager.GetPlanners("ayo", paths.AyoSandboxDir(), nil)
+				if plannerErr != nil {
+					if r.debug {
+						fmt.Fprintf(os.Stderr, "[planners] Failed to initialize @ayo planners: %v\n", plannerErr)
+					}
+				} else {
+					r.ayoPlanners = ayoPlanners
+					if r.debug {
+						fmt.Fprintf(os.Stderr, "[planners] Initialized @ayo planners: near=%s long=%s\n",
+							ayoPlanners.NearTerm.Name(), ayoPlanners.LongTerm.Name())
+					}
+				}
+			}
 			
 			if r.debug {
 				fmt.Fprintf(os.Stderr, "[sandbox] Using dedicated @ayo sandbox %s\n", sandboxID)
@@ -906,6 +947,15 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		}
 	}
 	
+	// Collect planner tools if available (for @ayo agent)
+	var plannerTools []fantasy.AgentTool
+	if isAyoAgent(ag.Handle) && r.ayoPlanners != nil {
+		plannerTools = GetPlannerTools(r.ayoPlanners.NearTerm, r.ayoPlanners.LongTerm)
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[planners] Adding %d planner tools to @ayo\n", len(plannerTools))
+		}
+	}
+	
 	tools := NewFantasyToolSet(ToolSetOptions{
 		AllowedTools:    ag.Config.AllowedTools,
 		BaseDir:         baseDir,
@@ -914,6 +964,7 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		SandboxExecutor: sandboxExecutor,
 		ShareService:    r.shareService,
 		SessionID:       sandboxID, // Use sandbox ID for session-scoped shares
+		PlannerTools:    plannerTools,
 	})
 
 	fantasyAgent := fantasy.NewAgent(

@@ -14,20 +14,21 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/builtin"
+	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/pipe"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/share"
-	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
-	"github.com/alexcabrera/ayo/internal/cli"
-	"github.com/alexcabrera/ayo/internal/daemon"
+	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/ui"
 	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
@@ -223,6 +224,9 @@ Examples:
 					debug.Log("Failed to load share service", "error", err)
 				}
 
+				// Create planner manager for per-sandbox planners
+				plannerMgr := planners.NewSandboxPlannerManager(nil, cfg)
+
 				runner, err := run.NewRunner(cfg, debugFlag, run.RunnerOptions{
 					Services:         services,
 					MemoryService:    memSvc,
@@ -231,6 +235,7 @@ Examples:
 					MemoryQueue:      memQueue,
 					SandboxProvider:  selectSandboxProvider(),
 					ShareService:     shareSvc,
+					PlannerManager:   plannerMgr,
 				})
 				if err != nil {
 					return err

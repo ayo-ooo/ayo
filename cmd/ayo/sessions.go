@@ -17,6 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/run"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/session/jsonl"
@@ -510,6 +511,9 @@ Supports session ID prefix matching and title search.`,
 			shareSvc := share.NewService()
 			_ = shareSvc.Load() // Ignore error - service works without persisted shares
 
+			// Create planner manager for per-sandbox planners
+			plannerMgr := planners.NewSandboxPlannerManager(nil, cfg)
+
 			// Create runner with services
 			runner, err := run.NewRunner(cfg, debug, run.RunnerOptions{
 				Services:         services,
@@ -519,6 +523,7 @@ Supports session ID prefix matching and title search.`,
 				MemoryQueue:      memQueue,
 				SandboxProvider:  selectSandboxProvider(),
 				ShareService:     shareSvc,
+				PlannerManager:   plannerMgr,
 			})
 			if err != nil {
 				return err

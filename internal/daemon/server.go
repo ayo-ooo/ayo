@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
@@ -178,8 +179,20 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		squadService = squads.NewService(appleProvider)
 	}
 	squadTicketService := tickets.NewSquadTicketService()
+
+	// Create planner manager for squad-specific planners
+	plannerManager := planners.NewSandboxPlannerManager(nil, cfg.Config)
+
+	// Create squad agent invoker for dispatching prompts to agents
+	squadInvoker := NewSquadAgentInvoker(SquadAgentInvokerConfig{
+		Config:          cfg.Config,
+		Services:        cfg.Services,
+		SandboxProvider: provider,
+		PlannerManager:  plannerManager,
+	})
+
 	server.squadTickets = squadTicketService
-	server.squadRPC = NewSquadRPC(squadService, squadTicketService, ticketWatcher)
+	server.squadRPC = NewSquadRPC(squadService, squadTicketService, ticketWatcher, squadInvoker)
 
 	return server, nil
 }

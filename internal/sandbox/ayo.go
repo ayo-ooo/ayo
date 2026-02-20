@@ -9,6 +9,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
+	ayosync "github.com/alexcabrera/ayo/internal/sync"
 )
 
 // AyoSandboxName is the fixed name for @ayo's dedicated sandbox.
@@ -67,6 +68,12 @@ func EnsureAyoSandbox(ctx context.Context, provider *AppleProvider) (providers.S
 		{
 			Source:      paths.SquadsDir(),
 			Destination: "/squads",
+			Mode:        providers.MountModeVirtioFS,
+		},
+		// Workspace directory for user-shared files
+		{
+			Source:      ayosync.WorkspaceDir(),
+			Destination: "/workspace",
 			Mode:        providers.MountModeVirtioFS,
 		},
 		// Near-term planner state directory

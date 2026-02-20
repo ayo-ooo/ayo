@@ -141,10 +141,35 @@ func (s *Squad) Dispatch(ctx context.Context, input DispatchInput) (*DispatchRes
 	// Determine target agent for input routing
 	targetAgent := s.GetTargetAgent(input)
 
-	// TODO: Actual invocation of target agent will be added by am-2wpf (AgentInvoker)
-	// For now, return result indicating successful routing
+	// Invoke the agent if invoker is configured
+	if s.Invoker != nil {
+		result, err := s.Invoker.Invoke(ctx, InvokeParams{
+			SquadName:    s.Name,
+			AgentHandle:  targetAgent,
+			Prompt:       input.Prompt,
+			Constitution: s.Constitution,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("invoke agent %s: %w", targetAgent, err)
+		}
+
+		if result.Error != "" {
+			return &DispatchResult{
+				Raw:      result.Response,
+				Error:    result.Error,
+				RoutedTo: targetAgent,
+			}, nil
+		}
+
+		return &DispatchResult{
+			Raw:      result.Response,
+			RoutedTo: targetAgent,
+		}, nil
+	}
+
+	// No invoker configured - return routing info only
 	return &DispatchResult{
-		Raw:      fmt.Sprintf("dispatch to %s routed to %s (prompt: %s)", s.Name, targetAgent, input.Prompt),
+		Raw:      fmt.Sprintf("dispatch to %s routed to %s (no invoker configured)", s.Name, targetAgent),
 		RoutedTo: targetAgent,
 	}, nil
 }

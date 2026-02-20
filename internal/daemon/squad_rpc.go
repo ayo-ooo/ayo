@@ -14,14 +14,16 @@ type SquadRPC struct {
 	service       *squads.Service
 	ticketService *tickets.SquadTicketService
 	ticketWatcher *TicketWatcher
+	invoker       squads.AgentInvoker
 }
 
 // NewSquadRPC creates a new squad RPC handler.
-func NewSquadRPC(service *squads.Service, ticketService *tickets.SquadTicketService, ticketWatcher *TicketWatcher) *SquadRPC {
+func NewSquadRPC(service *squads.Service, ticketService *tickets.SquadTicketService, ticketWatcher *TicketWatcher, invoker squads.AgentInvoker) *SquadRPC {
 	return &SquadRPC{
 		service:       service,
 		ticketService: ticketService,
 		ticketWatcher: ticketWatcher,
+		invoker:       invoker,
 	}
 }
 
@@ -457,6 +459,9 @@ func (r *SquadRPC) HandleSquadDispatch(ctx context.Context, params json.RawMessa
 	if err != nil {
 		return nil, NewError(ErrCodeInternal, "failed to get squad: "+err.Error())
 	}
+
+	// Set the invoker on the squad so Dispatch can invoke agents
+	squad.Invoker = r.invoker
 
 	// Start if not running and StartIfStopped is set
 	if !squad.IsRunning() && p.StartIfStopped {
