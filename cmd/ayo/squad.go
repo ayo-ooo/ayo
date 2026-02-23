@@ -615,12 +615,16 @@ Examples:
   ayo squad schema show dev-team
 
   # Validate schemas are syntactically correct
-  ayo squad schema validate dev-team`,
+  ayo squad schema validate dev-team
+
+  # Validate input data against schema
+  ayo squad schema validate-input dev-team input.json`,
 	}
 
 	cmd.AddCommand(squadSchemaInitCmd())
 	cmd.AddCommand(squadSchemaShowCmd())
 	cmd.AddCommand(squadSchemaValidateCmd())
+	cmd.AddCommand(squadSchemaValidateInputCmd())
 
 	return cmd
 }
@@ -872,5 +876,63 @@ func printSchemaDetails(s *schema.Schema) {
 			fmt.Printf("    %s: %s%s%s\n", name, prop.Type, required, desc)
 		}
 	}
+}
+
+func squadSchemaValidateInputCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "validate-input <squad> <input.json>",
+		Short: "Validate input data against squad schema",
+		Long:  "Validates a JSON input file against the squad's input.jsonschema.",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			squadName := args[0]
+			inputPath := args[1]
+
+			// Load squad schemas
+			schemas, err := squads.LoadSquadSchemas(squadName)
+			if err != nil {
+				return fmt.Errorf("load schemas: %w", err)
+			}
+			if schemas == nil || schemas.Input == nil {
+				return fmt.Errorf("squad %q has no input schema defined", squadName)
+			}
+
+			// Load and parse input file
+			data, err := os.ReadFile(inputPath)
+			if err != nil {
+				return fmt.Errorf("read input file: %w", err)
+			}
+			var input any
+			if err := json.Unmarshal(data, &input); err != nil {
+				return fmt.Errorf("parse input JSON: %w", err)
+			}
+
+			// Validate against schema
+			if err := schema.ValidateAgainstSchema(input, *schemas.Input); err != nil {
+				if globalOutput.JSON {
+					return json.NewEncoder(os.Stdout).Encode(map[string]any{
+						"squad":  squadName,
+						"input":  inputPath,
+						"valid":  false,
+						"errors": []string{err.Error()},
+					})
+				}
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"squad":  squadName,
+					"input":  inputPath,
+					"valid":  true,
+					"errors": []string{},
+				})
+			}
+
+			fmt.Printf("✓ %s is valid against %s input schema\n", inputPath, squadName)
+			return nil
+		},
+	}
+	return cmd
 }
 

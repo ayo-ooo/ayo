@@ -68,8 +68,9 @@ func newShareAddCmd() *cobra.Command {
 		Short: "Share a host directory",
 		Long: `Share a host directory with sandboxed agents.
 
-The directory is immediately accessible at /workspace/{name} inside any sandbox.
-No sandbox restart required.
+The directory will be accessible at /workspace/{name} inside the sandbox
+after the sandbox is restarted. If the sandbox is not running, the share
+will be available on next start.
 
 Path can be relative, absolute, or use ~/. Name is derived from the path
 basename unless --as is specified.
@@ -124,8 +125,11 @@ Examples:
 			}
 
 			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+			hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 			fmt.Printf("%s Shared %s → /workspace/%s\n",
 				successStyle.Render("✓"), absPath, name)
+			fmt.Printf("  %s\n",
+				hintStyle.Render("Restart sandbox to apply: ayo sandbox restart @ayo"))
 			return nil
 		},
 	}
@@ -219,7 +223,7 @@ func newShareRmCmd() *cobra.Command {
 		Long: `Remove a share from the workspace.
 
 Accepts either the share name or the original host path.
-The symlink is removed immediately from /workspace/.
+The share will no longer be mounted after sandbox restart.
 
 Examples:
   ayo share rm project              Remove by name

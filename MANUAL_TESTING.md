@@ -546,3 +546,100 @@ The `SQUAD.md` file is the team constitution. Location:
 3. **Injection**: When agents start, SQUAD.md is injected into system prompt
 4. **Shared Context**: All agents in squad see same constitution
 5. **Updates**: Edit SQUAD.md, restart agents to pick up changes
+
+---
+
+## E2E Test: Complete Squad Workflow
+
+This test validates the full multi-agent squad coordination workflow: dispatch, ticket creation, delegation, and output.
+
+### Prerequisites
+
+- Daemon running: `ayo sandbox service start`
+- LLM provider configured (e.g., Ollama with embedding model)
+
+### Test Steps
+
+1. **Create test squad**
+   ```bash
+   ayo squad create e2e-test --description "E2E test squad"
+   ```
+
+2. **Configure SQUAD.md**
+   ```bash
+   cat > ~/.local/share/ayo/sandboxes/squads/e2e-test/SQUAD.md << 'EOF'
+   ---
+   lead: "@ayo"
+   planners:
+     long_term: "ayo-tickets"
+   agents:
+     - "@ayo"
+   ---
+   # E2E Test Squad
+
+   ## Mission
+   Test the complete squad workflow: receive task, create tickets, execute work, verify output.
+
+   ## Agents
+   ### @ayo
+   **Role**: Squad lead and executor
+   **Responsibilities**:
+   - Create tickets for work items
+   - Execute tasks
+   - Close tickets when complete
+
+   ## Coordination
+   1. Create ticket for each work item
+   2. Execute the work
+   3. Close ticket when done
+   EOF
+   ```
+
+3. **Start squad**
+   ```bash
+   ayo squad start e2e-test
+   ```
+
+4. **Dispatch work**
+   ```bash
+   ayo "#e2e-test" "Create a file called hello.txt with 'Hello, World!' in it"
+   ```
+
+5. **Verify tickets**
+   ```bash
+   ayo squad ticket list e2e-test
+   # Should show ticket(s) created and closed
+   ```
+
+6. **Verify workspace output**
+   ```bash
+   ls ~/.local/share/ayo/sandboxes/squads/e2e-test/workspace/
+   cat ~/.local/share/ayo/sandboxes/squads/e2e-test/workspace/hello.txt
+   # Should contain "Hello, World!"
+   ```
+
+7. **Cleanup**
+   ```bash
+   ayo squad destroy e2e-test --delete-data
+   ```
+
+### Expected Results
+
+| Step | Verification |
+|------|--------------|
+| Squad created | `ayo squad list` shows e2e-test |
+| SQUAD.md configured | Cat file shows custom content |
+| Squad started | `ayo squad status e2e-test` shows running |
+| Dispatch complete | No errors, response received |
+| Tickets created | `ayo squad ticket list` shows entries |
+| Output exists | hello.txt file in workspace |
+| Cleanup complete | Squad no longer in list |
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Squad not found" | Ensure daemon is running: `ayo sandbox service status` |
+| No tickets shown | Check SQUAD.md has `long_term: "ayo-tickets"` in frontmatter |
+| Output missing | Check workspace directory permissions |
+| Dispatch hangs | Verify LLM provider is responding: `ayo "test"` |

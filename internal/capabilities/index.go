@@ -281,9 +281,10 @@ func (idx *LazyEntityIndex) GetSquadEmbedding(ctx context.Context, constitution 
 }
 
 // maxEmbeddingChars is the maximum characters to send for embedding.
-// nomic-embed-text has an 8192 token limit, which is roughly 32k chars.
-// We use a conservative limit to account for tokenization overhead.
-const maxEmbeddingChars = 24000
+// nomic-embed-text has an 8192 token limit. For code/markdown with many
+// special characters, the ratio is ~2-3 chars/token. We use a conservative
+// limit of 16000 chars (~2 chars/token) to ensure we stay within limits.
+const maxEmbeddingChars = 16000
 
 // truncateForEmbedding truncates text to fit within embedding model context limits.
 func truncateForEmbedding(text string) string {

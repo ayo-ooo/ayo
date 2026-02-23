@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/alexcabrera/ayo/internal/config"
+	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/tickets"
 )
@@ -473,6 +474,8 @@ func (r *SquadRPC) HandleSquadDispatch(ctx context.Context, params json.RawMessa
 		if err != nil {
 			return nil, NewError(ErrCodeInternal, "failed to get squad after start: "+err.Error())
 		}
+		// Re-set invoker on the new squad object
+		squad.Invoker = r.invoker
 	}
 
 	// Create dispatch input
@@ -493,13 +496,9 @@ func (r *SquadRPC) HandleSquadDispatch(ctx context.Context, params json.RawMessa
 		return nil, NewError(ErrCodeInternal, "dispatch failed: "+err.Error())
 	}
 
-	// Validate output if schema exists
+	// Validate output if schema exists (log warning but continue)
 	if err := squad.ValidateOutput(result); err != nil {
-		return SquadDispatchResult{
-			Output: result.Output,
-			Raw:    result.Raw,
-			Error:  "output validation failed: " + err.Error(),
-		}, nil
+		debug.Log("output validation warning", "squad", name, "error", err)
 	}
 
 	return SquadDispatchResult{

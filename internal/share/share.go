@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/paths"
-	ayosync "github.com/alexcabrera/ayo/internal/sync"
 )
 
 // Share represents a single shared host path.
@@ -202,11 +201,9 @@ func (s *Service) Add(path, name string, session bool, sessionID string) error {
 		}
 	}
 
-	// Create symlink in workspace directory
-	symlinkPath := filepath.Join(ayosync.WorkspaceDir(), name)
-	if err := os.Symlink(absPath, symlinkPath); err != nil {
-		return fmt.Errorf("create symlink: %w", err)
-	}
+	// NOTE: We no longer create symlinks here. Shares are mounted as direct
+	// VirtioFS mounts when the sandbox is created (see internal/sandbox/ayo.go).
+	// This avoids the issue where symlinks don't work inside containers.
 
 	// Add to shares list
 	s.shares.Shares = append(s.shares.Shares, Share{
@@ -256,9 +253,8 @@ func (s *Service) Remove(nameOrPath string) error {
 		return nil // Not found is not an error (idempotent)
 	}
 
-	// Remove symlink from workspace directory
-	symlinkPath := filepath.Join(ayosync.WorkspaceDir(), found.Name)
-	os.Remove(symlinkPath) // Ignore errors - may already be gone
+	// NOTE: We no longer remove symlinks here - shares are now direct VirtioFS mounts.
+	// The mount will be removed on next sandbox restart.
 
 	// Remove from list
 	s.shares.Shares = append(s.shares.Shares[:foundIndex], s.shares.Shares[foundIndex+1:]...)
@@ -276,13 +272,10 @@ func (s *Service) RemoveSessionShares(sessionID string) error {
 	}
 
 	// Find and remove session shares
+	// NOTE: No symlinks to remove - shares are now direct VirtioFS mounts.
 	var remaining []Share
 	for _, share := range s.shares.Shares {
-		if share.Session && share.SessionID == sessionID {
-			// Remove symlink
-			symlinkPath := filepath.Join(ayosync.WorkspaceDir(), share.Name)
-			os.Remove(symlinkPath) // Ignore errors
-		} else {
+		if !(share.Session && share.SessionID == sessionID) {
 			remaining = append(remaining, share)
 		}
 	}

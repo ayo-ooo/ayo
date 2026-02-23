@@ -11,8 +11,9 @@ import (
 
 // EmbedRequest is the request body for /api/embed.
 type EmbedRequest struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
+	Model    string   `json:"model"`
+	Input    []string `json:"input"`
+	Truncate bool     `json:"truncate,omitempty"`
 }
 
 // EmbedResponse is the response from /api/embed.
@@ -40,8 +41,9 @@ func (c *Client) EmbedBatch(ctx context.Context, model string, texts []string) (
 	}
 
 	reqBody := EmbedRequest{
-		Model: model,
-		Input: texts,
+		Model:    model,
+		Input:    texts,
+		Truncate: true, // Let Ollama truncate if input still exceeds limits
 	}
 
 	body, err := json.Marshal(reqBody)

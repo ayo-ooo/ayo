@@ -47,6 +47,12 @@ type Runner struct {
 	shareService     *share.Service                 // nil = no share service for request_access
 	plannerManager   *planners.SandboxPlannerManager // nil = no planners
 	ayoPlanners      *planners.SandboxPlanners       // cached planners for @ayo sandbox
+	squadPlanners    *planners.SandboxPlanners       // planners for squad context
+
+	// Squad delegation support
+	squadInvoker      squads.AgentInvoker  // nil = no delegation
+	squadConstitution *squads.Constitution // nil = no constitution injection
+	squadAgents       []string             // agent handles in the squad
 }
 
 // ChatSession maintains conversation state for interactive chat.
@@ -92,6 +98,12 @@ type RunnerOptions struct {
 	Dispatcher       *Dispatcher                    // Dispatcher for semantic routing decisions
 	ShareService     *share.Service                 // Share service for request_access tool
 	PlannerManager   *planners.SandboxPlannerManager // Planner manager for per-sandbox planners
+	SquadPlanners    *planners.SandboxPlanners      // Planners for squad context
+
+	// Squad delegation support
+	SquadInvoker      squads.AgentInvoker  // Invoker for agent delegation
+	SquadConstitution *squads.Constitution // Squad constitution for injection
+	SquadAgents       []string             // Agent handles in the squad
 }
 
 // NewRunner creates a runner with all options.
@@ -112,6 +124,10 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		dispatcher:       opts.Dispatcher,
 		shareService:     opts.ShareService,
 		plannerManager:   opts.PlannerManager,
+		squadPlanners:    opts.SquadPlanners,
+		squadInvoker:     opts.SquadInvoker,
+		squadConstitution: opts.SquadConstitution,
+		squadAgents:      opts.SquadAgents,
 	}, nil
 }
 
@@ -815,8 +831,22 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 	var sandboxExecutor *sandbox.Executor
 	var sandboxID string
 	if ag.Config.SandboxEnabled() && r.sandboxProvider != nil {
-		// Check if this is the @ayo orchestrator agent - use dedicated sandbox
-		if isAyoAgent(ag.Handle) {
+		// Check if running in squad context - use squad's existing sandbox
+		if r.squadName != "" {
+			squadSandboxID := sandbox.SquadSandboxName(r.squadName)
+			// Derive user from agent handle (remove @ prefix)
+			sandboxUser := strings.TrimPrefix(ag.Handle, "@")
+			if sandboxUser == "" {
+				sandboxUser = "ayo"
+			}
+			sandboxID = squadSandboxID
+			// Use /workspace as default working directory for squad sandboxes
+			sandboxExecutor = sandbox.NewExecutor(r.sandboxProvider, sandboxID, "/workspace", sandboxUser)
+			if r.debug {
+				fmt.Fprintf(os.Stderr, "[sandbox] Using squad %s sandbox %s (user=%s)\n", r.squadName, sandboxID, sandboxUser)
+			}
+		} else if isAyoAgent(ag.Handle) {
+			// Check if this is the @ayo orchestrator agent - use dedicated sandbox
 			sb, ayoErr := r.ensureAyoSandbox(ctx, baseDir)
 			if ayoErr != nil {
 				return nil, nil, "", fmt.Errorf("ensure ayo sandbox: %w", ayoErr)
@@ -947,9 +977,15 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		}
 	}
 	
-	// Collect planner tools if available (for @ayo agent)
+	// Collect planner tools if available
+	// Priority: squad planners > @ayo planners
 	var plannerTools []fantasy.AgentTool
-	if isAyoAgent(ag.Handle) && r.ayoPlanners != nil {
+	if r.squadPlanners != nil {
+		plannerTools = GetPlannerTools(r.squadPlanners.NearTerm, r.squadPlanners.LongTerm)
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[planners] Adding %d planner tools from squad context\n", len(plannerTools))
+		}
+	} else if isAyoAgent(ag.Handle) && r.ayoPlanners != nil {
 		plannerTools = GetPlannerTools(r.ayoPlanners.NearTerm, r.ayoPlanners.LongTerm)
 		if r.debug {
 			fmt.Fprintf(os.Stderr, "[planners] Adding %d planner tools to @ayo\n", len(plannerTools))
@@ -957,14 +993,18 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 	}
 	
 	tools := NewFantasyToolSet(ToolSetOptions{
-		AllowedTools:    ag.Config.AllowedTools,
-		BaseDir:         baseDir,
-		MemoryQueue:     r.memoryQueue,
-		Depth:           r.depth,
-		SandboxExecutor: sandboxExecutor,
-		ShareService:    r.shareService,
-		SessionID:       sandboxID, // Use sandbox ID for session-scoped shares
-		PlannerTools:    plannerTools,
+		AllowedTools:      ag.Config.AllowedTools,
+		BaseDir:           baseDir,
+		MemoryQueue:       r.memoryQueue,
+		Depth:             r.depth,
+		SandboxExecutor:   sandboxExecutor,
+		ShareService:      r.shareService,
+		SessionID:         sandboxID, // Use sandbox ID for session-scoped shares
+		PlannerTools:      plannerTools,
+		SquadName:         r.squadName,
+		SquadAgents:       r.squadAgents,
+		SquadConstitution: r.squadConstitution,
+		SquadInvoker:      r.squadInvoker,
 	})
 
 	fantasyAgent := fantasy.NewAgent(

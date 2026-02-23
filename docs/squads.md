@@ -641,6 +641,38 @@ git commit -m "Initial squad constitution"
 | `ayo squad ticket NAME show ID` | Show ticket details |
 | `ayo squad ticket NAME close ID` | Close ticket |
 
+### Work Coordination with Tickets
+
+Squad agents use ticket tools to coordinate work. When the squad lead (or orchestrator) receives a complex task:
+
+1. **Create tickets** for each work item using `ticket_create`
+2. **Assign agents** via the `assignee` field (e.g., `@backend`, `@frontend`)
+3. **Track progress** with `ticket_list` to see what's done and what's blocked
+4. **Add notes** using `ticket_note` for updates and context
+5. **Close tickets** after review with `ticket_close`
+
+**Example workflow:**
+```
+User: "Build a user registration system"
+
+Squad lead:
+1. ticket_create("Implement registration API", assignee: "@backend", priority: 1)
+2. ticket_create("Design registration form", assignee: "@frontend", deps: [api-ticket])
+3. ticket_create("Write E2E tests", assignee: "@qa", deps: [api-ticket, form-ticket])
+
+Each agent picks up their assigned tickets and works in the shared workspace.
+```
+
+**Available ticket tools:**
+| Tool | Description |
+|------|-------------|
+| `ticket_create` | Create a new ticket with title, description, assignee |
+| `ticket_list` | List tickets filtered by status or assignee |
+| `ticket_start` | Mark ticket as in_progress |
+| `ticket_close` | Mark ticket as completed |
+| `ticket_block` | Mark ticket as blocked with reason |
+| `ticket_note` | Add a note/update to a ticket |
+
 ## Comparison to Other Systems
 
 | Feature | Squads | Flows | Delegation |

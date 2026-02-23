@@ -81,14 +81,22 @@ func (i *SquadAgentInvoker) Invoke(ctx context.Context, params squads.InvokePara
 	// Create runner with squad context
 	// The SquadName field causes constitution injection in Chat() and buildMessagesWithAttachments()
 	runnerOpts := run.RunnerOptions{
-		Services:        i.services,
-		SandboxProvider: i.sandboxProvider,
-		SquadName:       params.SquadName,
+		Services:          i.services,
+		SandboxProvider:   i.sandboxProvider,
+		SquadName:         params.SquadName,
+		SquadInvoker:      i, // Self-reference for nested delegation
+		SquadConstitution: params.Constitution,
 	}
 
-	// Pass planner manager if we have squad planners initialized
+	// Get squad agents from constitution for delegation validation
+	if params.Constitution != nil {
+		runnerOpts.SquadAgents = params.Constitution.GetAgents()
+	}
+
+	// Pass squad planners so agent gets planner tools
 	if squadPlanners != nil {
 		runnerOpts.PlannerManager = i.plannerManager
+		runnerOpts.SquadPlanners = squadPlanners
 	}
 
 	runner, err := run.NewRunner(i.config, false, runnerOpts)

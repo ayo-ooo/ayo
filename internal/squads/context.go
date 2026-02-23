@@ -169,6 +169,10 @@ type ConstitutionFrontmatter struct {
 	// InputAccepts specifies which agent receives input directly.
 	// Defaults to Lead if not specified.
 	InputAccepts string `yaml:"input_accepts"`
+
+	// Agents lists agent handles in this squad (optional).
+	// If not specified, agents are parsed from ### @agent sections.
+	Agents []string `yaml:"agents"`
 }
 
 // WithDefaults returns a copy with default values applied.
@@ -198,6 +202,46 @@ func (f ConstitutionFrontmatter) GetInputAcceptsAgent() string {
 		return "@" + f.InputAccepts
 	}
 	return f.InputAccepts
+}
+
+// GetAgents returns the list of agent handles in this constitution.
+// If agents are specified in frontmatter, those are returned.
+// Otherwise, agent handles are parsed from ### @agent sections.
+func (c *Constitution) GetAgents() []string {
+	// If frontmatter specifies agents, use those
+	if len(c.Frontmatter.Agents) > 0 {
+		agents := make([]string, len(c.Frontmatter.Agents))
+		for i, a := range c.Frontmatter.Agents {
+			if len(a) > 0 && a[0] != '@' {
+				agents[i] = "@" + a
+			} else {
+				agents[i] = a
+			}
+		}
+		return agents
+	}
+
+	// Parse from markdown sections like "### @backend"
+	return parseAgentSections(c.Raw)
+}
+
+// parseAgentSections extracts agent handles from ### @agent sections in markdown.
+func parseAgentSections(content string) []string {
+	var agents []string
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		// Look for ### @something
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "### @") {
+			// Extract the agent handle
+			rest := strings.TrimPrefix(trimmed, "### ")
+			parts := strings.Fields(rest)
+			if len(parts) > 0 && strings.HasPrefix(parts[0], "@") {
+				agents = append(agents, parts[0])
+			}
+		}
+	}
+	return agents
 }
 
 // LoadConstitution loads the SQUAD.md file for a squad.

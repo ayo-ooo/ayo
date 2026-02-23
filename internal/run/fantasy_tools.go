@@ -20,7 +20,9 @@ import (
 	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/share"
+	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/tools"
+	"github.com/alexcabrera/ayo/internal/tools/delegate"
 	"github.com/alexcabrera/ayo/internal/tools/findagent"
 	"github.com/alexcabrera/ayo/internal/tools/requestaccess"
 )
@@ -125,6 +127,12 @@ type ToolSetOptions struct {
 	PlannerTools       []fantasy.AgentTool              // Tools from planner plugins
 	ShareService       *share.Service                   // Optional for request_access tool
 	SessionID          string                           // Session ID for session-scoped shares
+
+	// Squad delegation support
+	SquadName         string                // Squad name for delegation context
+	SquadAgents       []string              // Agent handles in the squad
+	SquadConstitution *squads.Constitution  // Squad constitution for injection
+	SquadInvoker      squads.AgentInvoker   // Invoker for agent delegation
 }
 
 // NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
@@ -211,6 +219,17 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 				}))
 				loadedTools[resolvedName] = true
 			}
+		case "delegate":
+			// Only add if squad invoker is configured
+			if opts.SquadInvoker != nil && opts.SquadName != "" {
+				fantasyTools = append(fantasyTools, delegate.NewDelegateTool(delegate.ToolConfig{
+					SquadName:    opts.SquadName,
+					SquadAgents:  opts.SquadAgents,
+					Constitution: opts.SquadConstitution,
+					Invoker:      opts.SquadInvoker,
+				}))
+				loadedTools[resolvedName] = true
+			}
 		default:
 			// Try to load as external tool from plugins
 			if tool := loadExternalTool(resolvedName, baseDir, opts.Depth, &cfg); tool != nil {
@@ -229,6 +248,19 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 			fantasyTools = append(fantasyTools, plannerTool)
 			loadedTools[toolName] = true
 		}
+	}
+
+	// Add delegate tool automatically when squad context is configured
+	// This allows squad agents to delegate work to other agents without
+	// explicitly listing "delegate" in AllowedTools
+	if opts.SquadInvoker != nil && opts.SquadName != "" && !loadedTools["delegate"] {
+		fantasyTools = append(fantasyTools, delegate.NewDelegateTool(delegate.ToolConfig{
+			SquadName:    opts.SquadName,
+			SquadAgents:  opts.SquadAgents,
+			Constitution: opts.SquadConstitution,
+			Invoker:      opts.SquadInvoker,
+		}))
+		loadedTools["delegate"] = true
 	}
 
 	return FantasyToolSet{

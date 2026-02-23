@@ -9,6 +9,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
+	"github.com/alexcabrera/ayo/internal/share"
 	ayosync "github.com/alexcabrera/ayo/internal/sync"
 )
 
@@ -98,6 +99,18 @@ func EnsureAyoSandbox(ctx context.Context, provider *AppleProvider) (providers.S
 			continue
 		}
 		mounts = append(mounts, mount)
+	}
+
+	// Add shares as direct VirtioFS mounts (instead of relying on symlinks in workspace)
+	shareService := share.NewService()
+	shares := shareService.List()
+	for _, s := range shares {
+		mounts = append(mounts, providers.Mount{
+			Source:      s.Path,
+			Destination: "/workspace/" + s.Name,
+			Mode:        providers.MountModeVirtioFS,
+		})
+		debug.Log("adding share mount", "name", s.Name, "path", s.Path)
 	}
 
 	// Network config
