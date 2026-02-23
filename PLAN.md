@@ -15,7 +15,7 @@ Ayo is a CLI framework for creating, managing, and orchestrating AI agents that 
 
 Key differentiators:
 - **Sandboxed execution**: Agents run in isolated containers, not on your host
-- **Multi-agent coordination**: Squads with SQUAD.md constitutions for team collaboration
+- **Multi-agent coordination**: Squads with shared sandboxes for team collaboration
 - **Flexible triggers**: Time-based and event-based ambient agents
 - **Experimentation-friendly**: Same agent can behave differently in different sandboxes
 
@@ -29,8 +29,8 @@ Key differentiators:
 |-----------|--------|-------|
 | **Sandbox providers** | Good | Apple Container (macOS 26+), systemd-nspawn (Linux) |
 | **Agent definition** | Good | Directory-based agents with system.md, config.json |
-| **@ayo default agent** | Good | But needs clearer sandbox home directory semantics |
-| **Squads** | Good foundation | SQUAD.md constitution, ticket coordination |
+| **@ayo default agent** | Good | But needs clearer sandbox semantics |
+| **Squads** | Good foundation | Constitution in SQUAD.md, ticket coordination |
 | **Planners** | Good foundation | Plugin architecture with todos/tickets |
 | **Trigger engine** | Good foundation | Cron + file watch in daemon |
 | **Share system** | Good foundation | Host directory mounting |
@@ -46,107 +46,133 @@ Key differentiators:
 | **Webhook server** | Premature integration point | **DEFER** |
 | **Tunnel/QR code** | Mobile connectivity features | **REMOVE** |
 | **IRC integration** | Abandoned experiment | **REMOVE** |
+| **SQUAD.md frontmatter** | Inconsistent with agent config | **MIGRATE** to ayo.json |
 
 ### What Needs Work (Build/Refine)
 
 | Component | Work Needed |
 |-----------|-------------|
-| **@ayo home directory** | Standardize /home/ayo in sandbox |
+| **Sandbox coexistence model** | Define how agents share vs isolate |
 | **Host mount semantics** | Mount user's home to /mnt/{username} read-only |
 | **File request workflow** | Agent requests → user approves → file written |
-| **Safe write zone** | Designated area for unrestricted agent writes |
-| **Squad lead orchestration** | Clear lead agent semantics, work distribution |
+| **--no-jodas mode** | Bypass permission prompts for power users |
+| **Unified ayo.json schema** | Single config format for agents AND squads |
+| **Advanced scheduler** | Replace robfig/cron with gocron v2 |
 | **Ambient triggers** | Event/time-based proactive agent execution |
-| **I/O schemas for squads** | Enforce input/output contracts |
 
 ---
 
-## Architecture Simplification
+## Sandbox Architecture: Agent Coexistence Model
 
-### Current Architecture (Too Complex)
+### The Key Question
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                              HOST                                    │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐  │
-│  │   ayo CLI       │    │   REST Server   │    │   Web UI        │  │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘  │
-│           │                     │                      │            │
-│           ▼                     ▼                      ▼            │
-│  ┌─────────────────────────────────────────────────────────────────┐│
-│  │                         DAEMON                                   ││
-│  │  • Session management    • Webhook server    • Trigger engine   ││
-│  │  • Flow executor         • Matrix broker     • IRC bridge       ││
-│  └─────────────────────────────────────────────────────────────────┘│
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐│
-│  │                       SANDBOX(ES)                               ││
-│  └─────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────┘
-```
+> Should each agent get its own sandbox, or do agents coexist in a shared sandbox?
 
-### Target Architecture (Simplified)
+### Decision: Shared Default Sandbox with Optional Isolation
+
+**Default behavior**: All agents invoked directly (`ayo @agent "prompt"`) execute in the **@ayo sandbox**. This is the "workbench" where you interact with agents.
+
+**Squads**: Get their own isolated sandbox where multiple agents collaborate.
+
+**Explicit isolation**: Agents can request their own sandbox via config.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                              HOST                                    │
-│  ┌─────────────────────────────────────────────────────────────────┐│
-│  │                         AYO CLI                                  ││
-│  │  • Direct agent invocation    • Squad dispatch                  ││
-│  │  • Trigger management         • Shell access to sandboxes       ││
-│  └─────────────────────────────────────────────────────────────────┘│
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐│
-│  │                         DAEMON                                   ││
-│  │  • Session lifecycle     • Sandbox pool                         ││
-│  │  • Trigger engine        • Ticket watcher                       ││
-│  └─────────────────────────────────────────────────────────────────┘│
-│                              │                                      │
-│           ┌──────────────────┼──────────────────┐                   │
-│           ▼                  ▼                  ▼                   │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐             │
-│  │ @ayo sandbox│    │Squad sandbox│    │Agent sandbox│             │
-│  │ /home/ayo   │    │ /workspace  │    │ /home/agent │             │
-│  └─────────────┘    └─────────────┘    └─────────────┘             │
+│                         SANDBOX LANDSCAPE                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │           @AYO SANDBOX (default)             │                   │
+│  │  /home/ayo/          - @ayo's home           │                   │
+│  │  /home/crush/        - @crush's home         │                   │
+│  │  /home/reviewer/     - @reviewer's home      │                   │
+│  │  /mnt/{user}/        - Host home (read-only) │                   │
+│  │  /workspace/         - Shared workspace      │                   │
+│  │  /output/            - Safe write zone       │                   │
+│  │                                              │                   │
+│  │  When you run: ayo @crush "write code"       │                   │
+│  │  → @crush executes HERE, in @ayo sandbox     │                   │
+│  └──────────────────────────────────────────────┘                   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │           #dev-team SQUAD SANDBOX            │                   │
+│  │  /home/frontend/     - @frontend's home      │                   │
+│  │  /home/backend/      - @backend's home       │                   │
+│  │  /workspace/         - Shared code           │                   │
+│  │  /.tickets/          - Coordination          │                   │
+│  │                                              │                   │
+│  │  When you run: ayo #dev-team "build feature" │                   │
+│  │  → Squad lead orchestrates HERE              │                   │
+│  └──────────────────────────────────────────────┘                   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │     @isolated-agent SANDBOX (if configured)  │                   │
+│  │  sandbox: { isolated: true } in ayo.json     │                   │
+│  └──────────────────────────────────────────────┘                   │
+│                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Why Shared by Default?
+
+1. **Simpler mental model**: One sandbox to understand and explore
+2. **File sharing**: Agents can hand off files to each other naturally
+3. **Resource efficiency**: One container vs many
+4. **Easier debugging**: `ayo sandbox shell` drops you into familiar environment
+5. **Natural orchestration**: @ayo can invoke other agents and they see the same files
+
+### When to Use Isolated Sandboxes
+
+1. **Squads**: Always isolated - they need their own workspace and tickets
+2. **Untrusted agents**: Agents you don't fully trust get their own box
+3. **Resource-intensive agents**: Agents that need special resources
+4. **Conflicting dependencies**: Agents that need different environments
+
+### Agent Home Directories
+
+Each agent gets a home directory in the shared sandbox:
+
+```
+/home/
+├── ayo/              # @ayo (orchestrator)
+├── crush/            # @crush (coding agent)
+├── reviewer/         # @reviewer
+└── {agent-name}/     # Created on first use
+```
+
+Agents run as the `ayo` Unix user but their `$HOME` is set to `/home/{agent-name}`.
 
 ---
 
-## Sandbox & File System Model
+## File Access & Permission Model
 
-### @ayo Default Agent Sandbox
-
-The default `@ayo` agent should feel like a regular user account:
+### File System Layout
 
 ```
 SANDBOX FILESYSTEM:
 /
 ├── home/
-│   └── ayo/                    # Agent's home directory (persistent)
-│       ├── .config/            # Agent configuration
-│       ├── .local/             # Local data
-│       └── workspace/          # Current working directory
+│   └── {agent}/              # Per-agent home directories
+│       ├── .config/          # Agent-specific config
+│       └── .local/           # Agent-specific data
 ├── mnt/
-│   └── {host_username}/        # Host home directory (READ-ONLY)
+│   └── {host_username}/      # Host home directory (READ-ONLY)
 │       ├── Documents/
 │       ├── Projects/
 │       └── ...
-├── workspace/                  # Shared workspace for collaborations
-└── output/                     # WRITE ZONE - unrestricted agent writes
-    └── {session_id}/           # Per-session output directory
+├── workspace/                # Shared workspace (read-write)
+└── output/                   # WRITE ZONE - syncs to host
+    └── {session_id}/         # Per-session output
 ```
 
 ### File Access Model
 
 | Zone | Access | Purpose |
 |------|--------|---------|
-| `/home/ayo` | Read-write | Agent's persistent storage |
-| `/mnt/{user}` | Read-only | Access to host files |
+| `/home/{agent}` | Read-write | Agent's persistent storage |
+| `/mnt/{user}` | **Read-only** | Access to host files |
 | `/workspace` | Read-write | Shared collaboration space |
-| `/output/{session}` | Read-write | **Safe write zone** - freely writable to host |
+| `/output/{session}` | Read-write | **Safe write zone** - auto-syncs to host |
 
 ### File Request Workflow
 
@@ -172,44 +198,111 @@ When an agent needs to modify files on the host:
 4. User approves → file is written to host
 ```
 
-### Safe Write Zone
+### --no-jodas Mode
 
-Files written to `/output/{session}/` are automatically synced to host:
-- Host path: `~/.local/share/ayo/output/{session}/`
-- No approval needed
-- Agent can generate reports, code, artifacts freely
-- User retrieves when ready
+For power users who trust their agents, `--no-jodas` mode auto-approves all file requests:
+
+```bash
+# Enable for a session
+ayo --no-jodas "refactor my entire codebase"
+
+# Enable globally in config
+# ~/.config/ayo/config.json
+{
+  "permissions": {
+    "no_jodas": true
+  }
+}
+
+# Enable per-agent
+# ~/.config/ayo/agents/@trusted/ayo.json
+{
+  "permissions": {
+    "auto_approve": true
+  }
+}
+```
+
+**Safety considerations**:
+- `--no-jodas` still respects the `/mnt/{user}` boundary (only host home, not system)
+- All file modifications are logged to `~/.local/share/ayo/audit.log`
+- Can be combined with `--dry-run` to see what would happen
 
 ---
 
-## Squad Coordination Model
+## Unified Configuration: ayo.json
 
-### Squad Structure
+### Current Problem
 
+We have inconsistent configuration:
+- Agents use `config.json` with one schema
+- Squads use `SQUAD.md` frontmatter with different fields
+- Global config in `~/.config/ayo/config.json` has yet another schema
+
+### Solution: Unified ayo.json Schema
+
+Both agents and squads use `ayo.json` with namespaced sections:
+
+```json
+{
+  "$schema": "https://ayo.dev/schemas/ayo.json",
+  "version": "1",
+  
+  "agent": {
+    "description": "A helpful coding assistant",
+    "model": "claude-sonnet-4-5-20250929",
+    "tools": ["bash", "memory", "file_request"],
+    "skills": ["coding", "debugging"],
+    "memory": {
+      "enabled": true,
+      "scope": "global"
+    },
+    "sandbox": {
+      "isolated": false,
+      "network": true
+    },
+    "permissions": {
+      "auto_approve": false
+    }
+  }
+}
 ```
-~/.local/share/ayo/sandboxes/squads/{squad-name}/
-├── SQUAD.md               # Constitution (mission, roles, rules)
-├── input.jsonschema       # Optional: input contract
-├── output.jsonschema      # Optional: output contract
-├── .tickets/              # Coordination tickets
-├── workspace/             # Shared code workspace
-└── agent-homes/           # Per-agent home directories
-    ├── @frontend/
-    ├── @backend/
-    └── @qa/
+
+For squads:
+
+```json
+{
+  "$schema": "https://ayo.dev/schemas/ayo.json",
+  "version": "1",
+  
+  "squad": {
+    "description": "Development team for auth features",
+    "lead": "@architect",
+    "input_accepts": "@planner",
+    "agents": ["@frontend", "@backend", "@qa"],
+    "planners": {
+      "near_term": "ayo-todos",
+      "long_term": "ayo-tickets"
+    },
+    "sandbox": {
+      "image": "alpine:3.21",
+      "network": true,
+      "mounts": ["~/Projects/myapp:/workspace"]
+    },
+    "io": {
+      "input_schema": "input.jsonschema",
+      "output_schema": "output.jsonschema"
+    }
+  }
+}
 ```
 
-### SQUAD.md Constitution
+### SQUAD.md Becomes Pure Documentation
+
+SQUAD.md remains as the human-readable constitution but NO LONGER contains configuration:
 
 ```markdown
----
-lead: "@architect"
-input_accepts: "@planner"
-planners:
-  near_term: ayo-todos
-  long_term: ayo-tickets
----
-# Squad: ecommerce-auth
+# Squad: auth-team
 
 ## Mission
 Implement secure authentication for the e-commerce platform.
@@ -217,153 +310,102 @@ Implement secure authentication for the e-commerce platform.
 ## Agents
 
 ### @architect (Lead)
-- Decomposes tasks into tickets
-- Reviews agent output
-- Makes architectural decisions
+Decomposes tasks, reviews output, makes architectural decisions.
 
 ### @backend
-- Implements API endpoints
-- Writes tests
+Implements API endpoints, writes tests.
 
-### @frontend  
-- Implements UI components
-- Integrates with backend
+### @frontend
+Implements UI components, integrates with backend.
 
 ## Coordination
-1. All work flows through tickets
-2. @architect creates and assigns tickets
-3. Agents close tickets when done
-4. @architect reviews and approves
+All work flows through tickets. @architect creates and assigns.
 ```
 
-### Squad Lead Semantics
+### Migration Path
 
-The squad lead (`@architect` in example above):
-- Receives all unrouted dispatches to the squad
-- Has `ticket_create`, `ticket_assign`, `delegate` tools
-- Does NOT have direct file editing (must delegate)
-- Synthesizes final output from agent work
+1. Parse existing SQUAD.md frontmatter
+2. Generate `ayo.json` with squad section
+3. Strip frontmatter from SQUAD.md
+4. Deprecation warning for old format
 
 ---
 
-## Planner System
+## Advanced Scheduler: gocron v2
 
-### Two Planning Horizons
+### Current Problem
 
-| Type | Scope | Default Plugin | Purpose |
-|------|-------|----------------|---------|
-| **Near-term** | Session | `ayo-todos` | Sequential task tracking |
-| **Long-term** | Persistent | `ayo-tickets` | Multi-agent coordination |
+We use `robfig/cron` which only supports cron expressions. Users need:
+- One-time scheduled jobs
+- "In 30 minutes" style scheduling
+- Weekly/monthly jobs with friendly syntax
+- Job persistence across daemon restarts
+- Job monitoring and history
 
-### Near-Term: ayo-todos
+### Solution: Migrate to go-co-op/gocron v2
 
-Simple todo list for individual agent session:
+[gocron v2](https://github.com/go-co-op/gocron) provides:
 
-```
-# Agent's internal todo tracking
-[ ] Parse user request
-[x] Find relevant files
-[ ] Make changes
-[ ] Run tests
-```
+| Feature | robfig/cron | gocron v2 |
+|---------|-------------|-----------|
+| Cron expressions | ✓ | ✓ |
+| Duration-based | ✗ | ✓ (`10*time.Second`) |
+| One-time jobs | ✗ | ✓ (`OneTimeJob`) |
+| Daily/Weekly/Monthly | ✗ | ✓ (fluent API) |
+| Random intervals | ✗ | ✓ |
+| Singleton mode | ✗ | ✓ |
+| Concurrency limits | ✗ | ✓ |
+| Event listeners | ✗ | ✓ |
+| Distributed locking | ✗ | ✓ |
+| Monitoring interface | ✗ | ✓ |
 
-- SQLite-backed, session-scoped
-- Tools: `todo_add`, `todo_complete`, `todo_list`
-- Visible in TUI sidebar
-
-### Long-Term: ayo-tickets
-
-Markdown ticket system for persistent work:
-
-```markdown
----
-id: auth-0a3b
-status: in_progress
-assignee: @backend
-deps: [auth-0x01]
-priority: 1
----
-# Implement JWT token validation
-
-Validate JWT tokens on all protected endpoints.
-
-## Acceptance Criteria
-- [ ] Middleware checks Authorization header
-- [ ] Invalid tokens return 401
-- [ ] Expired tokens return 401 with refresh hint
-```
-
-- File-based, git-friendly
-- Tools: `ticket_create`, `ticket_start`, `ticket_close`, `ticket_assign`
-- Daemon watches for changes, triggers agent actions
-
----
-
-## Ambient & Proactive Agents
-
-### Trigger Types
-
-| Type | Configuration | Use Case |
-|------|---------------|----------|
-| **Cron** | `schedule: "0 9 * * MON"` | Daily standup, weekly reports |
-| **File watch** | `watch: ~/Projects` | Auto-review on file changes |
-| **Ticket** | (automatic) | Agent wakes when assigned ticket |
-
-### Trigger Configuration
+### New Trigger Configuration
 
 ```yaml
 # ~/.config/ayo/triggers/morning-standup.yaml
 name: morning-standup
-type: cron
-schedule: "0 9 * * MON-FRI"
+type: daily
+schedule:
+  times: ["09:00"]
+  days: [monday, tuesday, wednesday, thursday, friday]
 agent: "@standup"
-prompt: |
-  Review tickets from yesterday, summarize progress,
-  identify blockers, and create today's priorities.
+prompt: "Generate daily standup report"
 output: /output/standup/{date}.md
+
+# One-time job
+name: deploy-reminder
+type: once
+schedule:
+  at: "2026-02-24T14:00:00Z"
+agent: "@notifier"
+prompt: "Remind about deployment"
+
+# Duration-based
+name: health-check
+type: interval
+schedule:
+  every: 5m
+agent: "@monitor"
+prompt: "Check system health"
+singleton: true  # Don't overlap
 ```
 
-### Proactive Agent Patterns
+### Persistence
 
-**Pattern 1: Watcher Agent**
-```yaml
-name: code-reviewer
-type: watch
-watch:
-  path: ~/Projects/myapp
-  patterns: ["*.go", "*.py"]
-  events: [modify]
-agent: "@reviewer"
-prompt: "Review the changed files for issues"
-```
+Jobs are stored in SQLite and restored on daemon restart:
 
-**Pattern 2: Scheduled Reporter**
-```yaml
-name: weekly-summary
-type: cron
-schedule: "0 17 * * FRI"
-agent: "@analyst"
-prompt: "Summarize this week's commits and PRs"
-```
-
-**Pattern 3: Ticket-Driven Worker**
-```yaml
-# No explicit trigger needed - daemon watches .tickets/
-# When ticket assigned to @backend, agent wakes up
-```
-
-### Notification & Approval
-
-Proactive agents may generate output that needs user review:
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ ⏰ Scheduled: @standup completed morning standup                     │
-│                                                                      │
-│ Output: ~/.local/share/ayo/output/standup/2026-02-23.md             │
-│                                                                      │
-│ [V]iew  [O]pen in editor  [D]ismiss                                 │
-└─────────────────────────────────────────────────────────────────────┘
+```sql
+CREATE TABLE scheduled_jobs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,  -- 'cron', 'daily', 'weekly', 'once', 'interval'
+  schedule TEXT NOT NULL,  -- JSON
+  agent TEXT NOT NULL,
+  prompt TEXT,
+  last_run_at TIMESTAMP,
+  next_run_at TIMESTAMP,
+  enabled BOOLEAN DEFAULT true
+);
 ```
 
 ---
@@ -396,31 +438,6 @@ Proactive agents may generate output that needs user review:
 
 ---
 
-## Documentation Simplification
-
-### Current Docs (12,000+ lines across 20+ files)
-
-Remove or consolidate:
-- `docs/flows-spec.md` - Remove (YAML flows going away)
-- `docs/plugins.md` - Simplify (most complexity removed)
-- `docs/TUTORIAL.md` - Rewrite as concise getting-started
-- `docs/reference/` - Auto-generate from CLI help
-
-### Target Docs (~3,000 lines)
-
-| Doc | Purpose | Lines |
-|-----|---------|-------|
-| `README.md` | Quick intro, install, hello world | ~200 |
-| `docs/getting-started.md` | First 30 minutes with ayo | ~300 |
-| `docs/agents.md` | Creating and configuring agents | ~400 |
-| `docs/squads.md` | Multi-agent collaboration | ~500 |
-| `docs/triggers.md` | Ambient/proactive agents | ~400 |
-| `docs/planners.md` | Todos and tickets | ~300 |
-| `docs/sandbox.md` | Understanding isolation | ~400 |
-| `docs/cli-reference.md` | Command reference | ~500 |
-
----
-
 ## Implementation Phases
 
 ### Phase 1: Foundation (Simplification)
@@ -430,19 +447,40 @@ Remove or consolidate:
 1. Remove server, web UI, webhook code
 2. Remove YAML flow executor
 3. Simplify daemon to core functions
-4. Standardize @ayo sandbox home directory
+4. Implement shared sandbox with per-agent homes
 5. Implement host mount at /mnt/{username}
 
-### Phase 2: File System Model
+### Phase 2: File System & Permissions
 
 **Goal**: Clear, safe file access patterns
 
-1. Implement file request workflow
-2. Add /output safe write zone
-3. Add approval UI to terminal
-4. Implement "always allow for session" option
+1. Implement file_request tool
+2. Add approval UI to terminal
+3. Implement --no-jodas mode
+4. Add /output safe write zone
+5. Implement audit logging
 
-### Phase 3: Squad Polish
+### Phase 3: Unified Configuration
+
+**Goal**: Single ayo.json schema for agents and squads
+
+1. Design unified ayo.json schema
+2. Implement ayo.json loader for agents
+3. Implement ayo.json loader for squads
+4. Migrate SQUAD.md frontmatter to ayo.json
+5. Update CLI commands for new schema
+
+### Phase 4: Advanced Scheduler
+
+**Goal**: Powerful, persistent scheduling with gocron v2
+
+1. Replace robfig/cron with gocron v2
+2. Implement job persistence in SQLite
+3. Add one-time and duration jobs
+4. Implement job monitoring
+5. Add trigger CLI improvements
+
+### Phase 5: Squad Polish
 
 **Goal**: Squads as first-class coordination primitive
 
@@ -451,16 +489,7 @@ Remove or consolidate:
 3. Add I/O schema enforcement
 4. Polish ticket tools for agents
 
-### Phase 4: Triggers & Ambient Agents
-
-**Goal**: Proactive agents that act without prompts
-
-1. Polish cron trigger configuration
-2. Add file watch triggers
-3. Implement notification system
-4. Add trigger management CLI
-
-### Phase 5: Documentation & Polish
+### Phase 6: Documentation & Polish
 
 **Goal**: Make ayo approachable
 
@@ -487,42 +516,10 @@ Remove or consolidate:
 
 A user should be able to answer:
 1. "What is ayo?" → CLI for managing AI agents in sandboxes
-2. "What's a squad?" → A team of agents working together
-3. "What's a trigger?" → What makes an agent act without prompting
-4. "What's a planner?" → How agents track their work
-
----
-
-## Appendix: Ambient Agent Research
-
-### Industry Patterns
-
-Based on research of ambient/proactive agent systems:
-
-**Key Design Patterns:**
-1. **Trigger → Context → Action → Notification**
-2. **Human-in-the-loop for destructive actions**
-3. **Output artifacts over direct system changes**
-4. **Audit trail for all autonomous actions**
-
-**Trigger Mechanisms:**
-- Cron/schedule (most common)
-- File system events (powerful for dev workflows)
-- Git hooks (CI/CD integration)
-- API webhooks (external system integration)
-- Manual "start watching" commands
-
-**Lifecycle Management:**
-- Background daemon manages agent lifecycle
-- Agents are ephemeral - start, work, exit
-- Persistent state in files/database
-- Notification aggregation to avoid spam
-
-**Approval Patterns:**
-- Approve individual actions
-- Approve classes of actions ("always allow read")
-- Session-scoped approvals
-- Time-bounded approvals
+2. "Where do agents run?" → In the @ayo sandbox, or isolated squad sandboxes
+3. "What's a squad?" → A team of agents with their own sandbox
+4. "What's a trigger?" → What makes an agent act without prompting
+5. "What's --no-jodas?" → Auto-approve mode for power users
 
 ---
 
@@ -536,9 +533,10 @@ All implementation work is tracked in `.tickets/`. Use `tk list` to see current 
 |------|-------|--------------|--------|
 | `ayo-6h19` | Phase 1: Foundation | - | Open |
 | `ayo-whmn` | Phase 2: File System | Phase 1 | Open |
-| `ayo-xfu3` | Phase 3: Squad Polish | Phase 2 | Open |
-| `ayo-sqad` | Phase 4: Triggers | Phase 3 | Open |
-| `ayo-i2qo` | Phase 5: Documentation | Phase 4 | Open |
+| `ayo-xfu3` | Phase 3: Unified Config | Phase 2 | Open |
+| `ayo-sqad` | Phase 4: Scheduler | Phase 3 | Open |
+| `ayo-i2qo` | Phase 5: Squad Polish | Phase 4 | Open |
+| (new) | Phase 6: Documentation | Phase 5 | Open |
 
 ### Quick Commands
 
