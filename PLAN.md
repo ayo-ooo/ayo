@@ -526,4 +526,39 @@ Based on research of ambient/proactive agent systems:
 
 ---
 
+## Ticket Tracking
+
+All implementation work is tracked in `.tickets/`. Use `tk list` to see current state.
+
+### Epic Structure
+
+| Epic | Phase | Dependencies | Status |
+|------|-------|--------------|--------|
+| `ayo-6h19` | Phase 1: Foundation | - | Open |
+| `ayo-whmn` | Phase 2: File System | Phase 1 | Open |
+| `ayo-xfu3` | Phase 3: Squad Polish | Phase 2 | Open |
+| `ayo-sqad` | Phase 4: Triggers | Phase 3 | Open |
+| `ayo-i2qo` | Phase 5: Documentation | Phase 4 | Open |
+
+### Quick Commands
+
+```bash
+# See all tickets
+tk list
+
+# See dependency tree
+tk dep tree ayo-i2qo
+
+# Start work on a ticket
+tk start <id>
+
+# Close completed ticket
+tk close <id>
+
+# See what's ready to work on
+tk ready
+```
+
+---
+
 *Last updated: 2026-02-23*
