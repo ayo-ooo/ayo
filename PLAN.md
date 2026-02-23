@@ -533,10 +533,10 @@ All implementation work is tracked in `.tickets/`. Use `tk list` to see current 
 |------|-------|--------------|--------|
 | `ayo-6h19` | Phase 1: Foundation | - | Open |
 | `ayo-whmn` | Phase 2: File System | Phase 1 | Open |
-| `ayo-xfu3` | Phase 3: Unified Config | Phase 2 | Open |
-| `ayo-sqad` | Phase 4: Scheduler | Phase 3 | Open |
-| `ayo-i2qo` | Phase 5: Squad Polish | Phase 4 | Open |
-| (new) | Phase 6: Documentation | Phase 5 | Open |
+| `ayo-pv3a` | Phase 3: Unified Config | Phase 2 | Open |
+| `ayo-sqad` | Phase 4: Advanced Scheduler | Phase 3 | Open |
+| `ayo-xfu3` | Phase 5: Squad Polish | Phase 4 | Open |
+| `ayo-i2qo` | Phase 6: Documentation | Phase 5 | Open |
 
 ### Quick Commands
 
