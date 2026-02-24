@@ -102,6 +102,16 @@ type Config struct {
 
 	// Planners configures the default near-term and long-term planners.
 	Planners PlannersConfig `json:"planners,omitempty"`
+
+	// Permissions configures global file modification approval settings.
+	Permissions PermissionsConfig `json:"permissions,omitempty"`
+}
+
+// PermissionsConfig configures file modification approval behavior.
+type PermissionsConfig struct {
+	// NoJodas auto-approves all file modifications without prompting.
+	// WARNING: Use with caution - agents can modify any file in your home directory.
+	NoJodas bool `json:"no_jodas,omitempty"`
 }
 
 // FlowsConfig configures the flows system.

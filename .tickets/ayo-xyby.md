@@ -1,6 +1,6 @@
 ---
 id: ayo-xyby
-status: open
+status: closed
 deps: [ayo-evik]
 links: []
 created: 2026-02-23T23:13:32Z
