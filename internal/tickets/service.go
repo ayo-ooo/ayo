@@ -364,6 +364,9 @@ func matchesFilter(ticket *Ticket, filter Filter) bool {
 	if filter.Type != "" && ticket.Type != filter.Type {
 		return false
 	}
+	if filter.Priority != nil && ticket.Priority != *filter.Priority {
+		return false
+	}
 	if filter.Parent != "" && ticket.Parent != filter.Parent {
 		return false
 	}

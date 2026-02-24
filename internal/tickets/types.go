@@ -81,6 +81,7 @@ type Filter struct {
 	Status   Status
 	Assignee string
 	Type     Type
+	Priority *int // nil means no filter, 0-4 for specific priority
 	Tags     []string
 	Parent   string
 }

@@ -17,6 +17,7 @@ const (
 	ToolTicketClose  = "ticket_close"
 	ToolTicketBlock  = "ticket_block"
 	ToolTicketNote   = "ticket_note"
+	ToolTicketAssign = "ticket_assign"
 )
 
 // Tool descriptions
@@ -27,6 +28,7 @@ const (
 	descClose  = "Close a completed ticket"
 	descBlock  = "Mark a ticket as blocked"
 	descNote   = "Add a timestamped note to a ticket"
+	descAssign = "Assign or reassign a ticket to an agent"
 )
 
 // CreateParams are the parameters for ticket_create.
@@ -46,6 +48,7 @@ type ListParams struct {
 	Status   string   `json:"status,omitempty" jsonschema:"enum=open,enum=in_progress,enum=blocked,enum=closed,description=Filter by status"`
 	Type     string   `json:"type,omitempty" jsonschema:"enum=task,enum=feature,enum=bug,enum=chore,enum=epic,description=Filter by type"`
 	Assignee string   `json:"assignee,omitempty" jsonschema:"description=Filter by assignee"`
+	Priority *int     `json:"priority,omitempty" jsonschema:"minimum=0,maximum=4,description=Filter by priority (0=highest\\, 4=lowest)"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"description=Filter by tags (must have all)"`
 }
 
@@ -64,6 +67,12 @@ type NoteParams struct {
 type CloseParams struct {
 	ID      string `json:"id" jsonschema:"required,description=Ticket ID (full or partial)"`
 	Message string `json:"message,omitempty" jsonschema:"description=Optional closing message/summary"`
+}
+
+// AssignParams are the parameters for ticket_assign.
+type AssignParams struct {
+	ID       string `json:"id" jsonschema:"required,description=Ticket ID (full or partial)"`
+	Assignee string `json:"assignee" jsonschema:"required,description=Agent handle to assign (e.g. @frontend)"`
 }
 
 // TicketResult represents a ticket in tool responses.
@@ -144,6 +153,17 @@ func (p *Plugin) newNoteTool() fantasy.AgentTool {
 	)
 }
 
+// newAssignTool creates the ticket_assign tool.
+func (p *Plugin) newAssignTool() fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		ToolTicketAssign,
+		descAssign,
+		func(ctx context.Context, params AssignParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return p.handleAssign(ctx, params)
+		},
+	)
+}
+
 // handleCreate processes ticket_create invocations.
 func (p *Plugin) handleCreate(ctx context.Context, params CreateParams) (fantasy.ToolResponse, error) {
 	if p.service == nil {
@@ -198,6 +218,7 @@ func (p *Plugin) handleList(ctx context.Context, params ListParams) (fantasy.Too
 		Status:   tickets.Status(params.Status),
 		Type:     tickets.Type(params.Type),
 		Assignee: params.Assignee,
+		Priority: params.Priority,
 		Tags:     params.Tags,
 	}
 
@@ -317,6 +338,31 @@ func (p *Plugin) handleNote(ctx context.Context, params NoteParams) (fantasy.Too
 	return jsonResponse(map[string]any{
 		"message": fmt.Sprintf("Added note to ticket %s", params.ID),
 		"id":      params.ID,
+	})
+}
+
+// handleAssign processes ticket_assign invocations.
+func (p *Plugin) handleAssign(ctx context.Context, params AssignParams) (fantasy.ToolResponse, error) {
+	if p.service == nil {
+		return fantasy.NewTextErrorResponse("plugin not initialized"), nil
+	}
+
+	if params.ID == "" {
+		return fantasy.NewTextErrorResponse("id is required"), nil
+	}
+
+	if params.Assignee == "" {
+		return fantasy.NewTextErrorResponse("assignee is required"), nil
+	}
+
+	if err := p.service.Assign("", params.ID, params.Assignee); err != nil {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf("assign ticket: %v", err)), nil
+	}
+
+	return jsonResponse(map[string]any{
+		"message":  fmt.Sprintf("Assigned ticket %s to %s", params.ID, params.Assignee),
+		"id":       params.ID,
+		"assignee": params.Assignee,
 	})
 }
 

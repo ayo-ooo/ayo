@@ -70,6 +70,7 @@ func (p *Plugin) Tools() []fantasy.AgentTool {
 		p.newCloseTool(),
 		p.newBlockTool(),
 		p.newNoteTool(),
+		p.newAssignTool(),
 	}
 }
 
@@ -92,11 +93,12 @@ Use ticket tools for persistent work tracking across sessions:
 
 **Available tools:**
 - ticket_create: Create new work items with title, description, type, priority
-- ticket_list: List tickets with optional filters (status, type, assignee)
+- ticket_list: List tickets with optional filters (status, type, assignee, priority)
 - ticket_start: Begin working on a ticket (sets status to in_progress)
 - ticket_close: Mark a ticket as complete (with optional closing message)
 - ticket_block: Mark a ticket as blocked
 - ticket_note: Add timestamped progress notes to a ticket
+- ticket_assign: Assign or reassign a ticket to an agent
 
 **Ticket states:**
 - open: Ready to be worked on
@@ -111,12 +113,20 @@ Use ticket tools for persistent work tracking across sessions:
 - chore: Maintenance work
 - epic: Large initiative containing sub-tickets
 
+**Priority levels:**
+- 0: Critical/urgent
+- 1: High priority
+- 2: Normal (default)
+- 3: Low priority
+- 4: Nice to have
+
 **Best practices:**
 - Create tickets for work that won't be completed immediately
 - Use dependencies to track blockers
 - Add notes as you make progress
 - Close tickets with a summary message
 - Use ticket_list to see what's ready to work on
+- Assign tickets to coordinate work in squads
 `
 
 // StateDir returns the directory where this planner stores its state.

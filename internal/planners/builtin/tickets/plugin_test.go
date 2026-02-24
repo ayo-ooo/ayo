@@ -117,9 +117,9 @@ func TestPlugin_Close(t *testing.T) {
 func TestPlugin_Tools(t *testing.T) {
 	p := &Plugin{}
 	tools := p.Tools()
-	// Should return 6 tools: create, list, start, close, block, note
-	if len(tools) != 6 {
-		t.Errorf("Tools() returned %d tools, want 6", len(tools))
+	// Should return 7 tools: create, list, start, close, block, note, assign
+	if len(tools) != 7 {
+		t.Errorf("Tools() returned %d tools, want 7", len(tools))
 	}
 
 	// Verify tool names
@@ -130,6 +130,7 @@ func TestPlugin_Tools(t *testing.T) {
 		ToolTicketClose,
 		ToolTicketBlock,
 		ToolTicketNote,
+		ToolTicketAssign,
 	}
 	for i, tool := range tools {
 		if tool.Info().Name != expectedNames[i] {
