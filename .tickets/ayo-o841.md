@@ -1,6 +1,6 @@
 ---
 id: ayo-o841
-status: open
+status: closed
 deps: [ayo-q841]
 links: []
 created: 2026-02-23T22:16:02Z

@@ -40,10 +40,16 @@ type TriggerConfig struct {
 	Schedule string `json:"schedule,omitempty"` // cron expression
 
 	// Watch configuration
-	Path      string   `json:"path,omitempty"`      // path to watch
+	Path      string   `json:"path,omitempty"`      // path to watch (single path, for backwards compat)
+	Paths     []string `json:"paths,omitempty"`     // multiple paths to watch
 	Patterns  []string `json:"patterns,omitempty"`  // glob patterns to match
-	Recursive bool     `json:"recursive,omitempty"` // watch subdirectories
-	Events    []string `json:"events,omitempty"`    // create, modify, delete
+	Exclude   []string `json:"exclude,omitempty"`   // glob patterns to exclude
+	Recursive bool     `json:"recursive,omitempty"` // watch subdirectories (default: true)
+	Events    []string `json:"events,omitempty"`    // create, modify, delete, rename
+
+	// Options
+	Debounce  string `json:"debounce,omitempty"`  // debounce duration (e.g., "500ms")
+	Singleton bool   `json:"singleton,omitempty"` // only one run at a time
 }
 
 // TriggerEvent represents a triggered event.
