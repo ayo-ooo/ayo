@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -428,14 +429,7 @@ func (e *TriggerEngine) matchesWatchEvent(trigger *Trigger, event fsnotify.Event
 			eventType = "rename"
 		}
 
-		found := false
-		for _, e := range trigger.Config.Events {
-			if e == eventType {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(trigger.Config.Events, eventType) {
 			return false
 		}
 	}

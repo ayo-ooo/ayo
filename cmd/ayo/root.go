@@ -553,8 +553,7 @@ func completeHandles(toComplete string) ([]string, cobra.ShellCompDirective) {
 	}
 
 	// If completing a # prefix, suggest squad names
-	if strings.HasPrefix(toComplete, "#") {
-		prefix := strings.TrimPrefix(toComplete, "#")
+	if prefix, found := strings.CutPrefix(toComplete, "#"); found {
 		squadNames, err := paths.ListSquads()
 		if err == nil {
 			for _, name := range squadNames {

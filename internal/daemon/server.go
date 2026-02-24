@@ -797,7 +797,7 @@ func (s *Server) handleAgentStatus(req *Request) *Response {
 
 func (s *Server) writePIDFile() error {
 	pidPath := DefaultPIDPath()
-	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+	return os.WriteFile(pidPath, fmt.Appendf(nil, "%d", os.Getpid()), 0644)
 }
 
 // selectSandboxProvider returns the best available sandbox provider for the current platform.
