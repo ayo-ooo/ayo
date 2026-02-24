@@ -1,6 +1,6 @@
 ---
 id: ayo-pcal
-status: open
+status: closed
 deps: [ayo-pltg]
 links: []
 created: 2026-02-23T12:00:00Z
