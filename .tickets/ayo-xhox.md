@@ -1,6 +1,6 @@
 ---
 id: ayo-xhox
-status: open
+status: closed
 deps: [ayo-enaj]
 links: []
 created: 2026-02-23T22:16:36Z
