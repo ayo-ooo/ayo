@@ -331,7 +331,7 @@ func outputFlowDetails(f *flows.Flow, showScript bool) error {
 		// Show first 10 lines
 		lines := strings.Split(f.Raw.Script, "\n")
 		maxLines := min(10, len(lines))
-		for i := 0; i < maxLines; i++ {
+		for i := range maxLines {
 			fmt.Println("  " + lines[i])
 		}
 		if len(lines) > 10 {

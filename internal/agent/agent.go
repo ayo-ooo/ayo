@@ -1,3 +1,22 @@
+// Package agent provides agent configuration, loading, and management.
+//
+// This package handles the complete lifecycle of ayo agents:
+//   - Type definitions (TrustLevel, Config, Agent)
+//   - Loading agents from disk (Load, loadFromDir)
+//   - Saving agents (Save, SaveWithSchemas)
+//   - Schema validation (input/output schemas for chainable agents)
+//   - Agent chaining compatibility checks
+//
+// Key types:
+//   - Agent: A loaded agent with its configuration and system prompt
+//   - Config: Configuration from config.json or ayo.json
+//   - TrustLevel: Controls sandbox behavior and orchestration visibility
+//
+// Related packages:
+//   - internal/agent/skills_prompt.go: Skills prompt building
+//   - internal/agent/tools_prompt.go: Tools prompt building
+//   - internal/agent/squad_lead.go: Squad lead configuration
+//   - internal/agent/planner_injection.go: Planner system prompt injection
 package agent
 
 import (
@@ -7,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -467,14 +487,7 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 	dirs := paths.AgentsDirs()
 
 	// Add cfg.AgentsDir if not already included
-	cfgAgentsDirIncluded := false
-	for _, d := range dirs {
-		if d == cfg.AgentsDir {
-			cfgAgentsDirIncluded = true
-			break
-		}
-	}
-	if !cfgAgentsDirIncluded && cfg.AgentsDir != "" {
+	if cfg.AgentsDir != "" && !slices.Contains(dirs, cfg.AgentsDir) {
 		// Insert cfg.AgentsDir before builtin dir
 		builtinDir := builtin.InstallDir()
 		var newDirs []string
@@ -934,11 +947,8 @@ func (e *InputValidationError) Error() string {
 		for i, name := range propNames {
 			prop := e.Schema.Properties[name]
 			required := ""
-			for _, r := range e.Schema.Required {
-				if r == name {
-					required = " (required)"
-					break
-				}
+			if slices.Contains(e.Schema.Required, name) {
+				required = " (required)"
 			}
 
 			// Determine example value based on type

@@ -277,6 +277,4 @@ ayo sandbox shell @ayo
 - **Go 1.24+** (for building from source)
 - At least one LLM provider configured (Anthropic, OpenAI, Ollama, etc.)
 
-## License
 
-MIT

@@ -12,7 +12,10 @@ import (
 )
 
 // AgentInvoker is the interface for invoking agents from flow steps.
-// Duplicated here to avoid import cycle (flows depends on daemon for execution).
+// NOTE: This interface differs from squads.AgentInvoker intentionally.
+// The squads interface uses InvokeParams/InvokeResult for constitution injection,
+// while this interface provides a simpler string-based API for flow orchestration.
+// The duplication also avoids an import cycle (flows depends on daemon).
 type AgentInvoker interface {
 	Invoke(ctx context.Context, agent, prompt string) (string, error)
 	InvokeInSquad(ctx context.Context, squad, agent, prompt string) (string, error)

@@ -357,7 +357,6 @@ Examples:
 	cmd.AddCommand(newAgentsCmd(&cfgPath))
 	cmd.AddCommand(newSkillsCmd(&cfgPath))
 	cmd.AddCommand(newFlowsCmd(&cfgPath))
-	cmd.AddCommand(newChainCmd(&cfgPath))
 	cmd.AddCommand(newSessionsCmd(&cfgPath))
 	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
@@ -551,13 +550,6 @@ func ParseInvocation(args []string) ParsedInvocation {
 		Handle:     agent.DefaultAgent,
 		PromptArgs: args,
 	}
-}
-
-// knownSubcommands returns a list of all registered subcommand names.
-var knownSubcommands = []string{
-	"setup", "agents", "skills", "flows", "chain", "sessions", "memory",
-	"doctor", "plugins", "serve", "sandbox", "share", "backup", "sync",
-	"triggers", "ticket", "tickets", "squad", "squads", "service", "daemon",
 }
 
 // completeHandles returns completion suggestions for agent (@) and squad (#) handles.

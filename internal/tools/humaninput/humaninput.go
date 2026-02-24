@@ -32,9 +32,8 @@ type HumanInputParams struct {
 }
 
 // FormRenderer is called to present the form to the user.
-type FormRenderer interface {
-	Render(ctx context.Context, req *hitl.InputRequest) (*hitl.InputResponse, error)
-}
+// This is a type alias for hitl.FormRenderer to maintain API compatibility.
+type FormRenderer = hitl.FormRenderer
 
 // ToolConfig configures the human_input tool.
 type ToolConfig struct {

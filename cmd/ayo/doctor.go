@@ -363,11 +363,6 @@ func fileExists(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
 // selectSandboxProvider returns the appropriate sandbox provider for the current platform.
 func selectSandboxProvider() providers.SandboxProvider {
 	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {

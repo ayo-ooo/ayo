@@ -1,7 +1,7 @@
 ---
 name: agent-discovery
 description: Discover and inspect other agents managed by ayo. Use this before delegating tasks to specialized agents via the CLI.
-license: MIT
+
 compatibility: Requires ayo CLI
 metadata:
   author: ayo

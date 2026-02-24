@@ -56,7 +56,7 @@ The `manifest.json` file defines plugin metadata and components.
 {
   "author": "Your Name <email@example.com>",
   "repository": "https://github.com/user/ayo-plugins-example",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "ayo_version": ">=0.2.0"
 }
 ```
@@ -310,7 +310,7 @@ Event-based agent activation:
   "description": "Development tools and agents for ayo",
   "author": "Ayo Team <team@ayo.dev>",
   "repository": "https://github.com/anthropics/ayo-plugins-devtools",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "ayo_version": ">=0.3.0",
 
   "agents": ["code", "reviewer", "tester"],

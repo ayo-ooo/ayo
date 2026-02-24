@@ -75,7 +75,10 @@ type TriggerLoader struct {
 	logger   Logger
 }
 
-// Logger interface for trigger loader logging.
+// Logger is a leveled logger interface for trigger loading events.
+// NOTE: This differs from audit.Logger intentionally. audit.Logger is for
+// structured audit trails with Query support, while this provides standard
+// Info/Warn/Error leveled logging for operational diagnostics.
 type Logger interface {
 	Info(msg string, args ...any)
 	Warn(msg string, args ...any)

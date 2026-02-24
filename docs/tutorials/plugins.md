@@ -29,7 +29,7 @@ Create `manifest.json`:
   "version": "1.0.0",
   "description": "Development tools including formatters and linters",
   "author": "Your Name",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "components": {
     "agents": {
       "@formatter": {

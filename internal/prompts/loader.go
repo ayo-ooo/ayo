@@ -89,6 +89,29 @@ func (l *PromptLoader) LoadOrDefault(path, defaultContent string) string {
 	return content
 }
 
+// LoadWithEmbeddedFallback loads a prompt from filesystem, falling back to embedded defaults.
+// This is the preferred method as it avoids duplicating prompt content in Go code.
+func (l *PromptLoader) LoadWithEmbeddedFallback(path string) string {
+	// Try filesystem first
+	content, err := l.Load(path)
+	if err == nil {
+		return content
+	}
+
+	// Fall back to embedded
+	return EmbeddedDefault(path)
+}
+
+// EmbeddedDefault returns the embedded default for a prompt path.
+// Returns empty string if not found in embedded defaults.
+func EmbeddedDefault(path string) string {
+	content, err := embeddedPrompts.ReadFile("defaults/" + path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(content))
+}
+
 // Exists checks if a prompt file exists.
 func (l *PromptLoader) Exists(path string) bool {
 	fullPath := filepath.Join(l.baseDir, path)
