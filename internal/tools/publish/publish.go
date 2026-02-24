@@ -1,12 +1,11 @@
 // Package publish provides a tool for agents to publish files from sandbox to host.
-// Unlike the full sync operation, publish allows targeted export of specific files
-// or artifacts from the sandbox to approved locations on the host.
+// Files must be in /output/ (the safe write zone) to be published.
+// Publishing requires user approval via the file_request flow.
 package publish
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,15 +15,22 @@ import (
 	"github.com/alexcabrera/ayo/internal/providers"
 )
 
+// FileMapping represents a source-to-destination file mapping.
+type FileMapping struct {
+	// Source is the path in /output/ to publish.
+	Source string `json:"source" jsonschema:"required,description=Path in /output/ to publish"`
+
+	// Destination is the host filesystem path.
+	Destination string `json:"destination" jsonschema:"required,description=Host filesystem destination path"`
+}
+
 // PublishParams are the parameters for the publish tool.
 type PublishParams struct {
-	// Files is a list of files to publish from the sandbox.
-	// Paths are relative to the sandbox working directory.
-	Files []string `json:"files" jsonschema:"required,description=List of file paths to publish from sandbox (relative to working directory)"`
+	// Files is a list of source-to-destination file mappings.
+	Files []FileMapping `json:"files" jsonschema:"required,description=Files to publish from /output/ to host"`
 
-	// Destination is the host directory to publish to.
-	// Must be within allowed destinations.
-	Destination string `json:"destination,omitempty" jsonschema:"description=Host destination directory (default: project root)"`
+	// Message is an optional message explaining what's being published.
+	Message string `json:"message,omitempty" jsonschema:"description=Optional message explaining the publish operation"`
 
 	// Overwrite controls whether to overwrite existing files.
 	Overwrite bool `json:"overwrite,omitempty" jsonschema:"description=Whether to overwrite existing files (default: false)"`
@@ -79,6 +85,10 @@ func (r PublishResult) String() string {
 	return sb.String()
 }
 
+// ApprovalRequester is called to request user approval for publish operations.
+// Returns true if approved, false if denied.
+type ApprovalRequester func(ctx context.Context, files []FileMapping, message string) (bool, error)
+
 // ToolConfig configures the publish tool for a specific sandbox.
 type ToolConfig struct {
 	// Provider is the sandbox provider to use for file operations.
@@ -87,55 +97,53 @@ type ToolConfig struct {
 	// SandboxID is the ID of the sandbox to publish from.
 	SandboxID string
 
-	// SandboxWorkingDir is the working directory in the sandbox.
-	SandboxWorkingDir string
+	// SessionID is the current session ID (for output directory).
+	SessionID string
 
-	// HostProjectPath is the default destination on the host.
-	HostProjectPath string
+	// OutputDir is the path to the output directory in sandbox (default: /output).
+	OutputDir string
 
-	// AllowedDestinations restricts where files can be published.
-	// If empty, only HostProjectPath is allowed.
-	// Use "*" to allow any destination (dangerous).
-	AllowedDestinations []string
+	// HostOutputDir is the host-side path to the output directory.
+	// Files are synced via VirtioFS so we read from host directly.
+	HostOutputDir string
 
-	// AllowedFilePatterns restricts which files can be published.
-	// If empty, all files are allowed.
-	AllowedFilePatterns []string
+	// ApprovalRequester is called to request user approval.
+	// If nil, all requests are approved (for testing).
+	ApprovalRequester ApprovalRequester
 
-	// BlockedFilePatterns are patterns for files that cannot be published.
-	BlockedFilePatterns []string
+	// BlockedDestinations are paths that cannot be published to.
+	BlockedDestinations []string
 }
 
-// DefaultBlockedPatterns returns patterns for files that should not be published.
-// Note: filepath.Match doesn't support ** globs, so we use simple patterns
-// and check both full path and basename.
-func DefaultBlockedPatterns() []string {
+// DefaultBlockedDestinations returns paths that should not be written to.
+func DefaultBlockedDestinations() []string {
 	return []string{
-		".git/*",
-		".env",
-		".env.*",
-		"secrets/*",
-		"*.key",
-		"*.pem",
+		"/",
+		"/etc",
+		"/usr",
+		"/bin",
+		"/sbin",
+		"/var",
+		"/System",
 	}
 }
 
 // NewPublishTool creates a publish tool for the given configuration.
 func NewPublishTool(cfg ToolConfig) fantasy.AgentTool {
 	// Apply defaults
-	if cfg.BlockedFilePatterns == nil {
-		cfg.BlockedFilePatterns = DefaultBlockedPatterns()
+	if cfg.BlockedDestinations == nil {
+		cfg.BlockedDestinations = DefaultBlockedDestinations()
 	}
-	if cfg.SandboxWorkingDir == "" {
-		cfg.SandboxWorkingDir = "/workspace"
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = "/output"
 	}
 
 	return fantasy.NewAgentTool(
 		"publish",
-		"Publish files from the sandbox to the host filesystem",
+		"Publish files from /output/ to the host filesystem. Files must be in /output/ (the safe write zone). Requires user approval.",
 		func(ctx context.Context, params PublishParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(params.Files) == 0 {
-				return fantasy.NewTextErrorResponse("files is required; provide a list of files to publish"), nil
+				return fantasy.NewTextErrorResponse("files is required; provide source-destination pairs to publish"), nil
 			}
 
 			result := PublishResult{
@@ -144,40 +152,69 @@ func NewPublishTool(cfg ToolConfig) fantasy.AgentTool {
 				Errors:    make([]string, 0),
 			}
 
-			// Determine destination
-			destination := params.Destination
-			if destination == "" {
-				destination = cfg.HostProjectPath
-			}
+			// Validate all sources are in /output/
+			var validFiles []FileMapping
+			for _, f := range params.Files {
+				// Normalize source path
+				source := f.Source
+				if !strings.HasPrefix(source, "/") {
+					source = "/" + source
+				}
 
-			// Validate destination
-			if err := validateDestination(destination, cfg); err != nil {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid destination: %v", err)), nil
-			}
-
-			for _, file := range params.Files {
-				// Validate file
-				if err := validateFile(file, cfg); err != nil {
-					result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", file, err))
+				// Must be in /output/
+				if !strings.HasPrefix(source, cfg.OutputDir) && !strings.HasPrefix(source, "/output/") && !strings.HasPrefix(source, "/output") {
+					result.Errors = append(result.Errors, fmt.Sprintf("%s: source must be in /output/", f.Source))
 					continue
 				}
 
-				sandboxPath := filepath.Join(cfg.SandboxWorkingDir, file)
-				hostPath := filepath.Join(destination, file)
+				// Validate destination
+				if err := validateDestination(f.Destination, cfg); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", f.Destination, err))
+					continue
+				}
 
-				// Check if file exists on host and overwrite is disabled
+				validFiles = append(validFiles, FileMapping{
+					Source:      source,
+					Destination: f.Destination,
+				})
+			}
+
+			if len(validFiles) == 0 {
+				if len(result.Errors) > 0 {
+					return fantasy.NewTextResponse(result.String()), nil
+				}
+				return fantasy.NewTextErrorResponse("no valid files to publish"), nil
+			}
+
+			// Request approval if requester is configured
+			if cfg.ApprovalRequester != nil {
+				approved, err := cfg.ApprovalRequester(ctx, validFiles, params.Message)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf("approval error: %v", err)), nil
+				}
+				if !approved {
+					return fantasy.NewTextResponse("Publish request denied by user"), nil
+				}
+			}
+
+			// Copy files
+			for _, f := range validFiles {
+				// Expand ~ in destination
+				dest := expandHome(f.Destination)
+
+				// Check if file exists and overwrite is disabled
 				if !params.Overwrite {
-					if _, err := os.Stat(hostPath); err == nil {
-						result.Skipped = append(result.Skipped, fmt.Sprintf("%s: already exists", file))
+					if _, err := os.Stat(dest); err == nil {
+						result.Skipped = append(result.Skipped, fmt.Sprintf("%s: already exists", f.Destination))
 						continue
 					}
 				}
 
-				// Copy file from sandbox to host
-				if err := copyFileFromSandbox(ctx, cfg.Provider, cfg.SandboxID, sandboxPath, hostPath); err != nil {
-					result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", file, err))
+				// Copy file from sandbox output to host
+				if err := copyOutputFile(ctx, cfg, f.Source, dest); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", f.Source, err))
 				} else {
-					result.Published = append(result.Published, file)
+					result.Published = append(result.Published, fmt.Sprintf("%s -> %s", f.Source, f.Destination))
 				}
 			}
 
@@ -188,155 +225,84 @@ func NewPublishTool(cfg ToolConfig) fantasy.AgentTool {
 
 // validateDestination checks if a destination is allowed.
 func validateDestination(dest string, cfg ToolConfig) error {
+	// Expand home directory
+	expanded := expandHome(dest)
+
 	// Resolve to absolute path
-	absDest, err := filepath.Abs(dest)
+	absDest, err := filepath.Abs(expanded)
 	if err != nil {
 		return fmt.Errorf("invalid path: %w", err)
 	}
 
-	// Check if within allowed destinations
-	if len(cfg.AllowedDestinations) == 0 {
-		// Default: only project path is allowed
-		absProject, _ := filepath.Abs(cfg.HostProjectPath)
-		if !strings.HasPrefix(absDest, absProject) {
-			return fmt.Errorf("destination must be within project directory")
-		}
-		return nil
-	}
-
-	// Check allowed list
-	for _, allowed := range cfg.AllowedDestinations {
-		if allowed == "*" {
-			return nil
-		}
-		absAllowed, _ := filepath.Abs(allowed)
-		if strings.HasPrefix(absDest, absAllowed) {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("destination not in allowed list")
-}
-
-// validateFile checks if a file path is allowed for publishing.
-func validateFile(file string, cfg ToolConfig) error {
-	// Prevent path traversal
-	if strings.Contains(file, "..") {
-		return fmt.Errorf("path traversal not allowed")
-	}
-
-	// Check blocked patterns
-	for _, pattern := range cfg.BlockedFilePatterns {
-		matched, _ := filepath.Match(pattern, file)
-		if matched {
-			return fmt.Errorf("matches blocked pattern: %s", pattern)
-		}
-		// Also check basename
-		matched, _ = filepath.Match(pattern, filepath.Base(file))
-		if matched {
-			return fmt.Errorf("matches blocked pattern: %s", pattern)
-		}
-	}
-
-	// Check allowed patterns if specified
-	if len(cfg.AllowedFilePatterns) > 0 {
-		allowed := false
-		for _, pattern := range cfg.AllowedFilePatterns {
-			matched, _ := filepath.Match(pattern, file)
-			if matched {
-				allowed = true
-				break
-			}
-			matched, _ = filepath.Match(pattern, filepath.Base(file))
-			if matched {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			return fmt.Errorf("does not match allowed patterns")
+	// Check blocked destinations
+	for _, blocked := range cfg.BlockedDestinations {
+		if absDest == blocked || strings.HasPrefix(absDest, blocked+"/") {
+			return fmt.Errorf("destination %s is not allowed", blocked)
 		}
 	}
 
 	return nil
 }
 
-// copyFileFromSandbox copies a file from sandbox to host.
-func copyFileFromSandbox(ctx context.Context, provider providers.SandboxProvider, sandboxID, sandboxPath, hostPath string) error {
-	// Read file from sandbox using cat
-	result, err := provider.Exec(ctx, sandboxID, providers.ExecOptions{
-		Command: fmt.Sprintf("cat %s", sandboxPath),
-	})
-	if err != nil {
-		return fmt.Errorf("exec failed: %w", err)
+// expandHome expands ~ to the user's home directory.
+func expandHome(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
 	}
-	if result.ExitCode != 0 {
-		if strings.Contains(result.Stderr, "No such file") {
-			return fmt.Errorf("file not found in sandbox")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if path == "~" {
+		return home
+	}
+	return filepath.Join(home, path[2:])
+}
+
+// copyOutputFile copies a file from the sandbox output directory to the host.
+// Since /output is mounted via VirtioFS, we can read directly from the host-side mount.
+func copyOutputFile(ctx context.Context, cfg ToolConfig, source, dest string) error {
+	// If we have a host output dir, read directly from it
+	var sourceContent []byte
+	var err error
+
+	if cfg.HostOutputDir != "" {
+		// Translate sandbox path to host path
+		relPath := strings.TrimPrefix(source, cfg.OutputDir)
+		relPath = strings.TrimPrefix(relPath, "/output")
+		relPath = strings.TrimPrefix(relPath, "/")
+		hostSource := filepath.Join(cfg.HostOutputDir, relPath)
+
+		sourceContent, err = os.ReadFile(hostSource)
+		if err != nil {
+			return fmt.Errorf("read source: %w", err)
 		}
-		return fmt.Errorf("cat failed: %s", result.Stderr)
+	} else {
+		// Fall back to reading via sandbox exec
+		result, execErr := cfg.Provider.Exec(ctx, cfg.SandboxID, providers.ExecOptions{
+			Command: fmt.Sprintf("cat %s", source),
+		})
+		if execErr != nil {
+			return fmt.Errorf("exec failed: %w", execErr)
+		}
+		if result.ExitCode != 0 {
+			if strings.Contains(result.Stderr, "No such file") {
+				return fmt.Errorf("file not found in sandbox")
+			}
+			return fmt.Errorf("cat failed: %s", result.Stderr)
+		}
+		sourceContent = []byte(result.Stdout)
 	}
 
 	// Create parent directory on host
-	if err := os.MkdirAll(filepath.Dir(hostPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
 	// Write file to host
-	if err := os.WriteFile(hostPath, []byte(result.Stdout), 0644); err != nil {
+	if err := os.WriteFile(dest, sourceContent, 0644); err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
 
-	// Try to preserve permissions from sandbox
-	statResult, err := provider.Exec(ctx, sandboxID, providers.ExecOptions{
-		Command: fmt.Sprintf("stat -c %%a %s", sandboxPath),
-	})
-	if err == nil && statResult.ExitCode == 0 {
-		var mode int
-		if _, err := fmt.Sscanf(strings.TrimSpace(statResult.Stdout), "%o", &mode); err == nil {
-			_ = os.Chmod(hostPath, os.FileMode(mode))
-		}
-	}
-
-	return nil
-}
-
-// CopyDirectoryFromSandbox copies a directory from sandbox to host.
-// This is useful for publishing entire output directories.
-func CopyDirectoryFromSandbox(ctx context.Context, provider providers.SandboxProvider, sandboxID, sandboxDir, hostDir string) ([]string, error) {
-	var published []string
-
-	// Create tar of sandbox directory
-	result, err := provider.Exec(ctx, sandboxID, providers.ExecOptions{
-		Command:    "tar",
-		Args:       []string{"-cf", "-", "."},
-		WorkingDir: sandboxDir,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create tar: %w", err)
-	}
-	if result.ExitCode != 0 {
-		return nil, fmt.Errorf("tar failed: %s", result.Stderr)
-	}
-
-	// Create host directory
-	if err := os.MkdirAll(hostDir, 0755); err != nil {
-		return nil, fmt.Errorf("create dir: %w", err)
-	}
-
-	// Extract tar on host
-	tarReader := strings.NewReader(result.Stdout)
-	if err := extractTar(tarReader, hostDir, &published); err != nil {
-		return nil, fmt.Errorf("extract tar: %w", err)
-	}
-
-	return published, nil
-}
-
-// extractTar extracts a tar from a reader to a destination directory.
-func extractTar(r io.Reader, dest string, published *[]string) error {
-	// Simple implementation - read tar and write files
-	// For a real implementation, use archive/tar
-	// This is a placeholder that would need the tar parsing
 	return nil
 }
