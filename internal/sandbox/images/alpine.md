@@ -71,41 +71,6 @@ Alpine includes essential utilities. Key ones used by agents:
   - `apk search <term>` - Search packages
   - `apk update` - Update package index
 
-## Matrix Communication
-
-Agents communicate with each other using Matrix, a federated messaging protocol.
-The daemon runs a local Conduit homeserver and exposes it to sandboxes via `/run/ayo/`.
-
-Use the `ayo matrix` CLI commands for inter-agent messaging:
-
-| Command | Description |
-|---------|-------------|
-| `ayo matrix status` | Show connection status |
-| `ayo matrix rooms` | List available rooms |
-| `ayo matrix create <name>` | Create a new room |
-| `ayo matrix send <room> <message>` | Send a message |
-| `ayo matrix read <room> [limit]` | Read recent messages |
-| `ayo matrix who <room>` | List room members |
-| `ayo matrix invite <room> <agent>` | Invite agent to room |
-
-**Examples:**
-```bash
-# Check Matrix status
-ayo matrix status
-
-# List rooms
-ayo matrix rooms
-
-# Create a project room
-ayo matrix create project-alpha
-
-# Send a message to project-alpha
-ayo matrix send project-alpha "Hello, let's discuss the implementation"
-
-# Read recent messages
-ayo matrix read project-alpha 50
-```
-
 ## Language Support
 
 Agents can specify required languages in their config:
@@ -173,7 +138,6 @@ These are installed on first use via the daemon.
 /home/{agent}/       # Agent home directories (persistent)
 /shared/             # Cross-agent permanent storage
 /workspaces/{id}/    # Session-scoped workspaces
-/var/log/irc/        # IRC server logs
 /mnt/host/           # Mounted host files
 ```
 

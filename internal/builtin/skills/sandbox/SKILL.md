@@ -137,23 +137,18 @@ For files specific to the current session:
 ```bash
 # Copy to session shared directory
 cp myfile.txt $WORKSPACE/shared/
-
-# Notify other agents via IRC
-msg '#general' "File ready at $WORKSPACE/shared/myfile.txt"
 ```
 
 ### Best Practices for File Sharing
 
 1. **Use descriptive names** - Include your agent handle or purpose
 2. **Clean up when done** - Remove files no longer needed
-3. **Notify via IRC** - Let other agents know when files are ready
-4. **Use atomic writes** - Write to temp file, then rename
+3. **Use atomic writes** - Write to temp file, then rename
 
 ```bash
 # Atomic write pattern
 echo '{"status": "complete"}' > /shared/result.tmp
 mv /shared/result.tmp /shared/result.json
-msg '#general' "Results available at /shared/result.json"
 ```
 
 ## Working with Host Mounts
@@ -259,89 +254,3 @@ ping -c 1 8.8.8.8 2>&1 || echo "No network"
 # Check DNS
 nslookup google.com 2>&1 || echo "DNS unavailable"
 ```
-
-## Inter-Agent Communication (IRC)
-
-The sandbox includes an ngircd IRC server for agent-to-agent communication.
-Your IRC nickname is automatically set to your agent handle (`$AGENT`).
-
-### IRC Helper Scripts
-
-| Command | Usage | Description |
-|---------|-------|-------------|
-| `msg` | `msg <target> <message>` | Send message to channel or agent |
-| `irc-log` | `irc-log [channel] [lines]` | Read channel log history |
-| `irc-join` | `irc-join <channel>` | Join an IRC channel |
-| `irc-nick` | `irc-nick <nickname>` | Set your IRC nickname |
-
-### Sending Messages
-
-```bash
-# Broadcast to all agents on #general
-msg '#general' "Task completed successfully"
-
-# Send private message to another agent
-msg '@crush' "Can you review my changes?"
-
-# Share a file notification
-msg '#general' "Output ready at /shared/results.json"
-```
-
-### Reading Messages
-
-```bash
-# Read last 20 messages from #general (default)
-irc-log general
-
-# Read last 50 messages
-irc-log general 50
-
-# Check session channel
-irc-log "session-$SESSION_ID" 100
-```
-
-### Joining Channels
-
-```bash
-# Join a project-specific channel
-irc-join project-alpha
-
-# Join with # prefix (both work)
-irc-join '#project-beta'
-```
-
-### Default Channels
-
-- `#general` - Main channel for all agents (always join this)
-- `#session-{id}` - Session-specific channels
-
-### Coordination Patterns
-
-**Request/Response:**
-```bash
-# Agent A: Request help
-msg '#general' "REQUEST: Need code review for /shared/patch.diff"
-
-# Agent B: Acknowledge and respond
-msg '#general' "ACK: Reviewing patch.diff now"
-# ... review code ...
-msg '#general' "DONE: Review complete, comments in /shared/review.txt"
-```
-
-**File Handoff:**
-```bash
-# Producer agent
-cp output.json /shared/analysis-results.json
-msg '#general' "READY: Analysis results at /shared/analysis-results.json"
-
-# Consumer agent (after reading irc-log)
-cat /shared/analysis-results.json
-msg '#general' "ACK: Received analysis results"
-```
-
-### IRC Server Details
-
-- **Host:** `localhost`
-- **Port:** `6667`
-- **Protocol:** IRC (RFC 1459)
-- **Max Nick Length:** 32 characters

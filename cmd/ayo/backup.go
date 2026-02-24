@@ -20,7 +20,7 @@ func newBackupCmd() *cobra.Command {
 		Long: `Manage backups of sandbox state, config, and data.
 
 Backups include:
-- Sandbox state (agent homes, shared files, IRC logs)
+- Sandbox state (agent homes, shared files)
 - Config (~/.config/ayo/)
 - Data (~/.local/share/ayo/ except sandbox and backups)
 
