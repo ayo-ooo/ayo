@@ -828,3 +828,275 @@ func TestAppleProvider_Directories_Integration(t *testing.T) {
 		}
 	}
 }
+
+// Additional Pool tests for improved coverage
+
+func TestPool_Config(t *testing.T) {
+	config := PoolConfig{
+		Name:    "test-pool",
+		MinSize: 2,
+		MaxSize: 5,
+	}
+	pool := NewPool(config, NewNoneProvider())
+
+	got := pool.Config()
+	if got.Name != config.Name {
+		t.Errorf("Config().Name = %v, want %v", got.Name, config.Name)
+	}
+	if got.MinSize != config.MinSize {
+		t.Errorf("Config().MinSize = %v, want %v", got.MinSize, config.MinSize)
+	}
+}
+
+func TestPool_ReleaseAgent(t *testing.T) {
+	provider := NewNoneProvider()
+	pool := NewPool(PoolConfig{
+		Name:    "test-pool",
+		MinSize: 1,
+		MaxSize: 5,
+	}, provider)
+
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	// Acquire for first agent
+	sb, _ := pool.Acquire(ctx, "@agent1")
+
+	// Add second agent to same sandbox
+	pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent:       "@agent2",
+		JoinSandbox: sb.ID,
+	})
+
+	// Verify both agents are in sandbox
+	agents := pool.GetSandboxAgents(sb.ID)
+	if len(agents) != 2 {
+		t.Errorf("Expected 2 agents, got %d", len(agents))
+	}
+
+	// Release first agent
+	if err := pool.ReleaseAgent(ctx, sb.ID, "@agent1"); err != nil {
+		t.Fatalf("ReleaseAgent() error = %v", err)
+	}
+
+	// Verify only second agent remains
+	agents = pool.GetSandboxAgents(sb.ID)
+	if len(agents) != 1 {
+		t.Errorf("Expected 1 agent after release, got %d", len(agents))
+	}
+	if agents[0] != "@agent2" {
+		t.Errorf("Expected @agent2, got %s", agents[0])
+	}
+
+	// Release second agent - should mark sandbox as not in use
+	if err := pool.ReleaseAgent(ctx, sb.ID, "@agent2"); err != nil {
+		t.Fatalf("ReleaseAgent() error = %v", err)
+	}
+
+	// Sandbox should now be idle (inUse = false)
+	status := pool.Status()
+	if status.InUse != 0 {
+		t.Errorf("InUse = %d, want 0 after all agents released", status.InUse)
+	}
+}
+
+func TestPool_ReleaseAgent_NotFound(t *testing.T) {
+	pool := NewPool(PoolConfig{Name: "test"}, NewNoneProvider())
+
+	err := pool.ReleaseAgent(context.Background(), "nonexistent", "@agent")
+	if err == nil {
+		t.Error("ReleaseAgent() expected error for nonexistent sandbox")
+	}
+}
+
+func TestPool_GetSandboxAgents(t *testing.T) {
+	provider := NewNoneProvider()
+	pool := NewPool(PoolConfig{
+		Name:    "test-pool",
+		MinSize: 1,
+	}, provider)
+
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	// Acquire sandbox
+	sb, _ := pool.Acquire(ctx, "@ayo")
+
+	// Get agents
+	agents := pool.GetSandboxAgents(sb.ID)
+	if len(agents) != 1 {
+		t.Errorf("Expected 1 agent, got %d", len(agents))
+	}
+	if agents[0] != "@ayo" {
+		t.Errorf("Expected @ayo, got %s", agents[0])
+	}
+}
+
+func TestPool_GetSandboxAgents_NotFound(t *testing.T) {
+	pool := NewPool(PoolConfig{Name: "test"}, NewNoneProvider())
+
+	agents := pool.GetSandboxAgents("nonexistent")
+	if agents != nil {
+		t.Errorf("Expected nil for nonexistent sandbox, got %v", agents)
+	}
+}
+
+func TestPool_List(t *testing.T) {
+	provider := NewNoneProvider()
+	pool := NewPool(PoolConfig{
+		Name:    "test-pool",
+		MinSize: 3,
+	}, provider)
+
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	list := pool.List()
+	if len(list) != 3 {
+		t.Errorf("List() returned %d sandboxes, want 3", len(list))
+	}
+}
+
+func TestPool_AcquireWithOptions_JoinSandbox(t *testing.T) {
+	provider := NewNoneProvider()
+	pool := NewPool(PoolConfig{
+		Name:    "test-pool",
+		MinSize: 1,
+		MaxSize: 5,
+	}, provider)
+
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	// First agent acquires
+	sb1, _ := pool.Acquire(ctx, "@agent1")
+
+	// Second agent joins the same sandbox
+	sb2, err := pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent:       "@agent2",
+		JoinSandbox: sb1.ID,
+	})
+	if err != nil {
+		t.Fatalf("AcquireWithOptions() error = %v", err)
+	}
+
+	if sb2.ID != sb1.ID {
+		t.Errorf("JoinSandbox should return same sandbox: %s != %s", sb2.ID, sb1.ID)
+	}
+}
+
+func TestPool_AcquireWithOptions_JoinSandbox_NotFound(t *testing.T) {
+	pool := NewPool(PoolConfig{Name: "test", MinSize: 1}, NewNoneProvider())
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	_, err := pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent:       "@agent",
+		JoinSandbox: "nonexistent",
+	})
+	if err == nil {
+		t.Error("AcquireWithOptions() expected error for nonexistent sandbox")
+	}
+}
+
+func TestPool_AcquireWithOptions_Group(t *testing.T) {
+	provider := NewNoneProvider()
+	pool := NewPool(PoolConfig{
+		Name:    "test-pool",
+		MinSize: 1,
+		MaxSize: 10,
+	}, provider)
+
+	ctx := context.Background()
+	pool.Start(ctx)
+	defer pool.Stop(ctx)
+
+	// First agent in group
+	sb1, _ := pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent: "@agent1",
+		Group: "team-a",
+	})
+
+	// Second agent in same group should get same sandbox
+	sb2, _ := pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent: "@agent2",
+		Group: "team-a",
+	})
+
+	if sb2.ID != sb1.ID {
+		t.Errorf("Same group should share sandbox: %s != %s", sb2.ID, sb1.ID)
+	}
+
+	// Agent in different group should get different sandbox
+	sb3, _ := pool.AcquireWithOptions(ctx, AcquireOptions{
+		Agent: "@agent3",
+		Group: "team-b",
+	})
+
+	if sb3.ID == sb1.ID {
+		t.Error("Different group should get different sandbox")
+	}
+}
+
+// Squad function tests
+
+func TestSquadSandboxName(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"frontend", "ayo-squad-frontend"},
+		{"backend-team", "ayo-squad-backend-team"},
+		{"", "ayo-squad-"},
+	}
+
+	for _, tt := range tests {
+		got := SquadSandboxName(tt.name)
+		if got != tt.want {
+			t.Errorf("SquadSandboxName(%q) = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// NoneProvider EnsureAgentUser test
+
+func TestNoneProvider_EnsureAgentUser(t *testing.T) {
+	p := NewNoneProvider()
+	ctx := context.Background()
+
+	sb, _ := p.Create(ctx, providers.SandboxCreateOptions{Name: "agent-user-test"})
+
+	// EnsureAgentUser should work (no-op for none provider)
+	err := p.EnsureAgentUser(ctx, sb.ID, "@ayo", "")
+	if err != nil {
+		t.Fatalf("EnsureAgentUser() error = %v", err)
+	}
+
+	// Also test with nonexistent sandbox - NoneProvider doesn't validate
+	err = p.EnsureAgentUser(ctx, "nonexistent", "@ayo", "")
+	if err != nil {
+		t.Fatalf("EnsureAgentUser() error = %v (NoneProvider is a no-op)", err)
+	}
+}
+
+func TestNoneProvider_Stats(t *testing.T) {
+	p := NewNoneProvider()
+	ctx := context.Background()
+
+	sb, _ := p.Create(ctx, providers.SandboxCreateOptions{})
+
+	stats, err := p.Stats(ctx, sb.ID)
+	if err != nil {
+		t.Fatalf("Stats() error = %v", err)
+	}
+
+	// Stats should return some default values
+	if stats.CPUPercent < 0 {
+		t.Error("CPUPercent should be >= 0")
+	}
+}
