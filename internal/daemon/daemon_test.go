@@ -262,3 +262,24 @@ func TestClientServer_Integration(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonSessionManager_StartStop(t *testing.T) {
+	mgr := NewDaemonSessionManager(0) // No idle timeout
+
+	// Start should be idempotent
+	mgr.Start()
+	mgr.Start()
+
+	// Stop should be idempotent
+	mgr.Stop()
+	mgr.Stop()
+}
+
+func TestDaemonSessionManager_NoIdleTimeout(t *testing.T) {
+	mgr := NewDaemonSessionManager(0)
+	mgr.Start()
+	defer mgr.Stop()
+
+	// Should work without idle checker
+	time.Sleep(10 * time.Millisecond)
+}

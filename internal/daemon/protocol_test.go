@@ -111,3 +111,78 @@ func TestNewErrorResponse(t *testing.T) {
 		t.Errorf("Error.Message = %v, want 'method not found'", resp.Error.Message)
 	}
 }
+
+func TestRPCError_ErrorCodes(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      *Error
+		expected string
+	}{
+		{
+			name:     "method not found",
+			err:      NewError(ErrCodeMethodNotFound, "method not found"),
+			expected: "rpc error -32601: method not found",
+		},
+		{
+			name:     "internal error",
+			err:      NewError(ErrCodeInternal, "internal server error"),
+			expected: "rpc error -32603: internal server error",
+		},
+		{
+			name:     "sandbox not found",
+			err:      NewError(ErrCodeSandboxNotFound, "sandbox not available"),
+			expected: "rpc error -1001: sandbox not available",
+		},
+		{
+			name:     "parse error",
+			err:      NewError(ErrCodeParse, "invalid JSON"),
+			expected: "rpc error -32700: invalid JSON",
+		},
+		{
+			name:     "invalid request",
+			err:      NewError(ErrCodeInvalidRequest, "missing method"),
+			expected: "rpc error -32600: missing method",
+		},
+		{
+			name:     "invalid params",
+			err:      NewError(ErrCodeInvalidParams, "wrong type"),
+			expected: "rpc error -32602: wrong type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.expected {
+				t.Errorf("Error() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNewRequest_MarshalError(t *testing.T) {
+	// Create an unmarshalable value (channel)
+	ch := make(chan int)
+	_, err := NewRequest("test", ch, 1)
+	if err == nil {
+		t.Error("expected error for unmarshalable params")
+	}
+}
+
+func TestNewResponse_MarshalError(t *testing.T) {
+	// Create an unmarshalable value (channel)
+	ch := make(chan int)
+	_, err := NewResponse(ch, 1)
+	if err == nil {
+		t.Error("expected error for unmarshalable result")
+	}
+}
+
+func TestNewError(t *testing.T) {
+	err := NewError(ErrCodeSandboxExhausted, "no sandboxes available")
+	if err.Code != ErrCodeSandboxExhausted {
+		t.Errorf("Code = %d, want %d", err.Code, ErrCodeSandboxExhausted)
+	}
+	if err.Message != "no sandboxes available" {
+		t.Errorf("Message = %q, want %q", err.Message, "no sandboxes available")
+	}
+}
