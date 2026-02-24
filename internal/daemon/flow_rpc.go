@@ -17,6 +17,7 @@ const (
 )
 
 // handleFlowRun handles the flow.run RPC method.
+// Only shell script flows are supported; YAML flow execution was removed.
 func (s *Server) handleFlowRun(ctx context.Context, req *Request) *Response {
 	var params FlowRunParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -30,25 +31,15 @@ func (s *Server) handleFlowRun(ctx context.Context, req *Request) *Response {
 	// Discover flows
 	dirs := paths.FlowsDirs()
 
-	// First try YAML flows
-	yamlFlows, err := flows.DiscoverYAMLFlows(dirs[0])
-	if err == nil && len(yamlFlows) > 0 {
-		for _, yf := range yamlFlows {
-			if yf.Name == params.FlowName {
-				return s.runYAMLFlow(ctx, req, yf, params)
-			}
-		}
-	}
-
-	// Try all directories for YAML flows
-	for _, dir := range dirs[1:] {
+	// Check if it's a YAML flow (not supported for execution)
+	for _, dir := range dirs {
 		yamlFlows, err := flows.DiscoverYAMLFlows(dir)
 		if err != nil {
 			continue
 		}
 		for _, yf := range yamlFlows {
 			if yf.Name == params.FlowName {
-				return s.runYAMLFlow(ctx, req, yf, params)
+				return NewErrorResponse(NewError(ErrCodeFlowInvalid, "YAML flow execution not supported; use shell flows"), req.ID)
 			}
 		}
 	}
@@ -66,59 +57,6 @@ func (s *Server) handleFlowRun(ctx context.Context, req *Request) *Response {
 	}
 
 	return NewErrorResponse(NewError(ErrCodeFlowNotFound, "flow not found: "+params.FlowName), req.ID)
-}
-
-// runYAMLFlow executes a YAML step-based flow.
-func (s *Server) runYAMLFlow(ctx context.Context, req *Request, flow *flows.YAMLFlow, params FlowRunParams) *Response {
-	// Set timeout
-	timeout := 5 * time.Minute
-	if params.Timeout > 0 {
-		timeout = time.Duration(params.Timeout) * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// Create executor with agent invoker
-	executor := flows.NewYAMLExecutor()
-	executor.AgentInvoker = NewServerAgentInvoker(s.config)
-
-	// Execute
-	result, err := executor.Execute(ctx, flow, params.Params)
-	if err != nil {
-		return NewErrorResponse(NewError(ErrCodeInternal, "execute: "+err.Error()), req.ID)
-	}
-
-	// Convert result
-	rpcResult := FlowRunResult{
-		RunID:     result.RunID,
-		FlowName:  result.FlowName,
-		Status:    string(result.Status),
-		StartTime: result.StartTime.Unix(),
-		EndTime:   result.EndTime.Unix(),
-		Duration:  result.Duration.Milliseconds(),
-		Error:     result.Error,
-	}
-
-	if len(result.Steps) > 0 {
-		rpcResult.Steps = make(map[string]*FlowStepResult)
-		for id, sr := range result.Steps {
-			rpcResult.Steps[id] = &FlowStepResult{
-				ID:       sr.ID,
-				Status:   string(sr.Status),
-				Stdout:   sr.Stdout,
-				Stderr:   sr.Stderr,
-				Output:   sr.Output,
-				ExitCode: sr.ExitCode,
-				Error:    sr.Error,
-				Skipped:  sr.Skipped,
-				Duration: sr.Duration.Milliseconds(),
-			}
-		}
-	}
-
-	resp, _ := NewResponse(rpcResult, req.ID)
-	return resp
 }
 
 // runShellFlow executes a shell script flow.
