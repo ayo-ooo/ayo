@@ -1,6 +1,6 @@
 ---
 id: ayo-doc5
-status: open
+status: closed
 deps: [ayo-doc3]
 links: []
 created: 2026-02-23T12:00:00Z

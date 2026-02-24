@@ -1,6 +1,6 @@
 ---
 id: ayo-1v23
-status: open
+status: closed
 deps: [ayo-doc4]
 links: []
 created: 2026-02-23T22:16:10Z

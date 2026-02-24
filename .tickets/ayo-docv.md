@@ -1,6 +1,6 @@
 ---
 id: ayo-docv
-status: open
+status: closed
 deps: [ayo-doc8]
 links: []
 created: 2026-02-23T12:00:00Z

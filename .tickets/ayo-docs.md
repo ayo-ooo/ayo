@@ -1,6 +1,6 @@
 ---
 id: ayo-docs
-status: open
+status: closed
 deps: [ayo-plug, ayo-i2qo]
 links: []
 created: 2026-02-23T12:00:00Z
