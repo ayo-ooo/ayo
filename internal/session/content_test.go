@@ -104,7 +104,7 @@ func TestMarshalUnmarshalParts(t *testing.T) {
 			}
 
 			// Verify it's valid JSON
-			var raw interface{}
+			var raw any
 			if err := json.Unmarshal(data, &raw); err != nil {
 				t.Fatalf("MarshalParts produced invalid JSON: %v", err)
 			}

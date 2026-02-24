@@ -435,7 +435,7 @@ cat manifest.json | jq .
 ayo plugin list | grep devtools
 
 # Check agent is registered
-ayo agent list | grep formatter
+ayo agents list | grep formatter
 ```
 
 ### Tool not available

@@ -18,7 +18,7 @@ Complete command-line reference for ayo.
 |---------|-------------|
 | `ayo [prompt]` | Chat with @ayo |
 | `ayo @agent [prompt]` | Chat with specific agent |
-| `ayo #squad [prompt]` | Send task to squad |
+| `ayo "#squad" [prompt]` | Send task to squad |
 | `ayo agent` | Manage agents |
 | `ayo squad` | Manage squads |
 | `ayo trigger` | Manage triggers |
@@ -35,7 +35,7 @@ Interactive chat or single prompt.
 ```bash
 ayo [prompt]
 ayo @agent [prompt]
-ayo #squad [prompt]
+ayo "#squad" [prompt]
 ```
 
 ### Flags
@@ -51,7 +51,7 @@ ayo #squad [prompt]
 ```bash
 ayo "explain this code"
 ayo @reviewer "review my changes"
-ayo #dev-team "build auth feature"
+ayo "#dev-team" "build auth feature"
 ayo -a main.go "fix the bug"
 ayo -c "also add tests"
 ```
@@ -67,7 +67,7 @@ Manage AI agents.
 List all available agents.
 
 ```bash
-ayo agent list [--json]
+ayo agents list [--json]
 ```
 
 **Output**:
@@ -82,7 +82,7 @@ NAME          DESCRIPTION              SOURCE
 Create a new agent.
 
 ```bash
-ayo agent create @name [--template TEMPLATE]
+ayo agents create @name [--template TEMPLATE]
 ```
 
 **Templates**: `default`, `reviewer`, `assistant`
@@ -92,7 +92,7 @@ ayo agent create @name [--template TEMPLATE]
 Show agent details.
 
 ```bash
-ayo agent show @name
+ayo agents show @name
 ```
 
 ### agent rm
@@ -100,7 +100,7 @@ ayo agent show @name
 Remove an agent.
 
 ```bash
-ayo agent rm @name [--force]
+ayo agents rm @name [--force]
 ```
 
 ### agent status
@@ -227,7 +227,7 @@ Manage triggers for automated execution.
 List all triggers.
 
 ```bash
-ayo trigger list [--json]
+ayo triggers list [--json]
 ```
 
 ### trigger create
@@ -236,16 +236,16 @@ Create a new trigger.
 
 ```bash
 # Cron trigger
-ayo trigger create NAME --cron "0 9 * * *" --agent @name --prompt "..."
+ayo triggers schedule NAME --cron "0 9 * * *" --agent @name --prompt "..."
 
 # Watch trigger
-ayo trigger create NAME --watch PATH --pattern "*.go" --agent @name --prompt "..."
+ayo triggers schedule NAME --watch PATH --pattern "*.go" --agent @name --prompt "..."
 
 # Interval trigger
-ayo trigger create NAME --interval 30m --agent @name --prompt "..."
+ayo triggers schedule NAME --interval 30m --agent @name --prompt "..."
 
 # One-time trigger
-ayo trigger create NAME --once "2024-12-25 09:00" --agent @name --prompt "..."
+ayo triggers schedule NAME --once "2024-12-25 09:00" --agent @name --prompt "..."
 ```
 
 **Flags**:
@@ -292,7 +292,7 @@ ayo trigger remove NAME
 Manually execute a trigger.
 
 ```bash
-ayo trigger fire NAME
+ayo triggers fire NAME
 ```
 
 ### trigger history
@@ -300,7 +300,7 @@ ayo trigger fire NAME
 View execution history.
 
 ```bash
-ayo trigger history [NAME] [--limit N] [--status STATUS]
+ayo triggers history [NAME] [--limit N] [--status STATUS]
 ```
 
 ---
@@ -403,7 +403,7 @@ Control the background daemon.
 Start the daemon.
 
 ```bash
-ayo service start
+ayo sandbox service start
 ```
 
 ### service stop
@@ -411,7 +411,7 @@ ayo service start
 Stop the daemon.
 
 ```bash
-ayo service stop
+ayo sandbox service stop
 ```
 
 ### service status
@@ -419,7 +419,7 @@ ayo service stop
 Show daemon status.
 
 ```bash
-ayo service status [--json]
+ayo sandbox service status [--json]
 ```
 
 ### service restart
@@ -427,7 +427,7 @@ ayo service status [--json]
 Restart the daemon.
 
 ```bash
-ayo service restart
+ayo sandbox service restart
 ```
 
 ---

@@ -144,7 +144,7 @@ func newBackupShowCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				result := map[string]interface{}{
+				result := map[string]any{
 					"backup":   backup,
 					"manifest": manifest,
 				}

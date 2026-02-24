@@ -451,7 +451,7 @@ func newMemoryStoreCmd() *cobra.Command {
 					spinner.StopWithError("failed to store memory")
 				}
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"success": false,
 						"error":   err.Error(),
 					})
@@ -464,7 +464,7 @@ func newMemoryStoreCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"success": true,
 					"memory":  memoryToJSON(mem),
 				})
@@ -513,7 +513,7 @@ func newMemoryForgetCmd() *cobra.Command {
 				mem, err = svc.GetByPrefix(cmd.Context(), args[0])
 				if err != nil {
 					if jsonOutput {
-						return writeJSON(map[string]interface{}{
+						return writeJSON(map[string]any{
 							"success": false,
 							"error":   "memory not found",
 						})
@@ -537,7 +537,7 @@ func newMemoryForgetCmd() *cobra.Command {
 			err = svc.Forget(cmd.Context(), mem.ID)
 			if err != nil {
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"success": false,
 						"error":   err.Error(),
 					})
@@ -546,7 +546,7 @@ func newMemoryForgetCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"success":   true,
 					"forgotten": true,
 					"memory_id": mem.ID,
@@ -585,7 +585,7 @@ func newMemoryStatsCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"total_active": total,
 				})
 			}
@@ -705,7 +705,7 @@ Use this if:
 					spinner.StopWithMessage("no memory directory found")
 				}
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"success": false,
 						"error":   "no memory directory found",
 					})
@@ -728,7 +728,7 @@ Use this if:
 					spinner.StopWithMessage("no memory files found")
 				}
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"success": true,
 						"count":   0,
 						"message": "no memory files found",
@@ -763,7 +763,7 @@ Use this if:
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"success": true,
 					"count":   count,
 				})
@@ -798,7 +798,7 @@ memories with the --topics flag or via the zettelkasten file format.`,
 			structure := zettelkasten.NewStructure(memDir)
 			if !structure.Exists() {
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"topics": []string{},
 					})
 				}
@@ -813,7 +813,7 @@ memories with the --topics flag or via the zettelkasten file format.`,
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"topics": topics,
 				})
 			}
@@ -873,7 +873,7 @@ knowledge graph. Links are symmetric: if A links to B, B links to A.`,
 			// Create the link
 			if err := provider.Link(cmd.Context(), id1, id2); err != nil {
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"error": err.Error(),
 					})
 				}
@@ -881,7 +881,7 @@ knowledge graph. Links are symmetric: if A links to B, B links to A.`,
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"linked": []string{id1, id2},
 				})
 			}
@@ -932,7 +932,7 @@ Thresholds:
 			structure := zettelkasten.NewStructure(memDir)
 			if !structure.Exists() {
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"merged":  0,
 						"flagged": 0,
 						"linked":  0,
@@ -968,11 +968,11 @@ Thresholds:
 
 			if len(candidates) == 0 {
 				if jsonOutput {
-					return writeJSON(map[string]interface{}{
+					return writeJSON(map[string]any{
 						"merged":     0,
 						"flagged":    0,
 						"linked":     0,
-						"candidates": []interface{}{},
+						"candidates": []any{},
 					})
 				}
 				fmt.Println("No merge candidates found")
@@ -986,9 +986,9 @@ Thresholds:
 			}
 
 			if jsonOutput {
-				candidatesJSON := make([]map[string]interface{}, len(result.Candidates))
+				candidatesJSON := make([]map[string]any, len(result.Candidates))
 				for i, c := range result.Candidates {
-					candidatesJSON[i] = map[string]interface{}{
+					candidatesJSON[i] = map[string]any{
 						"memory_a":   c.MemoryA.Frontmatter.ID,
 						"memory_b":   c.MemoryB.Frontmatter.ID,
 						"similarity": c.Similarity,
@@ -1000,7 +1000,7 @@ Thresholds:
 				for i, e := range result.Errors {
 					errStrings[i] = e.Error()
 				}
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"merged":     result.Merged,
 					"flagged":    result.FlaggedAsUnclear,
 					"linked":     result.Linked,
@@ -1088,7 +1088,7 @@ By default, existing files are skipped. Use --overwrite to replace them.`,
 			}
 
 			if jsonOutput {
-				return writeJSON(map[string]interface{}{
+				return writeJSON(map[string]any{
 					"migrated": result.Migrated,
 					"skipped":  result.Skipped,
 					"failed":   result.Failed,
@@ -1137,15 +1137,15 @@ func createEmbedder() (embedding.Embedder, error) {
 }
 
 // writeJSON writes JSON to stdout.
-func writeJSON(v interface{}) error {
+func writeJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
 
 // memoryToJSON converts a memory to a JSON-friendly map.
-func memoryToJSON(m memory.Memory) map[string]interface{} {
-	result := map[string]interface{}{
+func memoryToJSON(m memory.Memory) map[string]any {
+	result := map[string]any{
 		"id":           m.ID,
 		"content":      m.Content,
 		"category":     string(m.Category),
@@ -1171,8 +1171,8 @@ func memoryToJSON(m memory.Memory) map[string]interface{} {
 }
 
 // memoriesToJSON converts a slice of memories to JSON-friendly format.
-func memoriesToJSON(memories []memory.Memory) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(memories))
+func memoriesToJSON(memories []memory.Memory) []map[string]any {
+	result := make([]map[string]any, len(memories))
 	for i, m := range memories {
 		result[i] = memoryToJSON(m)
 	}
@@ -1180,10 +1180,10 @@ func memoriesToJSON(memories []memory.Memory) []map[string]interface{} {
 }
 
 // searchResultsToJSON converts search results to JSON-friendly format.
-func searchResultsToJSON(results []memory.SearchResult) []map[string]interface{} {
-	output := make([]map[string]interface{}, len(results))
+func searchResultsToJSON(results []memory.SearchResult) []map[string]any {
+	output := make([]map[string]any, len(results))
 	for i, r := range results {
-		output[i] = map[string]interface{}{
+		output[i] = map[string]any{
 			"memory":     memoryToJSON(r.Memory),
 			"similarity": r.Similarity,
 		}

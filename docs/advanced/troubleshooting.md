@@ -232,7 +232,7 @@ ls -la /workspace
 **Diagnosis:**
 ```bash
 # List available agents
-ayo agent list
+ayo agents list
 
 # Check agent path
 ls ~/.config/ayo/agents/
@@ -255,7 +255,7 @@ ls ~/.config/ayo/agents/
 
 4. **Validate agent config:**
    ```bash
-   ayo agent show name
+   ayo agents show name
    ```
 
 #### Agent Hangs
@@ -394,13 +394,13 @@ cat ~/.config/ayo/config.json | jq '.permissions'
 **Diagnosis:**
 ```bash
 # Check trigger exists and enabled
-ayo trigger list
+ayo triggers list
 
 # Check trigger details
-ayo trigger get my-trigger
+ayo triggers show my-trigger
 
 # Check history
-ayo trigger history my-trigger
+ayo triggers history my-trigger
 ```
 
 **Solutions:**
@@ -412,7 +412,7 @@ ayo trigger history my-trigger
 
 2. **Check trigger enabled:**
    ```bash
-   ayo trigger list
+   ayo triggers list
    # "enabled" column should be true
    ```
 
@@ -420,17 +420,17 @@ ayo trigger history my-trigger
    ```bash
    # Use standard cron format
    # minute hour day month weekday
-   ayo trigger add --schedule "0 9 * * *" ...
+   ayo triggers schedule --schedule "0 9 * * *" ...
    ```
 
 4. **Test manually:**
    ```bash
-   ayo trigger fire my-trigger
+   ayo triggers fire my-trigger
    ```
 
 5. **Check agent exists:**
    ```bash
-   ayo agent show trigger-agent
+   ayo agents show trigger-agent
    ```
 
 #### Watch Trigger Misses Files
@@ -475,7 +475,7 @@ ayo trigger history my-trigger
 ayo plugin list
 
 # Check for duplicates
-ayo agent list
+ayo agents list
 # Look for same name from different plugins
 ```
 

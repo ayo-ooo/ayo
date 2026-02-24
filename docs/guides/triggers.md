@@ -20,38 +20,38 @@ Complete reference for configuring ayo triggers.
 
 ```bash
 # Cron trigger
-ayo trigger create morning-standup \
+ayo triggers schedule morning-standup \
   --cron "0 9 * * MON-FRI" \
   --agent @standup \
   --prompt "Run daily standup"
 
 # Interval trigger
-ayo trigger create health-check \
+ayo triggers schedule health-check \
   --interval 30m \
   --agent @monitor \
   --prompt "Check system health"
 
 # One-time trigger
-ayo trigger create reminder \
+ayo triggers schedule reminder \
   --once "2024-12-25 09:00" \
   --agent @ayo \
   --prompt "Send holiday message"
 
 # Watch trigger
-ayo trigger create code-watcher \
+ayo triggers schedule code-watcher \
   --watch ./src \
   --pattern "*.go" \
   --agent @reviewer \
   --prompt "Review changed files"
 
 # Daily trigger
-ayo trigger create daily-backup \
+ayo triggers schedule daily-backup \
   --daily 02:00 \
   --agent @backup \
   --prompt "Run nightly backup"
 
 # Weekly trigger
-ayo trigger create weekly-report \
+ayo triggers schedule weekly-report \
   --weekly monday 09:00 \
   --agent @reporter \
   --prompt "Generate weekly report"
@@ -60,13 +60,13 @@ ayo trigger create weekly-report \
 ### Manage Triggers
 
 ```bash
-ayo trigger list                 # List all triggers
+ayo triggers list                 # List all triggers
 ayo trigger show <name>          # Show trigger details
 ayo trigger enable <name>        # Enable trigger
 ayo trigger disable <name>       # Disable trigger
 ayo trigger remove <name>        # Remove trigger
-ayo trigger fire <name>          # Manual execution
-ayo trigger history [name]       # View execution history
+ayo triggers fire <name>          # Manual execution
+ayo triggers history [name]       # View execution history
 ```
 
 ## Cron Expressions
@@ -155,7 +155,7 @@ Use day names instead of numbers:
 ### Basic Configuration
 
 ```bash
-ayo trigger create file-watcher \
+ayo triggers schedule file-watcher \
   --watch ./src \
   --agent @watcher \
   --prompt "Files changed"
@@ -164,7 +164,7 @@ ayo trigger create file-watcher \
 ### Advanced Options
 
 ```bash
-ayo trigger create code-watcher \
+ayo triggers schedule code-watcher \
   --watch ./src \
   --pattern "*.go,*.ts" \
   --exclude "*.test.*" \
@@ -362,7 +362,7 @@ config:
 
 Failed triggers:
 - Logged to daemon log
-- Visible in `ayo trigger history --status failed`
+- Visible in `ayo triggers history --status failed`
 - Don't block future executions
 
 ## Persistence
@@ -391,7 +391,7 @@ YAML triggers in `~/.config/ayo/triggers/` are watched:
 
 ```bash
 # Check daemon running
-ayo service status
+ayo sandbox service status
 
 # Check trigger enabled
 ayo trigger show <name> | grep enabled
@@ -412,7 +412,7 @@ File system watch limitations:
 
 Try increasing debounce:
 ```bash
-ayo trigger create watcher --watch ./src --debounce 3s ...
+ayo triggers schedule watcher --watch ./src --debounce 3s ...
 ```
 
 ### Cron trigger wrong timezone
@@ -426,5 +426,5 @@ date +%Z
 
 Enable singleton mode:
 ```bash
-ayo trigger create job --singleton ...
+ayo triggers schedule job --singleton ...
 ```

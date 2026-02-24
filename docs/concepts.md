@@ -42,7 +42,7 @@ Ayo ships with a built-in `@ayo` agent that serves as a general-purpose assistan
 ### Creating Custom Agents
 
 ```bash
-ayo agent create @reviewer
+ayo agents create @reviewer
 ```
 
 This creates a directory at `~/.config/ayo/agents/@reviewer/`. Customize `system.md` to define the agent's behavior:
@@ -205,7 +205,7 @@ Build features with quality and speed.
 
 When you send a task to a squad, ayo routes it to the appropriate agent:
 
-1. **Explicit target**: `ayo #squad @backend "implement endpoint"`
+1. **Explicit target**: `ayo "#squad" @backend "implement endpoint"`
 2. **Input matching**: Check agent `inputAccepts` patterns
 3. **Squad lead**: Route to designated lead agent
 4. **Default**: Route to `@ayo` for orchestration
@@ -321,7 +321,7 @@ Aliases are also supported:
 Watch triggers monitor directories for changes:
 
 ```bash
-ayo trigger create code-reviewer \
+ayo triggers schedule code-reviewer \
   --watch ./src \
   --pattern "*.go" \
   --agent @reviewer \

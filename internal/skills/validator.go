@@ -59,7 +59,7 @@ func Validate(skillDir string) []ValidationError {
 	}
 
 	yamlPart := strings.TrimSpace(parts[1])
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := yaml.Unmarshal([]byte(yamlPart), &raw); err != nil {
 		return []ValidationError{{Field: "frontmatter", Message: fmt.Sprintf("invalid YAML: %v", err)}}
 	}
@@ -80,7 +80,7 @@ func Validate(skillDir string) []ValidationError {
 	return errors
 }
 
-func validateName(raw map[string]interface{}, dirName string) []ValidationError {
+func validateName(raw map[string]any, dirName string) []ValidationError {
 	var errors []ValidationError
 
 	nameAny, ok := raw["name"]
@@ -149,7 +149,7 @@ func validateName(raw map[string]interface{}, dirName string) []ValidationError 
 	return errors
 }
 
-func validateDescription(raw map[string]interface{}) []ValidationError {
+func validateDescription(raw map[string]any) []ValidationError {
 	descAny, ok := raw["description"]
 	if !ok {
 		return []ValidationError{{Field: "description", Message: "missing required field"}}
@@ -171,7 +171,7 @@ func validateDescription(raw map[string]interface{}) []ValidationError {
 	return nil
 }
 
-func validateCompatibility(raw map[string]interface{}) []ValidationError {
+func validateCompatibility(raw map[string]any) []ValidationError {
 	compatAny, ok := raw["compatibility"]
 	if !ok {
 		return nil
@@ -192,13 +192,13 @@ func validateCompatibility(raw map[string]interface{}) []ValidationError {
 	return nil
 }
 
-func validateMetadataField(raw map[string]interface{}) []ValidationError {
+func validateMetadataField(raw map[string]any) []ValidationError {
 	metaAny, ok := raw["metadata"]
 	if !ok {
 		return nil
 	}
 
-	_, ok = metaAny.(map[string]interface{})
+	_, ok = metaAny.(map[string]any)
 	if !ok {
 		return []ValidationError{{Field: "metadata", Message: "must be a key-value mapping"}}
 	}
@@ -215,7 +215,7 @@ var allowedFields = map[string]bool{
 	"allowed-tools": true,
 }
 
-func validateAllowedFields(raw map[string]interface{}) []ValidationError {
+func validateAllowedFields(raw map[string]any) []ValidationError {
 	var errors []ValidationError
 
 	for field := range raw {

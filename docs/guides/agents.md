@@ -19,7 +19,7 @@ Complete reference for configuring ayo agents.
 ```json
 {
   "model": "claude-sonnet-4-20250514",
-  "description": "Agent description for ayo agent list",
+  "description": "Agent description for ayo agents list",
   "allowed_tools": ["bash", "view", "edit"],
   "disabled_tools": ["delegate"],
   "trust_level": "sandboxed",
@@ -64,7 +64,7 @@ Complete reference for configuring ayo agents.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `model` | string | `claude-sonnet-4-20250514` | LLM model to use |
-| `description` | string | `""` | Shown in `ayo agent list` |
+| `description` | string | `""` | Shown in `ayo agents list` |
 
 ### Tools
 

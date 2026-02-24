@@ -15,7 +15,7 @@ A `@reviewer` agent that:
 ## Step 1: Create the Agent
 
 ```bash
-ayo agent create @reviewer
+ayo agents create @reviewer
 ```
 
 This creates the agent directory at `~/.config/ayo/agents/@reviewer/`:
@@ -111,7 +111,7 @@ Edit `~/.config/ayo/agents/@reviewer/config.json`:
 | Field | Purpose |
 |-------|---------|
 | `model` | LLM model for this agent |
-| `description` | Shows in `ayo agent list` |
+| `description` | Shows in `ayo agents list` |
 | `allowed_tools` | Tools the agent can use (no edit = read-only) |
 | `memory` | Enable agent-specific memories |
 
@@ -120,7 +120,7 @@ Edit `~/.config/ayo/agents/@reviewer/config.json`:
 Verify the agent is available:
 
 ```bash
-ayo agent list
+ayo agents list
 ```
 
 You should see `@reviewer` in the list.
@@ -128,7 +128,7 @@ You should see `@reviewer` in the list.
 Show agent details:
 
 ```bash
-ayo agent show @reviewer
+ayo agents show @reviewer
 ```
 
 ## Step 5: Run Your First Review

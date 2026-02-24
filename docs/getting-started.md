@@ -5,8 +5,8 @@ Get up and running with ayo in under 5 minutes. By the end of this guide, you'll
 ## Prerequisites
 
 - **macOS 26+** (Apple Container) or **Linux** (systemd-nspawn)
-- **Go 1.22+** (for building from source)
-- An LLM API key (Anthropic, OpenAI, or Vertex AI)
+- **Go 1.24+** (for building from source)
+- An LLM API key (Anthropic, OpenAI, Ollama, or Vertex AI)
 
 ## Installation
 
@@ -16,7 +16,10 @@ Get up and running with ayo in under 5 minutes. By the end of this guide, you'll
 # Clone and build
 git clone https://github.com/alexcabrera/ayo
 cd ayo
-go install ./cmd/ayo/...
+go build -o ayo ./cmd/ayo/...
+
+# Add to PATH or move to a bin directory
+mv ayo /usr/local/bin/
 
 # Verify installation
 ayo --help
@@ -35,14 +38,14 @@ go install github.com/alexcabrera/ayo/cmd/ayo@latest
 Set your LLM provider's API key:
 
 ```bash
-# Anthropic (default)
+# Anthropic (recommended)
 export ANTHROPIC_API_KEY="sk-ant-..."
 
 # OpenAI
 export OPENAI_API_KEY="sk-..."
 
-# Google Vertex AI
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/credentials.json"
+# Ollama (local, no key needed)
+# Just ensure Ollama is running: ollama serve
 ```
 
 ### 2. Run Setup Wizard
@@ -52,17 +55,28 @@ ayo setup
 ```
 
 This will:
+- Create configuration directory (`~/.config/ayo/`)
+- Create data directories (`~/.local/share/ayo/`)
+- Install default agents
 - Configure your LLM provider
-- Create the default `@ayo` sandbox
-- Start the background daemon
 
-### 3. Verify Installation
+### 3. Start the Daemon
+
+```bash
+ayo sandbox service start
+```
+
+### 4. Verify Installation
 
 ```bash
 ayo doctor
 ```
 
-This checks that all components are working correctly.
+This checks that all components are working correctly:
+- ✓ Configuration valid
+- ✓ Daemon running
+- ✓ Container runtime available
+- ✓ Provider configured
 
 ## Your First Prompt
 
@@ -85,15 +99,15 @@ Start an interactive session:
 ayo
 ```
 
-Type your prompts, and press Enter to send. Use `Ctrl+C` or type `exit` to quit.
+Type your prompts and press Enter to send. Use `/exit` or `Ctrl+D` to quit.
 
 ## Attach Files
 
 Include files in your prompt:
 
 ```bash
-ayo -a main.go "explain this code"
-ayo -a src/ "find bugs in this directory"
+ayo "explain this code" -a main.go
+ayo "find bugs in this directory" -a src/
 ```
 
 ## Continue Sessions
@@ -107,7 +121,7 @@ ayo -c "also add error handling"
 Or continue a specific session:
 
 ```bash
-ayo -s abc123 "one more thing..."
+ayo -s <session-id> "one more thing..."
 ```
 
 ## Create a Custom Agent
@@ -115,22 +129,9 @@ ayo -s abc123 "one more thing..."
 Create an agent specialized for a task:
 
 ```bash
-ayo agent create @reviewer
-```
-
-This creates a directory at `~/.config/ayo/agents/@reviewer/` with:
-- `config.json` – Model, tools, and settings
-- `system.md` – The agent's behavior instructions
-
-Edit `system.md` to customize behavior:
-
-```markdown
-You are a code review specialist. Focus on:
-- Security vulnerabilities
-- Performance issues
-- Code style consistency
-
-Be direct and specific. Cite line numbers.
+ayo agents create @reviewer \
+  --description "Code review specialist" \
+  --prompt "You are a code review expert. Focus on security, performance, and style."
 ```
 
 Use your agent:
@@ -139,20 +140,23 @@ Use your agent:
 ayo @reviewer "review the changes in src/"
 ```
 
+For more complex agents, edit the files directly:
+- `~/.local/share/ayo/agents/reviewer/config.json` – Settings
+- `~/.local/share/ayo/agents/reviewer/system.md` – Behavior
+
 ## Create a Squad
 
 Squads are teams of agents that collaborate:
 
 ```bash
-# Create a squad
-ayo squad create dev-team
+# Create a squad with agents
+ayo squad create dev-team -a @frontend,@backend
 
-# Add agents
-ayo squad add-agent dev-team @frontend
-ayo squad add-agent dev-team @backend
+# Start the squad
+ayo squad start dev-team
 
 # Dispatch a task
-ayo #dev-team "build the user authentication feature"
+ayo "#dev-team" "build the user authentication feature"
 ```
 
 ## Set Up a Trigger
@@ -160,17 +164,14 @@ ayo #dev-team "build the user authentication feature"
 Create an agent that runs automatically:
 
 ```bash
-# Run every morning at 9am
-ayo trigger create standup \
-  --cron "0 9 * * MON-FRI" \
-  --agent @standup \
+# Run every morning at 9am (weekdays)
+ayo triggers schedule @reporter "0 9 * * 1-5" \
   --prompt "Summarize yesterday's git commits"
 
 # Watch for file changes
-ayo trigger create watcher \
-  --watch ./src \
-  --agent @linter \
-  --prompt "Check changed files for issues"
+ayo triggers watch ~/Code/project @linter \
+  --prompt "Check changed files for issues" \
+  --pattern "*.go"
 ```
 
 ## Understanding Sandbox Isolation
@@ -191,27 +192,21 @@ When an agent wants to modify files on your system, you'll see an approval promp
 - **D** – View the diff first
 - **A** – Auto-approve similar requests this session
 
-To auto-approve all changes (use with caution):
-
-```bash
-ayo --no-jodas "refactor this file"
-```
-
 ## Key Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `ayo [prompt]` | Chat with default @ayo agent |
-| `ayo @agent [prompt]` | Chat with specific agent |
-| `ayo #squad [prompt]` | Dispatch to squad |
-| `ayo agent list` | List available agents |
-| `ayo agent create @name` | Create new agent |
+| `ayo "prompt"` | Chat with default @ayo agent |
+| `ayo @agent "prompt"` | Chat with specific agent |
+| `ayo "#squad" "prompt"` | Dispatch to squad |
+| `ayo agents list` | List available agents |
+| `ayo agents create @name` | Create new agent |
 | `ayo squad list` | List squads |
 | `ayo squad create name` | Create new squad |
-| `ayo trigger list` | List active triggers |
+| `ayo triggers list` | List active triggers |
 | `ayo memory list` | Show stored memories |
 | `ayo doctor` | Check system health |
-| `ayo service status` | Check daemon status |
+| `ayo sandbox service status` | Check daemon status |
 
 ## Next Steps
 
@@ -229,11 +224,11 @@ Now that you're up and running:
 
 ```bash
 # Check status
-ayo service status
+ayo sandbox service status
 
 # Remove stale socket and restart
 rm -f ~/.local/share/ayo/daemon.sock
-ayo service start
+ayo sandbox service start
 ```
 
 ### Sandbox creation fails
@@ -250,10 +245,9 @@ ayo doctor
 
 ```bash
 # List available agents
-ayo agent list
+ayo agents list
 
 # Check agent directories
-ls ~/.config/ayo/agents/
 ls ~/.local/share/ayo/agents/
 ```
 

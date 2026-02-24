@@ -17,7 +17,7 @@ func TestResolveTemplate(t *testing.T) {
 				Output:   "formatted output",
 			},
 		},
-		Params: map[string]interface{}{
+		Params: map[string]any{
 			"name":    "test",
 			"count":   42.0,
 			"enabled": true,
@@ -144,9 +144,9 @@ func TestResolveExpression(t *testing.T) {
 		Steps: map[string]StepResult{
 			"step1": {ID: "step1", Stdout: "output"},
 		},
-		Params: map[string]interface{}{
+		Params: map[string]any{
 			"list": []string{"a", "b", "c"},
-			"obj":  map[string]interface{}{"key": "value"},
+			"obj":  map[string]any{"key": "value"},
 		},
 		Env: map[string]string{
 			"VAR": "value",

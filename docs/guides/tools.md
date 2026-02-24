@@ -448,7 +448,7 @@ type StatefulTool interface {
 
 ```bash
 # List available tools
-ayo agent show @name | grep tools
+ayo agents show @name | grep tools
 
 # Check tool directory
 ls ~/.config/ayo/tools/

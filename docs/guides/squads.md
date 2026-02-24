@@ -281,9 +281,9 @@ Ticket is `blocked` until all deps are closed.
 
 ## Dispatch Routing
 
-When you send `ayo #squad "task"`:
+When you send `ayo "#squad" "task"`:
 
-1. **Explicit target**: `ayo #squad @agent "task"` → routes to @agent
+1. **Explicit target**: `ayo "#squad" @agent "task"` → routes to @agent
 2. **Input matching**: Check `input_accepts` patterns
 3. **Lead agent**: Route to `lead` if defined
 4. **Default**: Route to `@ayo` for orchestration
@@ -465,7 +465,7 @@ Quality engineer handling:
 
 ```bash
 # Check daemon status
-ayo service status
+ayo sandbox service status
 
 # Check sandbox provider
 ayo doctor | grep sandbox
@@ -478,7 +478,7 @@ tail -f ~/.local/share/ayo/daemon.log
 
 1. Verify agent is in SQUAD.md `agents` list
 2. Check `input_accepts` patterns if used
-3. Try explicit routing: `ayo #squad @agent "task"`
+3. Try explicit routing: `ayo "#squad" @agent "task"`
 
 ### Tickets not syncing
 

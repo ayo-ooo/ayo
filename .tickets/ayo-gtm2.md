@@ -1,6 +1,6 @@
 ---
 id: ayo-gtm2
-status: open
+status: deferred
 deps: []
 links: []
 created: 2026-02-24T12:00:00Z

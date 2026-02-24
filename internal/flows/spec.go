@@ -49,7 +49,7 @@ type FlowSchema struct {
 	Type       string                 `yaml:"type" json:"type"`
 	Properties map[string]*FlowSchema `yaml:"properties,omitempty" json:"properties,omitempty"`
 	Required   []string               `yaml:"required,omitempty" json:"required,omitempty"`
-	Default    interface{}            `yaml:"default,omitempty" json:"default,omitempty"`
+	Default    any            `yaml:"default,omitempty" json:"default,omitempty"`
 
 	// Additional schema fields
 	Items       *FlowSchema `yaml:"items,omitempty" json:"items,omitempty"` // For arrays
@@ -162,7 +162,7 @@ type FlowTrigger struct {
 	// === Common fields ===
 
 	// Params are default parameters passed to the flow.
-	Params map[string]interface{} `yaml:"params,omitempty" json:"params,omitempty"`
+	Params map[string]any `yaml:"params,omitempty" json:"params,omitempty"`
 
 	// RunsBeforePermanent is how many successful runs before the trigger
 	// becomes permanent. If nil or 0, the trigger is already permanent.

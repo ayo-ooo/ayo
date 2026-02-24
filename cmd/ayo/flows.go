@@ -242,7 +242,7 @@ func showFlowCmd() *cobra.Command {
 }
 
 func outputFlowJSON(f *flows.Flow) error {
-	output := map[string]interface{}{
+	output := map[string]any{
 		"name":              f.Name,
 		"description":       f.Description,
 		"source":            string(f.Source),
@@ -330,10 +330,7 @@ func outputFlowDetails(f *flows.Flow, showScript bool) error {
 
 		// Show first 10 lines
 		lines := strings.Split(f.Raw.Script, "\n")
-		maxLines := 10
-		if len(lines) < maxLines {
-			maxLines = len(lines)
-		}
+		maxLines := min(10, len(lines))
 		for i := 0; i < maxLines; i++ {
 			fmt.Println("  " + lines[i])
 		}
@@ -797,7 +794,7 @@ func formatDuration(d time.Duration) string {
 }
 
 func formatJSON(s string) string {
-	var obj interface{}
+	var obj any
 	if err := json.Unmarshal([]byte(s), &obj); err != nil {
 		return "  " + s
 	}

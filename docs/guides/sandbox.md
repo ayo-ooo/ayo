@@ -397,7 +397,7 @@ stat /path/to/mount
 
 ```bash
 # Verify network enabled
-ayo agent show @name | grep network
+ayo agents show @name | grep network
 
 # Test inside sandbox
 ayo sandbox shell @ayo

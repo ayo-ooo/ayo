@@ -1,6 +1,6 @@
 ---
 id: ayo-e2e10
-status: open
+status: closed
 deps: [ayo-e2e9]
 links: []
 created: 2026-02-24T14:00:00Z

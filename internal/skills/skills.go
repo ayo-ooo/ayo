@@ -201,7 +201,7 @@ func parseSkill(_, dirName, content string) (Metadata, string, error) {
 	yamlPart := strings.TrimSpace(parts[1])
 	body := strings.TrimSpace(parts[2])
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := yaml.Unmarshal([]byte(yamlPart), &raw); err != nil {
 		return meta, "", fmt.Errorf("invalid frontmatter: %w", err)
 	}
@@ -265,7 +265,7 @@ func parseSkill(_, dirName, content string) (Metadata, string, error) {
 
 	// Parse optional field: metadata (map[string]string)
 	if metaAny, ok := raw["metadata"]; ok {
-		if metaMap, ok := metaAny.(map[string]interface{}); ok {
+		if metaMap, ok := metaAny.(map[string]any); ok {
 			meta.RawMetadata = make(map[string]string)
 			for k, v := range metaMap {
 				if strVal, ok := v.(string); ok {

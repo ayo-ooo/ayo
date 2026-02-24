@@ -34,10 +34,10 @@ Create specialized agents for the squad:
 
 ```bash
 # Backend agent
-ayo agent create @backend
+ayo agents create @backend
 
 # Frontend agent  
-ayo agent create @frontend
+ayo agents create @frontend
 ```
 
 ### Configure @backend
@@ -182,7 +182,7 @@ This creates an isolated sandbox where both agents will work.
 Dispatch a feature request to the squad:
 
 ```bash
-ayo #dev-team "Build a user registration feature with email/password signup"
+ayo "#dev-team" "Build a user registration feature with email/password signup"
 ```
 
 The squad will:
@@ -233,8 +233,8 @@ cat .tickets/*.md
 Send follow-up tasks:
 
 ```bash
-ayo #dev-team "Add password strength validation"
-ayo #dev-team @frontend "Make the form mobile-responsive"
+ayo "#dev-team" "Add password strength validation"
+ayo "#dev-team" @frontend "Make the form mobile-responsive"
 ```
 
 The `@agent` syntax routes directly to a specific agent.
@@ -306,7 +306,7 @@ Your squad structure:
 
 ```bash
 # Check daemon status
-ayo service status
+ayo sandbox service status
 
 # Check squad status
 ayo squad show dev-team

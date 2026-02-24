@@ -14,7 +14,7 @@ type TemplateContext struct {
 	Steps map[string]StepResult
 
 	// Params contains flow input parameters.
-	Params map[string]interface{}
+	Params map[string]any
 
 	// Env contains environment variables.
 	Env map[string]string

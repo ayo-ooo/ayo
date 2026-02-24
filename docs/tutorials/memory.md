@@ -262,7 +262,7 @@ Memories are embedded as vectors for semantic search:
 Create an agent that heavily uses memory:
 
 ```bash
-ayo agent create @assistant
+ayo agents create @assistant
 ```
 
 **config.json**:

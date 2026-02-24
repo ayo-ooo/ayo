@@ -393,7 +393,7 @@ Configure:
 
 1. **Stop the agent**:
    ```bash
-   ayo service stop
+   ayo sandbox service stop
    ```
 
 2. **Review audit log**:
@@ -409,12 +409,12 @@ Configure:
 
 4. **Revoke any cached approvals**:
    ```bash
-   ayo service restart
+   ayo sandbox service restart
    ```
 
 5. **Review agent configuration**:
    ```bash
-   ayo agent show @name
+   ayo agents show @name
    ```
 
 ### Recovery
