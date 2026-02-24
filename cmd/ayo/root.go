@@ -30,7 +30,6 @@ import (
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/ui"
-	"github.com/alexcabrera/ayo/internal/ui/chat/messages"
 )
 
 // Global output flags accessible to all subcommands
@@ -99,12 +98,6 @@ Examples:
 			if err := config.InjectCredentials(); err != nil {
 				// Non-fatal: just log in debug mode
 				debug.Log("failed to load credentials", "error", err)
-			}
-
-			// Load plugin renderers for custom tool TUI rendering
-			if err := messages.LoadPluginRenderers(paths.PluginsDir()); err != nil {
-				// Non-fatal: just log in debug mode
-				debug.Log("failed to load plugin renderers", "error", err)
 			}
 
 			// Auto-install built-in agents and skills if needed (version-based)

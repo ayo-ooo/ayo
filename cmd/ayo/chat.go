@@ -1,72 +1,69 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/run"
-	"github.com/alexcabrera/ayo/internal/session"
-	"github.com/alexcabrera/ayo/internal/ui/chat"
+	"github.com/alexcabrera/ayo/internal/ui/interactive"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// runInteractiveChat handles the interactive chat session loop using the alt-screen TUI.
+// runInteractiveChat handles the interactive chat session loop using simple line-based input.
 func runInteractiveChat(ctx context.Context, runner *run.Runner, ag agent.Agent, _ bool) error {
+	// Create interactive writer
+	writer := interactive.NewWriter()
+	runner.SetStreamWriter(writer)
+
 	// Get session ID for display
 	sessionID := runner.GetSessionID(ag.Handle)
 
-	// Create a send function that wraps runner.Chat
-	// The runner's StreamWriter will send streaming events through the channel.
-	// This function just triggers the chat and returns the final response.
-	sendFn := func(ctx context.Context, message string) (string, error) {
-		_, err := runner.Chat(ctx, ag, message)
+	// Styles
+	promptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#67e8f9")).Bold(true)
+	sessionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
+
+	// Print session info
+	fmt.Printf("\n%s %s\n", promptStyle.Render(ag.Handle), sessionStyle.Render("("+sessionID[:8]+")"))
+	fmt.Println(sessionStyle.Render("Type 'exit' or Ctrl+D to quit"))
+	fmt.Println()
+
+	// Simple input loop using bufio
+	scanner := bufio.NewScanner(os.Stdin)
+	
+	for {
+		// Print prompt
+		fmt.Print(promptStyle.Render("> "))
+
+		// Read input
+		if !scanner.Scan() {
+			// EOF (Ctrl+D) or error
+			fmt.Println()
+			break
+		}
+
+		input := strings.TrimSpace(scanner.Text())
+		if input == "" {
+			continue
+		}
+
+		// Check for exit command
+		if input == "exit" || input == "quit" || input == "/exit" || input == "/quit" {
+			break
+		}
+
+		// Print agent header
+		fmt.Printf("\n%s\n", promptStyle.Render("@"+ag.Handle+":"))
+
+		// Send to agent
+		_, err := runner.Chat(ctx, ag, input)
 		if err != nil {
-			return "", err
+			fmt.Printf("\nError: %v\n", err)
 		}
-
-		// Retrieve the last assistant message from the session
-		messages, err := runner.GetSessionMessages(ctx, ag.Handle)
-		if err != nil {
-			return "", err
-		}
-
-		// Find the last assistant message
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Role == "assistant" {
-				// Extract text content from parts
-				for _, part := range messages[i].Parts {
-					if textPart, ok := part.(session.TextContent); ok {
-						return textPart.Text, nil
-					}
-				}
-			}
-		}
-
-		return "", nil
-	}
-
-	// Create the tea.Program and model with the new channel-based architecture
-	// This sets up:
-	// 1. An event channel for streaming events
-	// 2. An EventAggregator that forwards events to the TUI via program.Send()
-	// 3. A ChannelWriter that the runner will use to write events
-	program, _, channelWriter := chat.RunWithChannel(ctx, ag, sessionID, sendFn)
-
-	// Set the stream writer on the runner so streaming events go through the channel
-	runner.SetStreamWriter(channelWriter)
-
-	// Run the TUI
-	finalModel, err := program.Run()
-	if err != nil {
-		return err
-	}
-
-	m := finalModel.(chat.Model)
-	scrollback := m.ScrollbackContent()
-
-	// Dump scrollback to terminal after exiting alt-screen
-	if scrollback != "" {
-		fmt.Print(scrollback)
+		fmt.Println()
 	}
 
 	return nil
