@@ -298,3 +298,75 @@ func TestTopicsToJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestIndex_NoteLinks(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := NewStructure(tmpDir)
+	s.Initialize()
+
+	idx := NewIndex(s)
+	ctx := context.Background()
+	idx.Open(ctx)
+	defer idx.Close()
+
+	// Add a link between notes
+	err := idx.AddNoteLink(ctx, "note-a", "note-b", "relates_to")
+	if err != nil {
+		t.Fatalf("AddNoteLink: %v", err)
+	}
+
+	// Get links from note-a
+	links, err := idx.GetNoteLinks(ctx, "note-a")
+	if err != nil {
+		t.Fatalf("GetNoteLinks: %v", err)
+	}
+	if len(links) != 1 {
+		t.Errorf("GetNoteLinks count = %d, want 1", len(links))
+	}
+	if len(links) > 0 {
+		if links[0].FromNoteID != "note-a" {
+			t.Errorf("FromNoteID = %q, want note-a", links[0].FromNoteID)
+		}
+		if links[0].ToNoteID != "note-b" {
+			t.Errorf("ToNoteID = %q, want note-b", links[0].ToNoteID)
+		}
+		if links[0].Relationship != "relates_to" {
+			t.Errorf("Relationship = %q, want relates_to", links[0].Relationship)
+		}
+	}
+
+	// Get backlinks to note-b
+	backlinks, err := idx.GetBacklinks(ctx, "note-b")
+	if err != nil {
+		t.Fatalf("GetBacklinks: %v", err)
+	}
+	if len(backlinks) != 1 {
+		t.Errorf("GetBacklinks count = %d, want 1", len(backlinks))
+	}
+
+	// Add another link
+	idx.AddNoteLink(ctx, "note-a", "note-c", "supersedes")
+
+	// Get all links
+	outgoing, incoming, err := idx.GetAllNoteLinks(ctx, "note-a")
+	if err != nil {
+		t.Fatalf("GetAllNoteLinks: %v", err)
+	}
+	if len(outgoing) != 2 {
+		t.Errorf("Outgoing count = %d, want 2", len(outgoing))
+	}
+	if len(incoming) != 0 {
+		t.Errorf("Incoming count = %d, want 0", len(incoming))
+	}
+
+	// Remove a link
+	err = idx.RemoveNoteLink(ctx, "note-a", "note-b")
+	if err != nil {
+		t.Fatalf("RemoveNoteLink: %v", err)
+	}
+
+	links, _ = idx.GetNoteLinks(ctx, "note-a")
+	if len(links) != 1 {
+		t.Errorf("After remove count = %d, want 1", len(links))
+	}
+}

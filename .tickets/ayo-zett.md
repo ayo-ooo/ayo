@@ -1,6 +1,6 @@
 ---
 id: ayo-zett
-status: open
+status: closed
 deps: [ayo-mem1]
 links: []
 created: 2026-02-23T12:00:00Z

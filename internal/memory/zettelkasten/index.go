@@ -90,6 +90,20 @@ CREATE TABLE IF NOT EXISTS index_meta (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Note links for Zettelkasten bidirectional linking
+CREATE TABLE IF NOT EXISTS note_links (
+    id TEXT PRIMARY KEY,
+    from_note_id TEXT NOT NULL,
+    to_note_id TEXT NOT NULL,
+    relationship TEXT,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    UNIQUE(from_note_id, to_note_id)
+);
+
+-- Indexes for fast link lookups
+CREATE INDEX IF NOT EXISTS idx_note_links_from ON note_links(from_note_id);
+CREATE INDEX IF NOT EXISTS idx_note_links_to ON note_links(to_note_id);
 `
 
 // NewIndex creates a new index for the given structure.
@@ -440,4 +454,94 @@ func topicsToJSON(topics []string) string {
 	}
 	result += "]"
 	return result
+}
+
+// NoteLink represents a link between two notes.
+type NoteLink struct {
+	ID           string
+	FromNoteID   string
+	ToNoteID     string
+	Relationship string
+	CreatedAt    int64
+}
+
+// AddNoteLink creates a link between two notes.
+func (idx *Index) AddNoteLink(ctx context.Context, fromID, toID, relationship string) error {
+	id := fromID + "->" + toID
+	_, err := idx.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO note_links (id, from_note_id, to_note_id, relationship, created_at)
+		 VALUES (?, ?, ?, ?, strftime('%s', 'now'))`,
+		id, fromID, toID, relationship,
+	)
+	return err
+}
+
+// RemoveNoteLink removes a link between two notes.
+func (idx *Index) RemoveNoteLink(ctx context.Context, fromID, toID string) error {
+	_, err := idx.db.ExecContext(ctx,
+		`DELETE FROM note_links WHERE from_note_id = ? AND to_note_id = ?`,
+		fromID, toID,
+	)
+	return err
+}
+
+// GetNoteLinks returns all links from a specific note.
+func (idx *Index) GetNoteLinks(ctx context.Context, noteID string) ([]NoteLink, error) {
+	rows, err := idx.db.QueryContext(ctx,
+		`SELECT id, from_note_id, to_note_id, relationship, created_at FROM note_links WHERE from_note_id = ?`,
+		noteID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []NoteLink
+	for rows.Next() {
+		var link NoteLink
+		var rel sql.NullString
+		if err := rows.Scan(&link.ID, &link.FromNoteID, &link.ToNoteID, &rel, &link.CreatedAt); err != nil {
+			return nil, err
+		}
+		link.Relationship = rel.String
+		links = append(links, link)
+	}
+	return links, rows.Err()
+}
+
+// GetBacklinks returns all links pointing to a specific note.
+func (idx *Index) GetBacklinks(ctx context.Context, noteID string) ([]NoteLink, error) {
+	rows, err := idx.db.QueryContext(ctx,
+		`SELECT id, from_note_id, to_note_id, relationship, created_at FROM note_links WHERE to_note_id = ?`,
+		noteID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []NoteLink
+	for rows.Next() {
+		var link NoteLink
+		var rel sql.NullString
+		if err := rows.Scan(&link.ID, &link.FromNoteID, &link.ToNoteID, &rel, &link.CreatedAt); err != nil {
+			return nil, err
+		}
+		link.Relationship = rel.String
+		links = append(links, link)
+	}
+	return links, rows.Err()
+}
+
+// GetAllNoteLinks returns all links for a note (both directions).
+func (idx *Index) GetAllNoteLinks(ctx context.Context, noteID string) (outgoing, incoming []NoteLink, err error) {
+	outgoing, err = idx.GetNoteLinks(ctx, noteID)
+	if err != nil {
+		return nil, nil, err
+	}
+	incoming, err = idx.GetBacklinks(ctx, noteID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return outgoing, incoming, nil
 }
