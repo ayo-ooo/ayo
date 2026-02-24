@@ -556,6 +556,8 @@ CREATE TABLE scheduled_jobs (
 3. Polish CLI help text
 4. Add `ayo doctor` improvements
 
+Each phase includes an **E2E verification ticket** that must pass before the phase is considered complete.
+
 ---
 
 ## Success Criteria

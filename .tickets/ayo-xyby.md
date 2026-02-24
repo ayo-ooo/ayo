@@ -1,7 +1,7 @@
 ---
 id: ayo-xyby
 status: open
-deps: []
+deps: [ayo-evik]
 links: []
 created: 2026-02-23T23:13:32Z
 type: task

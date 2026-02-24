@@ -7,7 +7,8 @@ created: 2026-02-23T23:13:09Z
 type: task
 priority: 1
 assignee: Alex Cabrera
-tags: [squads, config]
+parent: ayo-pv3a
+tags: [squads, config, migration]
 ---
 # Migrate SQUAD.md frontmatter to ayo.json
 

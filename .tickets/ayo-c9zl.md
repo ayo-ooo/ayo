@@ -12,5 +12,31 @@ tags: [removal, irc]
 ---
 # Remove IRC integration code
 
-Remove any IRC bridge or integration code if present. Check debug/irc-status.sh references.
+Remove abandoned IRC bridge/integration code.
 
+## Context
+
+IRC integration was an early experiment that was never completed. Remove any traces.
+
+## Tasks
+
+1. Search for IRC references:
+   ```bash
+   grep -ri "irc" --include="*.go" .
+   grep -ri "irc" --include="*.sh" debug/
+   ```
+2. Delete any IRC-related files
+3. Remove debug/irc-status.sh if present
+4. Remove any IRC config options
+
+## Verification Steps
+
+1. No "irc" references in codebase (case-insensitive search)
+2. Build passes
+3. Tests pass
+
+## Acceptance Criteria
+
+- [ ] No IRC code remains
+- [ ] No IRC config options
+- [ ] Build passes
