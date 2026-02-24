@@ -26,6 +26,7 @@ require (
 	github.com/charmbracelet/x/editor v0.2.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-co-op/gocron/v2 v2.19.1
 	github.com/kaptinlin/jsonschema v0.6.9
 	github.com/ncruces/go-sqlite3 v0.30.5
 	github.com/oklog/ulid/v2 v2.1.1
@@ -92,6 +93,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.3 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.9 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.9 // indirect

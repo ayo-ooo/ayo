@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/robfig/cron/v3"
+	"github.com/go-co-op/gocron/v2"
 )
 
 // TriggerType represents the type of trigger.
@@ -62,8 +62,8 @@ type TriggerCallback func(event TriggerEvent)
 type TriggerEngine struct {
 	mu        sync.RWMutex
 	triggers  map[string]*Trigger
-	cronJobs  map[string]cron.EntryID
-	cron      *cron.Cron
+	cronJobs  map[string]gocron.Job
+	scheduler gocron.Scheduler
 	watcher   *fsnotify.Watcher
 	watchDirs map[string][]string // dir -> trigger IDs
 	callback  TriggerCallback
@@ -87,7 +87,7 @@ func NewTriggerEngine(cfg TriggerEngineConfig) *TriggerEngine {
 
 	return &TriggerEngine{
 		triggers:  make(map[string]*Trigger),
-		cronJobs:  make(map[string]cron.EntryID),
+		cronJobs:  make(map[string]gocron.Job),
 		watchDirs: make(map[string][]string),
 		callback:  cfg.Callback,
 		logger:    cfg.Logger,
@@ -105,15 +105,18 @@ func (e *TriggerEngine) Start(ctx context.Context) error {
 	e.running = true
 	e.mu.Unlock()
 
-	// Initialize cron scheduler
-	e.cron = cron.New(cron.WithSeconds())
-	e.cron.Start()
+	// Initialize gocron scheduler
+	var err error
+	e.scheduler, err = gocron.NewScheduler()
+	if err != nil {
+		return fmt.Errorf("create scheduler: %w", err)
+	}
+	e.scheduler.Start()
 
 	// Initialize file watcher
-	var err error
 	e.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
-		e.cron.Stop()
+		e.scheduler.Shutdown()
 		return fmt.Errorf("create file watcher: %w", err)
 	}
 
@@ -136,10 +139,11 @@ func (e *TriggerEngine) Stop(ctx context.Context) error {
 	close(e.stopCh)
 	e.mu.Unlock()
 
-	// Stop cron scheduler
-	if e.cron != nil {
-		cronCtx := e.cron.Stop()
-		<-cronCtx.Done()
+	// Stop gocron scheduler
+	if e.scheduler != nil {
+		if err := e.scheduler.Shutdown(); err != nil {
+			e.logger.Warn("scheduler shutdown error", "error", err)
+		}
 	}
 
 	// Stop file watcher
@@ -196,8 +200,10 @@ func (e *TriggerEngine) unregisterLocked(triggerID string) error {
 
 	switch trigger.Type {
 	case TriggerTypeCron:
-		if entryID, ok := e.cronJobs[triggerID]; ok {
-			e.cron.Remove(entryID)
+		if job, ok := e.cronJobs[triggerID]; ok {
+			if e.scheduler != nil {
+				e.scheduler.RemoveJob(job.ID())
+			}
 			delete(e.cronJobs, triggerID)
 		}
 	case TriggerTypeWatch:
@@ -273,8 +279,10 @@ func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
 		// Unregister without removing from map
 		switch trigger.Type {
 		case TriggerTypeCron:
-			if entryID, ok := e.cronJobs[id]; ok {
-				e.cron.Remove(entryID)
+			if job, ok := e.cronJobs[id]; ok {
+				if e.scheduler != nil {
+					e.scheduler.RemoveJob(job.ID())
+				}
 				delete(e.cronJobs, id)
 			}
 		case TriggerTypeWatch:
@@ -299,36 +307,30 @@ func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
 	return nil
 }
 
-// normalizeCronSchedule converts a 5-field standard cron expression to
-// a 6-field expression (with seconds) expected by robfig/cron.
-// If already 6 fields, returns unchanged.
-func normalizeCronSchedule(schedule string) string {
-	fields := strings.Fields(schedule)
-	if len(fields) == 5 {
-		// Standard cron (minute hour day month weekday) -> add "0" for seconds
-		return "0 " + schedule
-	}
-	return schedule
-}
-
 func (e *TriggerEngine) registerCronTrigger(trigger *Trigger) error {
 	if trigger.Config.Schedule == "" {
 		return fmt.Errorf("cron trigger requires schedule")
 	}
 
-	// Normalize schedule to 6-field cron (with seconds)
-	schedule := normalizeCronSchedule(trigger.Config.Schedule)
+	schedule := trigger.Config.Schedule
+	
+	// Detect if schedule uses seconds (6 fields) or standard (5 fields)
+	withSeconds := len(strings.Fields(schedule)) == 6
 
-	entryID, err := e.cron.AddFunc(schedule, func() {
-		e.fireTrigger(trigger.ID, map[string]any{
-			"scheduled_at": time.Now(),
-		})
-	})
+	// Create the job with gocron v2
+	job, err := e.scheduler.NewJob(
+		gocron.CronJob(schedule, withSeconds),
+		gocron.NewTask(func() {
+			e.fireTrigger(trigger.ID, map[string]any{
+				"scheduled_at": time.Now(),
+			})
+		}),
+	)
 	if err != nil {
 		return fmt.Errorf("add cron job: %w", err)
 	}
 
-	e.cronJobs[trigger.ID] = entryID
+	e.cronJobs[trigger.ID] = job
 	e.logger.Info("registered cron trigger", "id", trigger.ID, "schedule", schedule, "agent", trigger.Agent)
 	return nil
 }
