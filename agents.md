@@ -80,20 +80,30 @@ For comprehensive documentation, see `PLAN.md` (docs/ will be created in Phase 9
 | Path | Purpose |
 |------|---------|
 | cmd/ayo/ | CLI entry points |
+| cmd/ayod/ | In-sandbox daemon entry point |
 | internal/agent/ | Agent loading, config, identity |
-| internal/sandbox/ | Container management |
+| internal/ayod/ | In-sandbox daemon (ayod) implementation |
+| internal/sandbox/ | Container management, bootstrap |
 | internal/squads/ | Squad management, SQUAD.md loading |
 | internal/tickets/ | Ticket-based coordination |
 | internal/planners/ | Planner plugin system (near/long-term) |
 | internal/daemon/ | Background service |
 | internal/providers/ | LLM API integrations |
 | internal/memory/ | Persistent knowledge |
-| internal/flows/ | Workflow execution |
+| internal/flows/ | Flow discovery and inspection |
 | internal/share/ | Host directory sharing |
 | internal/tools/ | Tool implementations |
 | internal/ui/ | TUI components |
 
 ## Key Concepts
+
+**ayod (In-Sandbox Daemon)**: Lightweight daemon running inside sandboxes:
+- Runs as PID 1, manages sandbox lifecycle
+- User management (creates agent users via `UserAdd`)
+- Command execution as specific users (`Exec`)
+- File read/write operations
+- Communicates via JSON-RPC over `/run/ayod.sock`
+- Binary: `cmd/ayod/`, implementation: `internal/ayod/`
 
 **Squads**: Isolated sandboxes where multiple agents collaborate. Each squad has:
 - `SQUAD.md` - Team constitution (mission, roles, coordination rules)
@@ -108,6 +118,12 @@ For comprehensive documentation, see `PLAN.md` (docs/ will be created in Phase 9
 - Long-term (`ayo-tickets`): Persistent ticket-based coordination
 - Interface: `internal/planners/interface.go` defines `PlannerPlugin`
 - Each sandbox can have custom planners via config or SQUAD.md frontmatter
+
+**Sandbox Bootstrap**: When a sandbox starts:
+1. Copy ayod binary into container
+2. Start ayod as PID 1
+3. Create initial user (e.g., "ayo")
+4. Set up standard directories (/workspace, /output, /mnt)
 
 ## Common Commands
 
@@ -141,3 +157,5 @@ Common issues:
 - **Sandbox not working:** Check `ayo doctor` output
 - **Share not mounting:** Verify path exists, check `ayo share list`
 - **Squad RPC errors:** Restart daemon to pick up code changes
+- **ayod not starting:** Check ayod binary exists with `make ayod`, verify container logs with `container logs <name>`
+- **User creation fails:** Check ayod socket at `/run/ayod.sock` inside container
