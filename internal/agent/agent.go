@@ -840,8 +840,33 @@ func copySchemaFile(srcPath, agentDir, destName string) error {
 	return nil
 }
 
+// AyoConfig represents the ayo.json file format with namespaced sections.
+type AyoConfig struct {
+	Schema  string  `json:"$schema,omitempty"`
+	Version string  `json:"version,omitempty"`
+	Agent   *Config `json:"agent,omitempty"`
+}
+
 func loadAgentConfig(dir string) (Config, error) {
 	cfg := Config{}
+	
+	// Try ayo.json first (new format)
+	ayoPath := filepath.Join(dir, "ayo.json")
+	if data, err := os.ReadFile(ayoPath); err == nil {
+		var ayoCfg AyoConfig
+		if err := json.Unmarshal(data, &ayoCfg); err != nil {
+			return cfg, fmt.Errorf("invalid ayo.json: %w", err)
+		}
+		if ayoCfg.Agent != nil {
+			return *ayoCfg.Agent, nil
+		}
+		// Fall through if no agent section (might be direct config)
+		if err := json.Unmarshal(data, &cfg); err == nil {
+			return cfg, nil
+		}
+	}
+	
+	// Fall back to config.json (legacy format)
 	configPath := filepath.Join(dir, "config.json")
 	data, err := os.ReadFile(configPath)
 	if err != nil {

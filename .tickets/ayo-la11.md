@@ -1,6 +1,6 @@
 ---
 id: ayo-la11
-status: open
+status: closed
 deps: [ayo-7dui]
 links: []
 created: 2026-02-23T23:13:19Z
