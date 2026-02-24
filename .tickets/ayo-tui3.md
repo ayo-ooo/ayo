@@ -1,6 +1,6 @@
 ---
 id: ayo-tui3
-status: open
+status: closed
 deps: [ayo-tui1]
 links: []
 created: 2026-02-24T01:30:00Z
