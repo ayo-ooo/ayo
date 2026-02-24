@@ -1,6 +1,6 @@
 ---
 id: ayo-5kns
-status: open
+status: closed
 deps: [ayo-c5mt]
 links: []
 created: 2026-02-23T22:15:34Z
