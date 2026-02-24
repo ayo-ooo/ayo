@@ -1,6 +1,6 @@
 ---
 id: ayo-mem2
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-24T01:30:00Z
