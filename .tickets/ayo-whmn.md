@@ -1,6 +1,6 @@
 ---
 id: ayo-whmn
-status: open
+status: closed
 deps: [ayo-6h19]
 links: []
 created: 2026-02-23T22:14:55Z
