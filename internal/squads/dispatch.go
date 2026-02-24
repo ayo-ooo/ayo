@@ -121,6 +121,31 @@ func (s *Squad) GetTargetAgent(input DispatchInput) string {
 	return "@ayo"
 }
 
+// RouteDispatch routes a dispatch to the appropriate agent after validation.
+// Returns the target agent handle and any routing error.
+//
+// Priority:
+//  1. Explicit TargetAgent in input (with validation)
+//  2. InputAccepts from configuration
+//  3. Lead agent (default: @ayo)
+func (s *Squad) RouteDispatch(input DispatchInput) (string, error) {
+	targetAgent := s.GetTargetAgent(input)
+
+	// Validate explicit targeting against squad membership
+	if input.TargetAgent != "" {
+		if !s.HasAgent(targetAgent) {
+			return "", fmt.Errorf("agent %s not in squad %s", targetAgent, s.Name)
+		}
+	}
+
+	// Ensure we have a valid routing target
+	if targetAgent == "" {
+		return "", fmt.Errorf("no routing target for dispatch to squad %s", s.Name)
+	}
+
+	return targetAgent, nil
+}
+
 // Dispatch dispatches work to the squad after validating input.
 // Input is routed to the appropriate agent based on:
 // 1. Explicit TargetAgent in input
@@ -138,8 +163,11 @@ func (s *Squad) Dispatch(ctx context.Context, input DispatchInput) (*DispatchRes
 			s.Name, s.Status, s.LeadReady)
 	}
 
-	// Determine target agent for input routing
-	targetAgent := s.GetTargetAgent(input)
+	// Route dispatch to appropriate agent (with validation)
+	targetAgent, err := s.RouteDispatch(input)
+	if err != nil {
+		return nil, err
+	}
 
 	// Invoke the agent if invoker is configured
 	if s.Invoker != nil {

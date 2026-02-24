@@ -2,9 +2,12 @@ package squads
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy/schema"
+
+	"github.com/alexcabrera/ayo/internal/config"
 )
 
 func TestSquad_ValidateInput(t *testing.T) {
@@ -260,6 +263,9 @@ func TestSquad_Dispatch(t *testing.T) {
 			Name:      "test",
 			Status:    SquadStatusRunning,
 			LeadReady: true,
+			Config: config.SquadConfig{
+				Agents: []string{"@frontend", "@backend"},
+			},
 		}
 
 		result, err := squad.Dispatch(context.Background(), DispatchInput{
@@ -302,6 +308,9 @@ func TestSquad_Dispatch(t *testing.T) {
 			Name:      "test",
 			Status:    SquadStatusRunning,
 			LeadReady: true,
+			Config: config.SquadConfig{
+				Agents: []string{"@frontend", "@qa"},
+			},
 			Constitution: &Constitution{
 				Frontmatter: ConstitutionFrontmatter{
 					InputAccepts: "@frontend",
@@ -417,6 +426,204 @@ func TestSquad_GetTargetAgent(t *testing.T) {
 		})
 		if target != "@frontend" {
 			t.Errorf("expected @frontend, got %q", target)
+		}
+	})
+}
+
+func TestSquad_RouteDispatch(t *testing.T) {
+	t.Run("routes to lead when no explicit target", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Config: config.SquadConfig{
+				Lead:   "@architect",
+				Agents: []string{"@frontend", "@backend"},
+			},
+		}
+
+		agent, err := squad.RouteDispatch(DispatchInput{Prompt: "hello"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if agent != "@ayo" { // Default when no constitution
+			t.Errorf("expected @ayo (default), got %q", agent)
+		}
+	})
+
+	t.Run("routes to input_accepts from constitution", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Config: config.SquadConfig{
+				Agents: []string{"@frontend", "@backend", "@planner"},
+			},
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					InputAccepts: "@planner",
+				},
+			},
+		}
+
+		agent, err := squad.RouteDispatch(DispatchInput{Prompt: "hello"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if agent != "@planner" {
+			t.Errorf("expected @planner, got %q", agent)
+		}
+	})
+
+	t.Run("routes explicit target when agent exists", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Config: config.SquadConfig{
+				Lead:   "@architect",
+				Agents: []string{"@frontend", "@backend"},
+			},
+		}
+
+		agent, err := squad.RouteDispatch(DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "@frontend",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if agent != "@frontend" {
+			t.Errorf("expected @frontend, got %q", agent)
+		}
+	})
+
+	t.Run("returns error when targeting non-existent agent", func(t *testing.T) {
+		squad := &Squad{
+			Name: "dev-team",
+			Config: config.SquadConfig{
+				Lead:   "@architect",
+				Agents: []string{"@frontend", "@backend"},
+			},
+		}
+
+		_, err := squad.RouteDispatch(DispatchInput{
+			Prompt:      "hello",
+			TargetAgent: "@nonexistent",
+		})
+		if err == nil {
+			t.Error("expected error for non-existent agent")
+		}
+		if !strings.Contains(err.Error(), "not in squad") {
+			t.Errorf("expected 'not in squad' error, got: %v", err)
+		}
+	})
+}
+
+func TestSquad_HasAgent(t *testing.T) {
+	squad := &Squad{
+		Name: "test",
+		Config: config.SquadConfig{
+			Lead:   "@architect",
+			Agents: []string{"@frontend", "@backend"},
+		},
+	}
+
+	t.Run("returns true for lead", func(t *testing.T) {
+		if !squad.HasAgent("@architect") {
+			t.Error("expected true for lead agent")
+		}
+	})
+
+	t.Run("returns true for agents in list", func(t *testing.T) {
+		if !squad.HasAgent("@frontend") {
+			t.Error("expected true for @frontend")
+		}
+		if !squad.HasAgent("@backend") {
+			t.Error("expected true for @backend")
+		}
+	})
+
+	t.Run("returns false for unknown agent", func(t *testing.T) {
+		if squad.HasAgent("@unknown") {
+			t.Error("expected false for unknown agent")
+		}
+	})
+
+	t.Run("handles agents without @ prefix", func(t *testing.T) {
+		if !squad.HasAgent("frontend") {
+			t.Error("expected true for frontend (without @)")
+		}
+	})
+}
+
+func TestSquad_GetAllAgents(t *testing.T) {
+	t.Run("returns lead and agents from config", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Config: config.SquadConfig{
+				Lead:   "@architect",
+				Agents: []string{"@frontend", "@backend"},
+			},
+		}
+
+		agents := squad.GetAllAgents()
+		if len(agents) < 3 {
+			t.Errorf("expected at least 3 agents, got %d: %v", len(agents), agents)
+		}
+
+		for _, expected := range []string{"@architect", "@frontend", "@backend"} {
+			found := false
+			for _, a := range agents {
+				if a == expected {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected to find %s in agents", expected)
+			}
+		}
+	})
+
+	t.Run("includes agents from constitution", func(t *testing.T) {
+		squad := &Squad{
+			Name: "test",
+			Config: config.SquadConfig{
+				Lead: "@architect",
+			},
+			Constitution: &Constitution{
+				Frontmatter: ConstitutionFrontmatter{
+					Agents: []string{"@designer", "@qa"},
+				},
+			},
+		}
+
+		agents := squad.GetAllAgents()
+		for _, expected := range []string{"@architect", "@designer", "@qa"} {
+			found := false
+			for _, a := range agents {
+				if a == expected {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected to find %s in agents", expected)
+			}
+		}
+	})
+
+	t.Run("defaults to @ayo when no lead specified", func(t *testing.T) {
+		squad := &Squad{
+			Name:   "test",
+			Config: config.SquadConfig{},
+		}
+
+		agents := squad.GetAllAgents()
+		found := false
+		for _, a := range agents {
+			if a == "@ayo" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected @ayo as default agent")
 		}
 	})
 }

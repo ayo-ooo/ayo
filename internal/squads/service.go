@@ -50,6 +50,67 @@ func (sq *Squad) CanAcceptInput() bool {
 	return sq.Status == SquadStatusRunning && sq.LeadReady
 }
 
+// GetAllAgents returns all agents in this squad.
+// This includes agents from config, constitution, and the lead.
+func (sq *Squad) GetAllAgents() []string {
+	agents := make(map[string]bool)
+
+	// Add agents from config
+	for _, a := range sq.Config.Agents {
+		agent := a
+		if len(agent) > 0 && agent[0] != '@' {
+			agent = "@" + agent
+		}
+		agents[agent] = true
+	}
+
+	// Add lead
+	lead := sq.Config.Lead
+	if lead == "" && sq.Constitution != nil {
+		lead = sq.Constitution.Frontmatter.Lead
+	}
+	if lead == "" {
+		lead = "@ayo"
+	}
+	if len(lead) > 0 && lead[0] != '@' {
+		lead = "@" + lead
+	}
+	agents[lead] = true
+
+	// Add agents from constitution
+	if sq.Constitution != nil {
+		for _, a := range sq.Constitution.GetAgents() {
+			agent := a
+			if len(agent) > 0 && agent[0] != '@' {
+				agent = "@" + agent
+			}
+			agents[agent] = true
+		}
+	}
+
+	// Convert to slice
+	result := make([]string, 0, len(agents))
+	for a := range agents {
+		result = append(result, a)
+	}
+	return result
+}
+
+// HasAgent returns true if the given agent is part of this squad.
+func (sq *Squad) HasAgent(agentHandle string) bool {
+	agent := agentHandle
+	if len(agent) > 0 && agent[0] != '@' {
+		agent = "@" + agent
+	}
+
+	for _, a := range sq.GetAllAgents() {
+		if a == agent {
+			return true
+		}
+	}
+	return false
+}
+
 // IsRunning returns true if the squad is currently running.
 func (sq *Squad) IsRunning() bool {
 	return sq.Status == SquadStatusRunning

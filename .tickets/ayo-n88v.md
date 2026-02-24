@@ -1,6 +1,6 @@
 ---
 id: ayo-n88v
-status: open
+status: closed
 deps: [ayo-9k8m]
 links: []
 created: 2026-02-23T22:15:47Z
