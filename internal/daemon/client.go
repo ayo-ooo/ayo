@@ -287,6 +287,16 @@ func (c *Client) TriggerSetEnabled(ctx context.Context, id string, enabled bool)
 	return c.call(ctx, MethodTriggerSetEnabled, params, nil)
 }
 
+// TriggerHistory returns the run history for a trigger.
+func (c *Client) TriggerHistory(ctx context.Context, id string, limit int) (*TriggerHistoryResult, error) {
+	params := TriggerHistoryParams{ID: id, Limit: limit}
+	var result TriggerHistoryResult
+	if err := c.call(ctx, MethodTriggerHistory, params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SandboxJoin adds an agent to an existing sandbox.
 func (c *Client) SandboxJoin(ctx context.Context, sandboxID, agent string) error {
 	params := SandboxJoinParams{SandboxID: sandboxID, Agent: agent}

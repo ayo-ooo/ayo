@@ -4,6 +4,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // JSON-RPC 2.0 protocol types
@@ -128,6 +129,7 @@ const (
 	MethodTriggerRemove     = "trigger.remove"
 	MethodTriggerTest       = "trigger.test"
 	MethodTriggerSetEnabled = "trigger.set_enabled"
+	MethodTriggerHistory    = "trigger.history"
 
 	// Squad management methods
 	MethodSquadCreate         = "squads.create"
@@ -312,6 +314,11 @@ type TriggerInfo struct {
 	Patterns  []string `json:"patterns,omitempty"`
 	Recursive bool     `json:"recursive,omitempty"`
 	Events    []string `json:"events,omitempty"`
+
+	// Status info
+	NextRun       *time.Time `json:"next_run,omitempty"`
+	LastRun       *time.Time `json:"last_run,omitempty"`
+	LastRunStatus string     `json:"last_run_status,omitempty"` // "success", "failed", ""
 }
 
 // TriggerListResult is the response to trigger.list.
@@ -364,6 +371,28 @@ type TriggerTestParams struct {
 type TriggerSetEnabledParams struct {
 	ID      string `json:"id"`
 	Enabled bool   `json:"enabled"`
+}
+
+// TriggerHistoryParams is the request for trigger.history.
+type TriggerHistoryParams struct {
+	ID    string `json:"id"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+// TriggerHistoryResult is the response to trigger.history.
+type TriggerHistoryResult struct {
+	Runs []TriggerRunInfo `json:"runs"`
+}
+
+// TriggerRunInfo represents a single trigger execution.
+type TriggerRunInfo struct {
+	ID           int64      `json:"id"`
+	TriggerID    string     `json:"trigger_id"`
+	StartedAt    time.Time  `json:"started_at"`
+	FinishedAt   *time.Time `json:"finished_at,omitempty"`
+	Status       string     `json:"status"` // "running", "success", "failed"
+	ErrorMessage string     `json:"error_message,omitempty"`
+	Duration     int64      `json:"duration_ms,omitempty"`
 }
 
 // Flow method names

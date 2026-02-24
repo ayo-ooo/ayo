@@ -34,6 +34,7 @@ type Server struct {
 	provider       providers.SandboxProvider
 	sessionManager *DaemonSessionManager
 	triggerEngine  *TriggerEngine
+	jobStore       JobStore
 	squadRPC       *SquadRPC
 	startTime      time.Time
 	shutdownCh     chan struct{}
@@ -128,6 +129,12 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	// Create ticket service
 	ticketService := tickets.NewService(paths.SessionsDir())
 
+	// Create job store for trigger history
+	jobStore, err := NewSQLiteJobStore("")
+	if err != nil {
+		return nil, fmt.Errorf("create job store: %w", err)
+	}
+
 	server := &Server{
 		config:         cfg.Config,
 		services:       cfg.Services,
@@ -135,6 +142,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		pool:           pool,
 		sessionManager: sessionManager,
 		tickets:        ticketService,
+		jobStore:       jobStore,
 		shutdownCh:     make(chan struct{}),
 	}
 
@@ -310,6 +318,11 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.ticketWatcher.Stop(ctx)
 	}
 
+	// Close job store
+	if s.jobStore != nil {
+		s.jobStore.Close()
+	}
+
 	// Stop sandbox pool
 	if s.pool != nil {
 		s.pool.Stop(ctx)
@@ -459,6 +472,8 @@ func (s *Server) handleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleTriggerTest(req)
 	case MethodTriggerSetEnabled:
 		return s.handleTriggerSetEnabled(req)
+	case MethodTriggerHistory:
+		return s.handleTriggerHistory(req)
 	// Flow methods
 	case MethodFlowRun:
 		return s.handleFlowRun(ctx, req)
@@ -967,6 +982,45 @@ func (s *Server) handleTriggerSetEnabled(req *Request) *Response {
 	}
 
 	resp, _ := NewResponse(struct{}{}, req.ID)
+	return resp
+}
+
+func (s *Server) handleTriggerHistory(req *Request) *Response {
+	var params TriggerHistoryParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
+	}
+
+	if params.Limit <= 0 {
+		params.Limit = 50
+	}
+
+	runs, err := s.jobStore.GetRecentRuns(params.ID, params.Limit)
+	if err != nil {
+		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
+	}
+
+	result := TriggerHistoryResult{
+		Runs: make([]TriggerRunInfo, 0, len(runs)),
+	}
+
+	for _, run := range runs {
+		var durationMs int64
+		if run.FinishedAt != nil {
+			durationMs = run.FinishedAt.Sub(run.StartedAt).Milliseconds()
+		}
+		result.Runs = append(result.Runs, TriggerRunInfo{
+			ID:           run.ID,
+			TriggerID:    run.JobID,
+			StartedAt:    run.StartedAt,
+			FinishedAt:   run.FinishedAt,
+			Status:       string(run.Status),
+			ErrorMessage: run.ErrorMessage,
+			Duration:     durationMs,
+		})
+	}
+
+	resp, _ := NewResponse(result, req.ID)
 	return resp
 }
 

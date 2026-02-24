@@ -111,6 +111,7 @@ Examples:
 
 	cmd.AddCommand(listTriggersCmd())
 	cmd.AddCommand(showTriggerCmd())
+	cmd.AddCommand(historyTriggerCmd())
 	cmd.AddCommand(addTriggerCmd())
 	cmd.AddCommand(scheduleCmd())
 	cmd.AddCommand(watchCmd())
@@ -296,6 +297,130 @@ func showTriggerCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	return cmd
+}
+
+func historyTriggerCmd() *cobra.Command {
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "history [id]",
+		Short: "Show trigger run history",
+		Long: `Show the execution history for a trigger.
+
+Displays recent runs with start time, duration, and status.
+
+Examples:
+  ayo trigger history trig_123456789
+  ayo trigger history trig_123456789 --limit 100`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			client, err := connectToDaemon(ctx)
+			if err != nil {
+				return fmt.Errorf("connect to daemon: %w", err)
+			}
+			defer client.Close()
+
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+
+			id, err := resolveTriggerID(ctx, client, query, "Select trigger to view history")
+			if err != nil {
+				return err
+			}
+
+			result, err := client.TriggerHistory(ctx, id, limit)
+			if err != nil {
+				return fmt.Errorf("get trigger history: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result.Runs)
+			}
+
+			if len(result.Runs) == 0 {
+				if !globalOutput.Quiet {
+					fmt.Println("No run history for this trigger")
+				}
+				return nil
+			}
+
+			// Styles
+			purple := lipgloss.Color("#a78bfa")
+			cyan := lipgloss.Color("#67e8f9")
+			muted := lipgloss.Color("#6b7280")
+			subtle := lipgloss.Color("#374151")
+			green := lipgloss.Color("#34d399")
+			red := lipgloss.Color("#f87171")
+
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
+			dividerStyle := lipgloss.NewStyle().Foreground(subtle)
+			mutedStyle := lipgloss.NewStyle().Foreground(muted)
+			successStyle := lipgloss.NewStyle().Foreground(green)
+			failedStyle := lipgloss.NewStyle().Foreground(red)
+			_ = cyan
+
+			fmt.Println()
+			fmt.Println(headerStyle.Render("  Run History: " + id))
+			fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 70)))
+			fmt.Println()
+
+			// Header row
+			fmt.Printf("  %-22s %-12s %-10s %s\n",
+				mutedStyle.Render("STARTED"),
+				mutedStyle.Render("DURATION"),
+				mutedStyle.Render("STATUS"),
+				mutedStyle.Render("ERROR"))
+
+			for _, run := range result.Runs {
+				startStr := run.StartedAt.Format("2006-01-02 15:04:05")
+
+				durationStr := "-"
+				if run.Duration > 0 {
+					if run.Duration < 1000 {
+						durationStr = fmt.Sprintf("%dms", run.Duration)
+					} else {
+						durationStr = fmt.Sprintf("%.1fs", float64(run.Duration)/1000)
+					}
+				}
+
+				statusStr := run.Status
+				switch run.Status {
+				case "success":
+					statusStr = successStyle.Render("✓ success")
+				case "failed":
+					statusStr = failedStyle.Render("✗ failed")
+				case "running":
+					statusStr = mutedStyle.Render("⟳ running")
+				}
+
+				errorStr := ""
+				if run.ErrorMessage != "" {
+					if len(run.ErrorMessage) > 30 {
+						errorStr = run.ErrorMessage[:27] + "..."
+					} else {
+						errorStr = run.ErrorMessage
+					}
+				}
+
+				fmt.Printf("  %-22s %-12s %-10s %s\n", startStr, durationStr, statusStr, errorStr)
+			}
+
+			fmt.Println()
+			fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 70)))
+			fmt.Println(mutedStyle.Render(fmt.Sprintf("  %d runs", len(result.Runs))))
+			fmt.Println()
+
+			return nil
+		},
+	}
+
+	cmd.Flags().IntVar(&limit, "limit", 50, "number of runs to show")
 
 	return cmd
 }
