@@ -1,6 +1,6 @@
 ---
 id: ayo-plrg
-status: open
+status: closed
 deps: [ayo-plex, ayo-plsq, ayo-pltg, ayo-plsb]
 links: []
 created: 2026-02-23T12:00:00Z

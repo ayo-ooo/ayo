@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/paths"
@@ -56,6 +57,15 @@ type InstalledPlugin struct {
 
 	// Squads lists the installed squad names.
 	Squads []string `json:"squads,omitempty"`
+
+	// Triggers lists the installed trigger type names.
+	Triggers []string `json:"triggers,omitempty"`
+
+	// SandboxConfigs lists the installed sandbox config names.
+	SandboxConfigs []string `json:"sandbox_configs,omitempty"`
+
+	// Planners lists the installed planner names.
+	Planners []string `json:"planners,omitempty"`
 
 	// Disabled indicates the plugin is installed but not active.
 	Disabled bool `json:"disabled,omitempty"`
@@ -295,4 +305,113 @@ func ListPluginAgents() []PluginAgentInfo {
 		}
 	}
 	return agents
+}
+
+// PluginTriggerInfo contains information about a plugin trigger for display.
+type PluginTriggerInfo struct {
+	Name       string
+	PluginName string
+}
+
+// ListPluginTriggers returns info about all triggers from enabled plugins.
+func ListPluginTriggers() []PluginTriggerInfo {
+	reg, err := LoadRegistry()
+	if err != nil {
+		return nil
+	}
+
+	var triggers []PluginTriggerInfo
+	for _, plugin := range reg.ListEnabled() {
+		for _, name := range plugin.Triggers {
+			triggers = append(triggers, PluginTriggerInfo{
+				Name:       name,
+				PluginName: plugin.Name,
+			})
+		}
+	}
+	return triggers
+}
+
+// ComponentInfo is a generic component reference for search results.
+type ComponentInfo struct {
+	Type       string // "agent", "skill", "tool", "squad", "trigger", "sandbox_config", "planner"
+	Name       string
+	PluginName string
+}
+
+// Search returns all components matching the query across all types.
+func (r *Registry) Search(query string) []ComponentInfo {
+	var results []ComponentInfo
+	query = strings.ToLower(query)
+
+	for _, plugin := range r.ListEnabled() {
+		// Search agents
+		for _, name := range plugin.Agents {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "agent", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search skills
+		for _, name := range plugin.Skills {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "skill", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search tools
+		for _, name := range plugin.Tools {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "tool", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search squads
+		for _, name := range plugin.Squads {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "squad", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search triggers
+		for _, name := range plugin.Triggers {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "trigger", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search sandbox configs
+		for _, name := range plugin.SandboxConfigs {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "sandbox_config", Name: name, PluginName: plugin.Name})
+			}
+		}
+		// Search planners
+		for _, name := range plugin.Planners {
+			if strings.Contains(strings.ToLower(name), query) {
+				results = append(results, ComponentInfo{Type: "planner", Name: name, PluginName: plugin.Name})
+			}
+		}
+	}
+
+	return results
+}
+
+// GetPluginStats returns statistics about a plugin's components.
+type PluginStats struct {
+	Agents         int
+	Skills         int
+	Tools          int
+	Squads         int
+	Triggers       int
+	SandboxConfigs int
+	Planners       int
+}
+
+// Stats returns component counts for the plugin.
+func (p *InstalledPlugin) Stats() PluginStats {
+	return PluginStats{
+		Agents:         len(p.Agents),
+		Skills:         len(p.Skills),
+		Tools:          len(p.Tools),
+		Squads:         len(p.Squads),
+		Triggers:       len(p.Triggers),
+		SandboxConfigs: len(p.SandboxConfigs),
+		Planners:       len(p.Planners),
+	}
 }
