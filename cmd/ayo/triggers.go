@@ -112,6 +112,7 @@ Examples:
 	cmd.AddCommand(listTriggersCmd())
 	cmd.AddCommand(showTriggerCmd())
 	cmd.AddCommand(historyTriggerCmd())
+	cmd.AddCommand(createTriggerCmd())
 	cmd.AddCommand(addTriggerCmd())
 	cmd.AddCommand(scheduleCmd())
 	cmd.AddCommand(watchCmd())
@@ -421,6 +422,39 @@ Examples:
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 50, "number of runs to show")
+
+	return cmd
+}
+
+func createTriggerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new trigger",
+		Long: `Create a new trigger to wake an agent.
+
+Use one of the specialized subcommands:
+
+  ayo trigger schedule @agent "schedule"  # Time-based trigger
+  ayo trigger watch <path> @agent          # File-watching trigger
+
+Examples:
+  # Schedule trigger (every hour)
+  ayo trigger schedule @backup "every hour"
+  
+  # Schedule trigger (cron syntax)
+  ayo trigger schedule @reports "0 9 * * *"
+  
+  # Watch trigger (on file changes)
+  ayo trigger watch ./src @build "*.go"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Show help for create command
+			return cmd.Help()
+		},
+	}
+
+	// Add schedule and watch as subcommands for discoverability
+	cmd.AddCommand(scheduleCmd())
+	cmd.AddCommand(watchCmd())
 
 	return cmd
 }
