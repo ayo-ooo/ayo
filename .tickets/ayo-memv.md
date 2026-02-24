@@ -1,6 +1,6 @@
 ---
 id: ayo-memv
-status: open
+status: closed
 deps: [ayo-memx]
 links: []
 created: 2026-02-24T01:30:00Z
