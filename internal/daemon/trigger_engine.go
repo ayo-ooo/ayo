@@ -21,6 +21,7 @@ type TriggerType string
 const (
 	TriggerTypeCron  TriggerType = "cron"
 	TriggerTypeWatch TriggerType = "watch"
+	TriggerTypeOnce  TriggerType = "once"
 )
 
 // Trigger represents a trigger configuration.
@@ -46,6 +47,9 @@ type TriggerConfig struct {
 	Exclude   []string `json:"exclude,omitempty"`   // glob patterns to exclude
 	Recursive bool     `json:"recursive,omitempty"` // watch subdirectories (default: true)
 	Events    []string `json:"events,omitempty"`    // create, modify, delete, rename
+
+	// One-time job configuration
+	At string `json:"at,omitempty"` // ISO 8601 datetime for one-time execution
 
 	// Options
 	Debounce  string `json:"debounce,omitempty"`  // debounce duration (e.g., "500ms")
@@ -185,6 +189,8 @@ func (e *TriggerEngine) Register(trigger *Trigger) error {
 		return e.registerCronTrigger(trigger)
 	case TriggerTypeWatch:
 		return e.registerWatchTrigger(trigger)
+	case TriggerTypeOnce:
+		return e.registerOnceTrigger(trigger)
 	default:
 		return fmt.Errorf("unknown trigger type: %s", trigger.Type)
 	}
@@ -205,7 +211,7 @@ func (e *TriggerEngine) unregisterLocked(triggerID string) error {
 	}
 
 	switch trigger.Type {
-	case TriggerTypeCron:
+	case TriggerTypeCron, TriggerTypeOnce:
 		if job, ok := e.cronJobs[triggerID]; ok {
 			if e.scheduler != nil {
 				e.scheduler.RemoveJob(job.ID())
@@ -280,11 +286,13 @@ func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
 			return e.registerCronTrigger(trigger)
 		case TriggerTypeWatch:
 			return e.registerWatchTrigger(trigger)
+		case TriggerTypeOnce:
+			return e.registerOnceTrigger(trigger)
 		}
 	} else {
 		// Unregister without removing from map
 		switch trigger.Type {
-		case TriggerTypeCron:
+		case TriggerTypeCron, TriggerTypeOnce:
 			if job, ok := e.cronJobs[id]; ok {
 				if e.scheduler != nil {
 					e.scheduler.RemoveJob(job.ID())
@@ -374,6 +382,56 @@ func (e *TriggerEngine) registerWatchTrigger(trigger *Trigger) error {
 
 	e.watchDirs[path] = append(e.watchDirs[path], trigger.ID)
 	e.logger.Info("registered watch trigger", "id", trigger.ID, "path", path, "agent", trigger.Agent)
+	return nil
+}
+
+func (e *TriggerEngine) registerOnceTrigger(trigger *Trigger) error {
+	if trigger.Config.At == "" {
+		return fmt.Errorf("once trigger requires 'at' field (ISO 8601 datetime)")
+	}
+
+	// Parse the time
+	runTime, err := time.Parse(time.RFC3339, trigger.Config.At)
+	if err != nil {
+		// Try parsing without timezone (assume local)
+		runTime, err = time.ParseInLocation("2006-01-02T15:04:05", trigger.Config.At, time.Local)
+		if err != nil {
+			return fmt.Errorf("invalid 'at' time (use ISO 8601 format): %w", err)
+		}
+	}
+
+	// Reject past times
+	if runTime.Before(time.Now()) {
+		return fmt.Errorf("one-time trigger 'at' must be in the future: %s is in the past", trigger.Config.At)
+	}
+
+	// Create one-time job with gocron v2
+	triggerID := trigger.ID
+	job, err := e.scheduler.NewJob(
+		gocron.OneTimeJob(
+			gocron.OneTimeJobStartDateTime(runTime),
+		),
+		gocron.NewTask(func() {
+			e.fireTrigger(triggerID, map[string]any{
+				"scheduled_at": runTime,
+				"fired_at":     time.Now(),
+			})
+			// Clean up trigger after execution
+			go func() {
+				e.mu.Lock()
+				delete(e.triggers, triggerID)
+				delete(e.cronJobs, triggerID)
+				e.mu.Unlock()
+				e.logger.Info("one-time trigger completed and removed", "id", triggerID)
+			}()
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("create one-time job: %w", err)
+	}
+
+	e.cronJobs[trigger.ID] = job
+	e.logger.Info("registered one-time trigger", "id", trigger.ID, "at", runTime.Format(time.RFC3339), "agent", trigger.Agent)
 	return nil
 }
 

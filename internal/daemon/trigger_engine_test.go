@@ -285,3 +285,140 @@ func TestGenerateTriggerID(t *testing.T) {
 		t.Errorf("trigger ID should have 'trig_' prefix, got: %s", id1)
 	}
 }
+
+func TestTriggerEngine_RegisterOnceTrigger(t *testing.T) {
+	var fired atomic.Int32
+
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+		Callback: func(event TriggerEvent) {
+			fired.Add(1)
+		},
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	// Schedule a one-time trigger 2 seconds from now
+	// We use seconds because RFC3339 doesn't preserve sub-second precision
+	futureTime := time.Now().Add(2 * time.Second).Format(time.RFC3339)
+
+	trigger := &Trigger{
+		ID:      "test-once",
+		Type:    TriggerTypeOnce,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			At: futureTime,
+		},
+	}
+
+	if err := engine.Register(trigger); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Should be registered
+	triggers := engine.List()
+	if len(triggers) != 1 {
+		t.Errorf("expected 1 trigger, got %d", len(triggers))
+	}
+
+	// Wait for trigger to fire
+	time.Sleep(3 * time.Second)
+
+	if fired.Load() != 1 {
+		t.Errorf("expected trigger to fire once, got %d", fired.Load())
+	}
+
+	// Trigger should be auto-removed after execution
+	time.Sleep(50 * time.Millisecond) // Give cleanup goroutine time
+	triggers = engine.List()
+	if len(triggers) != 0 {
+		t.Errorf("expected trigger to be removed after execution, got %d", len(triggers))
+	}
+}
+
+func TestTriggerEngine_OnceTrigerPastTimeRejected(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	// Try to register a trigger in the past
+	pastTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+
+	trigger := &Trigger{
+		ID:      "test-past",
+		Type:    TriggerTypeOnce,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			At: pastTime,
+		},
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for past time")
+	}
+}
+
+func TestTriggerEngine_OnceTriggerMissingAt(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-no-at",
+		Type:    TriggerTypeOnce,
+		Agent:   "@test",
+		Enabled: true,
+		Config:  TriggerConfig{}, // Missing At
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for missing 'at' field")
+	}
+}
+
+func TestTriggerEngine_OnceTriggerInvalidTime(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-invalid",
+		Type:    TriggerTypeOnce,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			At: "not-a-valid-time",
+		},
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for invalid time format")
+	}
+}
