@@ -348,7 +348,6 @@ Examples:
 	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
 	cmd.AddCommand(newPluginsCmd(&cfgPath))
-	cmd.AddCommand(newServeCmd(&cfgPath))
 	cmd.AddCommand(newSandboxCmd(&cfgPath))
 	cmd.AddCommand(newShareCmd())
 	cmd.AddCommand(newBackupCmd())

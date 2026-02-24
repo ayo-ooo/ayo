@@ -1,6 +1,6 @@
 ---
 id: ayo-8nn8
-status: open
+status: closed
 deps: [ayo-ydub]
 links: []
 created: 2026-02-23T22:15:03Z
