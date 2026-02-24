@@ -551,3 +551,259 @@ func TestParseDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestTriggerEngine_RegisterDailyTrigger(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-daily",
+		Type:    TriggerTypeDaily,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			Times: []string{"09:00", "17:30"},
+		},
+	}
+
+	if err := engine.Register(trigger); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Should be registered
+	triggers := engine.List()
+	if len(triggers) != 1 {
+		t.Errorf("expected 1 trigger, got %d", len(triggers))
+	}
+}
+
+func TestTriggerEngine_DailyTriggerMissingTimes(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-no-times",
+		Type:    TriggerTypeDaily,
+		Agent:   "@test",
+		Enabled: true,
+		Config:  TriggerConfig{}, // Missing Times
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for missing 'times' field")
+	}
+}
+
+func TestTriggerEngine_RegisterWeeklyTrigger(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-weekly",
+		Type:    TriggerTypeWeekly,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			Days:  []string{"monday", "fri"},
+			Times: []string{"09:00"},
+		},
+	}
+
+	if err := engine.Register(trigger); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Should be registered
+	triggers := engine.List()
+	if len(triggers) != 1 {
+		t.Errorf("expected 1 trigger, got %d", len(triggers))
+	}
+}
+
+func TestTriggerEngine_WeeklyTriggerInvalidDay(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-invalid-day",
+		Type:    TriggerTypeWeekly,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			Days:  []string{"invalid-day"},
+			Times: []string{"09:00"},
+		},
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for invalid day name")
+	}
+}
+
+func TestTriggerEngine_RegisterMonthlyTrigger(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-monthly",
+		Type:    TriggerTypeMonthly,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			DaysOfMonth: []int{1, 15},
+			Times:       []string{"10:00"},
+		},
+	}
+
+	if err := engine.Register(trigger); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Should be registered
+	triggers := engine.List()
+	if len(triggers) != 1 {
+		t.Errorf("expected 1 trigger, got %d", len(triggers))
+	}
+}
+
+func TestTriggerEngine_MonthlyTriggerInvalidDay(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-invalid-dom",
+		Type:    TriggerTypeMonthly,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			DaysOfMonth: []int{32}, // Invalid
+			Times:       []string{"10:00"},
+		},
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for invalid day of month")
+	}
+}
+
+func TestParseTimes(t *testing.T) {
+	tests := []struct {
+		input   []string
+		wantErr bool
+	}{
+		{[]string{"09:00"}, false},
+		{[]string{"09:00", "17:30"}, false},
+		{[]string{"23:59"}, false},
+		{[]string{"00:00"}, false},
+		{[]string{"9:00"}, false},  // Single digit hour is valid
+		{[]string{"25:00"}, true},  // Invalid hour
+		{[]string{"invalid"}, true},
+	}
+
+	for _, tt := range tests {
+		_, err := parseTimes(tt.input)
+		if tt.wantErr && err == nil {
+			t.Errorf("parseTimes(%v) expected error", tt.input)
+		}
+		if !tt.wantErr && err != nil {
+			t.Errorf("parseTimes(%v) unexpected error: %v", tt.input, err)
+		}
+	}
+}
+
+func TestParseDayNames(t *testing.T) {
+	tests := []struct {
+		input    []string
+		expected []time.Weekday
+		wantErr  bool
+	}{
+		{[]string{"monday"}, []time.Weekday{time.Monday}, false},
+		{[]string{"Monday"}, []time.Weekday{time.Monday}, false},
+		{[]string{"mon"}, []time.Weekday{time.Monday}, false},
+		{[]string{"monday", "friday"}, []time.Weekday{time.Monday, time.Friday}, false},
+		{[]string{"sun", "sat"}, []time.Weekday{time.Sunday, time.Saturday}, false},
+		{[]string{"invalid"}, nil, true},
+	}
+
+	for _, tt := range tests {
+		got, err := parseDayNames(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("parseDayNames(%v) expected error", tt.input)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("parseDayNames(%v) unexpected error: %v", tt.input, err)
+			} else if len(got) != len(tt.expected) {
+				t.Errorf("parseDayNames(%v) = %v, want %v", tt.input, got, tt.expected)
+			}
+		}
+	}
+}
+
+func TestGetTimezone(t *testing.T) {
+	tests := []struct {
+		input   string
+		wantErr bool
+	}{
+		{"", false},                    // Empty returns local
+		{"America/New_York", false},
+		{"Europe/London", false},
+		{"Invalid/Timezone", true},
+	}
+
+	for _, tt := range tests {
+		_, err := getTimezone(tt.input)
+		if tt.wantErr && err == nil {
+			t.Errorf("getTimezone(%q) expected error", tt.input)
+		}
+		if !tt.wantErr && err != nil {
+			t.Errorf("getTimezone(%q) unexpected error: %v", tt.input, err)
+		}
+	}
+}
