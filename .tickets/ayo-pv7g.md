@@ -1,6 +1,6 @@
 ---
 id: ayo-pv7g
-status: open
+status: closed
 deps: [ayo-m1zl, ayo-0vmu, ayo-4tpp, ayo-2e0t]
 links: []
 created: 2026-02-24T01:02:53Z
