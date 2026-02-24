@@ -1,6 +1,6 @@
 ---
 id: ayo-1xg8
-status: open
+status: closed
 deps: [ayo-kkxg]
 links: []
 created: 2026-02-23T22:15:18Z
