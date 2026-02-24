@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/db"
+	"github.com/alexcabrera/ayo/internal/doctor"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
@@ -23,6 +25,7 @@ import (
 
 func newDoctorCmd(cfgPath *string) *cobra.Command {
 	var verbose bool
+	var fix bool
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -35,6 +38,12 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			}
 
 			ctx := cmd.Context()
+			checker := doctor.NewChecker()
+
+			// JSON output mode
+			if globalOutput.JSON {
+				return runDoctorJSON(ctx, cfg, checker)
+			}
 
 			// Styles
 			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
@@ -44,44 +53,47 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Width(30)
 
 			check := func(name string, ok bool, msg string) {
-				status := okStyle.Render("OK")
+				status := okStyle.Render("✓")
 				if !ok {
-					status = errStyle.Render("FAIL")
+					status = errStyle.Render("✗")
 				}
-				fmt.Printf("  %s %s %s\n", labelStyle.Render(name), status, msg)
+				fmt.Printf("  %s %s %s\n", status, labelStyle.Render(name), msg)
 			}
 
 			warn := func(name string, msg string) {
-				status := warnStyle.Render("WARN")
-				fmt.Printf("  %s %s %s\n", labelStyle.Render(name), status, msg)
+				status := warnStyle.Render("⚠")
+				fmt.Printf("  %s %s %s\n", status, labelStyle.Render(name), msg)
 			}
 
 			fmt.Println()
 			fmt.Println(headerStyle.Render("  Ayo Doctor"))
-			fmt.Println(headerStyle.Render("  " + strings.Repeat("-", 50)))
+			fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 50)))
 			fmt.Println()
 
-			// Version info
-			fmt.Println(headerStyle.Render("  System"))
-			fmt.Printf("  %s %s\n", labelStyle.Render("Ayo Version:"), version.Version)
-			fmt.Printf("  %s %s\n", labelStyle.Render("Go Version:"), runtime.Version())
-			fmt.Printf("  %s %s/%s\n", labelStyle.Render("Platform:"), runtime.GOOS, runtime.GOARCH)
+			// System Requirements
+			fmt.Println(headerStyle.Render("  System Requirements"))
+			checker.CheckSystemRequirements(ctx)
+			fmt.Printf("  %s %s %s\n", okStyle.Render("✓"), labelStyle.Render("Ayo Version:"), version.Version)
+			fmt.Printf("  %s %s %s\n", okStyle.Render("✓"), labelStyle.Render("Go Version:"), runtime.Version())
+			fmt.Printf("  %s %s %s/%s\n", okStyle.Render("✓"), labelStyle.Render("Platform:"), runtime.GOOS, runtime.GOARCH)
+			fmt.Println()
+
+			// Daemon
+			fmt.Println(headerStyle.Render("  Daemon"))
+			checker.CheckDaemon(ctx)
+			printCheckerResults(checker, "Daemon", check, warn)
 			fmt.Println()
 
 			// Check paths
 			fmt.Println(headerStyle.Render("  Paths"))
-			configExists := fileExists(paths.ConfigFile())
-			if configExists {
-				check("Config File:", true, paths.ConfigFile())
-			} else {
-				warn("Config File:", paths.ConfigFile()+" (using defaults)")
-			}
+			checker.CheckPaths(ctx)
+			printCheckerResults(checker, "Paths", check, warn)
+			fmt.Println()
 
-			dbExists := fileExists(paths.DatabasePath())
-			check("Database:", dbExists, paths.DatabasePath())
-
-			dataExists := dirExists(paths.DataDir())
-			check("Data Directory:", dataExists, paths.DataDir())
+			// API Keys
+			fmt.Println(headerStyle.Render("  API Keys"))
+			checker.CheckAPIKeys(ctx)
+			printCheckerResults(checker, "API Keys", check, warn)
 			fmt.Println()
 
 			// Check Ollama
@@ -94,7 +106,7 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			// Check if ollama binary exists
 			ollamaPath, pathErr := exec.LookPath("ollama")
 			if pathErr != nil {
-				check("Binary:", false, "not found in PATH")
+				warn("Binary:", "not found in PATH")
 			} else {
 				check("Binary:", true, ollamaPath)
 			}
@@ -139,54 +151,26 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 						}
 					}
 					check("Embedding Model:", hasEmbedding, embModel)
-
-					// Small model check - only validate in Ollama if it's an Ollama model
-					small := cfg.GetSmallModel()
-					smallModel := small.String()
-					
-					// Check if this is an Ollama model (has ollama provider or ollama/ prefix)
-					isOllamaModel := small.Provider == "ollama" || strings.HasPrefix(smallModel, "ollama/")
-					displayModel := smallModel
-					if isOllamaModel {
-						// Strip ollama/ prefix for display and lookup
-						displayModel = strings.TrimPrefix(smallModel, "ollama/")
-					}
-					
-					if isOllamaModel {
-						// Validate Ollama model exists
-						hasSmall := false
-						for _, m := range models {
-							if strings.HasPrefix(m.Name, displayModel) || strings.Contains(m.Name, displayModel) {
-								hasSmall = true
-								break
-							}
-						}
-						check("Small Model:", hasSmall, displayModel+" (ollama)")
-					} else {
-						// Non-Ollama model - just report it's configured
-						check("Small Model:", true, smallModel+" (cloud)")
-					}
 				}
 			} else {
-				warn("Service:", "not running - memory features will be disabled")
+				warn("Service:", "not running - memory features disabled")
 			}
 			fmt.Println()
 
 			// Check database
 			fmt.Println(headerStyle.Render("  Database"))
-			if dbExists {
-				dbConn, queries, err := db.ConnectWithQueries(ctx, paths.DatabasePath())
+			dbPath := paths.DatabasePath()
+			if fileExists(dbPath) {
+				dbConn, queries, err := db.ConnectWithQueries(ctx, dbPath)
 				if err != nil {
 					check("Connection:", false, err.Error())
 				} else {
 					check("Connection:", true, "OK")
 					defer dbConn.Close()
 
-					// Count sessions and memories
 					sessions, _ := queries.CountSessions(ctx)
 					check("Sessions:", true, fmt.Sprintf("%d", sessions))
 
-					// Count active memories
 					memories, _ := queries.ListMemories(ctx, db.ListMemoriesParams{
 						Lim: 1000,
 					})
@@ -197,22 +181,10 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			}
 			fmt.Println()
 
-			// Check config
-			fmt.Println(headerStyle.Render("  Configuration"))
-			largeModel := cfg.GetLargeModel()
-			smallModelCfg := cfg.GetSmallModel()
-			
-			if !largeModel.IsEmpty() {
-				check("Large Model:", true, largeModel.String())
-			} else {
-				warn("Large Model:", "not configured")
-			}
-			
-			if !smallModelCfg.IsEmpty() {
-				check("Small Model:", true, smallModelCfg.String())
-			} else {
-				warn("Small Model:", "not configured")
-			}
+			// Squads
+			fmt.Println(headerStyle.Render("  Squads"))
+			checker.CheckSquads(ctx)
+			printCheckerResults(checker, "Squads", check, warn)
 			fmt.Println()
 
 			// Check sandbox
@@ -223,13 +195,11 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			} else {
 				check("Provider:", true, sandboxProvider.Name())
 
-				// Test sandbox if verbose
 				if verbose {
 					fmt.Println("  Testing sandbox execution...")
 					testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 					defer cancel()
 
-					// Create a test sandbox
 					sb, createErr := sandboxProvider.Create(testCtx, providers.SandboxCreateOptions{
 						Name: "ayo-doctor-test",
 					})
@@ -238,7 +208,6 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 					} else {
 						check("Create:", true, sb.ID)
 
-						// Execute a simple command
 						result, execErr := sandboxProvider.Exec(testCtx, sb.ID, providers.ExecOptions{
 							Command: "echo",
 							Args:    []string{"hello from sandbox"},
@@ -250,7 +219,6 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 							check("Exec:", result.ExitCode == 0, fmt.Sprintf("exit=%d output=%q", result.ExitCode, output))
 						}
 
-						// Cleanup
 						if delErr := sandboxProvider.Delete(testCtx, sb.ID, true); delErr != nil {
 							warn("Cleanup:", delErr.Error())
 						} else {
@@ -263,22 +231,23 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			}
 			fmt.Println()
 
-			// Recommendations
-			var recommendations []string
-			if !isAvailable {
-				recommendations = append(recommendations, "Start Ollama: ollama serve")
-			}
-			if pathErr != nil {
-				recommendations = append(recommendations, "Install Ollama: https://ollama.ai")
-			}
+			// Summary
+			summary := checker.Summary()
+			fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 50)))
+			fmt.Printf("  Summary: %s passed, %s warnings, %s errors\n",
+				okStyle.Render(fmt.Sprintf("%d", summary.Passed)),
+				warnStyle.Render(fmt.Sprintf("%d", summary.Warnings)),
+				errStyle.Render(fmt.Sprintf("%d", summary.Errors)))
 
-
-			if len(recommendations) > 0 {
-				fmt.Println(headerStyle.Render("  Recommendations"))
-				for _, r := range recommendations {
-					fmt.Printf("  - %s\n", r)
-				}
+			if summary.Warnings > 0 || summary.Errors > 0 {
 				fmt.Println()
+				fmt.Println("  Run 'ayo doctor --fix' to attempt automatic fixes.")
+			}
+			fmt.Println()
+
+			// --fix mode
+			if fix {
+				return runDoctorFixes(ctx, summary)
 			}
 
 			return nil
@@ -286,8 +255,107 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed output")
+	cmd.Flags().BoolVar(&fix, "fix", false, "Attempt automatic fixes")
 
 	return cmd
+}
+
+func printCheckerResults(checker *doctor.Checker, category string, check func(string, bool, string), warn func(string, string)) {
+	summary := checker.Summary()
+	for _, r := range summary.Results {
+		if r.Category != category {
+			continue
+		}
+		switch r.Status {
+		case doctor.StatusPass:
+			check(r.Name+":", true, r.Message)
+		case doctor.StatusWarn:
+			warn(r.Name+":", r.Message)
+			if r.Fix != "" {
+				fmt.Printf("    Fix: %s\n", r.Fix)
+			}
+		case doctor.StatusFail:
+			check(r.Name+":", false, r.Message)
+			if r.Fix != "" {
+				fmt.Printf("    Fix: %s\n", r.Fix)
+			}
+		}
+	}
+}
+
+func runDoctorJSON(ctx context.Context, cfg config.Config, checker *doctor.Checker) error {
+	checker.CheckSystemRequirements(ctx)
+	checker.CheckDaemon(ctx)
+	checker.CheckPaths(ctx)
+	checker.CheckAPIKeys(ctx)
+	checker.CheckSquads(ctx)
+
+	summary := checker.Summary()
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(summary)
+}
+
+func runDoctorFixes(ctx context.Context, summary doctor.Summary) error {
+	fmt.Println("  Attempting fixes...")
+	fmt.Println()
+
+	fixed := 0
+	cantFix := 0
+
+	for _, r := range summary.Results {
+		if r.Status == doctor.StatusPass {
+			continue
+		}
+		if !r.Fixable {
+			if r.Fix != "" {
+				fmt.Printf("  ✗ %s (requires manual action)\n", r.Name)
+				fmt.Printf("    %s\n", r.Fix)
+				cantFix++
+			}
+			continue
+		}
+
+		// Attempt common fixes
+		switch {
+		case strings.Contains(r.Name, "Daemon"):
+			fmt.Print("  Attempting to start daemon...")
+			cmd := exec.CommandContext(ctx, "ayo", "daemon", "start")
+			if err := cmd.Run(); err != nil {
+				fmt.Println(" failed")
+			} else {
+				fmt.Println(" done")
+				fixed++
+			}
+		case strings.Contains(r.Name, "Directory"):
+			fmt.Printf("  Creating %s...", r.Name)
+			if strings.Contains(r.Message, paths.ConfigDir()) {
+				if err := os.MkdirAll(paths.ConfigDir(), 0755); err != nil {
+					fmt.Println(" failed")
+				} else {
+					fmt.Println(" done")
+					fixed++
+				}
+			} else if strings.Contains(r.Message, paths.DataDir()) {
+				if err := os.MkdirAll(paths.DataDir(), 0755); err != nil {
+					fmt.Println(" failed")
+				} else {
+					fmt.Println(" done")
+					fixed++
+				}
+			}
+		}
+	}
+
+	fmt.Println()
+	if fixed > 0 {
+		fmt.Printf("  Fixed %d issue(s)\n", fixed)
+	}
+	if cantFix > 0 {
+		fmt.Printf("  %d issue(s) require manual action\n", cantFix)
+	}
+
+	return nil
 }
 
 func fileExists(path string) bool {
