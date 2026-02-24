@@ -32,6 +32,28 @@ const (
 // DefaultMaxRetries is the default number of validation retries.
 const DefaultMaxRetries = 3
 
+// DefaultTimeout is the default timeout for input requests.
+const DefaultTimeout = 24 * time.Hour
+
+// FallbackAction specifies what to do when an input request times out.
+type FallbackAction string
+
+const (
+	FallbackError    FallbackAction = "error"
+	FallbackDefault  FallbackAction = "default"
+	FallbackRetry    FallbackAction = "retry"
+	FallbackEscalate FallbackAction = "escalate"
+	FallbackSkip     FallbackAction = "skip"
+)
+
+// Fallback specifies timeout behavior for input requests.
+type Fallback struct {
+	Action               FallbackAction `json:"action"`
+	DefaultValues        map[string]any `json:"default_values,omitempty"`
+	EscalationRecipient  *Recipient     `json:"escalation_recipient,omitempty"`
+	MaxRetries           int            `json:"max_retries,omitempty"`
+}
+
 // InputRequest represents a request for human input from an agent.
 type InputRequest struct {
 	ID         string        `json:"id"`
@@ -41,6 +63,7 @@ type InputRequest struct {
 	Fields     []Field       `json:"fields"`
 	Persona    *Persona      `json:"persona,omitempty"`
 	MaxRetries int           `json:"max_retries,omitempty"`
+	Fallback   *Fallback     `json:"fallback,omitempty"`
 }
 
 // Field represents a single input field in the request.
