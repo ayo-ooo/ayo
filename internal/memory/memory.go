@@ -468,3 +468,137 @@ func fromDBMemory(m db.Memory) Memory {
 		Status:             Status(fromNullString(m.Status)),
 	}
 }
+
+// ExportData represents the format for memory export/import.
+type ExportData struct {
+	Version    string           `json:"version"`
+	ExportedAt time.Time        `json:"exported_at"`
+	Memories   []ExportedMemory `json:"memories"`
+}
+
+// ExportedMemory represents a memory in export format.
+type ExportedMemory struct {
+	ID              string    `json:"id"`
+	Content         string    `json:"content"`
+	Category        string    `json:"category"`
+	AgentHandle     string    `json:"agent,omitempty"`
+	PathScope       string    `json:"path,omitempty"`
+	SquadName       string    `json:"squad,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	Confidence      float64   `json:"confidence,omitempty"`
+	SupersedesID    string    `json:"supersedes,omitempty"`
+	Embedding       []float32 `json:"embedding,omitempty"`
+	Status          string    `json:"status,omitempty"`
+}
+
+// ExportOptions configures memory export.
+type ExportOptions struct {
+	AgentHandle       string    // Filter by agent (empty = all)
+	IncludeEmbeddings bool      // Include embedding vectors
+	Since             time.Time // Only export memories created after this time
+}
+
+// Export exports memories matching the options.
+func (s *Service) Export(ctx context.Context, opts ExportOptions) (*ExportData, error) {
+	// Get all memories
+	memories, err := s.List(ctx, opts.AgentHandle, 10000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("list memories: %w", err)
+	}
+
+	exported := make([]ExportedMemory, 0, len(memories))
+	for _, m := range memories {
+		// Filter by since time
+		if !opts.Since.IsZero() && m.CreatedAt.Before(opts.Since) {
+			continue
+		}
+
+		em := ExportedMemory{
+			ID:           m.ID,
+			Content:      m.Content,
+			Category:     string(m.Category),
+			AgentHandle:  m.AgentHandle,
+			PathScope:    m.PathScope,
+			SquadName:    m.SquadName,
+			CreatedAt:    m.CreatedAt,
+			Confidence:   m.Confidence,
+			SupersedesID: m.SupersedesID,
+			Status:       string(m.Status),
+		}
+
+		if opts.IncludeEmbeddings {
+			em.Embedding = m.Embedding
+		}
+
+		exported = append(exported, em)
+	}
+
+	return &ExportData{
+		Version:    "1",
+		ExportedAt: time.Now(),
+		Memories:   exported,
+	}, nil
+}
+
+// ImportOptions configures memory import.
+type ImportOptions struct {
+	Merge  bool // If true, don't overwrite existing memories
+	DryRun bool // If true, just report what would be imported
+}
+
+// ImportResult contains the result of an import operation.
+type ImportResult struct {
+	Imported int      // Number of memories imported
+	Skipped  int      // Number of memories skipped (merge mode)
+	Errors   []string // Any errors encountered
+}
+
+// Import imports memories from export data.
+func (s *Service) Import(ctx context.Context, data *ExportData, opts ImportOptions) (*ImportResult, error) {
+	result := &ImportResult{
+		Errors: make([]string, 0),
+	}
+
+	for _, em := range data.Memories {
+		// Check if memory already exists
+		_, err := s.Get(ctx, em.ID)
+		if err == nil {
+			// Memory exists
+			if opts.Merge {
+				result.Skipped++
+				continue
+			}
+			// Will overwrite
+		}
+
+		if opts.DryRun {
+			result.Imported++
+			continue
+		}
+
+		// Create the memory
+		mem := Memory{
+			ID:           em.ID,
+			Content:      em.Content,
+			Category:     Category(em.Category),
+			AgentHandle:  em.AgentHandle,
+			PathScope:    em.PathScope,
+			SquadName:    em.SquadName,
+			CreatedAt:    em.CreatedAt,
+			UpdatedAt:    time.Now(),
+			Confidence:   em.Confidence,
+			SupersedesID: em.SupersedesID,
+			Embedding:    em.Embedding,
+			Status:       StatusActive,
+		}
+
+		_, err = s.Create(ctx, mem)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", em.ID, err))
+			continue
+		}
+		result.Imported++
+	}
+
+	return result, nil
+}

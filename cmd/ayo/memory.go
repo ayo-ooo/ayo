@@ -56,6 +56,8 @@ Categories:
 	cmd.AddCommand(newMemoryLinkCmd())
 	cmd.AddCommand(newMemoryMergeCmd())
 	cmd.AddCommand(newMemoryMigrateCmd())
+	cmd.AddCommand(newMemoryExportCmd())
+	cmd.AddCommand(newMemoryImportCmd())
 
 	return cmd
 }
@@ -1232,4 +1234,147 @@ func pickMemory(ctx context.Context, svc *memory.Service, title string) (memory.
 	}
 
 	return memory.Memory{}, fmt.Errorf("memory not found")
+}
+
+func newMemoryExportCmd() *cobra.Command {
+	var agentFilter string
+	var includeEmbeddings bool
+	var sinceStr string
+
+	cmd := &cobra.Command{
+		Use:   "export <file>",
+		Short: "Export memories to a JSON file",
+		Long: `Export memories to a JSON file for backup or transfer.
+
+Examples:
+  ayo memory export memories.json
+  ayo memory export --agent @ayo agent-memories.json
+  ayo memory export --include-embeddings full-backup.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			filePath := args[0]
+
+			dbConn, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("connect to database: %w", err)
+			}
+			defer dbConn.Close()
+
+			svc := memory.NewService(queries, nil)
+
+			opts := memory.ExportOptions{
+				AgentHandle:       agentFilter,
+				IncludeEmbeddings: includeEmbeddings,
+			}
+
+			if sinceStr != "" {
+				since, err := time.Parse(time.RFC3339, sinceStr)
+				if err != nil {
+					return fmt.Errorf("invalid since time: %w", err)
+				}
+				opts.Since = since
+			}
+
+			data, err := svc.Export(cmd.Context(), opts)
+			if err != nil {
+				return fmt.Errorf("export memories: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(data)
+			}
+
+			file, err := os.Create(filePath)
+			if err != nil {
+				return fmt.Errorf("create file: %w", err)
+			}
+			defer file.Close()
+
+			enc := json.NewEncoder(file)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(data); err != nil {
+				return fmt.Errorf("write file: %w", err)
+			}
+
+			fmt.Printf("Exported %d memories to %s\n", len(data.Memories), filePath)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&agentFilter, "agent", "a", "", "Filter by agent")
+	cmd.Flags().BoolVar(&includeEmbeddings, "include-embeddings", false, "Include embedding vectors")
+	cmd.Flags().StringVar(&sinceStr, "since", "", "Export memories created after (RFC3339 format)")
+
+	return cmd
+}
+
+func newMemoryImportCmd() *cobra.Command {
+	var merge bool
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "import <file>",
+		Short: "Import memories from a JSON file",
+		Long: `Import memories from a JSON file.
+
+Examples:
+  ayo memory import memories.json
+  ayo memory import --merge memories.json  # Don't overwrite existing
+  ayo memory import --dry-run memories.json  # Show what would be imported`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			filePath := args[0]
+
+			file, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("open file: %w", err)
+			}
+			defer file.Close()
+
+			var data memory.ExportData
+			if err := json.NewDecoder(file).Decode(&data); err != nil {
+				return fmt.Errorf("parse file: %w", err)
+			}
+
+			dbConn, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
+			if err != nil {
+				return fmt.Errorf("connect to database: %w", err)
+			}
+			defer dbConn.Close()
+
+			svc := memory.NewService(queries, nil)
+
+			opts := memory.ImportOptions{
+				Merge:  merge,
+				DryRun: dryRun,
+			}
+
+			result, err := svc.Import(cmd.Context(), &data, opts)
+			if err != nil {
+				return fmt.Errorf("import memories: %w", err)
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(result)
+			}
+
+			if dryRun {
+				fmt.Printf("Would import %d memories, skip %d\n", result.Imported, result.Skipped)
+			} else {
+				fmt.Printf("Imported %d memories, skipped %d\n", result.Imported, result.Skipped)
+			}
+			if len(result.Errors) > 0 {
+				fmt.Printf("Errors: %d\n", len(result.Errors))
+				for _, e := range result.Errors {
+					fmt.Printf("  %s\n", e)
+				}
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&merge, "merge", false, "Don't overwrite existing memories")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be imported without making changes")
+
+	return cmd
 }
