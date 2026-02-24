@@ -312,7 +312,11 @@ func (e *TriggerEngine) registerCronTrigger(trigger *Trigger) error {
 		return fmt.Errorf("cron trigger requires schedule")
 	}
 
-	schedule := trigger.Config.Schedule
+	// Expand aliases and validate
+	schedule, err := ParseCronSchedule(trigger.Config.Schedule)
+	if err != nil {
+		return err
+	}
 	
 	// Detect if schedule uses seconds (6 fields) or standard (5 fields)
 	withSeconds := len(strings.Fields(schedule)) == 6
