@@ -627,3 +627,281 @@ func TestSquad_GetAllAgents(t *testing.T) {
 		}
 	})
 }
+
+func TestSquad_DispatchWithOptions(t *testing.T) {
+	t.Run("fails when squad not running and StartIfStopped is false", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusStopped,
+			LeadReady: false,
+		}
+
+		_, err := squad.DispatchWithOptions(context.Background(), DispatchInput{
+			Prompt: "hello",
+		}, DispatchOptions{StartIfStopped: false})
+
+		if err == nil {
+			t.Error("expected error for stopped squad with StartIfStopped=false")
+		}
+		if !strings.Contains(err.Error(), "not running") {
+			t.Errorf("expected 'not running' error, got: %v", err)
+		}
+	})
+
+	t.Run("fails on validation error", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+			Schemas: &SquadSchemas{
+				Input: &schema.Schema{
+					Type:     "object",
+					Required: []string{"required_field"},
+				},
+			},
+		}
+
+		_, err := squad.DispatchWithOptions(context.Background(), DispatchInput{
+			Data: map[string]any{"other": "value"},
+		}, DispatchOptions{})
+
+		if err == nil {
+			t.Error("expected validation error")
+		}
+	})
+
+	t.Run("succeeds when squad running with valid input", func(t *testing.T) {
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+		}
+
+		result, err := squad.DispatchWithOptions(context.Background(), DispatchInput{
+			Prompt: "hello",
+		}, DispatchOptions{})
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Error("expected non-nil result")
+		}
+	})
+}
+
+func TestConstitution_GetAgents_ParsesMarkdownSections(t *testing.T) {
+	t.Run("parses agents from markdown sections", func(t *testing.T) {
+		constitution := &Constitution{
+			Raw: `# Mission
+
+Build something cool.
+
+## Agents
+
+### @frontend
+
+Frontend development responsibilities.
+
+### @backend
+
+Backend API responsibilities.
+
+### @devops
+
+DevOps and infrastructure.
+`,
+		}
+
+		agents := constitution.GetAgents()
+		if len(agents) != 3 {
+			t.Errorf("expected 3 agents, got %d: %v", len(agents), agents)
+		}
+
+		expected := map[string]bool{
+			"@frontend": true,
+			"@backend":  true,
+			"@devops":   true,
+		}
+		for _, a := range agents {
+			if !expected[a] {
+				t.Errorf("unexpected agent %s", a)
+			}
+			delete(expected, a)
+		}
+		if len(expected) > 0 {
+			t.Errorf("missing agents: %v", expected)
+		}
+	})
+
+	t.Run("frontmatter agents take precedence over markdown sections", func(t *testing.T) {
+		constitution := &Constitution{
+			Raw: `### @markdown-agent
+This agent is in markdown.
+`,
+			Frontmatter: ConstitutionFrontmatter{
+				Agents: []string{"@from-frontmatter"},
+			},
+		}
+
+		agents := constitution.GetAgents()
+		if len(agents) != 1 {
+			t.Errorf("expected 1 agent from frontmatter, got %d: %v", len(agents), agents)
+		}
+		if agents[0] != "@from-frontmatter" {
+			t.Errorf("expected @from-frontmatter, got %s", agents[0])
+		}
+	})
+
+	t.Run("adds @ prefix to frontmatter agents if missing", func(t *testing.T) {
+		constitution := &Constitution{
+			Frontmatter: ConstitutionFrontmatter{
+				Agents: []string{"frontend", "@backend"},
+			},
+		}
+
+		agents := constitution.GetAgents()
+		if len(agents) != 2 {
+			t.Errorf("expected 2 agents, got %d", len(agents))
+		}
+
+		found := map[string]bool{}
+		for _, a := range agents {
+			found[a] = true
+		}
+		if !found["@frontend"] {
+			t.Error("expected @frontend (with added prefix)")
+		}
+		if !found["@backend"] {
+			t.Error("expected @backend")
+		}
+	})
+
+	t.Run("handles empty constitution", func(t *testing.T) {
+		constitution := &Constitution{
+			Raw: "",
+		}
+
+		agents := constitution.GetAgents()
+		if len(agents) != 0 {
+			t.Errorf("expected 0 agents for empty constitution, got %d", len(agents))
+		}
+	})
+
+	t.Run("handles sections with extra text after agent handle", func(t *testing.T) {
+		constitution := &Constitution{
+			Raw: `### @frontend (web team)
+
+Frontend responsibilities.
+
+### @backend - API Team
+
+Backend responsibilities.
+`,
+		}
+
+		agents := constitution.GetAgents()
+		if len(agents) != 2 {
+			t.Errorf("expected 2 agents, got %d: %v", len(agents), agents)
+		}
+
+		// Should extract just @frontend and @backend, not extra text
+		found := map[string]bool{}
+		for _, a := range agents {
+			found[a] = true
+		}
+		if !found["@frontend"] {
+			t.Error("expected @frontend")
+		}
+		if !found["@backend"] {
+			t.Error("expected @backend")
+		}
+	})
+}
+
+// MockInvoker for testing dispatch with actual invocation
+type MockInvoker struct {
+	Response string
+	Error    string
+	Called   bool
+}
+
+func (m *MockInvoker) Invoke(ctx context.Context, params InvokeParams) (InvokeResult, error) {
+	m.Called = true
+	return InvokeResult{
+		Response: m.Response,
+		Error:    m.Error,
+	}, nil
+}
+
+func TestSquad_DispatchWithInvoker(t *testing.T) {
+	t.Run("dispatch calls invoker and returns response", func(t *testing.T) {
+		invoker := &MockInvoker{Response: "Task completed successfully"}
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+			Invoker:   invoker,
+		}
+
+		result, err := squad.Dispatch(context.Background(), DispatchInput{
+			Prompt: "do something",
+		})
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !invoker.Called {
+			t.Error("expected invoker to be called")
+		}
+		if result.Raw != "Task completed successfully" {
+			t.Errorf("expected response 'Task completed successfully', got %q", result.Raw)
+		}
+	})
+
+	t.Run("dispatch returns error from invoker", func(t *testing.T) {
+		invoker := &MockInvoker{
+			Response: "partial response",
+			Error:    "something went wrong",
+		}
+		squad := &Squad{
+			Name:      "test",
+			Status:    SquadStatusRunning,
+			LeadReady: true,
+			Invoker:   invoker,
+		}
+
+		result, err := squad.Dispatch(context.Background(), DispatchInput{
+			Prompt: "do something",
+		})
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Error != "something went wrong" {
+			t.Errorf("expected error 'something went wrong', got %q", result.Error)
+		}
+		if result.Raw != "partial response" {
+			t.Errorf("expected raw 'partial response', got %q", result.Raw)
+		}
+	})
+}
+
+func TestNoOpInvoker(t *testing.T) {
+	invoker := &NoOpInvoker{}
+	result, err := invoker.Invoke(context.Background(), InvokeParams{
+		SquadName:   "test",
+		AgentHandle: "@backend",
+		Prompt:      "hello",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Response, "@backend") {
+		t.Errorf("expected response to mention agent, got %q", result.Response)
+	}
+	if !strings.Contains(result.Response, "no invoker configured") {
+		t.Errorf("expected response to mention no invoker, got %q", result.Response)
+	}
+}
