@@ -1,6 +1,6 @@
 ---
 id: ayo-xfu3
-status: open
+status: closed
 deps: [ayo-sqad]
 links: []
 created: 2026-02-23T22:14:55Z
