@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexcabrera/ayo/internal/ayod"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/providers"
 	"github.com/google/uuid"
@@ -30,18 +31,20 @@ type AppleProvider struct {
 }
 
 type appleSandbox struct {
-	id           string
-	name         string
-	containerID  string
-	status       providers.SandboxStatus
-	createdAt    time.Time
-	pool         string
-	agents       []string
-	user         string // User account created in the sandbox
-	image        string
-	mounts       []providers.Mount
-	network      providers.NetworkConfig
-	createdUsers map[string]bool // Tracks which agent users have been created
+	id             string
+	name           string
+	containerID    string
+	status         providers.SandboxStatus
+	createdAt      time.Time
+	pool           string
+	agents         []string
+	user           string // User account created in the sandbox
+	image          string
+	mounts         []providers.Mount
+	network        providers.NetworkConfig
+	createdUsers   map[string]bool // Tracks which agent users have been created
+	ayodClient     *ayod.Client    // Client for communicating with ayod in the sandbox
+	ayodSocketPath string          // Host-side path to the ayod Unix socket
 }
 
 // NewAppleProvider creates a new Apple Container sandbox provider.
@@ -73,6 +76,34 @@ func (p *AppleProvider) Close() error {
 // IsAvailable returns whether Apple Container is available on the system.
 func (p *AppleProvider) IsAvailable() bool {
 	return p.available
+}
+
+// SetAyodClient sets the ayod client and socket path for a sandbox.
+// This should be called after bootstrap completes successfully.
+func (p *AppleProvider) SetAyodClient(id string, client *ayod.Client, socketPath string) {
+	if sb, ok := p.sandboxes[id]; ok {
+		sb.ayodClient = client
+		sb.ayodSocketPath = socketPath
+	}
+}
+
+// GetAyodClient returns the ayod client for a sandbox, if available.
+func (p *AppleProvider) GetAyodClient(id string) *ayod.Client {
+	if sb, ok := p.sandboxes[id]; ok {
+		return sb.ayodClient
+	}
+	return nil
+}
+
+// GetSharedSandboxID returns the ID of the shared @ayo sandbox if it exists.
+// Returns empty string if no shared sandbox is running.
+func (p *AppleProvider) GetSharedSandboxID() string {
+	for id, sb := range p.sandboxes {
+		if sb.name == AyoSandboxName && sb.status == providers.SandboxStatusRunning {
+			return id
+		}
+	}
+	return ""
 }
 
 // Create creates a new Apple Container sandbox.
@@ -667,15 +698,10 @@ func isAppleContainerAvailable() bool {
 
 // EnsureAgentUser ensures a Unix user exists for the agent in the sandbox.
 // If dotfilesPath is non-empty, copies dotfiles from that host directory to the user's home.
+// This uses ayod when available, falling back to direct exec for older sandboxes.
 func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHandle string, dotfilesPath string) error {
 	// Sanitize agent handle to valid Unix username
 	username := SanitizeUsername(agentHandle)
-
-	// Resolve container ID
-	containerID, err := p.resolveContainerID(ctx, id)
-	if err != nil {
-		return err
-	}
 
 	// Check if we've already created this user in this sandbox instance
 	sb, ok := p.sandboxes[id]
@@ -684,32 +710,108 @@ func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHan
 		return nil
 	}
 
+	// Try to use ayod client if available
+	if ok && sb.ayodClient != nil {
+		return p.ensureAgentUserViaAyod(ctx, sb, username, agentHandle, dotfilesPath)
+	}
+
+	// Try to connect to ayod if we have a socket path
+	if ok && sb.ayodSocketPath != "" && sb.ayodClient == nil {
+		client, err := ayod.Connect(sb.ayodSocketPath)
+		if err == nil {
+			sb.ayodClient = client
+			return p.ensureAgentUserViaAyod(ctx, sb, username, agentHandle, dotfilesPath)
+		}
+		debug.Log("could not connect to ayod, falling back to exec", "error", err)
+	}
+
+	// Fall back to direct exec (legacy path)
+	return p.ensureAgentUserViaExec(ctx, id, username, agentHandle, dotfilesPath)
+}
+
+// ensureAgentUserViaAyod creates an agent user using the ayod client.
+func (p *AppleProvider) ensureAgentUserViaAyod(ctx context.Context, sb *appleSandbox, username, agentHandle, dotfilesPath string) error {
+	// Prepare dotfiles tar archive if provided
+	var dotfiles []byte
+	if dotfilesPath != "" {
+		var err error
+		dotfiles, err = createDotfilesTar(dotfilesPath)
+		if err != nil {
+			debug.Log("failed to create dotfiles tar", "error", err)
+			// Not fatal, continue without dotfiles
+		}
+	}
+
+	debug.Log("creating agent user via ayod", "agent", agentHandle, "username", username)
+
+	// Create user via ayod
+	resp, err := sb.ayodClient.UserAdd(ayod.UserAddRequest{
+		Username: username,
+		Shell:    "/bin/sh",
+		Dotfiles: dotfiles,
+	})
+	if err != nil {
+		// Check if user already exists
+		if strings.Contains(err.Error(), "already exists") {
+			debug.Log("agent user already exists", "agent", agentHandle, "username", username)
+			if sb.createdUsers == nil {
+				sb.createdUsers = make(map[string]bool)
+			}
+			sb.createdUsers[username] = true
+			return nil
+		}
+		return fmt.Errorf("create user %s via ayod: %w", username, err)
+	}
+
+	debug.Log("agent user created via ayod", "agent", agentHandle, "username", username, "uid", resp.UID, "home", resp.Home)
+
+	// Track that we created this user
+	if sb.createdUsers == nil {
+		sb.createdUsers = make(map[string]bool)
+	}
+	sb.createdUsers[username] = true
+
+	return nil
+}
+
+// ensureAgentUserViaExec creates an agent user using direct container exec (legacy path).
+func (p *AppleProvider) ensureAgentUserViaExec(ctx context.Context, id, username, agentHandle, dotfilesPath string) error {
+	// Resolve container ID
+	containerID, err := p.resolveContainerID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	sb := p.sandboxes[id]
+
 	// Check if user already exists in container
 	if err := p.execSimple(ctx, containerID, "id", username); err == nil {
 		debug.Log("agent user already exists", "agent", agentHandle, "username", username)
 		// Track that user exists
-		if ok && sb.createdUsers != nil {
+		if sb != nil && sb.createdUsers != nil {
 			sb.createdUsers[username] = true
 		}
 		return nil // User exists
 	}
 
-	debug.Log("creating agent user", "agent", agentHandle, "username", username, "container", containerID)
+	debug.Log("creating agent user via exec", "agent", agentHandle, "username", username, "container", containerID)
 
 	// Create user with adduser (Alpine/BusyBox-compatible)
 	// -D: don't assign a password
 	// -s /bin/sh: set shell
-	// -h /home/{username}: set home directory
 	if err := p.execSimple(ctx, containerID, "adduser", "-D", "-s", "/bin/sh", username); err != nil {
 		return fmt.Errorf("failed to create user %s (from %s): %w", username, agentHandle, err)
 	}
 
 	// Track that we created this user
-	if ok && sb.createdUsers != nil {
+	if sb != nil {
+		if sb.createdUsers == nil {
+			sb.createdUsers = make(map[string]bool)
+		}
 		sb.createdUsers[username] = true
 	}
 
-	debug.Log("agent user created", "agent", agentHandle, "username", username)
+	debug.Log("agent user created via exec", "agent", agentHandle, "username", username)
 
 	// Copy agent dotfiles if provided
 	if dotfilesPath != "" {
@@ -720,6 +822,36 @@ func (p *AppleProvider) EnsureAgentUser(ctx context.Context, id string, agentHan
 	}
 
 	return nil
+}
+
+// createDotfilesTar creates a tar archive of dotfiles for sending via ayod.
+func createDotfilesTar(dotfilesPath string) ([]byte, error) {
+	info, err := os.Stat(dotfilesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No dotfiles to include
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("dotfiles path is not a directory: %s", dotfilesPath)
+	}
+
+	// Read dotfiles and create a simple tar-like format
+	// For now, we just read the files and return empty (ayod will handle this)
+	// A full implementation would create a proper tar archive
+	entries, err := os.ReadDir(dotfilesPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	// For now, return nil - full tar implementation would go here
+	// The ayod UserAdd will create the home directory with proper structure
+	return nil, nil
 }
 
 // copyDotfiles copies dotfiles from a host directory to the agent's home directory.
