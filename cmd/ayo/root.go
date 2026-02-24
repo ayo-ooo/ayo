@@ -367,6 +367,7 @@ Examples:
 	cmd.AddCommand(newSquadCmd())
 	cmd.AddCommand(newPlannerCmd(&cfgPath))
 	cmd.AddCommand(newIndexCmd(&cfgPath))
+	cmd.AddCommand(auditCmd)
 
 	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
 	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))
