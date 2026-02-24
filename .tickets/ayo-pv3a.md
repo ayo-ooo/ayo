@@ -1,6 +1,6 @@
 ---
 id: ayo-pv3a
-status: open
+status: closed
 deps: [ayo-whmn]
 links: []
 created: 2026-02-23T23:13:09Z
