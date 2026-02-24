@@ -1,6 +1,6 @@
 ---
 id: ayo-7dui
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-23T23:13:19Z

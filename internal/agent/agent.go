@@ -66,7 +66,13 @@ type Config struct {
 	SystemFile  string   `json:"system_file"`
 	Description string   `json:"description,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
-	
+
+	// ModelConfig provides model-specific settings like temperature.
+	ModelConfig *ModelConfig `json:"model_config,omitempty"`
+
+	// DisabledTools explicitly disables certain tools (overrides AllowedTools).
+	DisabledTools []string `json:"disabled_tools,omitempty"`
+
 	// TrustLevel controls sandbox behavior and orchestration visibility.
 	// Values: "sandboxed" (default), "privileged", "unrestricted"
 	// Unrestricted agents cannot be orchestrated by @ayo.
@@ -95,6 +101,60 @@ type Config struct {
 	// Sandbox configuration
 	// Configures the sandbox environment for this agent.
 	Sandbox SandboxConfig `json:"sandbox,omitempty"`
+
+	// Permissions configuration
+	// Controls approval and access behaviors.
+	Permissions *PermissionsConfig `json:"permissions,omitempty"`
+
+	// Triggers define automatic activation conditions.
+	// Each trigger can activate the agent on file changes, schedules, etc.
+	Triggers []TriggerConfig `json:"triggers,omitempty"`
+}
+
+// ModelConfig provides model-specific configuration.
+type ModelConfig struct {
+	// Temperature controls response randomness (0.0-1.0).
+	Temperature float64 `json:"temperature,omitempty"`
+
+	// MaxTokens limits response length.
+	MaxTokens int `json:"max_tokens,omitempty"`
+
+	// TopP controls nucleus sampling (0.0-1.0).
+	TopP float64 `json:"top_p,omitempty"`
+}
+
+// PermissionsConfig controls agent permissions and approval behaviors.
+type PermissionsConfig struct {
+	// AutoApprove enables automatic approval of file modifications.
+	// When true, the agent can modify files without user confirmation.
+	// Defaults to false for safety.
+	AutoApprove bool `json:"auto_approve,omitempty"`
+
+	// AutoApprovePatterns are glob patterns for files that can be auto-approved.
+	// Only relevant when AutoApprove is true.
+	// Example: ["*.test.go", "*.md"]
+	AutoApprovePatterns []string `json:"auto_approve_patterns,omitempty"`
+}
+
+// TriggerConfig defines an agent trigger.
+type TriggerConfig struct {
+	// Name is the trigger identifier.
+	Name string `json:"name"`
+
+	// Type is "watch" (file watcher) or "cron" (schedule).
+	Type string `json:"type"`
+
+	// Pattern is a glob pattern for watch triggers.
+	Pattern string `json:"pattern,omitempty"`
+
+	// Schedule is a cron expression for cron triggers.
+	Schedule string `json:"schedule,omitempty"`
+
+	// Path is the directory to watch (for watch triggers).
+	Path string `json:"path,omitempty"`
+
+	// Prompt is sent to the agent when the trigger fires.
+	Prompt string `json:"prompt,omitempty"`
 }
 
 // SandboxConfig configures the agent's sandbox environment.
