@@ -344,3 +344,31 @@ func TestPlannerLoadError(t *testing.T) {
 		t.Errorf("Unwrap() should return original error")
 	}
 }
+
+func TestLoadExternalPlanner_InvalidExtension(t *testing.T) {
+	// Create a temp file that is not a .so file
+	tmpDir := t.TempDir()
+	badPath := filepath.Join(tmpDir, "planner.txt")
+	if err := os.WriteFile(badPath, []byte("not a plugin"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	_, err := loadExternalPlanner(badPath)
+	if err == nil {
+		t.Error("expected error for non-.so file")
+	}
+}
+
+func TestLoadExternalPlanner_InvalidSoFile(t *testing.T) {
+	// Create a fake .so file that isn't a valid plugin
+	tmpDir := t.TempDir()
+	fakeSo := filepath.Join(tmpDir, "planner.so")
+	if err := os.WriteFile(fakeSo, []byte("not a valid so file"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	_, err := loadExternalPlanner(fakeSo)
+	if err == nil {
+		t.Error("expected error for invalid .so file")
+	}
+}

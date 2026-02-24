@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"plugin"
+	"strings"
 
 	"github.com/alexcabrera/ayo/internal/planners"
 )
@@ -77,7 +79,7 @@ func LoadPlanners() ([]LoadedPlanner, []error) {
 }
 
 // loadPlanner loads a single planner from a plugin and registers it.
-func loadPlanner(plugin *InstalledPlugin, def PlannerDef) error {
+func loadPlanner(installedPlugin *InstalledPlugin, def PlannerDef) error {
 	// Validate planner type
 	if !ValidPlannerType(def.Type) {
 		return fmt.Errorf("invalid planner type: %s", def.Type)
@@ -88,28 +90,61 @@ func loadPlanner(plugin *InstalledPlugin, def PlannerDef) error {
 		return fmt.Errorf("planner already registered (built-in or another plugin)")
 	}
 
-	// For plugins with an entry point, we would load the Go plugin here.
-	// Currently, ayo planners are built-in and register themselves via init().
-	// This function prepares for external planner plugins when that feature is needed.
+	// For plugins with an entry point, load the Go plugin.
 	if def.EntryPoint != "" {
-		entryPath := filepath.Join(plugin.Path, def.EntryPoint)
+		entryPath := filepath.Join(installedPlugin.Path, def.EntryPoint)
 		if _, err := os.Stat(entryPath); err != nil {
 			return fmt.Errorf("entry point not found: %s", def.EntryPoint)
 		}
 
-		// TODO: When Go plugin support is added, load the .so file here and
-		// extract the PlannerFactory. For now, we just validate the entry point exists.
-		//
-		// Example future implementation:
-		//   p, err := plugin.Open(entryPath)
-		//   factory, err := p.Lookup("NewPlanner")
-		//   planners.DefaultRegistry.Register(def.Name, factory.(planners.PlannerFactory))
-		return fmt.Errorf("external planner loading not yet implemented (entry_point: %s)", def.EntryPoint)
+		// Load the Go plugin (.so file)
+		factory, err := loadExternalPlanner(entryPath)
+		if err != nil {
+			return fmt.Errorf("load external planner: %w", err)
+		}
+
+		// Register the planner
+		planners.DefaultRegistry.Register(def.Name, factory)
+		return nil
 	}
 
 	// If no entry point, this is a built-in planner that should already be registered.
 	// We skip registration as built-in planners register themselves via init().
 	return nil
+}
+
+// loadExternalPlanner loads a planner plugin from a .so file and returns the factory.
+func loadExternalPlanner(path string) (planners.PlannerFactory, error) {
+	// Validate file extension
+	if !strings.HasSuffix(path, ".so") {
+		return nil, fmt.Errorf("external planner must be a .so file, got: %s", filepath.Base(path))
+	}
+
+	// Open the Go plugin
+	p, err := plugin.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open plugin: %w", err)
+	}
+
+	// Look for the NewPlanner symbol
+	sym, err := p.Lookup("NewPlanner")
+	if err != nil {
+		return nil, fmt.Errorf("lookup NewPlanner symbol: %w (plugin must export 'NewPlanner' as planners.PlannerFactory)", err)
+	}
+
+	// Assert it's the right type
+	factory, ok := sym.(*planners.PlannerFactory)
+	if ok {
+		return *factory, nil
+	}
+
+	// Try as function directly
+	factoryFn, ok := sym.(func(planners.PlannerContext) (planners.PlannerPlugin, error))
+	if ok {
+		return factoryFn, nil
+	}
+
+	return nil, fmt.Errorf("NewPlanner has wrong signature: expected planners.PlannerFactory")
 }
 
 // ListPluginPlanners returns all planner definitions from enabled plugins.
