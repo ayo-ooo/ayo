@@ -98,6 +98,10 @@ type Manifest struct {
 	// Planners lists planner implementations this plugin provides.
 	// Each planner must have a unique name and specify its type (near or long).
 	Planners []PlannerDef `json:"planners,omitempty"`
+
+	// SandboxConfigs lists pre-configured sandbox environments this plugin provides.
+	// Each config represents a ready-to-use sandbox setup (e.g., GPU-enabled, Python env).
+	SandboxConfigs []SandboxConfigDef `json:"sandbox_configs,omitempty"`
 }
 
 // ProviderDef describes a provider implementation in a plugin.
@@ -287,6 +291,8 @@ var (
 	ErrInvalidPlannerType    = errors.New("manifest: planner type must be 'near' or 'long'")
 	ErrMissingPlannerName    = errors.New("manifest: planner name is required")
 	ErrDuplicatePlannerName  = errors.New("manifest: duplicate planner name")
+	ErrMissingSandboxCfgName = errors.New("manifest: sandbox config name is required")
+	ErrDuplicateSandboxCfg   = errors.New("manifest: duplicate sandbox config name")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -353,6 +359,11 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 
+	// Validate sandbox configs
+	if err := m.validateSandboxConfigs(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -405,6 +416,24 @@ func (m *Manifest) validatePlanners() error {
 			return fmt.Errorf("%w: %s/%s", ErrDuplicatePlannerName, p.Type, p.Name)
 		}
 		seen[key] = true
+	}
+
+	return nil
+}
+
+// validateSandboxConfigs checks that sandbox config definitions are valid.
+func (m *Manifest) validateSandboxConfigs() error {
+	seen := make(map[string]bool)
+
+	for i, c := range m.SandboxConfigs {
+		if c.Name == "" {
+			return fmt.Errorf("%w (sandbox_config %d)", ErrMissingSandboxCfgName, i)
+		}
+
+		if seen[c.Name] {
+			return fmt.Errorf("%w: %s", ErrDuplicateSandboxCfg, c.Name)
+		}
+		seen[c.Name] = true
 	}
 
 	return nil
