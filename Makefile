@@ -1,7 +1,7 @@
 # TinyEMU Web Build System
 # Builds WASM emulator and RISC-V ayo binary for offline web client
 
-.PHONY: all wasm riscv rootfs clean help serve test test-coverage test-coverage-html
+.PHONY: all wasm riscv ayod rootfs clean help serve test test-coverage test-coverage-html
 
 # Paths
 TINYEMU_DIR := .read-only/tinyemu-go
@@ -17,10 +17,11 @@ GOFLAGS := -ldflags="-s -w"
 # Outputs
 WASM_OUTPUT := $(ASSETS_DIR)/tinyemu.wasm
 RISCV_OUTPUT := $(BUILD_DIR)/ayo-riscv64
+AYOD_OUTPUT := $(BUILD_DIR)/ayod-linux-amd64
 WASM_EXEC_JS := $(ASSETS_DIR)/wasm_exec.js
 
 # Default target
-all: wasm riscv
+all: wasm riscv ayod
 
 # Help
 help:
@@ -29,6 +30,7 @@ help:
 	@echo "Targets:"
 	@echo "  make wasm     - Build TinyEMU WASM binary"
 	@echo "  make riscv    - Build ayo RISC-V binary"
+	@echo "  make ayod     - Build ayod Linux binary (in-sandbox daemon)"
 	@echo "  make rootfs   - Build minimal rootfs (requires Linux)"
 	@echo "  make serve    - Start local dev server"
 	@echo "  make clean    - Remove build artifacts"
@@ -42,6 +44,7 @@ help:
 	@echo "  $(WASM_OUTPUT)"
 	@echo "  $(WASM_EXEC_JS)"
 	@echo "  $(RISCV_OUTPUT)"
+	@echo "  $(AYOD_OUTPUT)"
 
 # Build WASM emulator
 wasm: $(WASM_OUTPUT) $(WASM_EXEC_JS)
@@ -65,6 +68,15 @@ $(RISCV_OUTPUT): $(shell find cmd internal -name '*.go')
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 $(GO) build $(GOFLAGS) -o $@ ./cmd/ayo
 	@echo "RISC-V binary size: $$(du -h $@ | cut -f1)"
+
+# Build ayod (in-sandbox daemon) for Linux amd64
+ayod: $(AYOD_OUTPUT)
+
+$(AYOD_OUTPUT): $(shell find cmd/ayod internal/ayod -name '*.go')
+	@echo "Building ayod for Linux amd64..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -o $@ ./cmd/ayod
+	@echo "ayod binary size: $$(du -h $@ | cut -f1)"
 
 # Build rootfs (requires Linux with buildroot)
 rootfs:

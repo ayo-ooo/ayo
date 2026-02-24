@@ -1,6 +1,6 @@
 ---
 id: ayo-kkxg
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-24T00:46:06Z
