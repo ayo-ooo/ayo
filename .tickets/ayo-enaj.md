@@ -1,6 +1,6 @@
 ---
 id: ayo-enaj
-status: open
+status: closed
 deps: [ayo-ydub, ayo-8nn8, ayo-rdao, ayo-tha0, ayo-1ryh, ayo-ieiy, ayo-fwye, ayo-qbsu]
 links: []
 created: 2026-02-23T22:16:35Z
