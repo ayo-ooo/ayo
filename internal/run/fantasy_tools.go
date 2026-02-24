@@ -24,6 +24,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/tools"
 	"github.com/alexcabrera/ayo/internal/tools/delegate"
 	"github.com/alexcabrera/ayo/internal/tools/findagent"
+	"github.com/alexcabrera/ayo/internal/tools/humaninput"
 	"github.com/alexcabrera/ayo/internal/tools/requestaccess"
 )
 
@@ -133,6 +134,9 @@ type ToolSetOptions struct {
 	SquadAgents       []string              // Agent handles in the squad
 	SquadConstitution *squads.Constitution  // Squad constitution for injection
 	SquadInvoker      squads.AgentInvoker   // Invoker for agent delegation
+
+	// Human-in-the-loop support
+	HumanInputRenderer humaninput.FormRenderer // Renderer for human input forms
 }
 
 // NewFantasyToolSet creates a Fantasy tool set with configurable options.
@@ -218,6 +222,12 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 				}))
 				loadedTools[resolvedName] = true
 			}
+		case "human_input":
+			// Add human input tool (renderer may be nil - tool handles this gracefully)
+			fantasyTools = append(fantasyTools, humaninput.NewHumanInputTool(humaninput.ToolConfig{
+				Renderer: opts.HumanInputRenderer,
+			}))
+			loadedTools[resolvedName] = true
 		default:
 			// Try to load as external tool from plugins
 			if tool := loadExternalTool(resolvedName, baseDir, opts.Depth, &cfg); tool != nil {
