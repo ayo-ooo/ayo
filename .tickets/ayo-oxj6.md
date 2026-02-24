@@ -1,6 +1,6 @@
 ---
 id: ayo-oxj6
-status: open
+status: closed
 deps: [ayo-n88v]
 links: []
 created: 2026-02-23T22:15:47Z

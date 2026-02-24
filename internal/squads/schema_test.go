@@ -233,3 +233,117 @@ func TestLoadSchemaFile_ReadError(t *testing.T) {
 		t.Error("expected error when reading directory as file")
 	}
 }
+
+func TestLoadSchemasFromDir_NewSchemasPath(t *testing.T) {
+	// Test that schemas/input.json and schemas/output.json are preferred
+	dir := t.TempDir()
+
+	// Create schemas subdirectory
+	schemasDir := filepath.Join(dir, "schemas")
+	if err := os.MkdirAll(schemasDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use new path: schemas/input.json
+	inputSchema := `{
+		"type": "object",
+		"properties": {
+			"action": {"type": "string"}
+		},
+		"required": ["action"]
+	}`
+	outputSchema := `{
+		"type": "object",
+		"properties": {
+			"status": {"type": "string"}
+		}
+	}`
+
+	if err := os.WriteFile(filepath.Join(schemasDir, "input.json"), []byte(inputSchema), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(schemasDir, "output.json"), []byte(outputSchema), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	schemas, err := loadSchemasFromDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if schemas.Input == nil {
+		t.Fatal("expected input schema from schemas/input.json")
+	}
+	if schemas.Output == nil {
+		t.Fatal("expected output schema from schemas/output.json")
+	}
+}
+
+func TestLoadSchemasFromDir_NewPathOverridesLegacy(t *testing.T) {
+	// New path takes precedence over legacy path
+	dir := t.TempDir()
+
+	// Create schemas subdirectory
+	schemasDir := filepath.Join(dir, "schemas")
+	if err := os.MkdirAll(schemasDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// New path schema with "new" in required
+	newSchema := `{
+		"type": "object",
+		"required": ["new_field"]
+	}`
+	if err := os.WriteFile(filepath.Join(schemasDir, "input.json"), []byte(newSchema), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Legacy path schema with "legacy" in required
+	legacySchema := `{
+		"type": "object",
+		"required": ["legacy_field"]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "input.jsonschema"), []byte(legacySchema), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	schemas, err := loadSchemasFromDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if schemas.Input == nil {
+		t.Fatal("expected input schema")
+	}
+
+	// Should use new path (has "new_field" in required)
+	if len(schemas.Input.Required) != 1 || schemas.Input.Required[0] != "new_field" {
+		t.Errorf("expected new path schema with required=[new_field], got %v", schemas.Input.Required)
+	}
+}
+
+func TestLoadSchemasFromDir_FallbackToLegacy(t *testing.T) {
+	// Falls back to legacy path when new path doesn't exist
+	dir := t.TempDir()
+
+	legacySchema := `{
+		"type": "object",
+		"required": ["legacy_field"]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "input.jsonschema"), []byte(legacySchema), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	schemas, err := loadSchemasFromDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if schemas.Input == nil {
+		t.Fatal("expected input schema from legacy path")
+	}
+
+	if len(schemas.Input.Required) != 1 || schemas.Input.Required[0] != "legacy_field" {
+		t.Errorf("expected legacy schema with required=[legacy_field], got %v", schemas.Input.Required)
+	}
+}

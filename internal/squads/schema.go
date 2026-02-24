@@ -45,20 +45,35 @@ func LoadSquadSchemas(squadName string) (*SquadSchemas, error) {
 
 // loadSchemasFromDir loads schemas from a specific directory.
 // This is separated for testability.
+// It looks for schemas in these locations (first found wins):
+//   - schemas/input.json and schemas/output.json (preferred)
+//   - input.jsonschema and output.jsonschema (legacy)
 func loadSchemasFromDir(dir string) (*SquadSchemas, error) {
 	schemas := &SquadSchemas{}
 
-	// Load input schema
-	inputSchema, err := loadSchemaFile(filepath.Join(dir, "input.jsonschema"))
+	// Load input schema - try new path first, then legacy
+	inputSchema, err := loadSchemaFile(filepath.Join(dir, "schemas", "input.json"))
 	if err != nil {
 		return nil, err
 	}
+	if inputSchema == nil {
+		inputSchema, err = loadSchemaFile(filepath.Join(dir, "input.jsonschema"))
+		if err != nil {
+			return nil, err
+		}
+	}
 	schemas.Input = inputSchema
 
-	// Load output schema
-	outputSchema, err := loadSchemaFile(filepath.Join(dir, "output.jsonschema"))
+	// Load output schema - try new path first, then legacy
+	outputSchema, err := loadSchemaFile(filepath.Join(dir, "schemas", "output.json"))
 	if err != nil {
 		return nil, err
+	}
+	if outputSchema == nil {
+		outputSchema, err = loadSchemaFile(filepath.Join(dir, "output.jsonschema"))
+		if err != nil {
+			return nil, err
+		}
 	}
 	schemas.Output = outputSchema
 
