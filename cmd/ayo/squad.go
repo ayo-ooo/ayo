@@ -13,6 +13,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/squads"
 )
 
@@ -84,6 +85,8 @@ Examples:
 }
 
 func squadListCmd() *cobra.Command {
+	var showPlugins bool
+
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all squads",
@@ -101,39 +104,81 @@ func squadListCmd() *cobra.Command {
 				return fmt.Errorf("list squads: %w", err)
 			}
 
-			if globalOutput.JSON {
-				return json.NewEncoder(os.Stdout).Encode(result)
+			// Get plugin squads if requested
+			var pluginSquads []plugins.SquadInfo
+			if showPlugins {
+				pluginSquads = plugins.ListAllSquadInfo()
 			}
 
-			if len(result.Squads) == 0 {
+			if globalOutput.JSON {
+				output := map[string]any{
+					"squads": result.Squads,
+				}
+				if showPlugins {
+					output["plugin_squads"] = pluginSquads
+				}
+				return json.NewEncoder(os.Stdout).Encode(output)
+			}
+
+			if len(result.Squads) == 0 && len(pluginSquads) == 0 {
 				fmt.Println(squadMutedStyle.Render("No squads configured"))
 				return nil
 			}
 
 			// Header
 			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#a78bfa"))
-			fmt.Println()
-			fmt.Println(headerStyle.Render("  Squads"))
-			fmt.Println(squadMutedStyle.Render("  " + strings.Repeat("─", 60)))
-			fmt.Println()
-
-			for _, squad := range result.Squads {
-				status := squadStatusColor(squad.Status).Render(fmt.Sprintf("[%s]", squad.Status))
-				name := squadNameStyle.Render(squad.Name)
-				
-				fmt.Printf("  %s %s\n", name, status)
-				if squad.Description != "" {
-					fmt.Printf("    %s\n", squadMutedStyle.Render(squad.Description))
-				}
-				if len(squad.Agents) > 0 {
-					fmt.Printf("    %s %s\n", squadMutedStyle.Render("Agents:"), strings.Join(squad.Agents, ", "))
-				}
+			
+			if len(result.Squads) > 0 {
 				fmt.Println()
+				fmt.Println(headerStyle.Render("  Squads"))
+				fmt.Println(squadMutedStyle.Render("  " + strings.Repeat("─", 60)))
+				fmt.Println()
+
+				for _, squad := range result.Squads {
+					status := squadStatusColor(squad.Status).Render(fmt.Sprintf("[%s]", squad.Status))
+					name := squadNameStyle.Render(squad.Name)
+					
+					fmt.Printf("  %s %s\n", name, status)
+					if squad.Description != "" {
+						fmt.Printf("    %s\n", squadMutedStyle.Render(squad.Description))
+					}
+					if len(squad.Agents) > 0 {
+						fmt.Printf("    %s %s\n", squadMutedStyle.Render("Agents:"), strings.Join(squad.Agents, ", "))
+					}
+					fmt.Println()
+				}
+			}
+
+			// Show plugin squads if requested
+			if showPlugins && len(pluginSquads) > 0 {
+				fmt.Println()
+				fmt.Println(headerStyle.Render("  Plugin Squads"))
+				fmt.Println(squadMutedStyle.Render("  " + strings.Repeat("─", 60)))
+				fmt.Println()
+
+				pluginStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#94a3b8"))
+				for _, ps := range pluginSquads {
+					name := squadNameStyle.Render(ps.Name)
+					plugin := pluginStyle.Render(fmt.Sprintf("(%s)", ps.PluginName))
+					
+					fmt.Printf("  %s %s\n", name, plugin)
+					if ps.Description != "" {
+						fmt.Printf("    %s\n", squadMutedStyle.Render(ps.Description))
+					}
+					if len(ps.Agents) > 0 {
+						fmt.Printf("    %s %s\n", squadMutedStyle.Render("Agents:"), strings.Join(ps.Agents, ", "))
+					}
+					fmt.Println()
+				}
+
+				fmt.Println(squadMutedStyle.Render("  Use 'ayo squad create <name> --from-plugin <squad>' to create from template"))
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&showPlugins, "plugins", false, "Also show available plugin squads")
 
 	return cmd
 }
@@ -147,6 +192,7 @@ func squadCreateCmd() *cobra.Command {
 		workspaceMount string
 		packages       []string
 		outputPath     string
+		fromPlugin     string
 	)
 
 	cmd := &cobra.Command{
@@ -172,6 +218,7 @@ func squadCreateCmd() *cobra.Command {
 				WorkspaceMount: workspaceMount,
 				Packages:       packages,
 				OutputPath:     outputPath,
+				FromPlugin:     fromPlugin,
 			}
 
 			result, err := client.SquadCreate(ctx, params)
@@ -195,6 +242,7 @@ func squadCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&workspaceMount, "workspace", "", "Host directory to mount as workspace")
 	cmd.Flags().StringSliceVarP(&packages, "packages", "p", nil, "Packages to install")
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Host directory for syncing work products")
+	cmd.Flags().StringVar(&fromPlugin, "from-plugin", "", "Create from a plugin squad template")
 
 	return cmd
 }

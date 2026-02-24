@@ -3,9 +3,13 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
+	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/alexcabrera/ayo/internal/plugins"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/tickets"
 )
@@ -39,6 +43,24 @@ func (r *SquadRPC) HandleSquadCreate(ctx context.Context, params json.RawMessage
 		return nil, NewError(ErrCodeInvalidParams, "name is required")
 	}
 
+	// If creating from plugin, load the plugin squad template
+	var pluginSquad *plugins.PluginSquad
+	if p.FromPlugin != "" {
+		ps, ok := plugins.DefaultSquadRegistry.Get(p.FromPlugin)
+		if !ok {
+			return nil, NewError(ErrCodeInvalidParams, "plugin squad not found: "+p.FromPlugin)
+		}
+		pluginSquad = ps
+
+		// Use plugin squad defaults if not overridden
+		if p.Description == "" {
+			p.Description = ps.Description
+		}
+		if len(p.Agents) == 0 {
+			p.Agents = ps.Agents
+		}
+	}
+
 	cfg := config.SquadConfig{
 		Name:           p.Name,
 		Description:    p.Description,
@@ -55,9 +77,45 @@ func (r *SquadRPC) HandleSquadCreate(ctx context.Context, params json.RawMessage
 		return nil, NewError(ErrCodeInternal, err.Error())
 	}
 
+	// Copy plugin squad files to local squad directory
+	if pluginSquad != nil {
+		if err := copyPluginSquadFiles(pluginSquad, p.Name); err != nil {
+			debug.Log("warning: failed to copy plugin squad files", "error", err)
+		}
+	}
+
 	return SquadCreateResult{
 		Squad: squadToInfo(squad, r.service),
 	}, nil
+}
+
+// copyPluginSquadFiles copies SQUAD.md and ayo.json from plugin to local squad.
+func copyPluginSquadFiles(ps *plugins.PluginSquad, squadName string) error {
+	squadDir := paths.SquadDir(squadName)
+
+	// Copy SQUAD.md
+	if ps.HasConstitution() {
+		content, err := ps.ReadConstitution()
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(squadDir, "SQUAD.md"), content, 0644); err != nil {
+			return err
+		}
+	}
+
+	// Copy ayo.json if exists
+	if ps.HasConfig() {
+		configContent, err := os.ReadFile(ps.ConfigPath)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(squadDir, "ayo.json"), configContent, 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // HandleSquadDestroy handles squads.destroy.

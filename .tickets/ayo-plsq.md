@@ -1,6 +1,6 @@
 ---
 id: ayo-plsq
-status: open
+status: closed
 deps: [ayo-pv3a]
 links: []
 created: 2026-02-23T12:00:00Z

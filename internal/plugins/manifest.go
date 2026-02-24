@@ -102,6 +102,10 @@ type Manifest struct {
 	// SandboxConfigs lists pre-configured sandbox environments this plugin provides.
 	// Each config represents a ready-to-use sandbox setup (e.g., GPU-enabled, Python env).
 	SandboxConfigs []SandboxConfigDef `json:"sandbox_configs,omitempty"`
+
+	// Squads lists squad definitions this plugin provides.
+	// Each squad includes a SQUAD.md constitution and optional bundled agents.
+	Squads []SquadDef `json:"squads,omitempty"`
 }
 
 // ProviderDef describes a provider implementation in a plugin.
@@ -157,6 +161,36 @@ type PlannerDef struct {
 // ValidPlannerType checks if a PlannerType is valid.
 func ValidPlannerType(t PlannerType) bool {
 	return t == PlannerTypeNear || t == PlannerTypeLong
+}
+
+// SquadDef describes a squad definition in a plugin.
+type SquadDef struct {
+	// Name is the unique identifier for this squad (e.g., "dev-team", "qa-squad").
+	Name string `json:"name"`
+
+	// Description briefly describes what this squad does.
+	Description string `json:"description,omitempty"`
+
+	// Path is the relative path to the squad directory within the plugin.
+	// The directory should contain SQUAD.md and optionally ayo.json.
+	// If empty, defaults to "squads/{name}".
+	Path string `json:"path,omitempty"`
+
+	// Agents lists the agent handles that are part of this squad.
+	// Can include bundled agents from the same plugin or external references.
+	Agents []string `json:"agents,omitempty"`
+
+	// Planners configures the planners for this squad.
+	Planners *SquadPlannerConfig `json:"planners,omitempty"`
+}
+
+// SquadPlannerConfig configures planners for a squad.
+type SquadPlannerConfig struct {
+	// NearTerm is the near-term planner to use (e.g., "ayo-todos").
+	NearTerm string `json:"near_term,omitempty"`
+
+	// LongTerm is the long-term planner to use (e.g., "ayo-tickets").
+	LongTerm string `json:"long_term,omitempty"`
 }
 
 // Dependencies specifies external requirements for a plugin.
@@ -293,6 +327,8 @@ var (
 	ErrDuplicatePlannerName  = errors.New("manifest: duplicate planner name")
 	ErrMissingSandboxCfgName = errors.New("manifest: sandbox config name is required")
 	ErrDuplicateSandboxCfg   = errors.New("manifest: duplicate sandbox config name")
+	ErrMissingSquadName      = errors.New("manifest: squad name is required")
+	ErrDuplicateSquadName    = errors.New("manifest: duplicate squad name")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -361,6 +397,11 @@ func (m *Manifest) Validate() error {
 
 	// Validate sandbox configs
 	if err := m.validateSandboxConfigs(); err != nil {
+		return err
+	}
+
+	// Validate squads
+	if err := m.validateSquads(); err != nil {
 		return err
 	}
 
@@ -434,6 +475,24 @@ func (m *Manifest) validateSandboxConfigs() error {
 			return fmt.Errorf("%w: %s", ErrDuplicateSandboxCfg, c.Name)
 		}
 		seen[c.Name] = true
+	}
+
+	return nil
+}
+
+// validateSquads checks that squad definitions are valid.
+func (m *Manifest) validateSquads() error {
+	seen := make(map[string]bool)
+
+	for i, s := range m.Squads {
+		if s.Name == "" {
+			return fmt.Errorf("%w (squad %d)", ErrMissingSquadName, i)
+		}
+
+		if seen[s.Name] {
+			return fmt.Errorf("%w: %s", ErrDuplicateSquadName, s.Name)
+		}
+		seen[s.Name] = true
 	}
 
 	return nil

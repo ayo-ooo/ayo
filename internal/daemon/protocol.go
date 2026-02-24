@@ -685,6 +685,7 @@ type SquadCreateParams struct {
 	WorkspaceMount string   `json:"workspace_mount,omitempty"`
 	Packages       []string `json:"packages,omitempty"`
 	OutputPath     string   `json:"output_path,omitempty"`
+	FromPlugin     string   `json:"from_plugin,omitempty"` // Create from plugin squad template
 }
 
 // SquadCreateResult is the response to squads.create.

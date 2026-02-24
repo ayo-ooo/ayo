@@ -54,6 +54,9 @@ type InstalledPlugin struct {
 	// Tools lists the installed tool names.
 	Tools []string `json:"tools,omitempty"`
 
+	// Squads lists the installed squad names.
+	Squads []string `json:"squads,omitempty"`
+
 	// Disabled indicates the plugin is installed but not active.
 	Disabled bool `json:"disabled,omitempty"`
 
