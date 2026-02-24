@@ -1,6 +1,6 @@
 ---
 id: ayo-fwye
-status: open
+status: closed
 deps: [ayo-1ryh]
 links: []
 created: 2026-02-23T22:15:11Z

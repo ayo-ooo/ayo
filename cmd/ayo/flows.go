@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/flows"
 	"github.com/alexcabrera/ayo/internal/paths"
@@ -43,12 +41,10 @@ Discovery priority (first found wins):
 
 	cmd.AddCommand(listFlowsCmd())
 	cmd.AddCommand(showFlowCmd())
-	cmd.AddCommand(runFlowCmd(cfgPath))
 	cmd.AddCommand(validateFlowCmd())
 	cmd.AddCommand(newFlowCmd())
 	cmd.AddCommand(rmFlowCmd())
 	cmd.AddCommand(historyFlowsCmd(cfgPath))
-	cmd.AddCommand(replayFlowCmd(cfgPath))
 	cmd.AddCommand(statsFlowsCmd())
 
 	return cmd
@@ -357,138 +353,6 @@ func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", width-len(s))
 }
 
-func runFlowCmd(cfgPath *string) *cobra.Command {
-	var inputFile string
-	var timeout int
-	var validate bool
-	var noHistory bool
-
-	cmd := &cobra.Command{
-		Use:   "run <name> [input]",
-		Short: "Execute a flow",
-		Long: `Execute a flow and return JSON output.
-
-Input can be provided as:
-  - Second argument: ayo flows run myflow '{"key": "value"}'
-  - Stdin: echo '{"key": "value"}' | ayo flows run myflow
-  - File: ayo flows run myflow --input data.json
-
-Output:
-  - Stdout: JSON result from the flow
-  - Stderr: Logs and progress (streamed in real-time)
-
-Exit codes:
-  0 - Success
-  1 - General error
-  2 - Input validation failed
-  3 - Flow execution failed
-  124 - Timeout`,
-		Args: cobra.RangeArgs(1, 2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
-
-			// Discover flows
-			dirs := paths.FlowsDirs()
-			discovered, err := flows.Discover(dirs)
-			if err != nil {
-				return fmt.Errorf("discover flows: %w", err)
-			}
-
-			// Find the flow
-			var flow *flows.Flow
-			for _, f := range discovered {
-				if f.Name == name {
-					flow = &f
-					break
-				}
-			}
-
-			if flow == nil {
-				return fmt.Errorf("flow not found: %s", name)
-			}
-
-			// Build run options
-			opts := flows.RunOptions{
-				Timeout:  time.Duration(timeout) * time.Second,
-				Validate: validate,
-			}
-
-			// Input from argument
-			if len(args) > 1 {
-				opts.Input = args[1]
-			}
-
-			// Input from file
-			if inputFile != "" {
-				opts.InputFile = inputFile
-			}
-
-			// Check if stdin has data (only if no other input provided)
-			if opts.Input == "" && opts.InputFile == "" && !isTerminal(os.Stdin) {
-				data, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("read stdin: %w", err)
-				}
-				opts.Input = string(data)
-			}
-
-			// Setup history recording if not disabled
-			if !noHistory && !validate {
-				cfg, err := config.Load(*cfgPath)
-				if err == nil {
-					_, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-					if err == nil {
-						opts.History = flows.NewHistoryService(queries)
-						opts.AutoPrune = true
-						opts.RetentionDays = cfg.Flows.HistoryRetentionDays
-						opts.MaxRuns = int64(cfg.Flows.HistoryMaxRuns)
-					}
-				}
-			}
-
-			// Run the flow with stderr streaming
-			result, err := flows.RunStreaming(cmd.Context(), flow, opts, os.Stderr)
-			if err != nil {
-				return err
-			}
-
-			// Handle result
-			if result.Error != nil {
-				fmt.Fprintln(os.Stderr, result.Error)
-			}
-
-			// Output stdout (JSON)
-			if result.Stdout != "" {
-				fmt.Print(result.Stdout)
-			}
-
-			// Exit with appropriate code
-			switch result.Status {
-			case flows.RunStatusSuccess:
-				return nil
-			case flows.RunStatusValidationFailed:
-				os.Exit(2)
-			case flows.RunStatusTimeout:
-				os.Exit(124)
-			default:
-				if result.ExitCode != 0 {
-					os.Exit(result.ExitCode)
-				}
-				os.Exit(1)
-			}
-
-			return nil
-		},
-	}
-
-	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Input file path")
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "Timeout in seconds (default 5 minutes)")
-	cmd.Flags().BoolVar(&validate, "validate", false, "Validate input only, don't run")
-	cmd.Flags().BoolVar(&noHistory, "no-history", false, "Don't record run in history")
-
-	return cmd
-}
-
 func validateFlowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate <name-or-path>",
@@ -657,15 +521,6 @@ echo "$INPUT"
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite if exists")
 
 	return cmd
-}
-
-// isTerminal checks if a file descriptor is a terminal
-func isTerminal(f *os.File) bool {
-	stat, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
 func historyFlowsCmd(cfgPath *string) *cobra.Command {
@@ -951,112 +806,6 @@ func formatJSON(s string) string {
 		return "  " + s
 	}
 	return "  " + string(formatted)
-}
-
-func replayFlowCmd(cfgPath *string) *cobra.Command {
-	var timeout int
-	var noHistory bool
-
-	cmd := &cobra.Command{
-		Use:   "replay <run-id>",
-		Short: "Replay a flow run with its original input",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			runID := args[0]
-
-			_, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-			if err != nil {
-				return fmt.Errorf("connect to database: %w", err)
-			}
-
-			history := flows.NewHistoryService(queries)
-
-			// Get the original run
-			run, err := history.GetRun(cmd.Context(), runID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return fmt.Errorf("run not found: %s", runID)
-				}
-				return fmt.Errorf("get run: %w", err)
-			}
-
-			// Discover flows to find the current version
-			dirs := paths.FlowsDirs()
-			discovered, err := flows.Discover(dirs)
-			if err != nil {
-				return fmt.Errorf("discover flows: %w", err)
-			}
-
-			// Find the flow
-			var flow *flows.Flow
-			for _, f := range discovered {
-				if f.Name == run.FlowName {
-					flow = &f
-					break
-				}
-			}
-
-			if flow == nil {
-				return fmt.Errorf("flow no longer exists: %s", run.FlowName)
-			}
-
-			// Build run options
-			opts := flows.RunOptions{
-				Input:   run.InputJSON,
-				Timeout: time.Duration(timeout) * time.Second,
-			}
-
-			// Setup history recording if not disabled
-			if !noHistory {
-				cfg, err := config.Load(*cfgPath)
-				if err == nil {
-					opts.History = history
-					opts.AutoPrune = true
-					opts.RetentionDays = cfg.Flows.HistoryRetentionDays
-					opts.MaxRuns = int64(cfg.Flows.HistoryMaxRuns)
-					opts.ParentRunID = run.ID // Link to original run
-				}
-			}
-
-			// Run the flow with stderr streaming
-			result, err := flows.RunStreaming(cmd.Context(), flow, opts, os.Stderr)
-			if err != nil {
-				return err
-			}
-
-			// Handle result
-			if result.Error != nil {
-				fmt.Fprintln(os.Stderr, result.Error)
-			}
-
-			// Output stdout (JSON)
-			if result.Stdout != "" {
-				fmt.Print(result.Stdout)
-			}
-
-			// Exit with appropriate code
-			switch result.Status {
-			case flows.RunStatusSuccess:
-				return nil
-			case flows.RunStatusValidationFailed:
-				os.Exit(2)
-			case flows.RunStatusTimeout:
-				os.Exit(124)
-			default:
-				if result.ExitCode != 0 {
-					os.Exit(result.ExitCode)
-				}
-				os.Exit(1)
-			}
-
-			return nil
-		},
-	}
-
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "Timeout in seconds (default 5 minutes)")
-	cmd.Flags().BoolVar(&noHistory, "no-history", false, "Don't record replay in history")
-
-	return cmd
 }
 
 func rmFlowCmd() *cobra.Command {
