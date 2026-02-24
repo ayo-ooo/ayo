@@ -246,10 +246,12 @@ type RetrievalConfig struct {
 	MaxMemories int     `json:"max_memories,omitempty"` // Context budget
 }
 
-// GuardrailsPrompt is the hardcoded safety guardrails applied to agents.
+// GuardrailsPrompt returns the safety guardrails applied to agents.
 // This is injected at runtime when guardrails are enabled.
-// For backward compatibility, this re-exports the legacy guardrails from the guardrails package.
-var GuardrailsPrompt = guardrails.LegacyGuardrails
+// Prompts are loaded from ~/.local/share/ayo/prompts/ with fallback to embedded defaults.
+func GuardrailsPrompt() string {
+	return guardrails.LegacyGuardrails()
+}
 
 // GuardrailsEnabled returns true if guardrails should be applied for this agent.
 // @ayo namespace agents always have guardrails enabled regardless of config.
@@ -573,7 +575,7 @@ func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn
 	combinedParts := make([]string, 0, 5)
 	combinedParts = append(combinedParts, envContext)
 	if guardrailsEnabled {
-		combinedParts = append(combinedParts, GuardrailsPrompt)
+		combinedParts = append(combinedParts, GuardrailsPrompt())
 	}
 	if prefix != "" {
 		combinedParts = append(combinedParts, prefix)

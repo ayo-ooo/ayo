@@ -93,8 +93,8 @@ func (g *Guardrails) renderTemplate(text string, ctx WrapContext) string {
 // falling back to defaults if custom files don't exist.
 func Load(configDir string) *Guardrails {
 	g := &Guardrails{
-		Prefix: DefaultPrefix,
-		Suffix: DefaultSuffix,
+		Prefix: DefaultPrefix(),
+		Suffix: DefaultSuffix(),
 	}
 
 	guardrailsDir := filepath.Join(configDir, "guardrails")
@@ -119,8 +119,8 @@ func Load(configDir string) *Guardrails {
 // Default returns Guardrails with default PREFIX and SUFFIX.
 func Default() *Guardrails {
 	return &Guardrails{
-		Prefix: DefaultPrefix,
-		Suffix: DefaultSuffix,
+		Prefix: DefaultPrefix(),
+		Suffix: DefaultSuffix(),
 	}
 }
 

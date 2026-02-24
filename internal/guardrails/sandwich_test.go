@@ -131,10 +131,10 @@ func TestLoad(t *testing.T) {
 		tmpDir := t.TempDir()
 		g := Load(tmpDir)
 
-		if g.Prefix != DefaultPrefix {
+		if g.Prefix != DefaultPrefix() {
 			t.Error("expected default prefix when no custom file")
 		}
-		if g.Suffix != DefaultSuffix {
+		if g.Suffix != DefaultSuffix() {
 			t.Error("expected default suffix when no custom file")
 		}
 	})
@@ -156,7 +156,7 @@ func TestLoad(t *testing.T) {
 		if g.Prefix != customPrefix {
 			t.Errorf("expected custom prefix %q, got %q", customPrefix, g.Prefix)
 		}
-		if g.Suffix != DefaultSuffix {
+		if g.Suffix != DefaultSuffix() {
 			t.Error("expected default suffix when no custom suffix file")
 		}
 	})
@@ -175,7 +175,7 @@ func TestLoad(t *testing.T) {
 
 		g := Load(tmpDir)
 
-		if g.Prefix != DefaultPrefix {
+		if g.Prefix != DefaultPrefix() {
 			t.Error("expected default prefix when no custom prefix file")
 		}
 		if g.Suffix != customSuffix {
@@ -212,13 +212,13 @@ func TestLoad(t *testing.T) {
 
 func TestLegacyGuardrailsContent(t *testing.T) {
 	// Verify legacy guardrails has expected content
-	if !strings.Contains(LegacyGuardrails, "<guardrails>") {
+	if !strings.Contains(LegacyGuardrails(), "<guardrails>") {
 		t.Error("legacy guardrails should have XML-style tags")
 	}
-	if !strings.Contains(LegacyGuardrails, "No malicious code") {
+	if !strings.Contains(LegacyGuardrails(), "No malicious code") {
 		t.Error("legacy guardrails should mention malicious code")
 	}
-	if !strings.Contains(LegacyGuardrails, "No credential exposure") {
+	if !strings.Contains(LegacyGuardrails(), "No credential exposure") {
 		t.Error("legacy guardrails should mention credential exposure")
 	}
 }
