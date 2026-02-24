@@ -1,9 +1,9 @@
 -- name: CreateMemory :exec
 INSERT INTO memories (
-    id, agent_handle, path_scope, content, category, embedding,
+    id, agent_handle, path_scope, squad_name, content, category, embedding,
     source_session_id, source_message_id, created_at, updated_at,
     confidence, status
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetMemory :one
 SELECT * FROM memories WHERE id = ?;
@@ -129,3 +129,31 @@ WHERE agent_handle = ?;
 UPDATE memories SET
     status = 'forgotten',
     updated_at = ?;
+
+-- name: ListMemoriesBySquad :many
+SELECT * FROM memories
+WHERE squad_name = sqlc.arg(squad)
+  AND status = COALESCE(sqlc.narg(status), 'active')
+ORDER BY created_at DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountMemoriesBySquad :one
+SELECT COUNT(*) FROM memories
+WHERE squad_name = ?
+  AND status = COALESCE(sqlc.narg(status), 'active');
+
+-- name: GetMemoriesForSearchWithSquad :many
+SELECT id, agent_handle, path_scope, squad_name, content, category, embedding, confidence,
+       last_accessed_at, access_count, created_at
+FROM memories
+WHERE status = 'active'
+  AND embedding IS NOT NULL
+  AND (agent_handle = sqlc.narg(agent_handle) OR agent_handle IS NULL OR sqlc.narg(agent_handle) IS NULL)
+  AND (path_scope = sqlc.narg(path_scope) OR path_scope IS NULL OR sqlc.narg(path_scope) IS NULL)
+  AND (squad_name = sqlc.narg(squad_name) OR squad_name IS NULL OR sqlc.narg(squad_name) IS NULL);
+
+-- name: ClearMemoriesBySquad :exec
+UPDATE memories SET
+    status = 'forgotten',
+    updated_at = ?
+WHERE squad_name = ?;

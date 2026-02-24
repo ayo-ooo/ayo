@@ -38,6 +38,23 @@ func (q *Queries) ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByA
 	return err
 }
 
+const clearMemoriesBySquad = `-- name: ClearMemoriesBySquad :exec
+UPDATE memories SET
+    status = 'forgotten',
+    updated_at = ?
+WHERE squad_name = ?
+`
+
+type ClearMemoriesBySquadParams struct {
+	UpdatedAt int64          `json:"updated_at"`
+	SquadName sql.NullString `json:"squad_name"`
+}
+
+func (q *Queries) ClearMemoriesBySquad(ctx context.Context, arg ClearMemoriesBySquadParams) error {
+	_, err := q.exec(ctx, q.clearMemoriesBySquadStmt, clearMemoriesBySquad, arg.UpdatedAt, arg.SquadName)
+	return err
+}
+
 const countMemories = `-- name: CountMemories :one
 SELECT COUNT(*) FROM memories WHERE status = COALESCE(?1, 'active')
 `
@@ -67,18 +84,37 @@ func (q *Queries) CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByA
 	return count, err
 }
 
+const countMemoriesBySquad = `-- name: CountMemoriesBySquad :one
+SELECT COUNT(*) FROM memories
+WHERE squad_name = ?
+  AND status = COALESCE(?2, 'active')
+`
+
+type CountMemoriesBySquadParams struct {
+	SquadName sql.NullString `json:"squad_name"`
+	Status    sql.NullString `json:"status"`
+}
+
+func (q *Queries) CountMemoriesBySquad(ctx context.Context, arg CountMemoriesBySquadParams) (int64, error) {
+	row := q.queryRow(ctx, q.countMemoriesBySquadStmt, countMemoriesBySquad, arg.SquadName, arg.Status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMemory = `-- name: CreateMemory :exec
 INSERT INTO memories (
-    id, agent_handle, path_scope, content, category, embedding,
+    id, agent_handle, path_scope, squad_name, content, category, embedding,
     source_session_id, source_message_id, created_at, updated_at,
     confidence, status
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateMemoryParams struct {
 	ID              string          `json:"id"`
 	AgentHandle     sql.NullString  `json:"agent_handle"`
 	PathScope       sql.NullString  `json:"path_scope"`
+	SquadName       sql.NullString  `json:"squad_name"`
 	Content         string          `json:"content"`
 	Category        string          `json:"category"`
 	Embedding       []byte          `json:"embedding"`
@@ -95,6 +131,7 @@ func (q *Queries) CreateMemory(ctx context.Context, arg CreateMemoryParams) erro
 		arg.ID,
 		arg.AgentHandle,
 		arg.PathScope,
+		arg.SquadName,
 		arg.Content,
 		arg.Category,
 		arg.Embedding,
@@ -251,8 +288,74 @@ func (q *Queries) GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSe
 	return items, nil
 }
 
+const getMemoriesForSearchWithSquad = `-- name: GetMemoriesForSearchWithSquad :many
+SELECT id, agent_handle, path_scope, squad_name, content, category, embedding, confidence,
+       last_accessed_at, access_count, created_at
+FROM memories
+WHERE status = 'active'
+  AND embedding IS NOT NULL
+  AND (agent_handle = ?1 OR agent_handle IS NULL OR ?1 IS NULL)
+  AND (path_scope = ?2 OR path_scope IS NULL OR ?2 IS NULL)
+  AND (squad_name = ?3 OR squad_name IS NULL OR ?3 IS NULL)
+`
+
+type GetMemoriesForSearchWithSquadParams struct {
+	AgentHandle sql.NullString `json:"agent_handle"`
+	PathScope   sql.NullString `json:"path_scope"`
+	SquadName   sql.NullString `json:"squad_name"`
+}
+
+type GetMemoriesForSearchWithSquadRow struct {
+	ID             string          `json:"id"`
+	AgentHandle    sql.NullString  `json:"agent_handle"`
+	PathScope      sql.NullString  `json:"path_scope"`
+	SquadName      sql.NullString  `json:"squad_name"`
+	Content        string          `json:"content"`
+	Category       string          `json:"category"`
+	Embedding      []byte          `json:"embedding"`
+	Confidence     sql.NullFloat64 `json:"confidence"`
+	LastAccessedAt sql.NullInt64   `json:"last_accessed_at"`
+	AccessCount    sql.NullInt64   `json:"access_count"`
+	CreatedAt      int64           `json:"created_at"`
+}
+
+func (q *Queries) GetMemoriesForSearchWithSquad(ctx context.Context, arg GetMemoriesForSearchWithSquadParams) ([]GetMemoriesForSearchWithSquadRow, error) {
+	rows, err := q.query(ctx, q.getMemoriesForSearchWithSquadStmt, getMemoriesForSearchWithSquad, arg.AgentHandle, arg.PathScope, arg.SquadName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetMemoriesForSearchWithSquadRow{}
+	for rows.Next() {
+		var i GetMemoriesForSearchWithSquadRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.SquadName,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMemory = `-- name: GetMemory :one
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories WHERE id = ?
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories WHERE id = ?
 `
 
 func (q *Queries) GetMemory(ctx context.Context, id string) (Memory, error) {
@@ -276,6 +379,7 @@ func (q *Queries) GetMemory(ctx context.Context, id string) (Memory, error) {
 		&i.SupersededByID,
 		&i.SupersessionReason,
 		&i.Status,
+		&i.SquadName,
 	)
 	return i, err
 }
@@ -343,7 +447,7 @@ func (q *Queries) GetMemoryHistory(ctx context.Context, id string) ([]GetMemoryH
 }
 
 const listMemories = `-- name: ListMemories :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
 WHERE status = COALESCE(?1, 'active')
 ORDER BY created_at DESC
 LIMIT ?3 OFFSET ?2
@@ -382,6 +486,7 @@ func (q *Queries) ListMemories(ctx context.Context, arg ListMemoriesParams) ([]M
 			&i.SupersededByID,
 			&i.SupersessionReason,
 			&i.Status,
+			&i.SquadName,
 		); err != nil {
 			return nil, err
 		}
@@ -397,7 +502,7 @@ func (q *Queries) ListMemories(ctx context.Context, arg ListMemoriesParams) ([]M
 }
 
 const listMemoriesByAgent = `-- name: ListMemoriesByAgent :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
 WHERE agent_handle = ?1
   AND status = COALESCE(?2, 'active')
 ORDER BY created_at DESC
@@ -443,6 +548,7 @@ func (q *Queries) ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAge
 			&i.SupersededByID,
 			&i.SupersessionReason,
 			&i.Status,
+			&i.SquadName,
 		); err != nil {
 			return nil, err
 		}
@@ -458,7 +564,7 @@ func (q *Queries) ListMemoriesByAgent(ctx context.Context, arg ListMemoriesByAge
 }
 
 const listMemoriesByAgentAndPath = `-- name: ListMemoriesByAgentAndPath :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
 WHERE (agent_handle = ?1 OR agent_handle IS NULL)
   AND (path_scope = ?2 OR path_scope IS NULL)
   AND status = COALESCE(?3, 'active')
@@ -510,6 +616,7 @@ func (q *Queries) ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemori
 			&i.SupersededByID,
 			&i.SupersessionReason,
 			&i.Status,
+			&i.SquadName,
 		); err != nil {
 			return nil, err
 		}
@@ -525,7 +632,7 @@ func (q *Queries) ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemori
 }
 
 const listMemoriesByCategory = `-- name: ListMemoriesByCategory :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
 WHERE category = ?1
   AND status = COALESCE(?2, 'active')
 ORDER BY created_at DESC
@@ -571,6 +678,7 @@ func (q *Queries) ListMemoriesByCategory(ctx context.Context, arg ListMemoriesBy
 			&i.SupersededByID,
 			&i.SupersessionReason,
 			&i.Status,
+			&i.SquadName,
 		); err != nil {
 			return nil, err
 		}
@@ -586,7 +694,7 @@ func (q *Queries) ListMemoriesByCategory(ctx context.Context, arg ListMemoriesBy
 }
 
 const listMemoriesByPath = `-- name: ListMemoriesByPath :many
-SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status FROM memories
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
 WHERE (path_scope = ?1 OR path_scope IS NULL)
   AND status = COALESCE(?2, 'active')
 ORDER BY 
@@ -634,6 +742,69 @@ func (q *Queries) ListMemoriesByPath(ctx context.Context, arg ListMemoriesByPath
 			&i.SupersededByID,
 			&i.SupersessionReason,
 			&i.Status,
+			&i.SquadName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemoriesBySquad = `-- name: ListMemoriesBySquad :many
+SELECT id, agent_handle, path_scope, content, category, embedding, source_session_id, source_message_id, created_at, updated_at, confidence, last_accessed_at, access_count, supersedes_id, superseded_by_id, supersession_reason, status, squad_name FROM memories
+WHERE squad_name = ?1
+  AND status = COALESCE(?2, 'active')
+ORDER BY created_at DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListMemoriesBySquadParams struct {
+	Squad  sql.NullString `json:"squad"`
+	Status sql.NullString `json:"status"`
+	Off    int64          `json:"off"`
+	Lim    int64          `json:"lim"`
+}
+
+func (q *Queries) ListMemoriesBySquad(ctx context.Context, arg ListMemoriesBySquadParams) ([]Memory, error) {
+	rows, err := q.query(ctx, q.listMemoriesBySquadStmt, listMemoriesBySquad,
+		arg.Squad,
+		arg.Status,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Memory{}
+	for rows.Next() {
+		var i Memory
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentHandle,
+			&i.PathScope,
+			&i.Content,
+			&i.Category,
+			&i.Embedding,
+			&i.SourceSessionID,
+			&i.SourceMessageID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Confidence,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+			&i.SupersedesID,
+			&i.SupersededByID,
+			&i.SupersessionReason,
+			&i.Status,
+			&i.SquadName,
 		); err != nil {
 			return nil, err
 		}

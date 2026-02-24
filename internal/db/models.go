@@ -87,6 +87,7 @@ type Memory struct {
 	SupersededByID     sql.NullString  `json:"superseded_by_id"`
 	SupersessionReason sql.NullString  `json:"supersession_reason"`
 	Status             sql.NullString  `json:"status"`
+	SquadName          sql.NullString  `json:"squad_name"`
 }
 
 type Message struct {

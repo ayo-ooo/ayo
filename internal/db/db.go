@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.clearMemoriesByAgentStmt, err = db.PrepareContext(ctx, clearMemoriesByAgent); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearMemoriesByAgent: %w", err)
 	}
+	if q.clearMemoriesBySquadStmt, err = db.PrepareContext(ctx, clearMemoriesBySquad); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearMemoriesBySquad: %w", err)
+	}
 	if q.completeFlowRunStmt, err = db.PrepareContext(ctx, completeFlowRun); err != nil {
 		return nil, fmt.Errorf("error preparing query CompleteFlowRun: %w", err)
 	}
@@ -50,6 +53,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.countMemoriesByAgentStmt, err = db.PrepareContext(ctx, countMemoriesByAgent); err != nil {
 		return nil, fmt.Errorf("error preparing query CountMemoriesByAgent: %w", err)
+	}
+	if q.countMemoriesBySquadStmt, err = db.PrepareContext(ctx, countMemoriesBySquad); err != nil {
+		return nil, fmt.Errorf("error preparing query CountMemoriesBySquad: %w", err)
 	}
 	if q.countMessagesBySessionStmt, err = db.PrepareContext(ctx, countMessagesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query CountMessagesBySession: %w", err)
@@ -153,6 +159,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getMemoriesForSearchStmt, err = db.PrepareContext(ctx, getMemoriesForSearch); err != nil {
 		return nil, fmt.Errorf("error preparing query GetMemoriesForSearch: %w", err)
 	}
+	if q.getMemoriesForSearchWithSquadStmt, err = db.PrepareContext(ctx, getMemoriesForSearchWithSquad); err != nil {
+		return nil, fmt.Errorf("error preparing query GetMemoriesForSearchWithSquad: %w", err)
+	}
 	if q.getMemoryStmt, err = db.PrepareContext(ctx, getMemory); err != nil {
 		return nil, fmt.Errorf("error preparing query GetMemory: %w", err)
 	}
@@ -209,6 +218,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listMemoriesByPathStmt, err = db.PrepareContext(ctx, listMemoriesByPath); err != nil {
 		return nil, fmt.Errorf("error preparing query ListMemoriesByPath: %w", err)
+	}
+	if q.listMemoriesBySquadStmt, err = db.PrepareContext(ctx, listMemoriesBySquad); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMemoriesBySquad: %w", err)
 	}
 	if q.listMessagesBySessionStmt, err = db.PrepareContext(ctx, listMessagesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query ListMessagesBySession: %w", err)
@@ -293,6 +305,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing clearMemoriesByAgentStmt: %w", cerr)
 		}
 	}
+	if q.clearMemoriesBySquadStmt != nil {
+		if cerr := q.clearMemoriesBySquadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearMemoriesBySquadStmt: %w", cerr)
+		}
+	}
 	if q.completeFlowRunStmt != nil {
 		if cerr := q.completeFlowRunStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing completeFlowRunStmt: %w", cerr)
@@ -321,6 +338,11 @@ func (q *Queries) Close() error {
 	if q.countMemoriesByAgentStmt != nil {
 		if cerr := q.countMemoriesByAgentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countMemoriesByAgentStmt: %w", cerr)
+		}
+	}
+	if q.countMemoriesBySquadStmt != nil {
+		if cerr := q.countMemoriesBySquadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countMemoriesBySquadStmt: %w", cerr)
 		}
 	}
 	if q.countMessagesBySessionStmt != nil {
@@ -493,6 +515,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getMemoriesForSearchStmt: %w", cerr)
 		}
 	}
+	if q.getMemoriesForSearchWithSquadStmt != nil {
+		if cerr := q.getMemoriesForSearchWithSquadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getMemoriesForSearchWithSquadStmt: %w", cerr)
+		}
+	}
 	if q.getMemoryStmt != nil {
 		if cerr := q.getMemoryStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getMemoryStmt: %w", cerr)
@@ -586,6 +613,11 @@ func (q *Queries) Close() error {
 	if q.listMemoriesByPathStmt != nil {
 		if cerr := q.listMemoriesByPathStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listMemoriesByPathStmt: %w", cerr)
+		}
+	}
+	if q.listMemoriesBySquadStmt != nil {
+		if cerr := q.listMemoriesBySquadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMemoriesBySquadStmt: %w", cerr)
 		}
 	}
 	if q.listMessagesBySessionStmt != nil {
@@ -735,12 +767,14 @@ type Queries struct {
 	archiveAyoAgentStmt                    *sql.Stmt
 	clearAllMemoriesStmt                   *sql.Stmt
 	clearMemoriesByAgentStmt               *sql.Stmt
+	clearMemoriesBySquadStmt               *sql.Stmt
 	completeFlowRunStmt                    *sql.Stmt
 	countFlowRunsStmt                      *sql.Stmt
 	countFlowRunsByNameStmt                *sql.Stmt
 	countFlowRunsByStatusStmt              *sql.Stmt
 	countMemoriesStmt                      *sql.Stmt
 	countMemoriesByAgentStmt               *sql.Stmt
+	countMemoriesBySquadStmt               *sql.Stmt
 	countMessagesBySessionStmt             *sql.Stmt
 	countSessionsStmt                      *sql.Stmt
 	countSessionsByAgentStmt               *sql.Stmt
@@ -775,6 +809,7 @@ type Queries struct {
 	getLastFlowRunStmt                     *sql.Stmt
 	getLatestRefinementStmt                *sql.Stmt
 	getMemoriesForSearchStmt               *sql.Stmt
+	getMemoriesForSearchWithSquadStmt      *sql.Stmt
 	getMemoryStmt                          *sql.Stmt
 	getMemoryHistoryStmt                   *sql.Stmt
 	getMessageStmt                         *sql.Stmt
@@ -794,6 +829,7 @@ type Queries struct {
 	listMemoriesByAgentAndPathStmt         *sql.Stmt
 	listMemoriesByCategoryStmt             *sql.Stmt
 	listMemoriesByPathStmt                 *sql.Stmt
+	listMemoriesBySquadStmt                *sql.Stmt
 	listMessagesBySessionStmt              *sql.Stmt
 	listSessionsStmt                       *sql.Stmt
 	listSessionsByAgentStmt                *sql.Stmt
@@ -824,12 +860,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		archiveAyoAgentStmt:                    q.archiveAyoAgentStmt,
 		clearAllMemoriesStmt:                   q.clearAllMemoriesStmt,
 		clearMemoriesByAgentStmt:               q.clearMemoriesByAgentStmt,
+		clearMemoriesBySquadStmt:               q.clearMemoriesBySquadStmt,
 		completeFlowRunStmt:                    q.completeFlowRunStmt,
 		countFlowRunsStmt:                      q.countFlowRunsStmt,
 		countFlowRunsByNameStmt:                q.countFlowRunsByNameStmt,
 		countFlowRunsByStatusStmt:              q.countFlowRunsByStatusStmt,
 		countMemoriesStmt:                      q.countMemoriesStmt,
 		countMemoriesByAgentStmt:               q.countMemoriesByAgentStmt,
+		countMemoriesBySquadStmt:               q.countMemoriesBySquadStmt,
 		countMessagesBySessionStmt:             q.countMessagesBySessionStmt,
 		countSessionsStmt:                      q.countSessionsStmt,
 		countSessionsByAgentStmt:               q.countSessionsByAgentStmt,
@@ -864,6 +902,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getLastFlowRunStmt:                     q.getLastFlowRunStmt,
 		getLatestRefinementStmt:                q.getLatestRefinementStmt,
 		getMemoriesForSearchStmt:               q.getMemoriesForSearchStmt,
+		getMemoriesForSearchWithSquadStmt:      q.getMemoriesForSearchWithSquadStmt,
 		getMemoryStmt:                          q.getMemoryStmt,
 		getMemoryHistoryStmt:                   q.getMemoryHistoryStmt,
 		getMessageStmt:                         q.getMessageStmt,
@@ -883,6 +922,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listMemoriesByAgentAndPathStmt:         q.listMemoriesByAgentAndPathStmt,
 		listMemoriesByCategoryStmt:             q.listMemoriesByCategoryStmt,
 		listMemoriesByPathStmt:                 q.listMemoriesByPathStmt,
+		listMemoriesBySquadStmt:                q.listMemoriesBySquadStmt,
 		listMessagesBySessionStmt:              q.listMessagesBySessionStmt,
 		listSessionsStmt:                       q.listSessionsStmt,
 		listSessionsByAgentStmt:                q.listSessionsByAgentStmt,

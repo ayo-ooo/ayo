@@ -13,12 +13,14 @@ type Querier interface {
 	ArchiveAyoAgent(ctx context.Context, arg ArchiveAyoAgentParams) error
 	ClearAllMemories(ctx context.Context, updatedAt int64) error
 	ClearMemoriesByAgent(ctx context.Context, arg ClearMemoriesByAgentParams) error
+	ClearMemoriesBySquad(ctx context.Context, arg ClearMemoriesBySquadParams) error
 	CompleteFlowRun(ctx context.Context, arg CompleteFlowRunParams) (FlowRun, error)
 	CountFlowRuns(ctx context.Context) (int64, error)
 	CountFlowRunsByName(ctx context.Context, flowName string) (int64, error)
 	CountFlowRunsByStatus(ctx context.Context, status string) (int64, error)
 	CountMemories(ctx context.Context, status sql.NullString) (int64, error)
 	CountMemoriesByAgent(ctx context.Context, arg CountMemoriesByAgentParams) (int64, error)
+	CountMemoriesBySquad(ctx context.Context, arg CountMemoriesBySquadParams) (int64, error)
 	CountMessagesBySession(ctx context.Context, sessionID string) (int64, error)
 	CountSessions(ctx context.Context) (int64, error)
 	CountSessionsByAgent(ctx context.Context, agentHandle string) (int64, error)
@@ -53,6 +55,7 @@ type Querier interface {
 	GetLastFlowRun(ctx context.Context, flowName string) (FlowRun, error)
 	GetLatestRefinement(ctx context.Context, agentID string) (AgentRefinement, error)
 	GetMemoriesForSearch(ctx context.Context, arg GetMemoriesForSearchParams) ([]GetMemoriesForSearchRow, error)
+	GetMemoriesForSearchWithSquad(ctx context.Context, arg GetMemoriesForSearchWithSquadParams) ([]GetMemoriesForSearchWithSquadRow, error)
 	GetMemory(ctx context.Context, id string) (Memory, error)
 	GetMemoryHistory(ctx context.Context, id string) ([]GetMemoryHistoryRow, error)
 	GetMessage(ctx context.Context, id string) (Message, error)
@@ -72,6 +75,7 @@ type Querier interface {
 	ListMemoriesByAgentAndPath(ctx context.Context, arg ListMemoriesByAgentAndPathParams) ([]Memory, error)
 	ListMemoriesByCategory(ctx context.Context, arg ListMemoriesByCategoryParams) ([]Memory, error)
 	ListMemoriesByPath(ctx context.Context, arg ListMemoriesByPathParams) ([]Memory, error)
+	ListMemoriesBySquad(ctx context.Context, arg ListMemoriesBySquadParams) ([]Memory, error)
 	ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
 	ListSessions(ctx context.Context, limit int64) ([]Session, error)
 	ListSessionsByAgent(ctx context.Context, arg ListSessionsByAgentParams) ([]Session, error)

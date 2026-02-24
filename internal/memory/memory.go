@@ -40,6 +40,7 @@ type Memory struct {
 	ID                 string
 	AgentHandle        string    // Empty for global memories
 	PathScope          string    // Empty for non-path-scoped memories
+	SquadName          string    // Empty for non-squad memories
 	Content            string
 	Category           Category
 	Embedding          []float32
@@ -65,10 +66,11 @@ type SearchResult struct {
 
 // SearchOptions configures memory search.
 type SearchOptions struct {
-	AgentHandle string  // Filter by agent (empty = include global)
-	PathScope   string  // Filter by path scope (empty = include global)
-	Threshold   float32 // Minimum similarity threshold (0-1)
-	Limit       int     // Maximum results
+	AgentHandle string     // Filter by agent (empty = include global)
+	PathScope   string     // Filter by path scope (empty = include global)
+	SquadName   string     // Filter by squad (empty = include non-squad)
+	Threshold   float32    // Minimum similarity threshold (0-1)
+	Limit       int        // Maximum results
 	Categories  []Category // Filter by categories (empty = all)
 }
 
@@ -120,6 +122,7 @@ func (s *Service) Create(ctx context.Context, m Memory) (Memory, error) {
 		ID:              m.ID,
 		AgentHandle:     toNullString(m.AgentHandle),
 		PathScope:       toNullString(m.PathScope),
+		SquadName:       toNullString(m.SquadName),
 		Content:         m.Content,
 		Category:        string(m.Category),
 		Embedding:       embedding.SerializeFloat32(m.Embedding),
@@ -260,9 +263,10 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 	}
 
 	// Get all candidate memories
-	candidates, err := s.queries.GetMemoriesForSearch(ctx, db.GetMemoriesForSearchParams{
+	candidates, err := s.queries.GetMemoriesForSearchWithSquad(ctx, db.GetMemoriesForSearchWithSquadParams{
 		AgentHandle: toNullString(opts.AgentHandle),
 		PathScope:   toNullString(opts.PathScope),
+		SquadName:   toNullString(opts.SquadName),
 	})
 	if err != nil {
 		return nil, err
@@ -300,6 +304,7 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 				ID:             c.ID,
 				AgentHandle:    fromNullString(c.AgentHandle),
 				PathScope:      fromNullString(c.PathScope),
+				SquadName:      fromNullString(c.SquadName),
 				Content:        c.Content,
 				Category:       Category(c.Category),
 				Embedding:      memEmb,
@@ -389,6 +394,42 @@ func (s *Service) Clear(ctx context.Context, agentHandle string) error {
 	return s.queries.ClearAllMemories(ctx, now)
 }
 
+// ListBySquad returns memories for a specific squad.
+func (s *Service) ListBySquad(ctx context.Context, squadName string, limit, offset int64) ([]Memory, error) {
+	dbMems, err := s.queries.ListMemoriesBySquad(ctx, db.ListMemoriesBySquadParams{
+		Squad:  toNullString(squadName),
+		Status: sql.NullString{},
+		Lim:    limit,
+		Off:    offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	memories := make([]Memory, len(dbMems))
+	for i, m := range dbMems {
+		memories[i] = fromDBMemory(m)
+	}
+	return memories, nil
+}
+
+// CountBySquad returns the total number of active memories for a squad.
+func (s *Service) CountBySquad(ctx context.Context, squadName string) (int64, error) {
+	return s.queries.CountMemoriesBySquad(ctx, db.CountMemoriesBySquadParams{
+		SquadName: toNullString(squadName),
+		Status:    sql.NullString{},
+	})
+}
+
+// ClearBySquad removes all memories for a squad.
+func (s *Service) ClearBySquad(ctx context.Context, squadName string) error {
+	now := time.Now().Unix()
+	return s.queries.ClearMemoriesBySquad(ctx, db.ClearMemoriesBySquadParams{
+		UpdatedAt: now,
+		SquadName: toNullString(squadName),
+	})
+}
+
 // Helper functions
 
 func toNullString(s string) sql.NullString {
@@ -410,6 +451,7 @@ func fromDBMemory(m db.Memory) Memory {
 		ID:                 m.ID,
 		AgentHandle:        fromNullString(m.AgentHandle),
 		PathScope:          fromNullString(m.PathScope),
+		SquadName:          fromNullString(m.SquadName),
 		Content:            m.Content,
 		Category:           Category(m.Category),
 		Embedding:          embedding.DeserializeFloat32(m.Embedding),
