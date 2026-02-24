@@ -1,6 +1,6 @@
 ---
 id: ayo-snst
-status: open
+status: closed
 deps: [ayo-q841]
 links: []
 created: 2026-02-23T23:15:51Z

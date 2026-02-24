@@ -19,9 +19,10 @@ import (
 type TriggerType string
 
 const (
-	TriggerTypeCron  TriggerType = "cron"
-	TriggerTypeWatch TriggerType = "watch"
-	TriggerTypeOnce  TriggerType = "once"
+	TriggerTypeCron     TriggerType = "cron"
+	TriggerTypeWatch    TriggerType = "watch"
+	TriggerTypeOnce     TriggerType = "once"
+	TriggerTypeInterval TriggerType = "interval"
 )
 
 // Trigger represents a trigger configuration.
@@ -50,6 +51,10 @@ type TriggerConfig struct {
 
 	// One-time job configuration
 	At string `json:"at,omitempty"` // ISO 8601 datetime for one-time execution
+
+	// Interval job configuration
+	Every            string `json:"every,omitempty"` // Duration (e.g., "5m", "1h", "30s")
+	StartImmediately bool   `json:"start_immediately,omitempty"` // Run immediately on registration
 
 	// Options
 	Debounce  string `json:"debounce,omitempty"`  // debounce duration (e.g., "500ms")
@@ -191,6 +196,8 @@ func (e *TriggerEngine) Register(trigger *Trigger) error {
 		return e.registerWatchTrigger(trigger)
 	case TriggerTypeOnce:
 		return e.registerOnceTrigger(trigger)
+	case TriggerTypeInterval:
+		return e.registerIntervalTrigger(trigger)
 	default:
 		return fmt.Errorf("unknown trigger type: %s", trigger.Type)
 	}
@@ -211,7 +218,7 @@ func (e *TriggerEngine) unregisterLocked(triggerID string) error {
 	}
 
 	switch trigger.Type {
-	case TriggerTypeCron, TriggerTypeOnce:
+	case TriggerTypeCron, TriggerTypeOnce, TriggerTypeInterval:
 		if job, ok := e.cronJobs[triggerID]; ok {
 			if e.scheduler != nil {
 				e.scheduler.RemoveJob(job.ID())
@@ -288,11 +295,13 @@ func (e *TriggerEngine) SetEnabled(id string, enabled bool) error {
 			return e.registerWatchTrigger(trigger)
 		case TriggerTypeOnce:
 			return e.registerOnceTrigger(trigger)
+		case TriggerTypeInterval:
+			return e.registerIntervalTrigger(trigger)
 		}
 	} else {
 		// Unregister without removing from map
 		switch trigger.Type {
-		case TriggerTypeCron, TriggerTypeOnce:
+		case TriggerTypeCron, TriggerTypeOnce, TriggerTypeInterval:
 			if job, ok := e.cronJobs[id]; ok {
 				if e.scheduler != nil {
 					e.scheduler.RemoveJob(job.ID())
@@ -433,6 +442,67 @@ func (e *TriggerEngine) registerOnceTrigger(trigger *Trigger) error {
 	e.cronJobs[trigger.ID] = job
 	e.logger.Info("registered one-time trigger", "id", trigger.ID, "at", runTime.Format(time.RFC3339), "agent", trigger.Agent)
 	return nil
+}
+
+func (e *TriggerEngine) registerIntervalTrigger(trigger *Trigger) error {
+	if trigger.Config.Every == "" {
+		return fmt.Errorf("interval trigger requires 'every' field (duration like '5m', '1h')")
+	}
+
+	// Parse the duration
+	duration, err := parseDuration(trigger.Config.Every)
+	if err != nil {
+		return fmt.Errorf("invalid 'every' duration: %w", err)
+	}
+
+	if duration < time.Second {
+		return fmt.Errorf("interval duration must be at least 1 second")
+	}
+
+	// Build job options
+	opts := []gocron.JobOption{}
+	if trigger.Config.Singleton {
+		opts = append(opts, gocron.WithSingletonMode(gocron.LimitModeReschedule))
+	}
+	if trigger.Config.StartImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
+	// Create interval job with gocron v2
+	triggerID := trigger.ID
+	job, err := e.scheduler.NewJob(
+		gocron.DurationJob(duration),
+		gocron.NewTask(func() {
+			e.fireTrigger(triggerID, map[string]any{
+				"interval": duration.String(),
+				"fired_at": time.Now(),
+			})
+		}),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("create interval job: %w", err)
+	}
+
+	e.cronJobs[trigger.ID] = job
+	e.logger.Info("registered interval trigger", "id", trigger.ID, "every", duration.String(), "agent", trigger.Agent)
+	return nil
+}
+
+// parseDuration extends time.ParseDuration to support 'd' for days.
+func parseDuration(s string) (time.Duration, error) {
+	// Handle days suffix
+	if len(s) > 0 && s[len(s)-1] == 'd' {
+		// Parse the number of days
+		numStr := s[:len(s)-1]
+		var days float64
+		if _, err := fmt.Sscanf(numStr, "%f", &days); err == nil {
+			return time.Duration(days * 24 * float64(time.Hour)), nil
+		}
+	}
+
+	// Try standard Go duration parsing
+	return time.ParseDuration(s)
 }
 
 func (e *TriggerEngine) watchLoop() {

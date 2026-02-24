@@ -422,3 +422,132 @@ func TestTriggerEngine_OnceTriggerInvalidTime(t *testing.T) {
 		t.Error("expected error for invalid time format")
 	}
 }
+
+func TestTriggerEngine_RegisterIntervalTrigger(t *testing.T) {
+	var fired atomic.Int32
+
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+		Callback: func(event TriggerEvent) {
+			fired.Add(1)
+		},
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-interval",
+		Type:    TriggerTypeInterval,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			Every:            "1s",
+			StartImmediately: true,
+		},
+	}
+
+	if err := engine.Register(trigger); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Should be registered
+	triggers := engine.List()
+	if len(triggers) != 1 {
+		t.Errorf("expected 1 trigger, got %d", len(triggers))
+	}
+
+	// Wait for at least 2 fires
+	time.Sleep(2500 * time.Millisecond)
+
+	if fired.Load() < 2 {
+		t.Errorf("expected at least 2 fires, got %d", fired.Load())
+	}
+}
+
+func TestTriggerEngine_IntervalTriggerMissingEvery(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-no-every",
+		Type:    TriggerTypeInterval,
+		Agent:   "@test",
+		Enabled: true,
+		Config:  TriggerConfig{}, // Missing Every
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for missing 'every' field")
+	}
+}
+
+func TestTriggerEngine_IntervalTriggerInvalidDuration(t *testing.T) {
+	engine := NewTriggerEngine(TriggerEngineConfig{
+		Logger: slog.Default(),
+	})
+
+	ctx := context.Background()
+	if err := engine.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer engine.Stop(ctx)
+
+	trigger := &Trigger{
+		ID:      "test-invalid-duration",
+		Type:    TriggerTypeInterval,
+		Agent:   "@test",
+		Enabled: true,
+		Config: TriggerConfig{
+			Every: "not-a-duration",
+		},
+	}
+
+	err := engine.Register(trigger)
+	if err == nil {
+		t.Error("expected error for invalid duration")
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected time.Duration
+		wantErr  bool
+	}{
+		{"5s", 5 * time.Second, false},
+		{"5m", 5 * time.Minute, false},
+		{"1h", time.Hour, false},
+		{"1h30m", 90 * time.Minute, false},
+		{"1d", 24 * time.Hour, false},
+		{"2d", 48 * time.Hour, false},
+		{"0.5d", 12 * time.Hour, false},
+		{"invalid", 0, true},
+	}
+
+	for _, tt := range tests {
+		got, err := parseDuration(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("parseDuration(%q) expected error", tt.input)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("parseDuration(%q) unexpected error: %v", tt.input, err)
+			} else if got != tt.expected {
+				t.Errorf("parseDuration(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		}
+	}
+}
