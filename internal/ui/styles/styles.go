@@ -2,6 +2,8 @@
 package styles
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -142,22 +144,33 @@ func SetTheme(t *Theme) {
 	currentTheme = t
 }
 
-// markdownRenderer caches the glamour renderer.
-var markdownRenderer *glamour.TermRenderer
+// markdownRendererCache stores glamour renderers by width.
+var markdownRendererCache sync.Map // map[int]*glamour.TermRenderer
 
-// GetPlainMarkdownRenderer returns a markdown renderer for the given width.
+// GetPlainMarkdownRenderer returns a cached markdown renderer for the given width.
+// Width is clamped to 40-200 to prevent cache explosion.
 func GetPlainMarkdownRenderer(width int) *glamour.TermRenderer {
-	if markdownRenderer == nil || width > 0 {
-		r, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
-			glamour.WithWordWrap(width),
-		)
-		if err != nil {
-			return nil
-		}
-		markdownRenderer = r
+	if width < 40 {
+		width = 40
 	}
-	return markdownRenderer
+	if width > 200 {
+		width = 200
+	}
+
+	if r, ok := markdownRendererCache.Load(width); ok {
+		return r.(*glamour.TermRenderer)
+	}
+
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return nil
+	}
+
+	markdownRendererCache.Store(width, r)
+	return r
 }
 
 // RenderMarkdown renders markdown content.
