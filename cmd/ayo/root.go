@@ -369,6 +369,7 @@ Examples:
 	cmd.AddCommand(newTriggerCmd())
 	cmd.AddCommand(newTicketCmd())
 	cmd.AddCommand(newSquadCmd())
+	cmd.AddCommand(newNotificationsCmd())
 	cmd.AddCommand(newPlannerCmd(&cfgPath))
 	cmd.AddCommand(newIndexCmd(&cfgPath))
 	cmd.AddCommand(auditCmd)

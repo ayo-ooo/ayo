@@ -1,6 +1,6 @@
 ---
 id: ayo-8t7z
-status: open
+status: closed
 deps: [ayo-899j]
 links: []
 created: 2026-02-23T22:16:02Z
