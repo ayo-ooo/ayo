@@ -17,7 +17,8 @@ Remove complexity and establish clear mental model. This is the prerequisite for
 
 - Remove ~5,000+ lines of unused/confusing code
 - Simplify daemon to core functions only
-- Establish shared sandbox model with per-agent homes
+- Implement ayod (in-sandbox daemon) for elegant sandbox management
+- Establish shared sandbox model with agents as real Unix users
 - Set up host home mount for file access
 
 ## Code to Remove
@@ -42,20 +43,30 @@ Remove complexity and establish clear mental model. This is the prerequisite for
 
 ## Sandbox Architecture
 
+Each agent runs as a **real Unix user** inside the shared sandbox:
+
 ```
 @AYO SANDBOX (default for all agents):
 /home/
-├── ayo/         # @ayo (orchestrator)
-├── crush/       # @crush
-├── reviewer/    # @reviewer
-└── {agent}/     # Created on first use
+├── ayo/         # Unix user: ayo (@ayo)
+├── crush/       # Unix user: crush (@crush)
+├── reviewer/    # Unix user: reviewer
+└── {agent}/     # Created on first use via ayod
 
 /mnt/{user}/     # Host home (read-only)
-/workspace/      # Shared workspace
+/workspace/      # Shared workspace (group writable)
 /output/         # Safe write zone
 ```
 
+ayod runs as PID 1 and manages users, execution, and host communication.
+
 ## Child Tickets
+
+### Sandbox Bootstrap (do first)
+- `ayo-kkxg`: **Implement ayod in-sandbox daemon** (critical path)
+- `ayo-ao4q`: Implement shared sandbox with per-agent Unix users
+- `ayo-1xg8`: Standardize @ayo sandbox home directory
+- `ayo-c8px`: Add host home mount at /mnt/{username}
 
 ### Removal
 - `ayo-8nn8`: Remove cmd/ayo/serve.go
@@ -68,11 +79,6 @@ Remove complexity and establish clear mental model. This is the prerequisite for
 - `ayo-fwye`: Simplify cmd/ayo/flows.go
 - `ayo-qbsu`: Clean up daemon server.go
 - `ayo-enaj`: Clean up dead code
-
-### Sandbox
-- `ayo-1xg8`: Standardize @ayo sandbox home directory
-- `ayo-ao4q`: Implement shared sandbox with per-agent home directories
-- `ayo-c8px`: Add host home mount at /mnt/{username}
 
 ### Cleanup
 - `ayo-xhox`: Update go.mod dependencies

@@ -1,7 +1,7 @@
 ---
 id: ayo-ao4q
 status: open
-deps: []
+deps: [ayo-kkxg]
 links: []
 created: 2026-02-23T23:13:09Z
 type: task
@@ -10,79 +10,93 @@ assignee: Alex Cabrera
 parent: ayo-6h19
 tags: [sandbox, agents]
 ---
-# Implement shared sandbox with per-agent home directories
+# Implement shared sandbox with per-agent Unix users
 
-Establish the @ayo sandbox as the default shared workspace for all agents.
+Establish the @ayo sandbox as the default shared workspace where each agent runs as a **real Unix user**.
 
 ## Design
 
 ```
 @AYO SANDBOX (shared by default):
 /home/
-├── ayo/              # @ayo home
-├── crush/            # @crush home (created on first use)
-├── reviewer/         # @reviewer home
-└── {agent-name}/     # New agents get directories automatically
+├── ayo/              # Unix user: ayo
+├── crush/            # Unix user: crush  
+├── reviewer/         # Unix user: reviewer
+└── {agent-name}/     # Created on first use via ayod
 
 /mnt/{user}/          # Host home (read-only)
-/workspace/           # Shared workspace
+/workspace/           # Shared workspace (group writable)
 /output/              # Safe write zone
 ```
 
-## Key Behaviors
+## Key Principle: Agents ARE Unix Users
 
-1. **All agents share @ayo sandbox by default**
-   - When you run `ayo @crush "write code"`, @crush executes in @ayo's sandbox
-   - File handoff between agents is natural (same filesystem)
-   
-2. **Per-agent home directories**
-   - Each agent's `$HOME` is set to `/home/{agent-name}`
-   - Directory created on first use
-   - Agents can still access other agents' home dirs if needed
+**Previous approach (rejected)**: Agents run as shared `ayo` user with `$HOME` override.
 
-3. **Isolation opt-in**
-   - Agents can request isolation via `sandbox.isolated: true` in ayo.json
-   - Squads always get their own sandbox
+**New approach**: Each agent is a distinct Unix user inside the sandbox:
+- `@ayo` → Unix user `ayo`
+- `@crush` → Unix user `crush`
+- File ownership shows real agent: `ls -la` → `-rw-r--r-- crush crush main.go`
 
-## Implementation
+## Benefits
 
-### Files to Modify
+1. **Clear ownership**: `ls -la` shows who created each file
+2. **Standard semantics**: No confusion about identity
+3. **Process isolation**: Standard Unix mechanisms work
+4. **Permissions**: Agents can share via group, restrict via user
+5. **Handoff**: Agent can read another's files, ownership is clear
 
-1. `internal/sandbox/providers/apple.go`
-   - Modify `CreateSandbox` to handle shared sandbox mode
-   - Add `EnsureAgentHome(sandboxID, agentName)` function
-   - Update `Execute` to set correct HOME env var
+## Implementation via ayod
 
-2. `internal/sandbox/providers/linux.go`
-   - Same changes for systemd-nspawn provider
-
-3. `internal/sandbox/sandbox.go`
-   - Add `GetSharedSandboxID()` function
-   - Add logic to determine shared vs isolated
-
-### New Functions
+User creation is handled by ayod (see ayo-kkxg):
 
 ```go
-// Get or create the shared @ayo sandbox
-func (p *Provider) GetSharedSandbox() (string, error)
+// Host daemon requests user creation
+client := ayod.Connect(sandboxSocket)
+client.UserAdd(ayod.UserAddRequest{
+    Username: "crush",
+    Shell:    "/bin/sh",
+})
 
-// Ensure /home/{agent} exists in sandbox
-func (p *Provider) EnsureAgentHome(sandboxID, agentName string) error
-
-// Execute command with agent's HOME set
-func (p *Provider) ExecuteAsAgent(sandboxID, agentName string, cmd []string) error
+// Host daemon executes command as user
+client.Exec(ayod.ExecRequest{
+    User:    "crush",
+    Command: []string{"bash", "-c", script},
+    Cwd:     "/workspace",
+})
 ```
 
-### Sandbox Lifecycle
+## Shared Workspace Permissions
 
-1. On first agent invocation, create @ayo sandbox if not exists
-2. Create `/home/{agent-name}` directory in sandbox
-3. Execute commands with `HOME=/home/{agent-name}`
-4. Sandbox persists across sessions (not ephemeral)
+```bash
+# /workspace is group-writable so all agents can collaborate
+drwxrwxr-x  agents agents  /workspace
+
+# All agent users belong to 'agents' group
+$ id crush
+uid=1001(crush) gid=1001(crush) groups=1001(crush),100(agents)
+```
+
+## Sandbox Lifecycle
+
+1. First invocation creates @ayo sandbox with ayod as PID 1
+2. ayod creates `ayo` user automatically
+3. When `@crush` is invoked:
+   - Host asks ayod to ensure `crush` user exists
+   - ayod creates user if needed
+   - ayod executes command as `crush`
+4. Sandbox persists across sessions
+
+## Files to Modify
+
+- `internal/sandbox/sandbox.go` - Add `GetSharedSandboxID()`, shared vs isolated logic
+- `internal/sandbox/bash.go` - Use ayod client for execution
+- `internal/sandbox/providers/*.go` - Bootstrap with ayod, remove direct exec
 
 ## Testing
 
-- Test creating home directories for new agents
-- Test file visibility between agents
-- Test isolated agents don't share sandbox
-- Test sandbox persistence across daemon restarts
+- Test user creation via ayod
+- Test file ownership shows correct agent
+- Test agents can read each other's files
+- Test /workspace group permissions
+- Test isolated sandbox creates fresh user namespace

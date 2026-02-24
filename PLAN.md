@@ -128,19 +128,77 @@ Key differentiators:
 3. **Resource-intensive agents**: Agents that need special resources
 4. **Conflicting dependencies**: Agents that need different environments
 
-### Agent Home Directories
+### Agents as Real Unix Users
 
-Each agent gets a home directory in the shared sandbox:
+Each agent runs as a **real Unix user** inside the sandbox, not a shared user with `$HOME` tricks:
 
 ```
 /home/
-├── ayo/              # @ayo (orchestrator)
-├── crush/            # @crush (coding agent)
-├── reviewer/         # @reviewer
+├── ayo/              # @ayo user (orchestrator)
+├── crush/            # @crush user (coding agent)
+├── reviewer/         # @reviewer user
 └── {agent-name}/     # Created on first use
 ```
 
-Agents run as the `ayo` Unix user but their `$HOME` is set to `/home/{agent-name}`.
+**Why real users?**
+- Clear ownership and permissions (`ls -la` shows who created files)
+- Standard Unix semantics (no confusion about identity)
+- Agents can `su` to each other if needed for handoff
+- Process isolation via standard Unix mechanisms
+
+---
+
+## Sandbox Bootstrap: ayod
+
+To simplify sandbox management, we install a lightweight **ayod** (ayo daemon) inside each sandbox. This replaces ad-hoc setup with a clean, extensible service.
+
+### What ayod Does
+
+| Function | Description |
+|----------|-------------|
+| **User management** | Creates agent users on-demand (`ayod useradd @agent`) |
+| **Environment setup** | Sets up agent home directories with correct permissions |
+| **File request proxy** | Handles `file_request` tool calls, proxies to host daemon |
+| **Output sync** | Syncs `/output/` contents to host |
+| **Health check** | Reports sandbox status to host daemon |
+
+### Bootstrap Flow
+
+```
+1. Sandbox created with base image (alpine/debian)
+2. Host injects ayod binary + config into /usr/local/bin/ayod
+3. ayod starts as PID 1 (replaces "sleep infinity")
+4. ayod listens on /run/ayod.sock for commands
+5. Host daemon connects via mounted socket
+
+On agent invocation:
+1. Host: "Run @crush with this command"
+2. ayod: Ensures @crush user exists
+3. ayod: Executes command as @crush user
+4. ayod: Returns output to host
+```
+
+### ayod Binary
+
+Small, statically-compiled Go binary (~5MB) included in ayo distribution:
+
+```go
+// cmd/ayod/main.go
+package main
+
+func main() {
+    // Listen on /run/ayod.sock
+    // Handle: useradd, exec, sync, health
+}
+```
+
+### Benefits
+
+1. **Single entry point**: All sandbox operations go through ayod
+2. **Extensible**: Easy to add new capabilities (package install, network config)
+3. **Debuggable**: `ayo sandbox shell` can talk to ayod directly
+4. **Consistent**: Same behavior across Apple Container and systemd-nspawn
+5. **Clean separation**: Host daemon doesn't need provider-specific exec code
 
 ---
 
