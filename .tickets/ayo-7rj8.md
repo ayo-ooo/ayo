@@ -1,6 +1,6 @@
 ---
 id: ayo-7rj8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-23T22:15:54Z
