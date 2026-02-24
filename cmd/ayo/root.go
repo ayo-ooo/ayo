@@ -373,6 +373,7 @@ Examples:
 	cmd.AddCommand(newIndexCmd(&cfgPath))
 	cmd.AddCommand(auditCmd)
 	cmd.AddCommand(newHelpCmd())
+	cmd.AddCommand(newMigrateCmd())
 
 	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
 	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))

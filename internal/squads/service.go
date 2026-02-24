@@ -170,6 +170,11 @@ func (s *Service) Get(ctx context.Context, name string) (*Squad, error) {
 	// Load constitution for squad lead
 	constitution, _ := LoadConstitution(name)
 
+	// Check for deprecation warning
+	if warning := DeprecationWarning(name); warning != "" {
+		debug.Log("squad needs migration", "squad", name, "warning", warning)
+	}
+
 	// Check if sandbox exists
 	sb, sandboxErr := sandbox.GetSquadSandbox(ctx, s.provider, name)
 
