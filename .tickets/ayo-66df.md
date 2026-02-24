@@ -1,6 +1,6 @@
 ---
 id: ayo-66df
-status: open
+status: closed
 deps: [ayo-kkxg]
 links: []
 created: 2026-02-23T22:15:34Z

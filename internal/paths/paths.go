@@ -689,6 +689,13 @@ func AyoSandboxOutputDir() string {
 	return filepath.Join(AyoSandboxDir(), "output")
 }
 
+// SessionOutputDir returns the output directory for a specific session.
+// Location: ~/.local/share/ayo/sandboxes/ayo/output/{session_id}
+// Files written here by agents are synced automatically via VirtioFS.
+func SessionOutputDir(sessionID string) string {
+	return filepath.Join(AyoSandboxOutputDir(), sessionID)
+}
+
 // AyoSandboxPlannerNearDir returns @ayo's near-term planner state directory.
 // Location: ~/.local/share/ayo/sandboxes/ayo/.planner.near
 func AyoSandboxPlannerNearDir() string {

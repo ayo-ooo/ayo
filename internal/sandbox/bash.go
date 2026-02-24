@@ -76,6 +76,7 @@ type Executor struct {
 	sessionID   string // Session ID for workspace creation
 	agentHandle string // Agent handle for env vars
 	workspaceDir string // Path to session workspace in sandbox
+	outputDir    string // Path to session output directory in sandbox
 	env          map[string]string // Environment variables to inject
 }
 
@@ -97,7 +98,9 @@ func (e *Executor) SetSession(sessionID, agentHandle string) {
 	e.agentHandle = agentHandle
 	if sessionID != "" {
 		e.workspaceDir = fmt.Sprintf("/workspaces/%s", sessionID)
+		e.outputDir = fmt.Sprintf("/output/%s", sessionID)
 		e.env["WORKSPACE"] = e.workspaceDir
+		e.env["OUTPUT"] = e.outputDir
 		e.env["SESSION_ID"] = sessionID
 	}
 	if agentHandle != "" {
@@ -105,7 +108,7 @@ func (e *Executor) SetSession(sessionID, agentHandle string) {
 	}
 }
 
-// CreateSessionWorkspace creates the session workspace directory in the sandbox.
+// CreateSessionWorkspace creates the session workspace and output directories in the sandbox.
 // Call this after SetSession and before executing commands.
 func (e *Executor) CreateSessionWorkspace(ctx context.Context) error {
 	if e.workspaceDir == "" {
@@ -118,6 +121,11 @@ func (e *Executor) CreateSessionWorkspace(ctx context.Context) error {
 		fmt.Sprintf("%s/mounted", e.workspaceDir),
 		fmt.Sprintf("%s/scratch", e.workspaceDir),
 		fmt.Sprintf("%s/shared", e.workspaceDir),
+	}
+
+	// Add output directory if configured
+	if e.outputDir != "" {
+		workspaceDirs = append(workspaceDirs, e.outputDir)
 	}
 
 	mkdirCmd := fmt.Sprintf("mkdir -p %s", joinPaths(workspaceDirs))
@@ -143,6 +151,20 @@ func (e *Executor) CreateSessionWorkspace(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("chown workspace: %w", err)
 		}
+
+		// Also chown the output directory
+		if e.outputDir != "" {
+			chownOutputCmd := fmt.Sprintf("chown -R %s:%s %s", e.user, e.user, e.outputDir)
+			_, err := e.provider.Exec(ctx, e.sandboxID, providers.ExecOptions{
+				Command:    chownOutputCmd,
+				WorkingDir: "/",
+				Timeout:    10 * time.Second,
+				User:       "root",
+			})
+			if err != nil {
+				return fmt.Errorf("chown output: %w", err)
+			}
+		}
 	}
 
 	return nil
@@ -151,6 +173,11 @@ func (e *Executor) CreateSessionWorkspace(ctx context.Context) error {
 // WorkspaceDir returns the path to the session workspace in the sandbox.
 func (e *Executor) WorkspaceDir() string {
 	return e.workspaceDir
+}
+
+// OutputDir returns the path to the session output directory in the sandbox.
+func (e *Executor) OutputDir() string {
+	return e.outputDir
 }
 
 // joinPaths joins paths with spaces for shell command.
