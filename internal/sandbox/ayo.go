@@ -3,6 +3,8 @@ package sandbox
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/user"
 
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
@@ -111,6 +113,19 @@ func EnsureAyoSandbox(ctx context.Context, provider *AppleProvider) (providers.S
 			Mode:        providers.MountModeVirtioFS,
 		})
 		debug.Log("adding share mount", "name", s.Name, "path", s.Path)
+	}
+
+	// Add host home directory as read-only mount at /mnt/{username}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		if u, err := user.Current(); err == nil {
+			mounts = append(mounts, providers.Mount{
+				Source:      homeDir,
+				Destination: "/mnt/" + u.Username,
+				Mode:        providers.MountModeVirtioFS,
+				ReadOnly:    true,
+			})
+			debug.Log("adding host home mount", "user", u.Username, "path", homeDir)
+		}
 	}
 
 	// Network config
