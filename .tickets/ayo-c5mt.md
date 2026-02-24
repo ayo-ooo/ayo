@@ -1,6 +1,6 @@
 ---
 id: ayo-c5mt
-status: open
+status: closed
 deps: [ayo-dicu]
 links: []
 created: 2026-02-23T22:15:27Z
