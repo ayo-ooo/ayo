@@ -106,6 +106,10 @@ type Manifest struct {
 	// Squads lists squad definitions this plugin provides.
 	// Each squad includes a SQUAD.md constitution and optional bundled agents.
 	Squads []SquadDef `json:"squads,omitempty"`
+
+	// Triggers lists trigger type definitions this plugin provides.
+	// Each trigger defines a new trigger type (e.g., imap, calendar).
+	Triggers []TriggerDef `json:"triggers,omitempty"`
 }
 
 // ProviderDef describes a provider implementation in a plugin.
@@ -191,6 +195,25 @@ type SquadPlannerConfig struct {
 
 	// LongTerm is the long-term planner to use (e.g., "ayo-tickets").
 	LongTerm string `json:"long_term,omitempty"`
+}
+
+// TriggerDef describes a trigger type definition in a plugin.
+type TriggerDef struct {
+	// Name is the unique identifier for this trigger type (e.g., "imap", "calendar").
+	Name string `json:"name"`
+
+	// Category is the trigger category: poll, push, or watch.
+	Category string `json:"category"`
+
+	// Description briefly describes what this trigger does.
+	Description string `json:"description,omitempty"`
+
+	// EntryPoint is the path to the trigger executable (relative to plugin).
+	// The trigger communicates via stdin/stdout JSON protocol.
+	EntryPoint string `json:"entry_point"`
+
+	// ConfigSchema is the JSON Schema for this trigger's configuration.
+	ConfigSchema map[string]any `json:"config_schema,omitempty"`
 }
 
 // Dependencies specifies external requirements for a plugin.
@@ -329,6 +352,10 @@ var (
 	ErrDuplicateSandboxCfg   = errors.New("manifest: duplicate sandbox config name")
 	ErrMissingSquadName      = errors.New("manifest: squad name is required")
 	ErrDuplicateSquadName    = errors.New("manifest: duplicate squad name")
+	ErrMissingTriggerName    = errors.New("manifest: trigger name is required")
+	ErrDuplicateTriggerName  = errors.New("manifest: duplicate trigger name")
+	ErrMissingTriggerEntry   = errors.New("manifest: trigger entry_point is required")
+	ErrInvalidTriggerCategory = errors.New("manifest: trigger category must be poll, push, or watch")
 )
 
 // namePattern validates plugin names: lowercase letters, numbers, hyphens.
@@ -402,6 +429,11 @@ func (m *Manifest) Validate() error {
 
 	// Validate squads
 	if err := m.validateSquads(); err != nil {
+		return err
+	}
+
+	// Validate triggers
+	if err := m.validateTriggers(); err != nil {
 		return err
 	}
 
@@ -493,6 +525,37 @@ func (m *Manifest) validateSquads() error {
 			return fmt.Errorf("%w: %s", ErrDuplicateSquadName, s.Name)
 		}
 		seen[s.Name] = true
+	}
+
+	return nil
+}
+
+// validateTriggers checks that trigger definitions are valid.
+func (m *Manifest) validateTriggers() error {
+	seen := make(map[string]bool)
+	validCategories := map[string]bool{
+		"poll":  true,
+		"push":  true,
+		"watch": true,
+	}
+
+	for i, t := range m.Triggers {
+		if t.Name == "" {
+			return fmt.Errorf("%w (trigger %d)", ErrMissingTriggerName, i)
+		}
+
+		if t.EntryPoint == "" {
+			return fmt.Errorf("%w: %s", ErrMissingTriggerEntry, t.Name)
+		}
+
+		if t.Category != "" && !validCategories[t.Category] {
+			return fmt.Errorf("%w: got %q for trigger %q", ErrInvalidTriggerCategory, t.Category, t.Name)
+		}
+
+		if seen[t.Name] {
+			return fmt.Errorf("%w: %s", ErrDuplicateTriggerName, t.Name)
+		}
+		seen[t.Name] = true
 	}
 
 	return nil

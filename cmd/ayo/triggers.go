@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/daemon"
+	"github.com/alexcabrera/ayo/internal/triggers"
 )
 
 // Ensure cli package is used
@@ -120,6 +121,7 @@ Examples:
 	cmd.AddCommand(testTriggerCmd())
 	cmd.AddCommand(enableTriggerCmd())
 	cmd.AddCommand(disableTriggerCmd())
+	cmd.AddCommand(triggerTypesCmd())
 
 	return cmd
 }
@@ -999,4 +1001,118 @@ func resolveTriggerID(ctx context.Context, client *daemon.Client, query string, 
 	}
 
 	return selectedID, nil
+}
+
+func triggerTypesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "types",
+		Short: "List available trigger types",
+		Long: `List all available trigger types that can be used to create triggers.
+
+Built-in types include:
+  cron      Schedule-based triggers using cron expressions
+  watch     File system change triggers
+  interval  Fixed interval triggers (e.g., every 5 minutes)
+  daily     Daily triggers at specific times
+  weekly    Weekly triggers on specific days
+  monthly   Monthly triggers on specific days
+
+Plugin-provided types are also listed if any are installed.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get trigger types from registry
+			types := triggers.DefaultRegistry.List()
+
+			// Also add built-in types that are hardcoded in the daemon
+			builtinTypes := []triggers.TriggerInfo{
+				{Name: "cron", Category: triggers.TriggerCategoryPoll, Description: "Schedule-based trigger using cron expressions"},
+				{Name: "watch", Category: triggers.TriggerCategoryWatch, Description: "File system change trigger"},
+				{Name: "interval", Category: triggers.TriggerCategoryPoll, Description: "Fixed interval trigger (e.g., every 5m)"},
+				{Name: "daily", Category: triggers.TriggerCategoryPoll, Description: "Daily trigger at specific times"},
+				{Name: "weekly", Category: triggers.TriggerCategoryPoll, Description: "Weekly trigger on specific days"},
+				{Name: "monthly", Category: triggers.TriggerCategoryPoll, Description: "Monthly trigger on specific days of month"},
+				{Name: "once", Category: triggers.TriggerCategoryPoll, Description: "One-time trigger at a specific datetime"},
+			}
+
+			// Merge, avoiding duplicates
+			seen := make(map[string]bool)
+			for _, t := range types {
+				seen[t.Name] = true
+			}
+			for _, bt := range builtinTypes {
+				if !seen[bt.Name] {
+					types = append(types, bt)
+				}
+			}
+
+			if globalOutput.JSON {
+				return json.NewEncoder(os.Stdout).Encode(types)
+			}
+
+			if len(types) == 0 {
+				fmt.Println("No trigger types available")
+				return nil
+			}
+
+			fmt.Println("Available trigger types:")
+			fmt.Println()
+
+			// Group by category
+			pollTypes := []triggers.TriggerInfo{}
+			watchTypes := []triggers.TriggerInfo{}
+			pushTypes := []triggers.TriggerInfo{}
+
+			for _, t := range types {
+				switch t.Category {
+				case triggers.TriggerCategoryPoll:
+					pollTypes = append(pollTypes, t)
+				case triggers.TriggerCategoryWatch:
+					watchTypes = append(watchTypes, t)
+				case triggers.TriggerCategoryPush:
+					pushTypes = append(pushTypes, t)
+				default:
+					pollTypes = append(pollTypes, t)
+				}
+			}
+
+			if len(pollTypes) > 0 {
+				fmt.Println("  Poll (scheduled):")
+				for _, t := range pollTypes {
+					plugin := ""
+					if t.PluginName != "" {
+						plugin = fmt.Sprintf(" [%s]", t.PluginName)
+					}
+					fmt.Printf("    %-12s %s%s\n", t.Name, t.Description, plugin)
+				}
+				fmt.Println()
+			}
+
+			if len(watchTypes) > 0 {
+				fmt.Println("  Watch (file system):")
+				for _, t := range watchTypes {
+					plugin := ""
+					if t.PluginName != "" {
+						plugin = fmt.Sprintf(" [%s]", t.PluginName)
+					}
+					fmt.Printf("    %-12s %s%s\n", t.Name, t.Description, plugin)
+				}
+				fmt.Println()
+			}
+
+			if len(pushTypes) > 0 {
+				fmt.Println("  Push (event-driven):")
+				for _, t := range pushTypes {
+					plugin := ""
+					if t.PluginName != "" {
+						plugin = fmt.Sprintf(" [%s]", t.PluginName)
+					}
+					fmt.Printf("    %-12s %s%s\n", t.Name, t.Description, plugin)
+				}
+				fmt.Println()
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
 }
