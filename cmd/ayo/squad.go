@@ -41,26 +41,28 @@ func newSquadCmd() *cobra.Command {
 		Use:     "squad",
 		Aliases: []string{"squads"},
 		Short:   "Manage agent squads",
-		Long: `Manage squad sandboxes for agent team coordination.
+		Long: `Manage squad sandboxes for multi-agent coordination.
 
-Squads are isolated sandboxes where multiple agents can collaborate on tasks.
-Each squad has its own workspace, tickets directory, and context.
+Squads are isolated environments where agents collaborate on tasks.
+Each squad has its own workspace, tickets, context, and SQUAD.md constitution.
+
+Commands:
+  list        List all squads
+  create      Create a new squad
+  show        Show squad details
+  destroy     Delete a squad and its data
+  start       Start a squad's sandbox
+  stop        Stop a squad's sandbox
+  add-agent   Add an agent to a squad
+  remove-agent Remove an agent from a squad
+  ticket      Manage squad tickets
 
 Examples:
-  # List all squads
-  ayo squad list
-
-  # Create a new squad
-  ayo squad create frontend --description "Frontend development team"
-
-  # Add an agent to a squad
-  ayo squad add-agent frontend @react-dev
-
-  # Show squad details
-  ayo squad show frontend
-
-  # Destroy a squad
-  ayo squad destroy frontend`,
+  ayo squad list                         List all squads
+  ayo squad create frontend              Create frontend squad
+  ayo squad add-agent frontend @react    Add agent to squad
+  ayo squad show frontend                Show squad details
+  ayo #frontend "build auth"             Send task to squad`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return squadListCmd().RunE(cmd, args)
 		},

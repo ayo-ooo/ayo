@@ -23,24 +23,37 @@ var _ = cli.Output{}
 
 func newAgentsCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "agents",
+		Use:     "agent",
 		Short:   "Manage agents",
-		Aliases: []string{"agent"},
+		Aliases: []string{"agents"},
 		Long: `Manage AI agents with custom prompts and tool access.
 
-Agents are stored as directories containing:
-  config.json      Agent configuration
-  system.md        System prompt
-  input.jsonschema Optional input validation (for pipelines)
-  output.jsonschema Optional output format (for pipelines)
-  skills/          Optional agent-specific skills
+Commands:
+  list      List all available agents
+  create    Create a new agent
+  show      Show agent details
+  update    Update agent configuration
+  rm        Delete an agent
+  status    Show agent run status
+  wake      Start an agent
+  sleep     Stop an agent
+
+Agent Structure:
+  config.json       Agent configuration
+  system.md         System prompt
+  input.jsonschema  Input validation (optional)
+  output.jsonschema Output format (optional)
+  skills/           Agent-specific skills
 
 Locations:
   User agents: ~/.config/ayo/agents/
   Built-in:    ~/.local/share/ayo/agents/
 
-For help designing agents, chat with @ayo:
-  ayo "help me create an agent for code review"`,
+Examples:
+  ayo agent list                      List all agents
+  ayo agent create @reviewer          Create new agent
+  ayo agent show @ayo                 Show agent details
+  ayo agent rm @myagent               Delete an agent`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default to list
 			return listAgentsCmd(cfgPath).RunE(cmd, args)

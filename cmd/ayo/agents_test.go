@@ -11,13 +11,13 @@ func TestAgentsCommandStructure(t *testing.T) {
 	cfgPath := ""
 	cmd := newAgentsCmd(&cfgPath)
 
-	// Verify command name and aliases
-	if cmd.Use != "agents" {
-		t.Errorf("agents command Use = %q, want 'agents'", cmd.Use)
+	// Verify command name and aliases (Use is "agent", "agents" is alias)
+	if cmd.Use != "agent" {
+		t.Errorf("agent command Use = %q, want 'agent'", cmd.Use)
 	}
 
-	if len(cmd.Aliases) == 0 || cmd.Aliases[0] != "agent" {
-		t.Error("agents command should have 'agent' alias")
+	if len(cmd.Aliases) == 0 || cmd.Aliases[0] != "agents" {
+		t.Error("agent command should have 'agents' alias")
 	}
 
 	// Check subcommands exist

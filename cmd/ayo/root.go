@@ -46,21 +46,38 @@ func newRootCmd() *cobra.Command {
 	var outputDir string
 
 	cmd := &cobra.Command{
-		Use:           "ayo [@agent | #squad] [prompt]",
-		Short:         "Run AI agents and squads",
-		Long: `ayo - Agents You Orchestrate
+		Use:   "ayo [@agent | #squad] [prompt]",
+		Short: "AI agents that live on your machine",
+		Long: `ayo - AI agents that live on your machine
 
-Run AI agents that can execute tasks, use tools, and chain together via Unix pipes.
+Run AI agents in isolated sandboxes with tool access and Unix pipe integration.
+
+Usage:
+  ayo [prompt]              Chat with @ayo (default agent)
+  ayo @agent [prompt]       Chat with specific agent
+  ayo #squad [prompt]       Send task to squad (multi-agent coordination)
+
+Common Commands:
+  agent                     Manage agents (create, list, show, delete)
+  squad                     Manage squads (create, list, destroy)
+  trigger                   Manage triggers (schedule, watch, list)
+  service                   Control background service (start, stop, status)
+  doctor                    Check system health
+
+Flags:
+  -y, --no-jodas            Auto-approve file modifications
+  -q, --quiet               Suppress non-essential output
+      --json                Output in JSON format
+  -a, --attach FILE         Attach file to prompt
+  -c, --continue            Continue most recent session
+  -s, --session ID          Continue specific session
 
 Examples:
-  ayo                           Start interactive chat with @ayo
-  ayo "tell me a joke"          Run single prompt with @ayo
-  ayo @myagent                  Start interactive chat with @myagent
-  ayo @myagent "do something"   Run single prompt with @myagent
-  ayo #frontend "build feature" Dispatch prompt to squad (coming soon)
-  ayo -a file.txt "analyze"     Attach file to prompt
-  ayo -c "follow up"            Continue most recent session
-  ayo -s abc123 "follow up"     Continue a specific session by ID`,
+  ayo "explain this code"              Chat with @ayo
+  ayo @reviewer "review my changes"    Chat with @reviewer agent
+  ayo #frontend "build auth feature"   Send to frontend squad
+  ayo -a main.go "fix the bug"         Attach file to prompt
+  ayo -c "also add tests"              Continue last session`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,

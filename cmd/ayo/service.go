@@ -25,7 +25,21 @@ func newSandboxServiceCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
 		Short: "Manage the sandbox service",
-		Long:  "Commands for managing the sandbox background service (start, stop, status).",
+		Long: `Manage the ayo background service.
+
+The service manages sandbox pools, LLM connections, and memory caching.
+It starts automatically when needed but can be controlled manually.
+
+Commands:
+  start    Start the service
+  stop     Stop the service
+  status   Show service status
+
+Examples:
+  ayo service start              # Start in background
+  ayo service start --foreground # Run in terminal (for debugging)
+  ayo service status             # Show status
+  ayo service stop               # Stop the service`,
 	}
 
 	cmd.AddCommand(newServiceStartCmd(cfgPath))
