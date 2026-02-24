@@ -1,6 +1,6 @@
 ---
 id: ayo-qbsu
-status: open
+status: closed
 deps: [ayo-ieiy, ayo-ydub]
 links: []
 created: 2026-02-23T22:15:19Z
