@@ -1,6 +1,6 @@
 ---
 id: ayo-rdao
-status: open
+status: closed
 deps: [ayo-ydub]
 links: []
 created: 2026-02-23T22:15:03Z
@@ -12,24 +12,17 @@ tags: [removal, cli]
 ---
 # Remove cmd/ayo/chat.go
 
-Delete the `chat` command for web-based chat interface.
+~~Delete the `chat` command for web-based chat interface.~~
 
-## Context
+## Resolution
 
-The `ayo chat` command opened a browser-based chat UI. With `internal/server/` removed (ayo-ydub), this has no backend.
+**Not applicable.** The ticket was based on outdated information.
 
-## Files to Delete
+`cmd/ayo/chat.go` contains `runInteractiveChat()` which implements the terminal-based
+interactive TUI chat - NOT the web-based chat. The web-based chat was in
+`internal/server/chat.go` which was already removed in ayo-ydub.
 
-- `cmd/ayo/chat.go`
+There is no separate `ayo chat` subcommand - `runInteractiveChat()` is called from
+the main root command when running in interactive mode (no prompt argument).
 
-## Verification Steps
-
-1. Delete `cmd/ayo/chat.go`
-2. Run `go build ./cmd/ayo/...` - should pass
-3. Run `ayo --help` - verify "chat" no longer appears
-
-## Acceptance Criteria
-
-- [ ] `cmd/ayo/chat.go` deleted
-- [ ] Build passes
-- [ ] `ayo chat` returns "unknown command"
+This file must be kept as it's core CLI functionality.
