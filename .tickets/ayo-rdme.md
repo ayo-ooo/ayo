@@ -1,7 +1,7 @@
 ---
 id: ayo-rdme
 title: README first impression polish
-status: open
+status: closed
 priority: critical
 assignee: "@ayo"
 tags: [docs, gtm, polish, first-impression]

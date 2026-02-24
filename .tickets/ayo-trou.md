@@ -1,7 +1,7 @@
 ---
 id: ayo-trou
 title: Troubleshooting guide accuracy
-status: open
+status: closed
 priority: medium
 assignee: "@ayo"
 tags: [docs, gtm, polish]

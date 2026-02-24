@@ -42,7 +42,7 @@ Ayo ships with a built-in `@ayo` agent that serves as a general-purpose assistan
 ### Creating Custom Agents
 
 ```bash
-ayo agents create @reviewer
+ayo agent create @reviewer
 ```
 
 This creates a directory at `~/.config/ayo/agents/@reviewer/`. Customize `system.md` to define the agent's behavior:
@@ -321,7 +321,7 @@ Aliases are also supported:
 Watch triggers monitor directories for changes:
 
 ```bash
-ayo triggers schedule code-reviewer \
+ayo trigger schedule code-reviewer \
   --watch ./src \
   --pattern "*.go" \
   --agent @reviewer \

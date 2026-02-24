@@ -23,9 +23,9 @@ Complete schema reference for ayo.json configuration files.
 
 ```json
 {
-  "$schema": "https://ayo.dev/schemas/config.json",
-  "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
+
+  "provider": "your-provider",
+  "model": "your-model",
   "sandbox": {
     "provider": "applecontainer",
     "default_image": "alpine:latest"
@@ -49,8 +49,8 @@ Complete schema reference for ayo.json configuration files.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `anthropic` | LLM provider |
-| `model` | string | `claude-sonnet-4-20250514` | Default model |
+| `provider` | string | (none) | LLM provider |
+| `model` | string | (none) | Default model |
 | `sandbox` | object | | Sandbox defaults |
 | `permissions` | object | | Permission settings |
 | `memory` | object | | Memory settings |
@@ -64,8 +64,8 @@ Complete schema reference for ayo.json configuration files.
 
 ```json
 {
-  "$schema": "https://ayo.dev/schemas/agent.json",
-  "model": "claude-sonnet-4-20250514",
+
+  "model": "your-model",
   "description": "Agent description",
   "allowed_tools": ["bash", "view", "edit"],
   "disabled_tools": [],
@@ -246,18 +246,18 @@ Agents this agent can call via `delegate` tool.
 
 ```json
 {
-  "$schema": "https://ayo.dev/schemas/squad.json",
+
   "planners": {
     "near_term": "ayo-todos",
     "long_term": "ayo-tickets"
   },
   "agents": {
     "@backend": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "your-model",
       "allowed_tools": ["bash", "view", "edit"]
     },
     "@frontend": {
-      "model": "claude-sonnet-4-20250514"
+      "model": "your-model"
     }
   },
   "triggers": [],
@@ -302,7 +302,7 @@ Per-agent config overrides:
 {
   "agents": {
     "@backend": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "your-model",
       "allowed_tools": ["bash", "view", "edit"],
       "memory": {
         "enabled": true
@@ -354,7 +354,6 @@ Squad-level triggers:
 
 Full JSON Schema available at:
 - `schemas/ayo.json` in repository
-- `https://ayo.dev/schemas/ayo.json`
 
 ### Validation
 

@@ -38,7 +38,7 @@ You are a specialized agent for...
 ```json
 {
   "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "tools": ["bash", "view", "edit", "write"],
   "skills": ["./skills/domain.md"],
   "memory": {
@@ -191,7 +191,7 @@ package myprovider
 
 import (
     "context"
-    "github.com/anthropics/ayo/internal/providers"
+    "github.com/alexcabrera/ayo/internal/providers"
 )
 
 type MySandboxProvider struct {
@@ -287,7 +287,7 @@ package local
 
 import (
     "context"
-    "github.com/anthropics/ayo/internal/providers"
+    "github.com/alexcabrera/ayo/internal/providers"
 )
 
 type LocalEmbedding struct {
@@ -417,8 +417,8 @@ package myplanner
 
 import (
     "context"
-    "github.com/anthropics/ayo/internal/fantasy"
-    "github.com/anthropics/ayo/internal/planners"
+    "github.com/alexcabrera/ayo/internal/fantasy"
+    "github.com/alexcabrera/ayo/internal/planners"
 )
 
 type MyPlanner struct {
@@ -571,7 +571,7 @@ Triggers invoke agents on events.
 
 ```bash
 # Clone repository
-git clone https://github.com/anthropics/ayo.git
+git clone https://github.com/alexcabrera/ayo.git
 cd ayo
 
 # Build

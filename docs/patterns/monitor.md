@@ -15,7 +15,7 @@ Interval → Monitor Checks → Issues Found? → Alert/Report
 
 ```bash
 # Check every 5 minutes
-ayo triggers schedule @monitor "*/5 * * * *" \
+ayo trigger schedule @monitor "*/5 * * * *" \
   --prompt "Check system health. Report only if issues found." \
   --singleton
 ```
@@ -35,7 +35,7 @@ ayo triggers schedule @monitor "*/5 * * * *" \
 Check infrastructure health:
 
 ```bash
-ayo triggers schedule @health "*/5 * * * *" \
+ayo trigger schedule @health "*/5 * * * *" \
   --prompt "Check system health:
     - Disk space (alert if < 20%)
     - Memory usage (alert if > 90%)
@@ -53,7 +53,7 @@ ayo triggers schedule @health "*/5 * * * *" \
 Watch CI/CD status:
 
 ```bash
-ayo triggers schedule @ci-monitor "*/10 * * * *" \
+ayo trigger schedule @ci-monitor "*/10 * * * *" \
   --prompt "Check CI/CD status:
     - Any failed builds in last hour?
     - Any stuck pipelines?
@@ -68,7 +68,7 @@ ayo triggers schedule @ci-monitor "*/10 * * * *" \
 Check for security updates:
 
 ```bash
-ayo triggers schedule @deps "0 9 * * *" \
+ayo trigger schedule @deps "0 9 * * *" \
   --prompt "Scan project dependencies:
     - Any known vulnerabilities?
     - Any outdated dependencies with security patches?
@@ -84,7 +84,7 @@ ayo triggers schedule @deps "0 9 * * *" \
 Watch for error patterns:
 
 ```bash
-ayo triggers schedule @log-watcher "*/15 * * * *" \
+ayo trigger schedule @log-watcher "*/15 * * * *" \
   --prompt "Review recent logs:
     - Any error spikes?
     - Any new error patterns?
@@ -99,7 +99,7 @@ ayo triggers schedule @log-watcher "*/15 * * * *" \
 Check database health:
 
 ```bash
-ayo triggers schedule @db-monitor "*/5 * * * *" \
+ayo trigger schedule @db-monitor "*/5 * * * *" \
   --prompt "Check database health:
     - Connection pool usage
     - Slow query log (> 1s)
@@ -116,7 +116,7 @@ ayo triggers schedule @db-monitor "*/5 * * * *" \
 Track cloud spending:
 
 ```bash
-ayo triggers schedule @cost-watcher "0 8 * * *" \
+ayo trigger schedule @cost-watcher "0 8 * * *" \
   --prompt "Review cloud costs:
     - Any unexpected spikes?
     - Resources approaching budget limits?
@@ -193,7 +193,7 @@ Bad:  "Say if something is wrong"
 **Always use singleton for monitors:**
 
 ```bash
-ayo triggers schedule @monitor "* * * * *" \
+ayo trigger schedule @monitor "* * * * *" \
   --singleton  # REQUIRED
 ```
 
@@ -210,7 +210,7 @@ ayo memory store "Peak hours: 9AM-6PM EST"
 ayo memory store "On-call rotation: check #oncall channel"
 
 # Monitor uses context
-ayo triggers schedule @monitor "*/5 * * * *" \
+ayo trigger schedule @monitor "*/5 * * * *" \
   --prompt "Check system health relative to normal baselines"
 ```
 
@@ -222,17 +222,17 @@ Different frequencies for different severity:
 
 ```bash
 # Critical: every minute
-ayo triggers schedule @critical "* * * * *" \
+ayo trigger schedule @critical "* * * * *" \
   --prompt "Check critical services only" \
   --singleton
 
 # Standard: every 5 minutes
-ayo triggers schedule @standard "*/5 * * * *" \
+ayo trigger schedule @standard "*/5 * * * *" \
   --prompt "Standard health checks" \
   --singleton
 
 # Deep: hourly
-ayo triggers schedule @deep "0 * * * *" \
+ayo trigger schedule @deep "0 * * * *" \
   --prompt "Comprehensive analysis" \
   --singleton \
   --timeout 15m
@@ -255,7 +255,7 @@ Track issue persistence:
 
 ```bash
 # List monitor triggers
-ayo triggers list
+ayo trigger list
 
 # Recent monitor sessions
 ayo session list --agent @monitor
@@ -268,7 +268,7 @@ ayo session show <session-id>
 
 ```bash
 # Check last run time
-ayo triggers show <id>
+ayo trigger show <id>
 # Look for "Last run" timestamp
 ```
 
@@ -278,12 +278,12 @@ ayo triggers show <id>
 
 1. Check trigger status:
    ```bash
-   ayo triggers show <id>
+   ayo trigger show <id>
    ```
 
 2. Verify daemon running:
    ```bash
-   ayo sandbox service status
+   ayo service status
    ```
 
 ### Too Many Alerts

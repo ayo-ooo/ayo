@@ -63,7 +63,7 @@ Located in `debug/` directory:
 
 #### Daemon Won't Start
 
-**Symptom:** `ayo daemon start` hangs or returns error
+**Symptom:** `ayo service start` hangs or returns error
 
 **Diagnosis:**
 ```bash
@@ -82,14 +82,14 @@ cat ~/.local/share/ayo/daemon.pid
 1. **Remove stale socket:**
    ```bash
    rm -f ~/.local/share/ayo/daemon.sock
-   ayo daemon start
+   ayo service start
    ```
 
 2. **Kill orphaned process:**
    ```bash
    kill $(cat ~/.local/share/ayo/daemon.pid)
    rm ~/.local/share/ayo/daemon.pid
-   ayo daemon start
+   ayo service start
    ```
 
 3. **Check permissions:**
@@ -111,7 +111,7 @@ cat ~/.local/share/ayo/daemon.pid
 
 1. **Start daemon:**
    ```bash
-   ayo daemon start
+   ayo service start
    ```
 
 2. **Check socket exists:**
@@ -121,7 +121,7 @@ cat ~/.local/share/ayo/daemon.pid
 
 3. **Verify daemon running:**
    ```bash
-   ayo daemon status
+   ayo service status
    ```
 
 ### Sandbox Issues
@@ -186,7 +186,7 @@ ls -la /var/lib/machines/
 
 3. **Warm up sandbox pool:**
    ```bash
-   ayo daemon start
+   ayo service start
    # Pool warms automatically
    ```
 
@@ -232,7 +232,7 @@ ls -la /workspace
 **Diagnosis:**
 ```bash
 # List available agents
-ayo agents list
+ayo agent list
 
 # Check agent path
 ls ~/.config/ayo/agents/
@@ -255,7 +255,7 @@ ls ~/.config/ayo/agents/
 
 4. **Validate agent config:**
    ```bash
-   ayo agents show name
+   ayo agent show name
    ```
 
 #### Agent Hangs
@@ -272,8 +272,9 @@ ls ~/.config/ayo/agents/
 
 2. **Check API key:**
    ```bash
-   echo $ANTHROPIC_API_KEY
-   # Should be set
+   # Check for any configured provider API keys
+   env | grep -E "_API_KEY$"
+   # At least one should be set
    ```
 
 3. **Try with debug:**
@@ -394,25 +395,25 @@ cat ~/.config/ayo/config.json | jq '.permissions'
 **Diagnosis:**
 ```bash
 # Check trigger exists and enabled
-ayo triggers list
+ayo trigger list
 
 # Check trigger details
-ayo triggers show my-trigger
+ayo trigger show my-trigger
 
 # Check history
-ayo triggers history my-trigger
+ayo trigger history my-trigger
 ```
 
 **Solutions:**
 
 1. **Verify daemon running:**
    ```bash
-   ayo daemon status
+   ayo service status
    ```
 
 2. **Check trigger enabled:**
    ```bash
-   ayo triggers list
+   ayo trigger list
    # "enabled" column should be true
    ```
 
@@ -420,17 +421,17 @@ ayo triggers history my-trigger
    ```bash
    # Use standard cron format
    # minute hour day month weekday
-   ayo triggers schedule --schedule "0 9 * * *" ...
+   ayo trigger schedule --schedule "0 9 * * *" ...
    ```
 
 4. **Test manually:**
    ```bash
-   ayo triggers fire my-trigger
+   ayo trigger fire my-trigger
    ```
 
 5. **Check agent exists:**
    ```bash
-   ayo agents show trigger-agent
+   ayo agent show trigger-agent
    ```
 
 #### Watch Trigger Misses Files
@@ -475,7 +476,7 @@ ayo triggers history my-trigger
 ayo plugin list
 
 # Check for duplicates
-ayo agents list
+ayo agent list
 # Look for same name from different plugins
 ```
 
@@ -556,7 +557,7 @@ ayo agents list
 
 1. **Restart daemon:**
    ```bash
-   ayo daemon restart
+   ayo service restart
    ```
 
 2. **Check sandbox running:**
@@ -590,7 +591,7 @@ ayo agents list
 
 2. **Pre-warm on daemon start:**
    ```bash
-   ayo daemon start
+   ayo service start
    # Pool initializes automatically
    ```
 
@@ -613,7 +614,7 @@ ayo agents list
    ```json
    {
      "provider": "anthropic",
-     "model": "claude-3-haiku-20240307"
+     "model": "a-smaller-model"
    }
    ```
 
@@ -663,9 +664,9 @@ tail -500 ~/.local/share/ayo/daemon.log > daemon-logs.txt
 
 | Resource | Link |
 |----------|------|
-| GitHub Issues | https://github.com/anthropics/ayo/issues |
-| Documentation | https://ayo.dev/docs |
-| Community | https://discord.gg/ayo |
+| GitHub Issues | https://github.com/alexcabrera/ayo/issues |
+| Documentation | See `docs/` directory |
+| Community | *Coming soon* |
 
 ### Reporting Bugs
 

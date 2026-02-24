@@ -23,20 +23,20 @@ Unlike interactive agents that respond to direct prompts, ambient agents operate
 
 ### File Watcher
 ```bash
-ayo triggers watch ~/Code/myproject @linter \
+ayo trigger watch ~/Code/myproject @linter \
   --prompt "Lint changed files and fix issues" \
   --pattern "*.go"
 ```
 
 ### Scheduled Report
 ```bash
-ayo triggers schedule @reporter "0 9 * * *" \
+ayo trigger schedule @reporter "0 9 * * *" \
   --prompt "Generate morning summary of git activity"
 ```
 
 ### Ticket Processor
 ```bash
-ayo triggers schedule @worker "*/5 * * * *" \
+ayo trigger schedule @worker "*/5 * * * *" \
   --prompt "Check for ready tickets and work on highest priority"
 ```
 
@@ -47,7 +47,7 @@ ayo triggers schedule @worker "*/5 * * * *" \
 Prevents multiple instances of a trigger from running simultaneously:
 
 ```bash
-ayo triggers schedule @worker "* * * * *" \
+ayo trigger schedule @worker "* * * * *" \
   --prompt "Process queue" \
   --singleton
 ```
@@ -59,7 +59,7 @@ Without singleton mode, if a trigger takes longer than its interval, multiple in
 For file watchers, debouncing groups rapid changes into a single trigger:
 
 ```bash
-ayo triggers watch ~/Code @formatter \
+ayo trigger watch ~/Code @formatter \
   --prompt "Format changed files" \
   --debounce 500ms
 ```
@@ -71,7 +71,7 @@ This prevents triggering on every keystroke during active editing.
 Set maximum execution time to prevent runaway agents:
 
 ```bash
-ayo triggers schedule @analyzer "0 * * * *" \
+ayo trigger schedule @analyzer "0 * * * *" \
   --prompt "Analyze codebase" \
   --timeout 10m
 ```
@@ -89,23 +89,23 @@ ayo triggers schedule @analyzer "0 * * * *" \
 
 ```bash
 # List all triggers
-ayo triggers list
+ayo trigger list
 
 # View trigger details
-ayo triggers show <id>
+ayo trigger show <id>
 
 # Disable without removing
-ayo triggers disable <id>
+ayo trigger disable <id>
 
 # Remove trigger
-ayo triggers rm <id>
+ayo trigger rm <id>
 ```
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| Trigger not firing | Check `ayo triggers list` status |
+| Trigger not firing | Check `ayo trigger list` status |
 | Too many executions | Increase debounce/interval |
 | Agent errors | Check session history for details |
 | High resource usage | Reduce trigger frequency or add singleton |

@@ -33,19 +33,37 @@ go install github.com/alexcabrera/ayo/cmd/ayo@latest
 
 ## Setup
 
-### 1. Configure Your API Key
+### 1. Configure Your LLM Provider
 
-Set your LLM provider's API key:
+Run the interactive setup wizard:
 
 ```bash
-# Anthropic (recommended)
-export ANTHROPIC_API_KEY="sk-ant-..."
+ayo setup
+```
 
-# OpenAI
-export OPENAI_API_KEY="sk-..."
+This detects available API keys and guides you through configuration.
 
-# Ollama (local, no key needed)
-# Just ensure Ollama is running: ollama serve
+**Supported Providers:**
+
+| Provider | Environment Variable | Notes |
+|----------|---------------------|-------|
+| Anthropic | `ANTHROPIC_API_KEY` | Claude models |
+| OpenAI | `OPENAI_API_KEY` | GPT-4 models |
+| Google | `GEMINI_API_KEY` | Gemini models |
+| OpenRouter | `OPENROUTER_API_KEY` | Multi-provider gateway |
+| Azure | `AZURE_OPENAI_API_KEY` | Azure OpenAI |
+| Groq | `GROQ_API_KEY` | Fast inference |
+| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek models |
+| Cerebras | `CEREBRAS_API_KEY` | Fast inference |
+| xAI | `XAI_API_KEY` | Grok models |
+| Together | `TOGETHER_API_KEY` | Open models |
+| Ollama | *(none required)* | Local models |
+
+Set your preferred provider's API key before running setup:
+
+```bash
+export YOUR_PROVIDER_API_KEY="your-key-here"
+ayo setup
 ```
 
 ### 2. Run Setup Wizard
@@ -63,7 +81,7 @@ This will:
 ### 3. Start the Daemon
 
 ```bash
-ayo sandbox service start
+ayo service start
 ```
 
 ### 4. Verify Installation
@@ -129,7 +147,7 @@ ayo -s <session-id> "one more thing..."
 Create an agent specialized for a task:
 
 ```bash
-ayo agents create @reviewer \
+ayo agent create @reviewer \
   --description "Code review specialist" \
   --prompt "You are a code review expert. Focus on security, performance, and style."
 ```
@@ -165,11 +183,11 @@ Create an agent that runs automatically:
 
 ```bash
 # Run every morning at 9am (weekdays)
-ayo triggers schedule @reporter "0 9 * * 1-5" \
+ayo trigger schedule @reporter "0 9 * * 1-5" \
   --prompt "Summarize yesterday's git commits"
 
 # Watch for file changes
-ayo triggers watch ~/Code/project @linter \
+ayo trigger watch ~/Code/project @linter \
   --prompt "Check changed files for issues" \
   --pattern "*.go"
 ```
@@ -199,14 +217,14 @@ When an agent wants to modify files on your system, you'll see an approval promp
 | `ayo "prompt"` | Chat with default @ayo agent |
 | `ayo @agent "prompt"` | Chat with specific agent |
 | `ayo "#squad" "prompt"` | Dispatch to squad |
-| `ayo agents list` | List available agents |
-| `ayo agents create @name` | Create new agent |
+| `ayo agent list` | List available agents |
+| `ayo agent create @name` | Create new agent |
 | `ayo squad list` | List squads |
 | `ayo squad create name` | Create new squad |
-| `ayo triggers list` | List active triggers |
+| `ayo trigger list` | List active triggers |
 | `ayo memory list` | Show stored memories |
 | `ayo doctor` | Check system health |
-| `ayo sandbox service status` | Check daemon status |
+| `ayo service status` | Check daemon status |
 
 ## Next Steps
 
@@ -224,11 +242,11 @@ Now that you're up and running:
 
 ```bash
 # Check status
-ayo sandbox service status
+ayo service status
 
 # Remove stale socket and restart
 rm -f ~/.local/share/ayo/daemon.sock
-ayo sandbox service start
+ayo service start
 ```
 
 ### Sandbox creation fails
@@ -245,7 +263,7 @@ ayo doctor
 
 ```bash
 # List available agents
-ayo agents list
+ayo agent list
 
 # Check agent directories
 ls ~/.local/share/ayo/agents/

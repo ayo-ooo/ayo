@@ -34,10 +34,10 @@ Create specialized agents for the squad:
 
 ```bash
 # Backend agent
-ayo agents create @backend
+ayo agent create @backend
 
 # Frontend agent  
-ayo agents create @frontend
+ayo agent create @frontend
 ```
 
 ### Configure @backend
@@ -306,7 +306,7 @@ Your squad structure:
 
 ```bash
 # Check daemon status
-ayo sandbox service status
+ayo service status
 
 # Check squad status
 ayo squad show dev-team

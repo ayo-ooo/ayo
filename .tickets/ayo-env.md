@@ -1,7 +1,7 @@
 ---
 id: ayo-env
 title: Complete environment variable documentation
-status: open
+status: closed
 priority: high
 assignee: "@ayo"
 tags: [docs, gtm, polish]

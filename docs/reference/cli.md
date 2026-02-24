@@ -23,8 +23,14 @@ Complete command-line reference for ayo.
 | `ayo squad` | Manage squads |
 | `ayo trigger` | Manage triggers |
 | `ayo memory` | Manage memories |
-| `ayo service` | Control daemon |
+| `ayo session` | Manage sessions |
+| `ayo service` | Control background service |
 | `ayo doctor` | Check system health |
+| `ayo audit` | View file modification logs |
+| `ayo backup` | Manage sandbox backups |
+| `ayo plugin` | Manage plugins |
+| `ayo sandbox` | Manage sandboxes |
+| `ayo setup` | Initial setup wizard |
 
 ---
 
@@ -67,7 +73,7 @@ Manage AI agents.
 List all available agents.
 
 ```bash
-ayo agents list [--json]
+ayo agent list [--json]
 ```
 
 **Output**:
@@ -82,7 +88,7 @@ NAME          DESCRIPTION              SOURCE
 Create a new agent.
 
 ```bash
-ayo agents create @name [--template TEMPLATE]
+ayo agent create @name [--template TEMPLATE]
 ```
 
 **Templates**: `default`, `reviewer`, `assistant`
@@ -92,7 +98,7 @@ ayo agents create @name [--template TEMPLATE]
 Show agent details.
 
 ```bash
-ayo agents show @name
+ayo agent show @name
 ```
 
 ### agent rm
@@ -100,7 +106,7 @@ ayo agents show @name
 Remove an agent.
 
 ```bash
-ayo agents rm @name [--force]
+ayo agent rm @name [--force]
 ```
 
 ### agent status
@@ -227,7 +233,7 @@ Manage triggers for automated execution.
 List all triggers.
 
 ```bash
-ayo triggers list [--json]
+ayo trigger list [--json]
 ```
 
 ### trigger create
@@ -236,16 +242,16 @@ Create a new trigger.
 
 ```bash
 # Cron trigger
-ayo triggers schedule NAME --cron "0 9 * * *" --agent @name --prompt "..."
+ayo trigger schedule NAME --cron "0 9 * * *" --agent @name --prompt "..."
 
 # Watch trigger
-ayo triggers schedule NAME --watch PATH --pattern "*.go" --agent @name --prompt "..."
+ayo trigger schedule NAME --watch PATH --pattern "*.go" --agent @name --prompt "..."
 
 # Interval trigger
-ayo triggers schedule NAME --interval 30m --agent @name --prompt "..."
+ayo trigger schedule NAME --interval 30m --agent @name --prompt "..."
 
 # One-time trigger
-ayo triggers schedule NAME --once "2024-12-25 09:00" --agent @name --prompt "..."
+ayo trigger schedule NAME --once "2024-12-25 09:00" --agent @name --prompt "..."
 ```
 
 **Flags**:
@@ -292,7 +298,7 @@ ayo trigger remove NAME
 Manually execute a trigger.
 
 ```bash
-ayo triggers fire NAME
+ayo trigger fire NAME
 ```
 
 ### trigger history
@@ -300,7 +306,7 @@ ayo triggers fire NAME
 View execution history.
 
 ```bash
-ayo triggers history [NAME] [--limit N] [--status STATUS]
+ayo trigger history [NAME] [--limit N] [--status STATUS]
 ```
 
 ---
@@ -396,38 +402,38 @@ ayo memory stats
 
 ## ayo service
 
-Control the background daemon.
+Control the background service.
 
 ### service start
 
-Start the daemon.
+Start the service.
 
 ```bash
-ayo sandbox service start
+ayo service start
 ```
 
 ### service stop
 
-Stop the daemon.
+Stop the service.
 
 ```bash
-ayo sandbox service stop
+ayo service stop
 ```
 
 ### service status
 
-Show daemon status.
+Show service status.
 
 ```bash
-ayo sandbox service status [--json]
+ayo service status [--json]
 ```
 
 ### service restart
 
-Restart the daemon.
+Restart the service.
 
 ```bash
-ayo sandbox service restart
+ayo service restart
 ```
 
 ---
@@ -570,6 +576,44 @@ ayo sandbox reset @ayo
 
 ---
 
+## ayo session
+
+Manage conversation sessions.
+
+### session list
+
+List recent sessions.
+
+```bash
+ayo session list [--limit N] [--agent @name] [--json]
+```
+
+### session show
+
+Show session details.
+
+```bash
+ayo session show SESSION_ID
+```
+
+### session resume
+
+Resume a session.
+
+```bash
+ayo -s SESSION_ID "continue..."
+```
+
+### session delete
+
+Delete a session.
+
+```bash
+ayo session delete SESSION_ID
+```
+
+---
+
 ## Exit Codes
 
 | Code | Description |
@@ -585,15 +629,38 @@ ayo sandbox reset @ayo
 
 ## Environment Variables
 
+### Configuration
+
 | Variable | Description |
 |----------|-------------|
 | `AYO_HOME` | Base directory (default: `~/.local/share/ayo`) |
 | `AYO_CONFIG` | Config file path |
 | `AYO_PROVIDER` | Default LLM provider |
 | `AYO_MODEL` | Default model |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `OPENAI_API_KEY` | OpenAI API key |
 | `AYO_DEBUG` | Enable debug logging |
+| `XDG_CONFIG_HOME` | Base config directory (default: `~/.config`) |
+| `XDG_DATA_HOME` | Base data directory (default: `~/.local/share`) |
+
+### LLM Provider API Keys
+
+| Variable | Provider |
+|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic (Claude) |
+| `OPENAI_API_KEY` | OpenAI (GPT) |
+| `GEMINI_API_KEY` | Google (Gemini) |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI |
+| `GROQ_API_KEY` | Groq |
+| `DEEPSEEK_API_KEY` | DeepSeek |
+| `CEREBRAS_API_KEY` | Cerebras |
+| `XAI_API_KEY` | xAI (Grok) |
+| `TOGETHER_API_KEY` | Together.ai |
+
+### Service URLs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
 
 ---
 

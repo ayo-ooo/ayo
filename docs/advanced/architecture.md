@@ -68,7 +68,7 @@ The `cmd/ayo/` directory contains all CLI commands:
 | `squads.go` | `ayo squad *` - Squad management |
 | `memory.go` | `ayo memory *` - Memory operations |
 | `triggers.go` | `ayo trigger *` - Trigger management |
-| `daemon.go` | `ayo daemon *` - Daemon control |
+| `daemon.go` | `ayo service *` - Daemon control |
 | `plugins.go` | `ayo plugin *` - Plugin management |
 
 All commands inherit `--json` and `--quiet` flags via `globalOutput` for machine-readable output.

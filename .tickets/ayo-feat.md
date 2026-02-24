@@ -1,7 +1,7 @@
 ---
 id: ayo-feat
 title: Document missing CLI features
-status: open
+status: closed
 priority: medium
 assignee: "@ayo"
 tags: [docs, gtm, polish]

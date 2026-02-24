@@ -1,7 +1,7 @@
 ---
 id: ayo-cmds
 title: CLI command documentation accuracy
-status: open
+status: closed
 priority: critical
 assignee: "@ayo"
 tags: [docs, gtm, polish]

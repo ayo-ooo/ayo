@@ -1,7 +1,7 @@
 ---
 id: ayo-path
 title: Consistent path and config naming
-status: open
+status: closed
 priority: high
 assignee: "@ayo"
 tags: [docs, gtm, polish]

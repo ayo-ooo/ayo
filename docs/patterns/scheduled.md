@@ -15,7 +15,7 @@ Time/Interval → Trigger → Agent Runs → Output
 
 ```bash
 # Run every day at 9 AM
-ayo triggers schedule @reporter "0 9 * * *" \
+ayo trigger schedule @reporter "0 9 * * *" \
   --prompt "Generate a daily summary of project activity"
 ```
 
@@ -58,7 +58,7 @@ ayo triggers schedule @reporter "0 9 * * *" \
 Generate a summary every morning:
 
 ```bash
-ayo triggers schedule @briefer "0 8 * * 1-5" \
+ayo trigger schedule @briefer "0 8 * * 1-5" \
   --prompt "Generate a morning briefing including:
     - Git commits from yesterday
     - Open pull requests
@@ -71,7 +71,7 @@ ayo triggers schedule @briefer "0 8 * * 1-5" \
 Wrap up at end of workday:
 
 ```bash
-ayo triggers schedule @summarizer "0 17 * * 1-5" \
+ayo trigger schedule @summarizer "0 17 * * 1-5" \
   --prompt "Generate an end-of-day summary:
     - Work completed today
     - Open items to continue tomorrow
@@ -83,7 +83,7 @@ ayo triggers schedule @summarizer "0 17 * * 1-5" \
 Create weekly status reports:
 
 ```bash
-ayo triggers schedule @reporter "0 9 * * 1" \
+ayo trigger schedule @reporter "0 9 * * 1" \
   --prompt "Generate a weekly status report covering:
     - Completed features
     - Open issues
@@ -96,7 +96,7 @@ ayo triggers schedule @reporter "0 9 * * 1" \
 Monitor system health:
 
 ```bash
-ayo triggers schedule @monitor "0 * * * *" \
+ayo trigger schedule @monitor "0 * * * *" \
   --prompt "Check system health and report only if issues found:
     - Disk space below 20%
     - Memory usage above 90%
@@ -108,7 +108,7 @@ ayo triggers schedule @monitor "0 * * * *" \
 Daily backup prompt:
 
 ```bash
-ayo triggers schedule @backup "0 23 * * *" \
+ayo trigger schedule @backup "0 23 * * *" \
   --prompt "Verify today's backup completed successfully.
     Check backup logs and report any failures."
 ```
@@ -118,7 +118,7 @@ ayo triggers schedule @backup "0 23 * * *" \
 Weekly deep analysis:
 
 ```bash
-ayo triggers schedule @analyzer "0 2 * * 0" \
+ayo trigger schedule @analyzer "0 2 * * 0" \
   --prompt "Run comprehensive code analysis:
     - Security vulnerability scan
     - Dependency updates available
@@ -133,7 +133,7 @@ ayo triggers schedule @analyzer "0 2 * * 0" \
 Specify timezone for consistent scheduling:
 
 ```bash
-ayo triggers schedule @reporter "0 9 * * *" \
+ayo trigger schedule @reporter "0 9 * * *" \
   --prompt "Daily report" \
   --timezone "America/New_York"
 ```
@@ -143,7 +143,7 @@ ayo triggers schedule @reporter "0 9 * * *" \
 For long-running scheduled tasks, use singleton to prevent overlap:
 
 ```bash
-ayo triggers schedule @analyzer "*/30 * * * *" \
+ayo trigger schedule @analyzer "*/30 * * * *" \
   --prompt "Deep analysis that might take 20+ minutes" \
   --singleton
 ```
@@ -183,7 +183,7 @@ ayo memory store "Weekly reports go to #status-updates channel"
 ayo memory store "Critical issues should mention @oncall"
 
 # Scheduled task uses memory context
-ayo triggers schedule @reporter "0 9 * * 1" \
+ayo trigger schedule @reporter "0 9 * * 1" \
   --prompt "Generate weekly report following team conventions"
 ```
 
@@ -196,7 +196,7 @@ Coordinate multiple agents:
 ayo squad create reporters -a @code-analyst,@security-scanner,@metrics
 
 # Scheduled dispatch
-ayo triggers schedule "#reporters" "0 6 * * 1" \
+ayo trigger schedule "#reporters" "0 6 * * 1" \
   --prompt "Generate comprehensive weekly report"
 ```
 
@@ -206,12 +206,12 @@ ayo triggers schedule "#reporters" "0 6 * * 1" \
 
 1. Check timezone settings:
    ```bash
-   ayo triggers show <id>
+   ayo trigger show <id>
    ```
 
 2. Verify daemon is running:
    ```bash
-   ayo sandbox service status
+   ayo service status
    ```
 
 3. Check system time:

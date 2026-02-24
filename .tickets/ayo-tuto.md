@@ -1,7 +1,7 @@
 ---
 id: ayo-tuto
 title: Tutorial guides polish
-status: open
+status: closed
 priority: medium
 assignee: "@ayo"
 tags: [docs, gtm, polish]

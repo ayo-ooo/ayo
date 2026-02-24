@@ -1,7 +1,7 @@
 ---
 id: ayo-refs
 title: Reference documents polish
-status: open
+status: closed
 priority: medium
 assignee: "@ayo"
 tags: [docs, gtm, polish]

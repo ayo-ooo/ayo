@@ -15,7 +15,7 @@ File Change → Trigger → Agent Runs → Output
 
 ```bash
 # Watch a directory for changes
-ayo triggers watch ~/Code/myproject @linter \
+ayo trigger watch ~/Code/myproject @linter \
   --prompt "Check the changed files for issues and fix them"
 ```
 
@@ -35,7 +35,7 @@ ayo triggers watch ~/Code/myproject @linter \
 Format code on every save:
 
 ```bash
-ayo triggers watch ~/Code/myproject @formatter \
+ayo trigger watch ~/Code/myproject @formatter \
   --prompt "Format the changed files using the project's configured formatter" \
   --pattern "*.{go,ts,py}" \
   --debounce 1s \
@@ -47,7 +47,7 @@ ayo triggers watch ~/Code/myproject @formatter \
 Run tests when source files change:
 
 ```bash
-ayo triggers watch ~/Code/myproject/src @tester \
+ayo trigger watch ~/Code/myproject/src @tester \
   --prompt "Run tests related to the changed files" \
   --pattern "*.go" \
   --debounce 2s \
@@ -59,7 +59,7 @@ ayo triggers watch ~/Code/myproject/src @tester \
 Update docs when source changes:
 
 ```bash
-ayo triggers watch ~/Code/myproject/src @documenter \
+ayo trigger watch ~/Code/myproject/src @documenter \
   --prompt "Update documentation for any changed public APIs" \
   --pattern "*.go" \
   --debounce 5s
@@ -70,7 +70,7 @@ ayo triggers watch ~/Code/myproject/src @documenter \
 Rebuild on source changes:
 
 ```bash
-ayo triggers watch ~/Code/myproject @builder \
+ayo trigger watch ~/Code/myproject @builder \
   --prompt "Rebuild the project and report any errors" \
   --pattern "*.{go,mod,sum}" \
   --singleton
@@ -122,7 +122,7 @@ With debounce (better):
 Use singleton mode to prevent overlapping runs:
 
 ```bash
-ayo triggers watch ~/Code @slow-analyzer \
+ayo trigger watch ~/Code @slow-analyzer \
   --prompt "Deep code analysis" \
   --singleton
 ```
@@ -150,7 +150,7 @@ Watch triggers can dispatch to squads:
 ayo squad create code-review -a @linter,@security,@docs
 
 # Watch for changes
-ayo triggers watch ~/Code/myproject "#code-review" \
+ayo trigger watch ~/Code/myproject "#code-review" \
   --prompt "Review the changed files for quality, security, and documentation"
 ```
 
@@ -160,8 +160,8 @@ ayo triggers watch ~/Code/myproject "#code-review" \
 
 1. Check trigger status:
    ```bash
-   ayo triggers list
-   ayo triggers show <id>
+   ayo trigger list
+   ayo trigger show <id>
    ```
 
 2. Verify watch path exists:
@@ -171,7 +171,7 @@ ayo triggers watch ~/Code/myproject "#code-review" \
 
 3. Check daemon is running:
    ```bash
-   ayo sandbox service status
+   ayo service status
    ```
 
 ### Too Many Triggers

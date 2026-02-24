@@ -262,13 +262,13 @@ Memories are embedded as vectors for semantic search:
 Create an agent that heavily uses memory:
 
 ```bash
-ayo agents create @assistant
+ayo agent create @assistant
 ```
 
 **config.json**:
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "description": "Personalized coding assistant",
   "memory": {
     "enabled": true,

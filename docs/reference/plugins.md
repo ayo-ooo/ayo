@@ -308,8 +308,8 @@ Event-based agent activation:
   "name": "ayo-plugins-devtools",
   "version": "2.1.0",
   "description": "Development tools and agents for ayo",
-  "author": "Ayo Team <team@ayo.dev>",
-  "repository": "https://github.com/anthropics/ayo-plugins-devtools",
+  "author": "Ayo Team",
+  "repository": "https://github.com/alexcabrera/ayo-plugins-devtools",
   "license": "Apache-2.0",
   "ayo_version": ">=0.3.0",
 

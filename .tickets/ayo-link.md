@@ -1,7 +1,7 @@
 ---
 id: ayo-link
 title: Remove external link and schema references
-status: open
+status: closed
 priority: high
 assignee: "@ayo"
 tags: [docs, gtm, polish]

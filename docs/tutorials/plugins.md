@@ -74,7 +74,7 @@ mkdir -p agents/formatter
 **agents/formatter/config.json**:
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "description": "Code formatting specialist",
   "allowed_tools": [
     "bash",
@@ -435,7 +435,7 @@ cat manifest.json | jq .
 ayo plugin list | grep devtools
 
 # Check agent is registered
-ayo agents list | grep formatter
+ayo agent list | grep formatter
 ```
 
 ### Tool not available

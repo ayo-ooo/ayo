@@ -138,8 +138,8 @@ Before testing, ensure you have at least one LLM provider configured:
     }
   },
   "defaults": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514",
+    "provider": "your-provider",
+    "model": "your-model",
     "embedding_provider": "ollama",
     "embedding_model": "nomic-embed-text"
   }
@@ -157,7 +157,7 @@ echo "test" | curl -s https://api.anthropic.com/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' | head -c 100
+  -d '{"model":"your-model","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' | head -c 100
 
 # For Ollama
 curl -s http://localhost:11434/api/tags | head -c 200
@@ -232,10 +232,10 @@ ls ~/.local/share/ayo/agents/
 
 ```bash
 # Start daemon
-./ayo sandbox service start
+./ayo service start
 
 # Verify daemon running
-./ayo sandbox service status
+./ayo service status
 ```
 
 **Expected:** Status shows `Running` with PID.
@@ -285,7 +285,7 @@ ls -l ~/.local/share/ayo/daemon.sock
 ### List Default Agents
 
 ```bash
-./ayo agents list
+./ayo agent list
 ```
 
 **Expected:** Shows `@ayo` (meta-agent) and other defaults.
@@ -293,7 +293,7 @@ ls -l ~/.local/share/ayo/daemon.sock
 ### View Agent Details
 
 ```bash
-./ayo agents show @ayo
+./ayo agent show @ayo
 ```
 
 **Expected output includes:**
@@ -305,18 +305,18 @@ ls -l ~/.local/share/ayo/daemon.sock
 ### Create Custom Agent
 
 ```bash
-./ayo agents create @tester \
+./ayo agent create @tester \
   --description "E2E test agent" \
   --prompt "You are a testing assistant. Help verify system functionality. Be concise." \
-  --model claude-sonnet-4-20250514
+  --model your-model
 ```
 
 **Verify creation:**
 ```bash
-./ayo agents list
+./ayo agent list
 # Expected: @tester appears in list
 
-./ayo agents show @tester
+./ayo agent show @tester
 # Expected: Shows description, prompt, model
 ```
 
@@ -340,11 +340,11 @@ cat ~/.local/share/ayo/agents/tester.json
 ### Agent Inheritance (if supported)
 
 ```bash
-./ayo agents create @tester-verbose \
+./ayo agent create @tester-verbose \
   --description "Verbose tester" \
   --inherits @tester
 
-./ayo agents show @tester-verbose
+./ayo agent show @tester-verbose
 ```
 
 **Expected:** Shows inheritance from @tester.
@@ -352,9 +352,9 @@ cat ~/.local/share/ayo/agents/tester.json
 ### Remove Agent
 
 ```bash
-./ayo agents rm @tester-verbose
+./ayo agent rm @tester-verbose
 
-./ayo agents list
+./ayo agent list
 ```
 
 **Expected:** @tester-verbose no longer appears.
@@ -893,7 +893,7 @@ cat ~/.local/share/ayo/sandboxes/squads/e2e-squad/workspace/hello.txt
 
 ```bash
 # Create schedule trigger (every minute for testing)
-./ayo triggers schedule @tester "*/1 * * * *" \
+./ayo trigger schedule @tester "*/1 * * * *" \
   --prompt "Log a test message with timestamp"
 ```
 
@@ -906,7 +906,7 @@ cat ~/.local/share/ayo/sandboxes/squads/e2e-squad/workspace/hello.txt
 mkdir -p /tmp/e2e-watch
 
 # Create watch trigger
-./ayo triggers watch /tmp/e2e-watch @tester \
+./ayo trigger watch /tmp/e2e-watch @tester \
   --prompt "A file was changed in the watched directory"
 ```
 
@@ -915,7 +915,7 @@ mkdir -p /tmp/e2e-watch
 ### List Triggers
 
 ```bash
-./ayo triggers list
+./ayo trigger list
 ```
 
 **Expected:** Shows both triggers (schedule and watch).
@@ -923,7 +923,7 @@ mkdir -p /tmp/e2e-watch
 ### Trigger Details
 
 ```bash
-./ayo triggers show <trigger-id>
+./ayo trigger show <trigger-id>
 ```
 
 **Expected:** Shows type, agent, prompt, schedule/path.
@@ -945,33 +945,33 @@ sleep 2
 
 ```bash
 # Get trigger ID
-./ayo triggers list
+./ayo trigger list
 
 # Disable trigger
-./ayo triggers disable <trigger-id>
+./ayo trigger disable <trigger-id>
 
 # Verify disabled
-./ayo triggers list
+./ayo trigger list
 ```
 **Expected:** Shows disabled status.
 
 ```bash
 # Re-enable trigger
-./ayo triggers enable <trigger-id>
+./ayo trigger enable <trigger-id>
 
 # Verify enabled
-./ayo triggers list
+./ayo trigger list
 ```
 
 ### Remove Triggers
 
 ```bash
 # Remove both triggers
-./ayo triggers rm <schedule-trigger-id>
-./ayo triggers rm <watch-trigger-id>
+./ayo trigger rm <schedule-trigger-id>
+./ayo trigger rm <watch-trigger-id>
 
 # Verify removal
-./ayo triggers list
+./ayo trigger list
 ```
 
 **Expected:** Triggers no longer present.
@@ -1054,7 +1054,7 @@ rm -rf /tmp/e2e-watch
 
 ```bash
 # View how plugins are assigned to agents
-./ayo agents show @ayo
+./ayo agent show @ayo
 ```
 
 **Expected:** Shows plugin configuration for agent.
@@ -1165,7 +1165,7 @@ FIRST=$(./ayo ticket create "Define data model" --assignee @ayo --json | jq -r '
 
 ```bash
 # Stop daemon
-./ayo sandbox service stop
+./ayo service stop
 
 # Try operation
 ./ayo sandbox list
@@ -1174,7 +1174,7 @@ FIRST=$(./ayo ticket create "Define data model" --assignee @ayo --json | jq -r '
 
 ```bash
 # Recovery
-./ayo sandbox service start
+./ayo service start
 ```
 
 ### Unknown Agent
@@ -1239,12 +1239,12 @@ FIRST=$(./ayo ticket create "Define data model" --assignee @ayo --json | jq -r '
 ### Remove Test Agents
 
 ```bash
-./ayo agents list
+./ayo agent list
 
 # Remove test agent
-./ayo agents rm @tester
+./ayo agent rm @tester
 
-./ayo agents list
+./ayo agent list
 ```
 **Expected:** Only default agents remain.
 
@@ -1334,15 +1334,15 @@ The following capabilities have been validated:
 
 | Action | Command |
 |--------|---------|
-| Start daemon | `ayo sandbox service start` |
-| Stop daemon | `ayo sandbox service stop` |
+| Start daemon | `ayo service start` |
+| Stop daemon | `ayo service stop` |
 | Health check | `ayo doctor` |
-| List agents | `ayo agents list` |
+| List agents | `ayo agent list` |
 | Chat with agent | `ayo @agent` or `ayo "prompt"` |
 | List squads | `ayo squad list` |
 | Dispatch to squad | `ayo "#squad-name" "task"` |
 | List tickets | `ayo ticket list` |
-| List triggers | `ayo triggers list` |
+| List triggers | `ayo trigger list` |
 | Search memory | `ayo memory search "query"` |
 
 ### Key Paths
@@ -1360,8 +1360,8 @@ The following capabilities have been validated:
 
 | Issue | Solution |
 |-------|----------|
-| Daemon won't start | `rm -f ~/.local/share/ayo/daemon.sock && ayo sandbox service start` |
+| Daemon won't start | `rm -f ~/.local/share/ayo/daemon.sock && ayo service start` |
 | "Method not found" | Restart daemon to pick up code changes |
 | Squad dispatch hangs | Check LLM provider: `ayo "test"` |
 | Memory search empty | Verify embedding provider configured |
-| Triggers not firing | Check `ayo triggers list` for status |
+| Triggers not firing | Check `ayo trigger list` for status |

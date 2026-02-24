@@ -109,11 +109,11 @@ When input matches a pattern, route to that agent.
   },
   "agents": {
     "@backend": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "your-model",
       "allowed_tools": ["bash", "view", "edit"]
     },
     "@frontend": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "your-model",
       "allowed_tools": ["bash", "view", "edit"]
     }
   },
@@ -160,7 +160,7 @@ In `ayo.json`:
 {
   "agents": {
     "@backend": {
-      "model": "claude-sonnet-4-20250514",
+      "model": "your-model",
       "allowed_tools": ["bash", "view", "edit", "grep"],
       "memory": {
         "enabled": true,
@@ -465,7 +465,7 @@ Quality engineer handling:
 
 ```bash
 # Check daemon status
-ayo sandbox service status
+ayo service status
 
 # Check sandbox provider
 ayo doctor | grep sandbox

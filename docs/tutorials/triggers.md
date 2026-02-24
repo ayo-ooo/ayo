@@ -16,7 +16,7 @@ Set up agents that run automatically on schedules and file changes. By the end, 
 First, create an agent for daily standups:
 
 ```bash
-ayo agents create @standup
+ayo agent create @standup
 ```
 
 Edit `~/.config/ayo/agents/@standup/system.md`:
@@ -53,7 +53,7 @@ You generate concise daily standup summaries.
 Schedule the standup for 9am every weekday:
 
 ```bash
-ayo triggers schedule morning-standup \
+ayo trigger schedule morning-standup \
   --cron "0 9 * * MON-FRI" \
   --agent @standup \
   --prompt "Summarize yesterday's git commits in ~/Projects"
@@ -77,13 +77,13 @@ For common schedules, use aliases:
 
 ```bash
 # Every hour
-ayo triggers schedule hourly-check --cron "@hourly" --agent @monitor
+ayo trigger schedule hourly-check --cron "@hourly" --agent @monitor
 
 # Every day at midnight
-ayo triggers schedule nightly-backup --cron "@daily" --agent @backup
+ayo trigger schedule nightly-backup --cron "@daily" --agent @backup
 
 # Every Monday at midnight
-ayo triggers schedule weekly-report --cron "@weekly" --agent @reporter
+ayo trigger schedule weekly-report --cron "@weekly" --agent @reporter
 ```
 
 ## Step 3: Create a File Watch Agent
@@ -91,7 +91,7 @@ ayo triggers schedule weekly-report --cron "@weekly" --agent @reporter
 Create an agent that reviews changed files:
 
 ```bash
-ayo agents create @watcher
+ayo agent create @watcher
 ```
 
 Edit `~/.config/ayo/agents/@watcher/system.md`:
@@ -128,7 +128,7 @@ Status emojis:
 Watch for Go file changes:
 
 ```bash
-ayo triggers schedule go-watcher \
+ayo trigger schedule go-watcher \
   --watch ~/Projects/myapp/src \
   --pattern "*.go" \
   --agent @watcher \
@@ -139,19 +139,19 @@ ayo triggers schedule go-watcher \
 
 ```bash
 # Watch multiple patterns
-ayo triggers schedule code-watcher \
+ayo trigger schedule code-watcher \
   --watch ./src \
   --pattern "*.go,*.ts,*.py" \
   --agent @watcher
 
 # Specific events only
-ayo triggers schedule new-files \
+ayo trigger schedule new-files \
   --watch ./uploads \
   --events create \
   --agent @processor
 
 # With debouncing (wait for changes to settle)
-ayo triggers schedule build-watcher \
+ayo trigger schedule build-watcher \
   --watch ./src \
   --debounce 5s \
   --agent @builder
@@ -162,7 +162,7 @@ ayo triggers schedule build-watcher \
 For recurring checks that aren't cron-based:
 
 ```bash
-ayo triggers schedule health-check \
+ayo trigger schedule health-check \
   --interval 30m \
   --agent @monitor \
   --prompt "Check system health and report any issues"
@@ -173,7 +173,7 @@ ayo triggers schedule health-check \
 Schedule a single future execution:
 
 ```bash
-ayo triggers schedule reminder \
+ayo trigger schedule reminder \
   --once "2024-12-25 09:00" \
   --agent @ayo \
   --prompt "Remind me to send holiday greetings"
@@ -184,7 +184,7 @@ ayo triggers schedule reminder \
 ### List All Triggers
 
 ```bash
-ayo triggers list
+ayo trigger list
 ```
 
 Example output:
@@ -221,13 +221,13 @@ ayo trigger remove morning-standup
 Test a trigger without waiting:
 
 ```bash
-ayo triggers fire morning-standup
+ayo trigger fire morning-standup
 ```
 
 ### View Execution History
 
 ```bash
-ayo triggers history
+ayo trigger history
 ```
 
 Example output:
@@ -241,7 +241,7 @@ go-watcher        2024-01-15 08:42:11   success   2.8s
 ### View Specific Trigger History
 
 ```bash
-ayo triggers history morning-standup --limit 10
+ayo trigger history morning-standup --limit 10
 ```
 
 ## Understanding Trigger Execution
@@ -259,7 +259,7 @@ When a trigger fires:
 Prevent overlapping executions:
 
 ```bash
-ayo triggers schedule slow-job \
+ayo trigger schedule slow-job \
   --cron "*/5 * * * *" \
   --agent @processor \
   --singleton \
@@ -274,7 +274,7 @@ Failed triggers are logged but don't stop future executions:
 
 ```bash
 # View failed triggers
-ayo triggers history --status failed
+ayo trigger history --status failed
 ```
 
 ## Complete Example: CI/CD Agent
@@ -283,10 +283,10 @@ Create a comprehensive code quality pipeline:
 
 ```bash
 # Create the agent
-ayo agents create @ci
+ayo agent create @ci
 
 # Watch for pushes to main files
-ayo triggers schedule ci-pipeline \
+ayo trigger schedule ci-pipeline \
   --watch ./src \
   --pattern "*.go" \
   --debounce 10s \
@@ -330,13 +330,13 @@ You run quality checks on code changes.
 
 ```bash
 # Check daemon is running
-ayo sandbox service status
+ayo service status
 
 # Check trigger is enabled
 ayo trigger show <name> | grep enabled
 
 # Check trigger list
-ayo triggers list
+ayo trigger list
 ```
 
 ### Watch trigger missing events
@@ -348,7 +348,7 @@ File system watchers have limitations:
 
 Try with debouncing:
 ```bash
-ayo triggers schedule my-watch \
+ayo trigger schedule my-watch \
   --watch ./src \
   --debounce 2s \
   --agent @watcher

@@ -1,7 +1,7 @@
 ---
 id: ayo-prov
 title: Provider-neutral documentation
-status: open
+status: closed
 priority: critical
 assignee: "@ayo"
 tags: [docs, gtm, polish]

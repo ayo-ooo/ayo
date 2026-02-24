@@ -15,7 +15,7 @@ A `@reviewer` agent that:
 ## Step 1: Create the Agent
 
 ```bash
-ayo agents create @reviewer
+ayo agent create @reviewer
 ```
 
 This creates the agent directory at `~/.config/ayo/agents/@reviewer/`:
@@ -91,7 +91,7 @@ Edit `~/.config/ayo/agents/@reviewer/config.json`:
 
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "description": "Security-focused code reviewer",
   "allowed_tools": [
     "bash",
@@ -111,7 +111,7 @@ Edit `~/.config/ayo/agents/@reviewer/config.json`:
 | Field | Purpose |
 |-------|---------|
 | `model` | LLM model for this agent |
-| `description` | Shows in `ayo agents list` |
+| `description` | Shows in `ayo agent list` |
 | `allowed_tools` | Tools the agent can use (no edit = read-only) |
 | `memory` | Enable agent-specific memories |
 
@@ -120,7 +120,7 @@ Edit `~/.config/ayo/agents/@reviewer/config.json`:
 Verify the agent is available:
 
 ```bash
-ayo agents list
+ayo agent list
 ```
 
 You should see `@reviewer` in the list.
@@ -128,7 +128,7 @@ You should see `@reviewer` in the list.
 Show agent details:
 
 ```bash
-ayo agents show @reviewer
+ayo agent show @reviewer
 ```
 
 ## Step 5: Run Your First Review
@@ -206,7 +206,7 @@ Your final `@reviewer` directory:
 **config.json**:
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "description": "Security-focused code reviewer",
   "allowed_tools": ["bash", "view", "glob", "grep"],
   "memory": {
@@ -235,7 +235,7 @@ The model resolution order is:
 1. Agent `config.json`
 2. Global config `~/.config/ayo/config.json`
 3. Environment variable `AYO_MODEL`
-4. Default (claude-sonnet-4-20250514)
+4. Default (none - must be configured)
 
 ### Skills not loading
 

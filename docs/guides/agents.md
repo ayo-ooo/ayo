@@ -1,6 +1,6 @@
 # Agent Configuration Guide
 
-Complete reference for configuring ayo agents.
+Complete reference for configuring ayo agent.
 
 ## Directory Structure
 
@@ -18,8 +18,8 @@ Complete reference for configuring ayo agents.
 
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
-  "description": "Agent description for ayo agents list",
+  "model": "your-model",
+  "description": "Agent description for ayo agent list",
   "allowed_tools": ["bash", "view", "edit"],
   "disabled_tools": ["delegate"],
   "trust_level": "sandboxed",
@@ -63,8 +63,8 @@ Complete reference for configuring ayo agents.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `model` | string | `claude-sonnet-4-20250514` | LLM model to use |
-| `description` | string | `""` | Shown in `ayo agents list` |
+| `model` | string | (inherits from ayo.json) | LLM model to use |
+| `description` | string | `""` | Shown in `ayo agent list` |
 
 ### Tools
 
@@ -328,7 +328,7 @@ You are a helpful assistant.
 **config.json**:
 ```json
 {
-  "model": "claude-sonnet-4-20250514",
+  "model": "your-model",
   "description": "Enterprise code assistant",
   "allowed_tools": ["bash", "view", "edit", "grep", "glob"],
   "disabled_tools": ["delegate"],

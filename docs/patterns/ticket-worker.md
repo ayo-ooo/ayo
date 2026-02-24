@@ -15,7 +15,7 @@ Ticket Queue → Worker Polls → Picks Task → Executes → Closes Ticket
 
 ```bash
 # Poll for work every 5 minutes
-ayo triggers schedule @worker "*/5 * * * *" \
+ayo trigger schedule @worker "*/5 * * * *" \
   --prompt "Check for ready tickets assigned to you. Pick the highest priority one and complete it." \
   --singleton
 ```
@@ -44,7 +44,7 @@ ayo triggers schedule @worker "*/5 * * * *" \
 Automatically review ready PRs:
 
 ```bash
-ayo triggers schedule @reviewer "*/10 * * * *" \
+ayo trigger schedule @reviewer "*/10 * * * *" \
   --prompt "Check for 'ready-for-review' tickets assigned to you.
     For each ticket:
     1. Review the associated code changes
@@ -60,7 +60,7 @@ ayo triggers schedule @reviewer "*/10 * * * *" \
 Process bug reports:
 
 ```bash
-ayo triggers schedule @fixer "*/15 * * * *" \
+ayo trigger schedule @fixer "*/15 * * * *" \
   --prompt "Check for bug tickets assigned to you.
     For the highest priority bug:
     1. Analyze the bug report
@@ -77,7 +77,7 @@ ayo triggers schedule @fixer "*/15 * * * *" \
 Keep docs updated:
 
 ```bash
-ayo triggers schedule @documenter "0 * * * *" \
+ayo trigger schedule @documenter "0 * * * *" \
   --prompt "Check for documentation tickets.
     For each ready ticket:
     1. Identify what needs documenting
@@ -93,7 +93,7 @@ ayo triggers schedule @documenter "0 * * * *" \
 Generate missing tests:
 
 ```bash
-ayo triggers schedule @tester "*/30 * * * *" \
+ayo trigger schedule @tester "*/30 * * * *" \
   --prompt "Check for 'needs-tests' tickets.
     For the highest priority:
     1. Analyze the code that needs testing
@@ -160,7 +160,7 @@ Bad:  "Pick any ticket"
 **Always use singleton mode for ticket workers:**
 
 ```bash
-ayo triggers schedule @worker "* * * * *" \
+ayo trigger schedule @worker "* * * * *" \
   --singleton  # REQUIRED
 ```
 
@@ -187,7 +187,7 @@ For complex tickets, use squads:
 ayo squad create feature-team -a @designer,@developer,@tester
 
 # Worker dispatches to squad
-ayo triggers schedule @coordinator "*/15 * * * *" \
+ayo trigger schedule @coordinator "*/15 * * * *" \
   --prompt "Check for feature tickets. 
     Dispatch each to #feature-team with appropriate subtasks." \
   --singleton
@@ -199,7 +199,7 @@ ayo triggers schedule @coordinator "*/15 * * * *" \
 
 ```bash
 # List triggers
-ayo triggers list
+ayo trigger list
 
 # See worker's recent sessions
 ayo session list --agent @worker
@@ -227,7 +227,7 @@ ayo ticket list --status closed --limit 10
 
 1. Check trigger is enabled:
    ```bash
-   ayo triggers show <id>
+   ayo trigger show <id>
    ```
 
 2. Verify tickets exist:

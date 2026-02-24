@@ -1,7 +1,7 @@
 ---
 id: ayo-gstr
 title: Getting Started guide polish
-status: open
+status: closed
 priority: high
 assignee: "@ayo"
 tags: [docs, gtm, polish, first-impression]

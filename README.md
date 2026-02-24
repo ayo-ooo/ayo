@@ -19,15 +19,52 @@ ayo "#dev-team" "build a user authentication system"
 # Install
 go install github.com/alexcabrera/ayo/cmd/ayo@latest
 
-# Configure
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Configure (interactive wizard - supports 10+ providers)
 ayo setup
 
-# Start the daemon
-ayo sandbox service start
+# Start the sandbox service
+ayo service start
 
 # Start chatting
 ayo
+```
+
+### Supported Providers
+
+| Provider | Environment Variable | Notes |
+|----------|---------------------|-------|
+| Anthropic | `ANTHROPIC_API_KEY` | Claude models |
+| OpenAI | `OPENAI_API_KEY` | GPT-4 models |
+| Google | `GEMINI_API_KEY` | Gemini models |
+| OpenRouter | `OPENROUTER_API_KEY` | Multi-provider gateway |
+| Azure | `AZURE_OPENAI_API_KEY` | Azure OpenAI |
+| Groq | `GROQ_API_KEY` | Fast inference |
+| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek models |
+| Cerebras | `CEREBRAS_API_KEY` | Fast inference |
+| xAI | `XAI_API_KEY` | Grok models |
+| Together | `TOGETHER_API_KEY` | Open models |
+| Ollama | *(none required)* | Local models |
+
+### Common Flags
+
+```bash
+-y, --no-jodas    # Auto-approve file modifications (use with caution)
+-c, --continue    # Continue most recent session
+-s, --session ID  # Continue specific session by ID
+-a, --attach FILE # Attach file to prompt
+-q, --quiet       # Suppress non-essential output
+--json            # Output in JSON format
+```
+
+### Unix Pipe Integration
+
+```bash
+# Pipe content to ayo
+cat error.log | ayo "explain these errors"
+git diff | ayo @reviewer "review my changes"
+
+# Combine with other tools
+ayo @sql "query for active users" | jq '.results'
 ```
 
 ## Why ayo?
@@ -54,7 +91,7 @@ Agents are AI assistants defined as directories:
 
 ```bash
 # Create an agent
-ayo agents create @support --description "Customer support agent"
+ayo agent create @support --description "Customer support agent"
 
 # Use it
 ayo @support "help with this customer issue"
@@ -142,11 +179,11 @@ Set up ambient agents that act without prompting:
 
 ```bash
 # Daily standup at 9am
-ayo triggers schedule @standup "0 9 * * 1-5" \
+ayo trigger schedule @standup "0 9 * * 1-5" \
   --prompt "Summarize yesterday's progress"
 
 # Watch for file changes
-ayo triggers watch ~/Projects @reviewer \
+ayo trigger watch ~/Projects @reviewer \
   --prompt "Review changed files" \
   --pattern "*.go"
 ```
@@ -261,11 +298,11 @@ To write to your files, agents must request permission:
 ayo doctor
 
 # View daemon status
-ayo sandbox service status
+ayo service status
 
 # Restart daemon
-ayo sandbox service stop
-ayo sandbox service start
+ayo service stop
+ayo service start
 
 # Shell into a sandbox
 ayo sandbox shell @ayo

@@ -1091,7 +1091,7 @@ Dispatch work to squad agents.
 ### Go Client
 
 ```go
-import "github.com/anthropics/ayo/internal/daemon"
+import "github.com/alexcabrera/ayo/internal/daemon"
 
 client, err := daemon.NewClient()
 if err != nil {
@@ -1106,7 +1106,7 @@ result, err := client.Call("daemon.ping", nil)
 
 ```bash
 # The ayo CLI uses the daemon automatically when available
-ayo daemon start
+ayo service start
 ayo run code "Fix the bug"  # Uses daemon for sandbox management
 ```
 

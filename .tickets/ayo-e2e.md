@@ -1,7 +1,7 @@
 ---
 id: ayo-e2e
 title: E2E guide provider neutrality and accuracy
-status: open
+status: closed
 priority: high
 assignee: "@ayo"
 tags: [docs, gtm, polish, testing]
