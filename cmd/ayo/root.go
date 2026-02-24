@@ -35,6 +35,9 @@ import (
 // Global output flags accessible to all subcommands
 var globalOutput cli.Output
 
+// Global no-jodas flag (auto-approve file modifications)
+var globalNoJodas bool
+
 func newRootCmd() *cobra.Command {
 	var cfgPath string
 	var attachments []string
@@ -338,6 +341,7 @@ Examples:
 	cmd.PersistentFlags().StringVar(&cfgPath, "config", defaultConfigPath(), "path to config file")
 	cmd.PersistentFlags().BoolVar(&globalOutput.JSON, "json", false, "output in JSON format")
 	cmd.PersistentFlags().BoolVarP(&globalOutput.Quiet, "quiet", "q", false, "minimal output, suppress informational messages")
+	cmd.PersistentFlags().BoolVarP(&globalNoJodas, "no-jodas", "y", false, "auto-approve all file modifications (WARNING: use with caution)")
 	cmd.Flags().StringSliceVarP(&attachments, "attachment", "a", nil, "file attachments")
 	cmd.Flags().BoolVar(&debugFlag, "debug", false, "show debug output including raw tool payloads")
 	cmd.Flags().StringVarP(&modelOverride, "model", "m", "", "model to use (overrides config default)")
