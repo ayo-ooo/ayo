@@ -1,6 +1,10 @@
 package shared
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/alexcabrera/ayo/internal/util"
+)
 
 // TodoRenderer renders todo/todos tool calls.
 type TodoRenderer struct{}
@@ -65,7 +69,7 @@ func (t *TodoRenderer) Render(input ToolRenderInput) ToolRenderOutput {
 		inProgressTask = meta.JustStarted
 	}
 	if inProgressTask != "" {
-		headerText = fmt.Sprintf("%d/%d - %s", completed, total, TruncateText(inProgressTask, 40))
+		headerText = fmt.Sprintf("%d/%d - %s", completed, total, util.Truncate(inProgressTask, 40))
 	}
 
 	out.HeaderParams = []string{headerText}

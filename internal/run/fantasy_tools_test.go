@@ -29,9 +29,9 @@ func (m *mockPlannerWithTools) Tools() []fantasy.AgentTool {
 	return m.tools
 }
 
-func TestNewFantasyToolSetWithOptions_DefaultBash(t *testing.T) {
+func TestNewFantasyToolSet_DefaultBash(t *testing.T) {
 	// Test that bash is available by default with empty allowed list
-	ts := NewFantasyToolSetWithOptions(nil, "", nil, 0, false)
+	ts := NewFantasyToolSet(ToolSetOptions{})
 	defer ts.Close()
 
 	// Should have bash by default
@@ -73,10 +73,10 @@ func TestNewFantasyToolSetWithOptions_PlannerToolsProvided(t *testing.T) {
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_LegacyTodoIgnored(t *testing.T) {
+func TestNewFantasyToolSet_LegacyTodoIgnored(t *testing.T) {
 	// Test that explicitly listing "todo" or "todos" in allowed is ignored
 	// (these are now provided by planners, not built-in)
-	ts := NewFantasyToolSetWithOptions([]string{"bash", "todo", "todos"}, "", nil, 0, false)
+	ts := NewFantasyToolSet(ToolSetOptions{AllowedTools: []string{"bash", "todo", "todos"}})
 	defer ts.Close()
 
 	tools := ts.Tools()
@@ -88,9 +88,9 @@ func TestNewFantasyToolSetWithOptions_LegacyTodoIgnored(t *testing.T) {
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_OldPlanningNameIgnored(t *testing.T) {
+func TestNewFantasyToolSet_OldPlanningNameIgnored(t *testing.T) {
 	// Test that "planning" (old category name) is ignored and doesn't cause errors
-	ts := NewFantasyToolSetWithOptions([]string{"bash", "planning"}, "", nil, 0, false)
+	ts := NewFantasyToolSet(ToolSetOptions{AllowedTools: []string{"bash", "planning"}})
 	defer ts.Close()
 
 	tools := ts.Tools()
@@ -107,12 +107,12 @@ func TestNewFantasyToolSetWithOptions_OldPlanningNameIgnored(t *testing.T) {
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_PlanCategoryResolution(t *testing.T) {
+func TestNewFantasyToolSet_PlanCategoryResolution(t *testing.T) {
 	// Test that "plan" category resolves correctly:
 	// - If a default is configured (via plugin or ayo.json), it loads that tool
 	// - If no default is configured, no tool is loaded for "plan"
 	// - The literal string "plan" should never appear as a tool name
-	ts := NewFantasyToolSetWithOptions([]string{"bash", "plan"}, "", nil, 0, false)
+	ts := NewFantasyToolSet(ToolSetOptions{AllowedTools: []string{"bash", "plan"}})
 	defer ts.Close()
 
 	tools := ts.Tools()
@@ -125,10 +125,10 @@ func TestNewFantasyToolSetWithOptions_PlanCategoryResolution(t *testing.T) {
 	}
 }
 
-func TestNewFantasyToolSetWithOptions_StatefulToolsTracked(t *testing.T) {
+func TestNewFantasyToolSet_StatefulToolsTracked(t *testing.T) {
 	// Test that stateful tools are tracked for cleanup when planner tools are provided
 	// Without planner tools, there are no stateful tools (the built-in todo was removed)
-	ts := NewFantasyToolSetWithOptions(nil, "", nil, 0, false)
+	ts := NewFantasyToolSet(ToolSetOptions{})
 
 	// Without planner tools, statefulTools should be empty
 	if len(ts.statefulTools) != 0 {

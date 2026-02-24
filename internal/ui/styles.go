@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/ui/shared"
-	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
 	"github.com/charmbracelet/lipgloss"
@@ -255,12 +254,6 @@ func FormatErrorLabel(msg string) string {
 func FormatSuccessLabel(msg string) string {
 	styles := DefaultStyles()
 	return styles.SuccessLabel.Render(IconSuccess + " " + msg)
-}
-
-// TruncateWithEllipsis truncates a string and adds ellipsis if needed.
-// Deprecated: Use util.Truncate instead.
-func TruncateWithEllipsis(s string, maxLen int) string {
-	return util.Truncate(s, maxLen)
 }
 
 // IndentText indents each line of text with the given prefix.

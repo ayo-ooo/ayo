@@ -135,18 +135,6 @@ type ToolSetOptions struct {
 	SquadInvoker      squads.AgentInvoker   // Invoker for agent delegation
 }
 
-// NewFantasyToolSetWithOptions creates a Fantasy tool set with all options.
-// Deprecated: Use NewFantasyToolSet with ToolSetOptions directly.
-// Task management tools are now provided by planners via PlannerTools option.
-func NewFantasyToolSetWithOptions(allowed []string, baseDir string, memQueue *memory.Queue, depth int, _ bool) FantasyToolSet {
-	return NewFantasyToolSet(ToolSetOptions{
-		AllowedTools: allowed,
-		BaseDir:      baseDir,
-		MemoryQueue:  memQueue,
-		Depth:        depth,
-	})
-}
-
 // NewFantasyToolSet creates a Fantasy tool set with configurable options.
 // This is the recommended way to create a tool set with sandbox support.
 func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {

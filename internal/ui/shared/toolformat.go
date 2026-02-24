@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alexcabrera/ayo/internal/util"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -169,18 +168,6 @@ func FormatTodoChange(isNew bool, justCompleted []string, justStarted string, co
 	}
 
 	return fmt.Sprintf("%d/%d", completed, total)
-}
-
-// FormatDuration formats a duration for display.
-// Deprecated: Use util.FormatDurationSeconds instead.
-func FormatDuration(seconds float64) string {
-	return util.FormatDurationSeconds(seconds)
-}
-
-// TruncateText truncates text with an ellipsis if it exceeds maxLen.
-// Deprecated: Use util.Truncate instead.
-func TruncateText(text string, maxLen int) string {
-	return util.Truncate(text, maxLen)
 }
 
 // SanitizeCommand sanitizes a command string for display.

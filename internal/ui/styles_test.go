@@ -99,49 +99,6 @@ func TestFormatSuccessLabel(t *testing.T) {
 	}
 }
 
-func TestTruncateWithEllipsis(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  string
-		maxLen int
-		want   string
-	}{
-		{
-			name:   "short string not truncated",
-			input:  "hello",
-			maxLen: 10,
-			want:   "hello",
-		},
-		{
-			name:   "exact length not truncated",
-			input:  "hello",
-			maxLen: 5,
-			want:   "hello",
-		},
-		{
-			name:   "long string truncated with ellipsis",
-			input:  "hello world",
-			maxLen: 8,
-			want:   "hello...",
-		},
-		{
-			name:   "very short maxLen",
-			input:  "hello",
-			maxLen: 2,
-			want:   "he",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := TruncateWithEllipsis(tt.input, tt.maxLen)
-			if got != tt.want {
-				t.Errorf("TruncateWithEllipsis(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestIndentText(t *testing.T) {
 	tests := []struct {
 		name   string
