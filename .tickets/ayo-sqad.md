@@ -1,6 +1,6 @@
 ---
 id: ayo-sqad
-status: open
+status: closed
 deps: [ayo-pv3a]
 links: []
 created: 2026-02-23T22:14:55Z
