@@ -82,4 +82,13 @@ ayod runs as PID 1 and manages users, execution, and host communication.
 
 ### Cleanup
 - `ayo-xhox`: Update go.mod dependencies
-- `ayo-6f6b`: Remove outdated documentation
+
+### Technical Debt
+- `ayo-clns`: Clean slate preparation (run before starting)
+- `ayo-debt`: Apply gopls modernize suggestions
+- `ayo-depr`: Remove deprecated functions
+- `ayo-dupl`: Consolidate duplicate interfaces
+- `ayo-splt`: Split large files
+
+### Externalized Prompts
+- `ayo-xprm`: **Externalize all prompts** - zero hardcoded prompt strings in codebase

@@ -12,7 +12,16 @@ tags: [sandbox, agents]
 ---
 # Implement shared sandbox with per-agent Unix users
 
-Establish the @ayo sandbox as the default shared workspace where each agent runs as a **real Unix user**.
+Migrate existing per-agent user functionality to ayod and establish the @ayo sandbox as the default shared workspace.
+
+## Context: Existing Functionality
+
+The codebase **already has** per-agent Unix users via `EnsureAgentUser()` in `apple.go:668-723`:
+- Sanitizes agent handle → Unix username
+- Creates user with `adduser -D -s /bin/sh username`
+- Copies dotfiles from host
+
+This ticket is about **migrating** this functionality to ayod, not building from scratch.
 
 ## Design
 

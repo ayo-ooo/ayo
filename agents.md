@@ -2,6 +2,58 @@
 
 Quick reference for AI coding agents working on the ayo codebase.
 
+---
+
+## Ticket-Driven Development Workflow
+
+**MANDATORY PROCESS** - Follow this exact workflow for all implementation work:
+
+### Step 1: Select Next Ticket
+1. Analyze ALL open tickets in `.tickets/`
+2. Consider dependencies (tickets with satisfied deps first)
+3. Consider priority (lower number = higher priority)
+4. Select the single best ticket to work on next
+
+### Step 2: Break Down into Atomic Tasks
+1. Use the `todo` tool to load the ticket
+2. Set first todo: "Analyze ticket and codebase"
+3. Break the ticket into atomic work units (smallest possible tasks)
+4. Each todo item = ONE discrete change (file, function, test)
+5. Add final todo: "Run all tests and fix failures"
+
+### Step 3: Implement
+1. Work through todos one at a time
+2. Mark each todo complete only when FULLY done
+3. If tests fail, add new todos to analyze and fix
+4. Continue until all todos complete and tests pass
+
+### Step 4: Close Ticket
+1. Change ticket status from `open` to `closed`
+2. Verify all acceptance criteria met
+
+### Step 5: Commit and Push
+1. Stage all changes: `git add .`
+2. Write extensive commit message explaining:
+   - What was changed and why
+   - Files modified
+   - Any design decisions
+   - Testing performed
+3. Push to origin: `git push`
+4. **Every ticket = separate commit** (no batching)
+
+### Step 6: Compact and Continue
+1. Use summarization tools to compact context window
+2. Return to Step 1
+
+### Rules
+- **One ticket per commit** - Even rollup tickets, even interim fix tickets
+- **No skipping steps** - Follow the workflow exactly
+- **Atomic todos** - Break down until no further breakdown possible
+- **Tests must pass** - Never close a ticket with failing tests
+- **Push after every ticket** - Keep remote in sync
+
+---
+
 ## Project Overview
 
 Ayo is a CLI framework for creating, managing, and orchestrating AI agents that operate in isolated sandbox environments.
@@ -13,23 +65,15 @@ Ayo is a CLI framework for creating, managing, and orchestrating AI agents that 
 
 **Sandbox providers:** Apple Container (macOS 26+), systemd-nspawn (Linux). NOT Docker.
 
-For comprehensive documentation, see `docs/`.
+For comprehensive documentation, see `PLAN.md` (docs/ will be created in Phase 9).
 
-## Documentation Map
+## Key References
 
-| Topic | File | When to read |
-|-------|------|--------------|
-| Full system guide | docs/TUTORIAL.md | Deep understanding of architecture |
-| Agent creation | docs/agents.md | Creating/modifying agents |
-| **Squads & SQUAD.md** | docs/squads.md | Multi-agent team coordination |
-| **Planners** | docs/planners.md | Work coordination plugins |
-| Tickets | docs/tickets.md | File-based coordination |
-| Skills system | docs/skills.md | Adding knowledge to agents |
-| Tools | docs/tools.md | Tool system, bash, memory |
-| Flows | docs/flows.md | Multi-step workflows |
-| CLI commands | docs/cli-reference.md | Command syntax |
-| Configuration | docs/configuration.md | Config file locations |
-| Plugins | docs/plugins.md | Extending ayo |
+| Topic | File | Purpose |
+|-------|------|---------|
+| GTM Plan | PLAN.md | Full implementation roadmap |
+| Tickets | .tickets/*.md | All open/closed work items |
+| This file | AGENTS.md | Agent memory and workflow |
 
 ## Key Directories
 
@@ -57,7 +101,7 @@ For comprehensive documentation, see `docs/`.
 - `workspace/` - Shared code workspace
 - Location: `~/.local/share/ayo/sandboxes/squads/{name}/`
 
-**SQUAD.md**: Constitution file injected into all agents' system prompts. Defines mission, agent roles, coordination rules. See `docs/squads.md`.
+**SQUAD.md**: Constitution file injected into all agents' system prompts. Defines mission, agent roles, coordination rules. See PLAN.md for details (docs/ created in Phase 9).
 
 **Planners**: Pluggable modules for work coordination. Two types:
 - Near-term (`ayo-todos`): Session-scoped task tracking

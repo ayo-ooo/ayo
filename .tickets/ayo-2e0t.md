@@ -1,7 +1,7 @@
 ---
 id: ayo-2e0t
 status: open
-deps: [ayo-spy5]
+deps: []
 links: []
 created: 2026-02-23T22:16:25Z
 type: task

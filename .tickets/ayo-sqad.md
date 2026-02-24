@@ -59,15 +59,18 @@ schedule:
 
 ## Child Tickets
 
-- Replace robfig/cron with gocron v2
-- Add job persistence in SQLite
-- Implement one-time job support
-- Implement duration/interval jobs
-- Implement daily/weekly/monthly jobs
-- Add job monitoring interface
-- `ayo-o841`: Implement file watch triggers
-- `ayo-8t7z`: Add trigger notification system
-- `ayo-zn5p`: Add trigger management CLI commands
-- `ayo-jj2s`: Polish cron trigger configuration
-- `ayo-7xsf`: Add trigger YAML configuration
+| Ticket | Title | Priority |
+|--------|-------|----------|
+| `ayo-q841` | Replace robfig/cron with gocron v2 | high |
+| `ayo-wt6w` | Add job persistence in SQLite | high |
+| `ayo-rptd` | Implement one-time job support | medium |
+| `ayo-snst` | Implement duration/interval jobs | medium |
+| `ayo-y0x1` | Implement daily/weekly/monthly jobs | medium |
+| `ayo-899j` | Add job monitoring interface | medium |
+| `ayo-o841` | Implement file watch triggers | medium |
+| `ayo-8t7z` | Add trigger notification system | medium |
+| `ayo-zn5p` | Add trigger management CLI commands | medium |
+| `ayo-jj2s` | Polish cron trigger configuration | low |
+| `ayo-7xsf` | Add trigger YAML configuration | low |
+| `ayo-6lcg` | Phase 4 E2E verification | high |
 

@@ -1,42 +1,42 @@
 ---
 id: ayo-i2qo
 status: open
-deps: [ayo-xfu3]
+deps: [ayo-memx]
 links: []
 created: 2026-02-23T22:14:56Z
 type: epic
-priority: 0
+priority: 2
 assignee: Alex Cabrera
-tags: [gtm, phase6]
+tags: [gtm, phase7]
 ---
-# Phase 6: Documentation & Polish
+# Phase 7: CLI Polish
 
-Make ayo approachable and production-ready.
+Improve CLI user experience before final documentation.
 
 ## Goals
 
-- Rewrite all core documentation
-- Add examples and recipes
 - Polish CLI help text
 - Improve `ayo doctor` command
 - Add comprehensive test coverage
 - Update AGENTS.md memory file
+- Minor UX improvements
 
-## Documentation Priorities
+## Scope
 
-1. **Getting Started**: Install → first agent → first squad (< 5 minutes)
-2. **Concepts**: Sandboxes, squads, triggers, permissions
-3. **Reference**: CLI commands, ayo.json schema, trigger config
-4. **Recipes**: Common workflows, ambient agent patterns
+**Note**: Full documentation has been moved to Phase 9 (`ayo-docs`) to ensure it's written after all features are implemented.
+
+This phase focuses on CLI polish and test coverage.
 
 ## Child Tickets
 
-- `ayo-spy5`: Rewrite core documentation
-- `ayo-fc4a`: Rewrite squads and triggers docs
-- `ayo-v7jd`: Add examples and recipes
-- `ayo-m1zl`: Polish CLI help text
-- `ayo-0vmu`: Improve ayo doctor command
-- `ayo-1v23`: Document ambient agent patterns
-- `ayo-4tpp`: Add comprehensive test coverage
-- `ayo-2e0t`: Update AGENTS.md memory file
+| Ticket | Title | Priority |
+|--------|-------|----------|
+| `ayo-m1zl` | Polish CLI help text | medium |
+| `ayo-0vmu` | Improve ayo doctor command | medium |
+| `ayo-4tpp` | Add comprehensive test coverage | high |
+| `ayo-2e0t` | Update AGENTS.md memory file | low |
 
+## Deprecated Tickets
+
+The following tickets have been superseded by Phase 9 documentation tickets:
+- ~~`ayo-spy5`~~, ~~`ayo-fc4a`~~, ~~`ayo-v7jd`~~, ~~`ayo-1v23`~~ → moved to `ayo-docs`

@@ -29,9 +29,13 @@ Make squads a first-class coordination primitive.
 
 ## Child Tickets
 
+### Squad Coordination
 - `ayo-9k8m`: Clarify squad lead agent semantics
 - `ayo-n88v`: Implement squad dispatch routing
 - `ayo-oxj6`: Add I/O schema enforcement for squads
 - `ayo-akqw`: Polish ticket tools for squad agents
 - `ayo-158p`: Add squad agent shell access
+
+### @ayo Routing
+- `ayo-rout`: Implement @ayo smart routing (agent vs squad selection)
 

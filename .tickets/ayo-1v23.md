@@ -1,14 +1,14 @@
 ---
 id: ayo-1v23
 status: open
-deps: [ayo-o841, ayo-jj2s, ayo-zn5p]
+deps: [ayo-doc4]
 links: []
 created: 2026-02-23T22:16:10Z
 type: task
 priority: 2
 assignee: Alex Cabrera
-parent: ayo-sqad
-tags: [triggers, docs]
+parent: ayo-docs
+tags: [triggers, documentation, phase9]
 ---
 # Document ambient agent patterns
 
