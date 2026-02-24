@@ -409,3 +409,212 @@ func TestValidateResponse_Pattern(t *testing.T) {
 		})
 	}
 }
+
+func TestValidator_CollectWithRetry_Success(t *testing.T) {
+	req := &InputRequest{
+		ID: "req-123",
+		Fields: []Field{
+			{Name: "name", Type: FieldTypeText, Label: "Name", Required: true},
+		},
+	}
+
+	v := NewValidator(3)
+	
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		return "Alice", nil
+	}
+	
+	resp, err := v.CollectWithRetry(req, promptFn)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Values["name"] != "Alice" {
+		t.Errorf("expected name=Alice, got %v", resp.Values["name"])
+	}
+}
+
+func TestValidator_CollectWithRetry_RetryThenSuccess(t *testing.T) {
+	min := 3
+	req := &InputRequest{
+		ID: "req-123",
+		Fields: []Field{
+			{
+				Name:  "code",
+				Type:  FieldTypeText,
+				Label: "Code",
+				Validation: &Validation{
+					MinLength: &min,
+				},
+			},
+		},
+	}
+
+	v := NewValidator(3)
+	
+	attempt := 0
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		attempt++
+		if attempt == 1 {
+			// First attempt - too short
+			return "AB", nil
+		}
+		// Second attempt - valid
+		return "ABCDEF", nil
+	}
+	
+	resp, err := v.CollectWithRetry(req, promptFn)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Values["code"] != "ABCDEF" {
+		t.Errorf("expected code=ABCDEF, got %v", resp.Values["code"])
+	}
+	if attempt != 2 {
+		t.Errorf("expected 2 attempts, got %d", attempt)
+	}
+}
+
+func TestValidator_CollectWithRetry_MaxRetriesExceeded(t *testing.T) {
+	min := 10
+	req := &InputRequest{
+		ID:         "req-123",
+		MaxRetries: 2,
+		Fields: []Field{
+			{
+				Name:  "code",
+				Type:  FieldTypeText,
+				Label: "Code",
+				Validation: &Validation{
+					MinLength: &min,
+				},
+			},
+		},
+	}
+
+	v := NewValidator(3) // Default is 3, but request overrides to 2
+	
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		return "short", nil // Always returns invalid value
+	}
+	
+	_, err := v.CollectWithRetry(req, promptFn)
+	if err == nil {
+		t.Fatal("expected max retries error")
+	}
+	
+	maxErr, ok := err.(*MaxRetriesError)
+	if !ok {
+		t.Fatalf("expected MaxRetriesError, got %T", err)
+	}
+	if maxErr.Attempts != 3 { // 1 initial + 2 retries
+		t.Errorf("expected 3 attempts, got %d", maxErr.Attempts)
+	}
+}
+
+func TestValidator_CollectWithRetry_PreviousErrorPassed(t *testing.T) {
+	min := 5
+	req := &InputRequest{
+		ID: "req-123",
+		Fields: []Field{
+			{
+				Name:  "name",
+				Type:  FieldTypeText,
+				Label: "Name",
+				Validation: &Validation{
+					MinLength: &min,
+				},
+			},
+		},
+	}
+
+	v := NewValidator(3)
+	
+	var receivedErrors []*ValidationError
+	attempt := 0
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		receivedErrors = append(receivedErrors, prevErr)
+		attempt++
+		if attempt == 1 {
+			return "AB", nil // Too short
+		}
+		return "ValidName", nil
+	}
+	
+	_, err := v.CollectWithRetry(req, promptFn)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	
+	// First call should have no previous error
+	if receivedErrors[0] != nil {
+		t.Error("first call should have nil previous error")
+	}
+	// Second call should have the validation error
+	if receivedErrors[1] == nil {
+		t.Error("second call should have previous error")
+	}
+}
+
+func TestValidator_CollectWithRetry_CustomMessage(t *testing.T) {
+	min := 5
+	customMsg := "Code must be at least 5 characters"
+	req := &InputRequest{
+		ID: "req-123",
+		Fields: []Field{
+			{
+				Name:  "code",
+				Type:  FieldTypeText,
+				Label: "Code",
+				Validation: &Validation{
+					MinLength: &min,
+					Message:   customMsg,
+				},
+			},
+		},
+	}
+
+	v := NewValidator(2)
+	
+	var lastError *ValidationError
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		lastError = prevErr
+		return "AB", nil // Always invalid
+	}
+	
+	_, err := v.CollectWithRetry(req, promptFn)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	
+	// The last error passed should have the custom message
+	if lastError != nil && lastError.Message != customMsg {
+		t.Errorf("expected custom message %q, got %q", customMsg, lastError.Message)
+	}
+}
+
+func TestValidator_CollectWithRetry_PreservesDefaults(t *testing.T) {
+	req := &InputRequest{
+		ID: "req-123",
+		Fields: []Field{
+			{Name: "name", Type: FieldTypeText, Label: "Name", Default: "DefaultUser"},
+		},
+	}
+
+	v := NewValidator(3)
+	
+	promptFn := func(field Field, prevErr *ValidationError) (any, error) {
+		// Return empty to use default
+		return "", nil
+	}
+	
+	resp, err := v.CollectWithRetry(req, promptFn)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	
+	// The response should have the value from the prompt, not the default
+	// (defaults are initialization, prompt overrides)
+	if resp.Values["name"] != "" {
+		t.Errorf("expected empty string from prompt, got %v", resp.Values["name"])
+	}
+}

@@ -29,14 +29,18 @@ const (
 	RecipientChat  RecipientType = "chat"
 )
 
+// DefaultMaxRetries is the default number of validation retries.
+const DefaultMaxRetries = 3
+
 // InputRequest represents a request for human input from an agent.
 type InputRequest struct {
-	ID        string        `json:"id"`
-	Timeout   time.Duration `json:"timeout"`
-	Recipient Recipient     `json:"recipient"`
-	Context   string        `json:"context"`
-	Fields    []Field       `json:"fields"`
-	Persona   *Persona      `json:"persona,omitempty"`
+	ID         string        `json:"id"`
+	Timeout    time.Duration `json:"timeout"`
+	Recipient  Recipient     `json:"recipient"`
+	Context    string        `json:"context"`
+	Fields     []Field       `json:"fields"`
+	Persona    *Persona      `json:"persona,omitempty"`
+	MaxRetries int           `json:"max_retries,omitempty"`
 }
 
 // Field represents a single input field in the request.
@@ -64,6 +68,7 @@ type Validation struct {
 	Min       *int    `json:"min,omitempty"`
 	Max       *int    `json:"max,omitempty"`
 	Pattern   *string `json:"pattern,omitempty"`
+	Message   string  `json:"message,omitempty"` // Custom error message
 }
 
 // Recipient specifies who should receive the input request.

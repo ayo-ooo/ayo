@@ -220,3 +220,112 @@ func isValidOption(options []Option, value string) bool {
 	}
 	return false
 }
+
+// PromptFunc is called to get input from the user.
+// It receives the field to prompt for and any previous validation error.
+// Returns the value or an error if prompting failed.
+type PromptFunc func(field Field, previousError *ValidationError) (any, error)
+
+// Validator handles input validation with retry support.
+type Validator struct {
+	maxRetries int
+}
+
+// NewValidator creates a new validator with the given max retries.
+func NewValidator(maxRetries int) *Validator {
+	if maxRetries <= 0 {
+		maxRetries = DefaultMaxRetries
+	}
+	return &Validator{maxRetries: maxRetries}
+}
+
+// MaxRetriesError is returned when validation fails after all retries are exhausted.
+type MaxRetriesError struct {
+	Field      string
+	Attempts   int
+	LastError  *ValidationError
+}
+
+func (e *MaxRetriesError) Error() string {
+	return fmt.Sprintf("validation failed after %d attempts for field %q: %s", e.Attempts, e.Field, e.LastError.Message)
+}
+
+// CollectWithRetry collects input for all fields, retrying invalid fields up to maxRetries.
+// It preserves valid values and only re-prompts for invalid fields.
+func (v *Validator) CollectWithRetry(req *InputRequest, promptFn PromptFunc) (*InputResponse, error) {
+	values := make(map[string]any)
+	
+	// Initialize with defaults
+	for _, field := range req.Fields {
+		if field.Default != nil {
+			values[field.Name] = field.Default
+		}
+	}
+	
+	maxRetries := v.maxRetries
+	if req.MaxRetries > 0 {
+		maxRetries = req.MaxRetries
+	}
+	
+	for _, field := range req.Fields {
+		var lastError *ValidationError
+		
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			value, err := promptFn(field, lastError)
+			if err != nil {
+				return nil, fmt.Errorf("prompt failed for field %q: %w", field.Name, err)
+			}
+			
+			values[field.Name] = value
+			
+			// Validate the field
+			if validErr := validateFieldValue(field, value); validErr != nil {
+				// Use custom message if provided
+				if field.Validation != nil && field.Validation.Message != "" {
+					validErr.Message = field.Validation.Message
+				}
+				lastError = validErr
+				continue
+			}
+			
+			// Check required
+			if field.Required && isEmpty(value) {
+				lastError = &ValidationError{
+					Field:   field.Name,
+					Message: fmt.Sprintf("%s is required", field.Label),
+				}
+				continue
+			}
+			
+			// Valid - move to next field
+			lastError = nil
+			break
+		}
+		
+		if lastError != nil {
+			return nil, &MaxRetriesError{
+				Field:     field.Name,
+				Attempts:  maxRetries + 1,
+				LastError: lastError,
+			}
+		}
+	}
+	
+	return &InputResponse{
+		RequestID: req.ID,
+		Values:    values,
+	}, nil
+}
+
+func isEmpty(value any) bool {
+	if value == nil {
+		return true
+	}
+	switch v := value.(type) {
+	case string:
+		return v == ""
+	case []any:
+		return len(v) == 0
+	}
+	return false
+}
