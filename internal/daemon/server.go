@@ -34,7 +34,6 @@ type Server struct {
 	provider       providers.SandboxProvider
 	sessionManager *DaemonSessionManager
 	triggerEngine  *TriggerEngine
-	webhookServer  *WebhookServer
 	squadRPC       *SquadRPC
 	startTime      time.Time
 	shutdownCh     chan struct{}
@@ -54,8 +53,6 @@ type ServerConfig struct {
 	SocketPath      string
 	PoolConfig      sandbox.PoolConfig
 	IdleTimeout     time.Duration
-	WebhookBindAddr string // optional, defaults to "127.0.0.1:0"
-	WebhookSecret   string // optional HMAC secret for webhooks
 	MaxConcurrent   int    // max concurrent agent executions (default: 3)
 }
 
@@ -143,13 +140,6 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 	// Create trigger engine with callback to spawn sessions
 	server.triggerEngine = NewTriggerEngine(TriggerEngineConfig{
-		Callback: server.handleTriggerEvent,
-	})
-
-	// Create webhook server
-	server.webhookServer = NewWebhookServer(WebhookServerConfig{
-		BindAddr: cfg.WebhookBindAddr,
-		Secret:   cfg.WebhookSecret,
 		Callback: server.handleTriggerEvent,
 	})
 
@@ -267,12 +257,6 @@ func (s *Server) Start(ctx context.Context, socketPath string) error {
 		return fmt.Errorf("start trigger engine: %w", err)
 	}
 
-	// Start webhook server
-	if err := s.webhookServer.Start(ctx); err != nil {
-		s.listener.Close()
-		return fmt.Errorf("start webhook server: %w", err)
-	}
-
 	// Start ticket watcher (optional - don't fail if fsnotify unavailable)
 	if s.ticketWatcher != nil {
 		if err := s.ticketWatcher.Start(ctx); err != nil {
@@ -321,11 +305,6 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.triggerEngine.Stop(ctx)
 	}
 
-	// Stop webhook server
-	if s.webhookServer != nil {
-		s.webhookServer.Stop(ctx)
-	}
-
 	// Stop ticket watcher
 	if s.ticketWatcher != nil {
 		s.ticketWatcher.Stop(ctx)
@@ -366,19 +345,6 @@ func (s *Server) Addr() net.Addr {
 // TriggerEngine returns the trigger engine.
 func (s *Server) TriggerEngine() *TriggerEngine {
 	return s.triggerEngine
-}
-
-// WebhookServer returns the webhook server.
-func (s *Server) WebhookServer() *WebhookServer {
-	return s.webhookServer
-}
-
-// WebhookPort returns the port the webhook server is listening on.
-func (s *Server) WebhookPort() int {
-	if s.webhookServer == nil {
-		return 0
-	}
-	return s.webhookServer.Port()
 }
 
 func (s *Server) acceptLoop(ctx context.Context) {
@@ -931,36 +897,16 @@ func (s *Server) handleTriggerRegister(req *Request) *Response {
 		Source:  "cli",
 		Enabled: true,
 		Config: TriggerConfig{
-			Schedule:      params.Schedule,
-			Path:          params.Path,
-			Patterns:      params.Patterns,
-			Recursive:     params.Recursive,
-			Events:        params.Events,
-			WebhookPath:   params.WebhookPath,
-			WebhookSecret: params.WebhookSecret,
-			WebhookFormat: params.WebhookFormat,
+			Schedule:  params.Schedule,
+			Path:      params.Path,
+			Patterns:  params.Patterns,
+			Recursive: params.Recursive,
+			Events:    params.Events,
 		},
 	}
 
 	if err := s.triggerEngine.Register(trigger); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
-	}
-
-	// If it's a webhook trigger, also register with webhook server
-	if trigger.Type == TriggerTypeWebhook && s.webhookServer != nil {
-		webhookTrigger := &WebhookTrigger{
-			ID:     trigger.ID,
-			Path:   trigger.Config.WebhookPath,
-			Agent:  trigger.Agent,
-			Prompt: trigger.Prompt,
-			Secret: trigger.Config.WebhookSecret,
-			Format: trigger.Config.WebhookFormat,
-		}
-		if err := s.webhookServer.Register(webhookTrigger); err != nil {
-			// Unregister from trigger engine on failure
-			s.triggerEngine.Unregister(trigger.ID)
-			return NewErrorResponse(NewError(ErrCodeInternal, err.Error()), req.ID)
-		}
 	}
 
 	result := TriggerRegisterResult{Trigger: triggerToInfo(trigger)}
@@ -972,12 +918,6 @@ func (s *Server) handleTriggerRemove(req *Request) *Response {
 	var params TriggerRemoveParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return NewErrorResponse(NewError(ErrCodeInvalidParams, err.Error()), req.ID)
-	}
-
-	// Check if it's a webhook trigger to also unregister from webhook server
-	trigger, _ := s.triggerEngine.Get(params.ID)
-	if trigger != nil && trigger.Type == TriggerTypeWebhook && s.webhookServer != nil {
-		s.webhookServer.Unregister(trigger.Config.WebhookPath)
 	}
 
 	if err := s.triggerEngine.Unregister(params.ID); err != nil {
@@ -1038,15 +978,12 @@ func triggerToInfo(t *Trigger) TriggerInfo {
 		Agent:         t.Agent,
 		Prompt:        t.Prompt,
 		Source:        t.Source,
-		Enabled:       t.Enabled,
-		Schedule:      t.Config.Schedule,
-		Path:          t.Config.Path,
-		Patterns:      t.Config.Patterns,
-		Recursive:     t.Config.Recursive,
-		Events:        t.Config.Events,
-		WebhookPath:   t.Config.WebhookPath,
-		WebhookSecret: t.Config.WebhookSecret,
-		WebhookFormat: t.Config.WebhookFormat,
+		Enabled:   t.Enabled,
+		Schedule:  t.Config.Schedule,
+		Path:      t.Config.Path,
+		Patterns:  t.Config.Patterns,
+		Recursive: t.Config.Recursive,
+		Events:    t.Config.Events,
 	}
 }
 

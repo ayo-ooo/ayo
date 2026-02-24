@@ -18,9 +18,8 @@ import (
 type TriggerType string
 
 const (
-	TriggerTypeCron    TriggerType = "cron"
-	TriggerTypeWatch   TriggerType = "watch"
-	TriggerTypeWebhook TriggerType = "webhook"
+	TriggerTypeCron  TriggerType = "cron"
+	TriggerTypeWatch TriggerType = "watch"
 )
 
 // Trigger represents a trigger configuration.
@@ -44,11 +43,6 @@ type TriggerConfig struct {
 	Patterns  []string `json:"patterns,omitempty"`  // glob patterns to match
 	Recursive bool     `json:"recursive,omitempty"` // watch subdirectories
 	Events    []string `json:"events,omitempty"`    // create, modify, delete
-
-	// Webhook configuration
-	WebhookPath   string `json:"webhook_path,omitempty"`   // e.g., /hooks/my-trigger
-	WebhookSecret string `json:"webhook_secret,omitempty"` // per-webhook secret
-	WebhookFormat string `json:"webhook_format,omitempty"` // github, gitlab, generic
 }
 
 // TriggerEvent represents a triggered event.

@@ -298,7 +298,7 @@ type AgentStatusResult struct {
 // TriggerInfo represents a trigger for RPC responses.
 type TriggerInfo struct {
 	ID      string `json:"id"`
-	Type    string `json:"type"` // "cron", "watch", or "webhook"
+	Type    string `json:"type"` // "cron" or "watch"
 	Agent   string `json:"agent"`
 	Prompt  string `json:"prompt,omitempty"`
 	Source  string `json:"source,omitempty"`
@@ -312,11 +312,6 @@ type TriggerInfo struct {
 	Patterns  []string `json:"patterns,omitempty"`
 	Recursive bool     `json:"recursive,omitempty"`
 	Events    []string `json:"events,omitempty"`
-
-	// Webhook-specific
-	WebhookPath   string `json:"webhook_path,omitempty"`
-	WebhookSecret string `json:"webhook_secret,omitempty"`
-	WebhookFormat string `json:"webhook_format,omitempty"` // github, gitlab, generic
 }
 
 // TriggerListResult is the response to trigger.list.
@@ -336,7 +331,7 @@ type TriggerGetResult struct {
 
 // TriggerRegisterParams is the request for trigger.register.
 type TriggerRegisterParams struct {
-	Type   string `json:"type"` // "cron", "watch", or "webhook"
+	Type   string `json:"type"` // "cron" or "watch"
 	Agent  string `json:"agent"`
 	Prompt string `json:"prompt,omitempty"`
 
@@ -348,11 +343,6 @@ type TriggerRegisterParams struct {
 	Patterns  []string `json:"patterns,omitempty"`
 	Recursive bool     `json:"recursive,omitempty"`
 	Events    []string `json:"events,omitempty"`
-
-	// Webhook-specific
-	WebhookPath   string `json:"webhook_path,omitempty"`
-	WebhookSecret string `json:"webhook_secret,omitempty"`
-	WebhookFormat string `json:"webhook_format,omitempty"` // github, gitlab, generic
 }
 
 // TriggerRegisterResult is the response to trigger.register.
