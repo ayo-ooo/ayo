@@ -1,7 +1,7 @@
 ---
 id: ayo-i2qo
 status: open
-deps: [ayo-memx]
+deps: [ayo-memx, ayo-hitl]
 links: []
 created: 2026-02-23T22:14:56Z
 type: epic

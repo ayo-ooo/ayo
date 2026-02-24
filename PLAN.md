@@ -82,6 +82,79 @@ These aren't scheduled cron jobs or dumb automations. They're **persistent, lear
 
 ---
 
+## Human-in-the-Loop: Agents That Ask
+
+Agents don't just act autonomously—they work WITH humans when needed. The human-in-the-loop (HITL) system enables agents to pause, request structured input, and wait for human response.
+
+### Why HITL Matters
+
+- **Approval workflows**: "Should I deploy to production?"
+- **Clarification**: "Which of these 3 fixes should I try?"
+- **Information gathering**: "What's the budget for this project?"
+- **Third-party communication**: Reaching humans outside the ayo ecosystem
+
+### Unified Input Schema
+
+One schema works everywhere. The agent specifies WHAT it needs; the runtime adapts HOW:
+
+| Interface | Rendering |
+|-----------|-----------|
+| CLI | Rich forms (bubbletea/huh) |
+| Interactive chat | Conversational Q&A |
+| Telegram/WhatsApp | Numbered options |
+| Email | Keyword replies |
+
+### Example: Invoice Approval
+
+**Agent requests:**
+```json
+{
+  "context": "Invoice #INV-2024-0847 needs approval",
+  "fields": [
+    {"name": "decision", "type": "select", "options": ["approve", "reject", "hold"]},
+    {"name": "notes", "type": "text", "required": false}
+  ],
+  "recipient": {"type": "email", "address": "sarah@acme.com"}
+}
+```
+
+**Email sent:**
+```
+Subject: Action Required: Invoice Approval #INV-2024-0847
+
+Please reply with: APPROVE, REJECT, or HOLD
+```
+
+**Sarah replies:** `APPROVE`
+
+**Agent continues** with approval.
+
+### Persona & Disclosure
+
+**Critical design decision**: Agents do NOT reveal they are AI when communicating with third parties (unless explicitly configured). This:
+
+1. **Prevents prompt injection** - Adversaries can't manipulate known-AI behavior
+2. **Maintains natural interactions** - Third parties communicate normally
+3. **Professional context** - "Finance Assistant" > "AI Agent"
+
+The owner controls disclosure policy per-agent or globally.
+
+### Epic: `ayo-hitl`
+
+| Ticket | Description |
+|--------|-------------|
+| `ayo-hscm` | Input request schema |
+| `ayo-htui` | CLI form renderer (huh) |
+| `ayo-hcht` | Conversational handler |
+| `ayo-htol` | human_input tool |
+| `ayo-heml` | Email input handler |
+| `ayo-hval` | Validation & re-prompting |
+| `ayo-htim` | Timeout & fallback |
+| `ayo-hper` | Persona management |
+| `ayo-hitv` | E2E verification |
+
+---
+
 ## Memory System: First-Class Citizen
 
 Memory is what makes ayo **grow and adapt** with the user over time. It's a key differentiator that must be treated as a core primitive, not an afterthought.
@@ -1080,7 +1153,7 @@ Extract shared interfaces to `internal/interfaces/`:
 
 ### Phase 6: Memory & Interactive Mode
 
-**Goal**: Memory as first-class citizen, simpler TUI
+**Goal**: Memory as first-class citizen, simpler TUI, human-in-the-loop
 
 1. Add memory CLI commands (`ayo-mem1`)
 2. Add memory tools for agents (`ayo-mem2`)
@@ -1089,6 +1162,7 @@ Extract shared interfaces to `internal/interfaces/`:
 5. Rewrite interactive mode with event rendering (`ayo-evnt`)
 6. Optimize glamour initialization (`ayo-glam`)
 7. Document memory system (`ayo-mem5`)
+8. **Human-in-the-loop system** (`ayo-hitl`) - forms, conversational input, email input, persona management
 
 ### Phase 7: CLI Polish
 
@@ -1284,6 +1358,7 @@ Key insight: Users want **event-driven agents** that respond to real-world trigg
 - [ ] Memory system is discoverable and documented
 - [ ] No dead code or unused features
 - [ ] Test coverage > 70%
+- [ ] Human-in-the-loop forms work across CLI, chat, and email
 
 ### Mental Model Test
 
@@ -1311,7 +1386,8 @@ All implementation work is tracked in `.tickets/`. Use `tk list` to see current 
 | `ayo-sqad` | Phase 4: Advanced Scheduler | Phase 3 | Open |
 | `ayo-xfu3` | Phase 5: Squad Polish | Phase 4 | Open |
 | `ayo-memx` | Phase 6: Memory & Interactive | Phase 5 | Open |
-| `ayo-i2qo` | Phase 7: CLI Polish | Phase 6 | Open |
+| `ayo-hitl` | Phase 6b: Human-in-the-Loop | Phase 6 | Open |
+| `ayo-i2qo` | Phase 7: CLI Polish | Phase 6, 6b | Open |
 | `ayo-plug` | Phase 8: Plugin Ecosystem | Phase 5 | Open |
 | `ayo-docs` | Phase 9: Documentation | Phase 7, 8 | Open |
 
