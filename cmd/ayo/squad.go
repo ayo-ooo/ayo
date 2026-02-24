@@ -78,6 +78,7 @@ Examples:
 	cmd.AddCommand(squadRemoveAgentCmd())
 	cmd.AddCommand(squadTicketCmd())
 	cmd.AddCommand(squadSchemaCmd())
+	cmd.AddCommand(squadShellCmd())
 
 	return cmd
 }
