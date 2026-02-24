@@ -299,6 +299,21 @@ type SquadConfig struct {
 	// Description provides a human-readable description of the squad's purpose.
 	Description string `json:"description,omitempty"`
 
+	// Lead is the agent that receives unrouted dispatches and coordinates work.
+	// Example: "@architect"
+	Lead string `json:"lead,omitempty"`
+
+	// InputAccepts is the agent that processes squad input if different from lead.
+	// Useful for squads where a planner agent accepts input but delegates to lead.
+	InputAccepts string `json:"input_accepts,omitempty"`
+
+	// Agents lists agent handles that are members of this squad.
+	// Example: ["@frontend", "@backend", "@qa"]
+	Agents []string `json:"agents,omitempty"`
+
+	// Planners configures the squad's planning plugins.
+	Planners *SquadPlannersConfig `json:"planners,omitempty"`
+
 	// Image is the container image for the squad sandbox.
 	// Defaults to the standard sandbox image.
 	Image string `json:"image,omitempty"`
@@ -321,16 +336,45 @@ type SquadConfig struct {
 	// Defaults to false (persistent).
 	Ephemeral bool `json:"ephemeral,omitempty"`
 
-	// Agents lists agent handles that are members of this squad.
-	// Example: ["@frontend", "@backend", "@qa"]
-	Agents []string `json:"agents,omitempty"`
-
 	// WorkspaceMount is the host path to mount as /workspace in the squad sandbox.
 	// This is where agents work on code.
 	WorkspaceMount string `json:"workspace_mount,omitempty"`
 
 	// OutputPath is the host path where work products are synced after completion.
 	OutputPath string `json:"output_path,omitempty"`
+
+	// IO configures input/output schema validation.
+	IO *SquadIOConfig `json:"io,omitempty"`
+
+	// Coordination configures ticket workflow and assignment.
+	Coordination *SquadCoordinationConfig `json:"coordination,omitempty"`
+}
+
+// SquadPlannersConfig configures planning plugins for a squad.
+type SquadPlannersConfig struct {
+	// NearTerm is the short-term planner (e.g., "ayo-todos").
+	NearTerm string `json:"near_term,omitempty"`
+
+	// LongTerm is the long-term planner (e.g., "ayo-tickets").
+	LongTerm string `json:"long_term,omitempty"`
+}
+
+// SquadIOConfig configures input/output validation for a squad.
+type SquadIOConfig struct {
+	// InputSchema is the path to a JSON Schema file for validating squad input.
+	InputSchema string `json:"input_schema,omitempty"`
+
+	// OutputSchema is the path to a JSON Schema file for validating squad output.
+	OutputSchema string `json:"output_schema,omitempty"`
+}
+
+// SquadCoordinationConfig configures ticket workflow for a squad.
+type SquadCoordinationConfig struct {
+	// TicketWorkflow specifies the coordination style: "kanban", "scrum", or custom.
+	TicketWorkflow string `json:"ticket_workflow,omitempty"`
+
+	// AutoAssign enables automatic ticket assignment to agents.
+	AutoAssign bool `json:"auto_assign,omitempty"`
 }
 
 // DefaultProvidersConfig returns the default provider configuration.
