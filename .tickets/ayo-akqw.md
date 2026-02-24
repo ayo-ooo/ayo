@@ -1,7 +1,7 @@
 ---
 id: ayo-akqw
 status: open
-deps: [ayo-9k8m]
+deps: []
 links: []
 created: 2026-02-23T22:15:54Z
 type: task

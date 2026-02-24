@@ -1,7 +1,7 @@
 ---
 id: ayo-7xsf
 status: open
-deps: [ayo-q841]
+deps: []
 links: []
 created: 2026-02-23T22:16:10Z
 type: task

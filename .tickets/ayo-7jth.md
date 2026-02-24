@@ -1,7 +1,7 @@
 ---
 id: ayo-7jth
-status: open
-deps: [ayo-nqyv]
+status: closed
+deps: []
 links: []
 created: 2026-02-23T23:13:19Z
 type: task
