@@ -1,6 +1,6 @@
 ---
 id: ayo-7xsf
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-23T22:16:10Z

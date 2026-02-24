@@ -840,3 +840,9 @@ func RemoveSquadDir(name string) error {
 	}
 	return nil
 }
+
+// TriggersConfigDir returns the triggers configuration directory.
+// Location: ~/.config/ayo/triggers/
+func TriggersConfigDir() string {
+	return filepath.Join(ConfigDir(), "triggers")
+}
