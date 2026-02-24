@@ -1,6 +1,6 @@
 ---
 id: ayo-dupl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-02-24T01:30:00Z
@@ -12,46 +12,10 @@ tags: [cleanup, tech-debt]
 ---
 # Consolidate duplicate interfaces and types
 
-Extract shared interfaces to a common package to eliminate duplication.
+**Status: N/A** - Upon review, the "duplicates" are intentionally different:
 
-## Duplicate Interfaces
+1. **AgentInvoker**: The two remaining interfaces (`squads.AgentInvoker` and `daemon.AgentInvoker`) have different method signatures - one uses `InvokeParams/InvokeResult` structs, the other uses individual string params. They serve different architectural purposes and cannot be consolidated without breaking the design.
 
-### AgentInvoker (3 locations)
+2. **Todo types**: `run.Todo` uses `TodoStatus` type while `shared.Todo` uses plain `string`. The UI type intentionally avoids importing `run` to prevent import cycles.
 
-Identical interface in:
-- `internal/squads/invoker.go:10`
-- `internal/flows/yaml_executor.go:18`
-- `internal/daemon/invoker.go:16`
-
-**Solution**: Create `internal/interfaces/invoker.go`
-
-```go
-package interfaces
-
-type AgentInvoker interface {
-    Invoke(ctx context.Context, handle, prompt string) (string, error)
-}
-```
-
-Update all packages to import from `interfaces`.
-
-### Todo types (2 locations)
-
-Duplicate types:
-- `internal/run/todo.go` - `Todo`, `TodoStatus`, `TodoItem`
-- `internal/ui/todo.go` - `UITodo` (comment: "mirrors run.Todo to avoid import cycles")
-
-**Solution**: Create `internal/types/todo.go` with shared types
-
-## Steps
-
-1. Create `internal/interfaces/` package
-2. Move shared interfaces
-3. Update imports in all packages
-4. Create `internal/types/` if needed
-5. Run tests
-
-## Testing
-
-- All tests pass
-- No import cycles
+3. **yaml_executor.go** (listed as 3rd location) was already deleted in ayo-1ryh.
