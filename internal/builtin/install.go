@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/paths"
 )
 
@@ -185,6 +186,11 @@ func ForceInstall() (string, error) {
 	// Install config schema to user config directory
 	if err := InstallConfigSchema(); err != nil {
 		return "", fmt.Errorf("install config schema: %w", err)
+	}
+
+	// Install default config if it doesn't exist
+	if err := InstallDefaultConfig(); err != nil {
+		return "", fmt.Errorf("install default config: %w", err)
 	}
 
 	// Write version marker
@@ -515,4 +521,23 @@ func InstallConfigSchema() error {
 	}
 
 	return nil
+}
+
+// InstallDefaultConfig creates a default ayo.json config file if it doesn't exist.
+// This ensures users always have an ayo.json file after running setup.
+func InstallDefaultConfig() error {
+	cfgPath := config.DefaultPath()
+
+	// Only create if it doesn't exist (don't overwrite user changes)
+	if _, err := os.Stat(cfgPath); err == nil {
+		return nil // Already exists
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat config file: %w", err)
+	}
+
+	// Create default config with schema reference
+	cfg := config.Default()
+	cfg.Schema = "./ayo-schema.json"
+
+	return config.Save(cfgPath, cfg)
 }
