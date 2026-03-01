@@ -130,9 +130,18 @@ func GetDefaultSmallModelForConfiguredProvider() string {
 	// Priority order - prefer providers with good small models
 	priority := []string{"openai", "anthropic", "google", "groq", "openrouter"}
 
+	// Override map for providers where we want a different small model than catwalk default
+	overrides := map[string]string{
+		"openai": "gpt-5.2", // Use gpt-5.2 instead of catwalk's default
+	}
+
 	for _, id := range priority {
 		for _, p := range providers {
 			if p.ID == id {
+				// Check for override first
+				if override, ok := overrides[id]; ok {
+					return override
+				}
 				if defaultModel := GetProviderDefaultSmallModel(id); defaultModel != "" {
 					return defaultModel
 				}

@@ -217,8 +217,9 @@ func newSetupCmd(cfgPath *string) *cobra.Command {
 							}
 							sui.Blank()
 
-							// Offer to set default model to Ollama
-							if cfg.DefaultModel == "gpt-5.2" {
+							// Offer to set default model to Ollama if using OpenAI default
+							openaiDefault := config.GetProviderDefaultModel("openai")
+							if cfg.DefaultModel == openaiDefault {
 								if err := offerOllamaDefault(sui, &cfg, *cfgPath, capable); err != nil {
 									return err
 								}
@@ -515,17 +516,11 @@ func offerCredentialEntry(sui *setupUI, cfg *config.Config, cfgPath string) erro
 	sui.SuccessPath(providerInfo.Name+" API key", "stored")
 
 	// Also update config default model if using a cloud provider for the first time
-	if cfg.DefaultModel == "gpt-5.2" && selectedProvider != "openai" {
-		// Suggest changing model based on provider
-		var suggestedModel string
-		switch selectedProvider {
-		case "anthropic":
-			suggestedModel = "claude-sonnet-4-20250514"
-		case "google":
-			suggestedModel = "gemini-2.0-flash"
-		case "openrouter":
-			suggestedModel = "anthropic/claude-sonnet-4"
-		}
+	// Check if current model is from a different provider than the one just configured
+	openaiDefault := config.GetProviderDefaultModel("openai")
+	if cfg.DefaultModel == openaiDefault && selectedProvider != "openai" {
+		// Suggest the new provider's default model
+		suggestedModel := config.GetProviderDefaultModel(selectedProvider)
 
 		if suggestedModel != "" {
 			var changeModel bool
@@ -533,7 +528,7 @@ func offerCredentialEntry(sui *setupUI, cfg *config.Config, cfgPath string) erro
 				huh.NewGroup(
 					huh.NewConfirm().
 						Title("Update default model?").
-						Description(fmt.Sprintf("Change from gpt-5.2 to %s?", suggestedModel)).
+						Description(fmt.Sprintf("Change from %s to %s?", cfg.DefaultModel, suggestedModel)).
 						Value(&changeModel),
 				),
 			).WithTheme(huh.ThemeCharm())
