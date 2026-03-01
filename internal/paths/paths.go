@@ -190,10 +190,11 @@ func ConfigFile() string {
 }
 
 // ConfigSchemaFile returns the path to the config JSON schema file.
-// Location: ~/.config/ayo/ayo-schema.json (Unix) or %LOCALAPPDATA%\ayo\ayo-schema.json (Windows)
+// Location: ~/.local/share/ayo/ayo-schema.json (Unix) or %LOCALAPPDATA%\ayo\ayo-schema.json (Windows)
 // The schema is installed during setup and enables IDE validation/autocomplete.
+// Stored in DataDir (not ConfigDir) per XDG conventions since it's app-managed data, not user config.
 func ConfigSchemaFile() string {
-	return filepath.Join(ConfigDir(), "ayo-schema.json")
+	return filepath.Join(DataDir(), "ayo-schema.json")
 }
 
 // SystemPromptsDir returns the directory for system prompt files.

@@ -497,12 +497,12 @@ func compareSkillFiles(skillName, installedDir string) ([]string, error) {
 }
 
 // ConfigSchemaFile returns the path where the config schema is installed.
-// Location: ~/.config/ayo/ayo-schema.json (Unix) or %LOCALAPPDATA%\ayo\ayo-schema.json (Windows)
+// Location: ~/.local/share/ayo/ayo-schema.json (Unix) or %LOCALAPPDATA%\ayo\ayo-schema.json (Windows)
 func ConfigSchemaFile() string {
 	return paths.ConfigSchemaFile()
 }
 
-// InstallConfigSchema writes the embedded config schema to the user config directory.
+// InstallConfigSchema writes the embedded config schema to the data directory.
 func InstallConfigSchema() error {
 	if len(ConfigSchema) == 0 {
 		return nil // No schema embedded
@@ -510,9 +510,9 @@ func InstallConfigSchema() error {
 
 	schemaPath := ConfigSchemaFile()
 
-	// Ensure config directory exists
-	if err := os.MkdirAll(paths.ConfigDir(), 0o755); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
+	// Ensure data directory exists (schema lives in DataDir per XDG)
+	if err := os.MkdirAll(paths.DataDir(), 0o755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
 	}
 
 	// Write schema file
@@ -535,9 +535,9 @@ func InstallDefaultConfig() error {
 		return fmt.Errorf("stat config file: %w", err)
 	}
 
-	// Create default config with schema reference
+	// Create default config with absolute path to schema (in DataDir per XDG)
 	cfg := config.Default()
-	cfg.Schema = "./ayo-schema.json"
+	cfg.Schema = paths.ConfigSchemaFile()
 
 	return config.Save(cfgPath, cfg)
 }
