@@ -19,7 +19,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
+	// Removed sandbox import during daemon infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/version"
 )
 
@@ -363,19 +364,7 @@ func fileExists(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// selectSandboxProvider returns the appropriate sandbox provider for the current platform.
+// selectSandboxProvider returns nil since sandbox infrastructure is being removed.
 func selectSandboxProvider() providers.SandboxProvider {
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
-		provider := sandbox.NewAppleProvider()
-		if provider.IsAvailable() {
-			return provider
-		}
-	}
-	if runtime.GOOS == "linux" {
-		provider := sandbox.NewLinuxProvider()
-		if provider.IsAvailable() {
-			return provider
-		}
-	}
 	return nil
 }

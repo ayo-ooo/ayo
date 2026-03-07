@@ -1,17 +1,6 @@
-# ayo – Agents You Orchestrate
+# ayo – Build Standalone AI Agents
 
-**ayo** is a CLI for managing AI agents that work in isolated sandbox environments. Create specialized agents, coordinate them through squads, and set up triggers for ambient automation.
-
-```bash
-# Just ask
-ayo "help me debug this function"
-
-# Use a specialized agent
-ayo @reviewer "review this PR for security issues"
-
-# Dispatch to a team
-ayo "#dev-team" "build a user authentication system"
-```
+**ayo** is a build system for creating standalone, executable AI agents. Define agents as projects, compile them into single binaries, and distribute them like any CLI tool.
 
 ## Quick Start
 
@@ -19,17 +8,197 @@ ayo "#dev-team" "build a user authentication system"
 # Install
 go install github.com/alexcabrera/ayo/cmd/ayo@latest
 
-# Configure (interactive wizard - supports 10+ providers)
-ayo setup
+# Initialize a new agent
+ayo init myagent
 
-# Start the sandbox service
-ayo service start
+# Validate configuration
+ayo checkit myagent
 
-# Start chatting
-ayo
+# Build standalone executable
+ayo build myagent
+
+# Run your agent
+./myagent
 ```
 
-### Supported Providers
+## What Can You Build?
+
+- **CLI Agents**: Command-line tools for specific tasks (code review, testing, documentation)
+- **Service Agents**: Background services with file watching or scheduling
+- **Team Agents**: Multi-agent tools with specialized roles and coordination
+- **Integration Agents**: Connect systems and automate workflows
+
+## Getting Started
+
+### 1. Create an Agent
+
+```bash
+# Standard template (recommended)
+ayo init myreviewer --template standard
+
+# Simple template (minimal)
+ayo init myagent --template simple
+
+# Advanced template (full features)
+ayo init myagent --template advanced
+```
+
+### 2. Configure Your Agent
+
+Edit the generated `config.toml`:
+
+```toml
+[agent]
+name = "myagent"
+description = "AI-powered code reviewer"
+model = "claude-3-5-sonnet"
+
+[cli]
+mode = "hybrid"
+description = "Review code for security and quality"
+
+[cli.flags]
+severity = { type = "string", description = "Severity level to filter" }
+
+[agent.tools]
+allowed = ["bash", "file_read", "git"]
+```
+
+### 3. Validate Configuration
+
+```bash
+ayo checkit myagent --verbose
+```
+
+### 4. Build Executable
+
+```bash
+# Build for current platform
+cd myagent
+ayo build .
+
+# Or specify directory
+ayo build myagent
+
+# Cross-compile for other platforms
+ayo build myagent --target-os linux --target-arch amd64
+```
+
+This produces a standalone binary you can run anywhere.
+
+## Configuration
+
+Your agent is defined entirely in `config.toml`:
+
+- **Agent metadata**: Name, description, model
+- **CLI interface**: Flags, modes, commands
+- **Input/output schemas**: JSON Schema validation
+- **Tool access**: Which tools the agent can use
+- **Memory settings**: Persistent context storage
+- **Triggers**: File watching, scheduling, events
+- **Testing**: Evals configuration for automated testing
+
+See [Build System Documentation](docs/BUILD_SYSTEM.md) for complete configuration reference.
+
+## Testing Your Agent
+
+### Validation
+
+```bash
+# Check configuration syntax and structure
+ayo checkit myagent
+
+# Detailed output
+ayo checkit myagent --verbose
+```
+
+### Automated Evals
+
+Define test cases in `evals.csv` and run automated LLM-based evaluation:
+
+```bash
+# Run evals with scoring
+ayo checkit --evals-only myagent
+
+# Custom threshold (default: 7.0/10)
+ayo checkit --evals-threshold 8.0 myagent
+
+# See detailed reasoning
+ayo checkit --evals-only --verbose myagent
+```
+
+See [Build System - Evals](docs/BUILD_SYSTEM.md#evals-automated-testing) for details.
+
+## Distribution
+
+Your built agents are standalone executables with no ayo dependency:
+
+```bash
+# Package for distribution
+tar -czf myagent-v1.0.tar.gz myagent README.md
+
+# Users install by extracting and running
+tar -xzf myagent-v1.0.tar.gz
+chmod +x myagent
+./myagent --help
+
+# Or install system-wide
+sudo cp myagent /usr/local/bin/
+myagent
+```
+
+## Advanced Features
+
+### Multi-Agent Teams
+
+Coordinate multiple specialized agents using `team.toml`:
+
+```bash
+# Build team executable
+ayo build --team myproject
+
+# Team dispatches work to best agent for the task
+./myteam "build authentication system"
+```
+
+### Custom Tools
+
+Write Go tools in the `tools/` directory for agent-specific functionality:
+
+```go
+package tools
+
+import (
+    "context"
+    "fmt"
+)
+
+func AnalyzeCode(ctx context.Context, params struct {
+    Language string `json:"language"`
+    Code     string `json:"code"`
+}) (map[string]any, error) {
+    // Your custom logic
+    return map[string]any{
+        "issues": []string{"potential security flaw"},
+    }, nil
+}
+```
+
+### Input/Output Schemas
+
+Define JSON schemas for type-safe agent interfaces:
+
+```toml
+[input]
+file = "schema/input.json"
+
+[output]
+file = "schema/output.json"
+```
+
+## Supported Providers
+
+ayo works with all major LLM providers:
 
 | Provider | Environment Variable | Notes |
 |----------|---------------------|-------|
@@ -38,280 +207,38 @@ ayo
 | Google | `GEMINI_API_KEY` | Gemini models |
 | OpenRouter | `OPENROUTER_API_KEY` | Multi-provider gateway |
 | Azure | `AZURE_OPENAI_API_KEY` | Azure OpenAI |
-| Groq | `GROQ_API_KEY` | Fast inference |
-| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek models |
-| Cerebras | `CEREBRAS_API_KEY` | Fast inference |
-| xAI | `XAI_API_KEY` | Grok models |
-| Together | `TOGETHER_API_KEY` | Open models |
 | Ollama | *(none required)* | Local models |
+| ...and 6 more | | See `ayo setup` |
 
-### Common Flags
-
-```bash
--y, --no-jodas    # Auto-approve file modifications (use with caution)
--c, --continue    # Continue most recent session
--s, --session ID  # Continue specific session by ID
--a, --attach FILE # Attach file to prompt
--q, --quiet       # Suppress non-essential output
---json            # Output in JSON format
-```
-
-### Unix Pipe Integration
-
-```bash
-# Pipe content to ayo
-cat error.log | ayo "explain these errors"
-git diff | ayo @reviewer "review my changes"
-
-# Combine with other tools
-ayo @sql "query for active users" | jq '.results'
-```
-
-## Why ayo?
-
-| Problem | ayo Solution |
-|---------|--------------|
-| Agents that just chat | Agents execute commands in isolated sandboxes |
-| Lost context between sessions | Persistent memory and session resumption |
-| Manual task management | Ticket-based coordination with dependencies |
-| Security concerns | Sandboxed execution, explicit file access approval |
-| Ad-hoc automation | Time and event-based triggers for ambient agents |
-
-## Core Concepts
-
-### Agents (`@name`)
-
-Agents are AI assistants defined as directories:
-
-```
-@support/
-├── config.json     # Model, tools, settings
-└── system.md       # Behavior instructions
-```
-
-```bash
-# Create an agent
-ayo agent create @support --description "Customer support agent"
-
-# Use it
-ayo @support "help with this customer issue"
-```
-
-### Squads (`#team`)
-
-Squads are isolated sandboxes where agents collaborate:
-
-```bash
-# Create a team
-ayo squad create dev-team -a @frontend,@backend,@qa
-
-# Start the squad
-ayo squad start dev-team
-
-# Dispatch work
-ayo "#dev-team" "build the login feature"
-```
-
-Each squad has a `SQUAD.md` constitution defining roles and coordination:
-
-```markdown
-# Squad: dev-team
-
-## Mission
-Build features with quality and speed.
-
-## Agents
-
-### @backend
-- Implement API endpoints
-- Write tests
-
-### @frontend
-- Build UI components
-- Integrate with backend
-
-### @qa
-- Review changes
-- Write E2E tests
-
-## Coordination
-Use tickets to track work. @backend completes API first,
-then @frontend implements UI, then @qa reviews.
-```
-
-### Tickets
-
-Agents coordinate through markdown tickets:
-
-```bash
-# Create tickets
-ayo ticket create "Implement login API" --assignee @backend
-ayo ticket create "Build login form" --assignee @frontend --depends-on <api-ticket>
-
-# See what's ready
-ayo ticket ready
-
-# Start and complete work
-ayo ticket start <id>
-ayo ticket close <id>
-```
-
-When a ticket closes, blocked dependents unblock automatically.
-
-### Memory
-
-Store persistent context that agents can access:
-
-```bash
-# Store facts
-ayo memory store "This project uses PostgreSQL 15"
-ayo memory store "Deploy to staging on Fridays"
-
-# Search memories
-ayo memory search "database"
-```
-
-Agents automatically retrieve relevant memories during conversations.
-
-### Triggers
-
-Set up ambient agents that act without prompting:
-
-```bash
-# Daily standup at 9am
-ayo trigger schedule @standup "0 9 * * 1-5" \
-  --prompt "Summarize yesterday's progress"
-
-# Watch for file changes
-ayo trigger watch ~/Projects @reviewer \
-  --prompt "Review changed files" \
-  --pattern "*.go"
-```
-
-See [Ambient Agent Patterns](docs/patterns/README.md) for common trigger setups.
-
-### Sandbox Isolation
-
-Agents run in containers with limited access:
-
-- `/home/ayo/` – Agent's persistent home
-- `/mnt/{username}/` – Read-only access to your files  
-- `/output/` – Write freely (synced to host)
-
-To write to your files, agents must request permission:
-
-```
-┌─────────────────────────────────────────────┐
-│ @ayo wants to update:                       │
-│   ~/Projects/app/main.go                    │
-│ Reason: Fixed authentication bug            │
-│                                             │
-│ [Y]es  [N]o  [D]iff  [A]lways for session   │
-└─────────────────────────────────────────────┘
-```
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────┐
-│                    AYO CLI                          │
-│  Direct invocation, squad dispatch, triggers       │
-└────────────────────────────────────────────────────┘
-                         │
-┌────────────────────────────────────────────────────┐
-│                    DAEMON                           │
-│  Session lifecycle, sandbox pool, trigger engine   │
-└────────────────────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        ▼                ▼                ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│ @ayo sandbox│  │Squad sandbox│  │Agent sandbox│
-└─────────────┘  └─────────────┘  └─────────────┘
-```
-
-**Sandbox providers:**
-- **Apple Container** (macOS 26+) – Native Linux containers
-- **systemd-nspawn** (Linux) – Lightweight namespace isolation
+Run `ayo setup` for interactive provider configuration.
 
 ## Documentation
 
-### Getting Started
+### For Users
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/getting-started.md) | First 30 minutes with ayo |
-| [Core Concepts](docs/concepts.md) | Understanding ayo's model |
+- **[Build System Guide](docs/BUILD_SYSTEM.md)** – Complete configuration reference
+- **[Getting Started](docs/getting-started.md)** – First steps with ayo
+- **[Tutorials](docs/tutorials/)** – Step-by-step guides
 
-### Tutorials
+### For Contributors
 
-| Tutorial | Description |
-|----------|-------------|
-| [First Agent](docs/tutorials/first-agent.md) | Create your first custom agent |
-| [Working with Squads](docs/tutorials/squads.md) | Multi-agent coordination |
-| [Setting up Triggers](docs/tutorials/triggers.md) | Ambient automation |
-| [Using Memory](docs/tutorials/memory.md) | Persistent context |
-| [Building Plugins](docs/tutorials/plugins.md) | Extending ayo |
+Documentation in `./docs/` is for people working on ayo itself:
 
-### Guides
-
-| Guide | Description |
-|-------|-------------|
-| [Agents](docs/guides/agents.md) | Agent configuration deep-dive |
-| [Squads](docs/guides/squads.md) | Squad management and SQUAD.md |
-| [Triggers](docs/guides/triggers.md) | Trigger types and options |
-| [Tools](docs/guides/tools.md) | Available tools and custom tools |
-| [Sandbox](docs/guides/sandbox.md) | Container configuration |
-| [Security](docs/guides/security.md) | Trust levels and guardrails |
-
-### Patterns
-
-| Pattern | Description |
-|---------|-------------|
-| [Watcher](docs/patterns/watcher.md) | React to file changes |
-| [Scheduled](docs/patterns/scheduled.md) | Time-based automation |
-| [Ticket Worker](docs/patterns/ticket-worker.md) | Process work queues |
-| [Monitor](docs/patterns/monitor.md) | System health checks |
-
-### Reference
-
-| Reference | Description |
-|-----------|-------------|
-| [CLI Reference](docs/reference/cli.md) | All commands and flags |
-| [Configuration](docs/reference/ayo-json.md) | ayo.json schema |
-| [Prompts](docs/reference/prompts.md) | Prompt customization |
-| [Plugins](docs/reference/plugins.md) | Plugin interface |
-| [RPC](docs/reference/rpc.md) | Daemon JSON-RPC API |
-
-### Advanced
-
-| Topic | Description |
-|-------|-------------|
-| [Architecture](docs/advanced/architecture.md) | System internals |
-| [Extending ayo](docs/advanced/extending.md) | Custom tools and providers |
-| [Troubleshooting](docs/advanced/troubleshooting.md) | Common issues |
-
-## Troubleshooting
-
-```bash
-# Check system health
-ayo doctor
-
-# View daemon status
-ayo service status
-
-# Restart daemon
-ayo service stop
-ayo service start
-
-# Shell into a sandbox
-ayo sandbox shell @ayo
-```
+- **[Architecture](docs/concepts.md)** – System design
+- **[Patterns](docs/patterns/)** – Implementation patterns
+- **[Reference](docs/reference/)** – API and config schemas
+- **[Advanced](docs/advanced/)** – Internals and extending ayo
 
 ## Requirements
 
-- **macOS 26+** (Tahoe) with Apple Silicon, or **Linux** with systemd
 - **Go 1.24+** (for building from source)
-- At least one LLM provider configured (Anthropic, OpenAI, Ollama, etc.)
+- At least one LLM provider configured
+- Optional: macOS 26+ (Tahoe) or Linux with systemd (for squad features)
 
+## License
 
+MIT – see LICENSE file
+
+## Contributing
+
+Contributions welcome! See `./docs` for contributor documentation.

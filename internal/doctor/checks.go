@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexcabrera/ayo/internal/daemon"
+	// Removed daemon import during daemon infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/paths"
 )
 
@@ -132,72 +133,14 @@ func (c *Checker) CheckSystemRequirements(ctx context.Context) {
 	}
 }
 
-// CheckDaemon verifies daemon status.
+// CheckDaemon is disabled during daemon infrastructure removal.
 func (c *Checker) CheckDaemon(ctx context.Context) {
-	socketPath := daemon.DefaultSocketPath()
-
-	// Check if socket exists
-	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-		c.Add(CheckResult{
-			Name:     "Daemon",
-			Category: "Daemon",
-			Status:   StatusWarn,
-			Message:  "not running (socket not found)",
-			Fix:      "Run: ayo daemon start",
-			Fixable:  true,
-		})
-		return
-	}
-
-	// Try to connect
-	client := daemon.NewClient()
-	if err := client.Connect(ctx); err != nil {
-		c.Add(CheckResult{
-			Name:     "Daemon",
-			Category: "Daemon",
-			Status:   StatusWarn,
-			Message:  fmt.Sprintf("connection error: %v", err),
-			Fix:      "Run: ayo daemon restart",
-			Fixable:  true,
-		})
-		return
-	}
-	defer client.Close()
-
-	// Ping
-	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	if err := client.Ping(pingCtx); err != nil {
-		c.Add(CheckResult{
-			Name:     "Daemon",
-			Category: "Daemon",
-			Status:   StatusWarn,
-			Message:  "not responding",
-			Fix:      "Run: ayo daemon restart",
-			Fixable:  true,
-		})
-		return
-	}
-
-	// Get status
-	status, err := client.Status(pingCtx)
-	if err != nil {
-		c.Add(CheckResult{
-			Name:     "Daemon",
-			Category: "Daemon",
-			Status:   StatusPass,
-			Message:  "running",
-		})
-		return
-	}
-
-	uptime := time.Duration(status.Uptime) * time.Second
+	// Daemon infrastructure is being removed
 	c.Add(CheckResult{
 		Name:     "Daemon",
 		Category: "Daemon",
-		Status:   StatusPass,
-		Message:  fmt.Sprintf("running (pid %d, uptime %s)", status.PID, formatDuration(uptime)),
+		Status:   StatusWarn,
+		Message:  "daemon infrastructure removed - moving to standalone executables",
 	})
 }
 

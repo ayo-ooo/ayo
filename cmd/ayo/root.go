@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -16,7 +15,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/cli"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/daemon"
+	// Removed daemon import during daemon infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/embedding"
 	"github.com/alexcabrera/ayo/internal/memory"
@@ -353,30 +353,12 @@ Examples:
 	_ = outputDir // Used by squad commands via flag lookup
 
 	// Subcommands
-	cmd.AddCommand(newSetupCmd(&cfgPath))
-	cmd.AddCommand(newAgentsCmd(&cfgPath))
-	cmd.AddCommand(newSkillsCmd(&cfgPath))
-	cmd.AddCommand(newFlowsCmd(&cfgPath))
-	cmd.AddCommand(newSessionsCmd(&cfgPath))
-	cmd.AddCommand(newMemoryCmd())
 	cmd.AddCommand(newDoctorCmd(&cfgPath))
-	cmd.AddCommand(newPluginsCmd(&cfgPath))
-	cmd.AddCommand(newSandboxCmd(&cfgPath))
-	cmd.AddCommand(newShareCmd())
-	cmd.AddCommand(newBackupCmd())
-	cmd.AddCommand(newSyncCmd())
-	cmd.AddCommand(newTriggerCmd())
-	cmd.AddCommand(newTicketCmd())
-	cmd.AddCommand(newSquadCmd())
-	cmd.AddCommand(newNotificationsCmd())
-	cmd.AddCommand(newPlannerCmd(&cfgPath))
-	cmd.AddCommand(newIndexCmd(&cfgPath))
+	cmd.AddCommand(newBuildCmd())
+	cmd.AddCommand(newFreshCmd())
+	cmd.AddCommand(newCheckitCmd())
 	cmd.AddCommand(auditCmd)
-	cmd.AddCommand(newHelpCmd())
-	cmd.AddCommand(newMigrateCmd())
-
-	// Hidden backwards-compat alias: `ayo daemon` -> `ayo sandbox service`
-	cmd.AddCommand(newDaemonAliasCmd(&cfgPath))
+	cmd.AddCommand(newFlowsCmd(&cfgPath))
 
 	return cmd
 }
@@ -611,39 +593,7 @@ func completeHandles(toComplete string) ([]string, cobra.ShellCompDirective) {
 	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
-// invokeSquad dispatches work to a squad synchronously via the daemon.
-// It connects to the daemon, sends the prompt, waits for a result, and prints output.
+// invokeSquad is disabled during daemon infrastructure removal.
 func invokeSquad(ctx context.Context, handle, prompt string) error {
-	client, err := daemon.ConnectOrStart(ctx)
-	if err != nil {
-		return fmt.Errorf("connect to daemon: %w", err)
-	}
-	defer client.Close()
-
-	name := squads.StripPrefix(handle)
-	result, err := client.SquadDispatch(ctx, daemon.SquadDispatchParams{
-		Name:           name,
-		Prompt:         prompt,
-		StartIfStopped: true,
-	})
-	if err != nil {
-		return fmt.Errorf("dispatch to squad: %w", err)
-	}
-
-	if result.Error != "" {
-		return fmt.Errorf("squad error: %s", result.Error)
-	}
-
-	if result.Raw != "" {
-		fmt.Println(result.Raw)
-	} else if result.Output != nil {
-		// Structured output - encode as JSON
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(result.Output); err != nil {
-			return fmt.Errorf("encode output: %w", err)
-		}
-	}
-
-	return nil
+	return fmt.Errorf("squad functionality is temporarily unavailable during daemon infrastructure removal")
 }

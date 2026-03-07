@@ -4,13 +4,15 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
+	// Removed sandbox import during sandbox infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 // TestEnv holds a complete test environment for integration tests.
@@ -62,37 +64,23 @@ func NewTestEnv(t *testing.T) *TestEnv {
 		}
 	}
 
-	// Use none provider by default (no container isolation)
-	env.SandboxProvider = sandbox.NewNoneProvider()
+	// Sandbox infrastructure removed - set to nil
+	env.SandboxProvider = nil
 
 	return env
 }
 
-// WithAppleContainer configures the test environment to use Apple Container sandbox.
-// Skips the test if Apple Container is not available.
+// WithAppleContainer is disabled during sandbox infrastructure removal.
 func (e *TestEnv) WithAppleContainer() *TestEnv {
 	e.t.Helper()
-
-	apple := sandbox.NewAppleProvider()
-	if !apple.IsAvailable() {
-		e.t.Skip("Apple Container not available (requires macOS 26+ on Apple Silicon)")
-	}
-
-	e.SandboxProvider = apple
+	e.t.Skip("Apple Container provider disabled during sandbox infrastructure removal")
 	return e
 }
 
-// WithLinuxContainer configures the test environment to use Linux container sandbox.
-// Skips the test if systemd-nspawn is not available.
+// WithLinuxContainer is disabled during sandbox infrastructure removal.
 func (e *TestEnv) WithLinuxContainer() *TestEnv {
 	e.t.Helper()
-
-	linux := sandbox.NewLinuxProvider()
-	if !linux.IsAvailable() {
-		e.t.Skip("Linux containers not available (requires Linux with systemd-nspawn)")
-	}
-
-	e.SandboxProvider = linux
+	e.t.Skip("Linux container provider disabled during sandbox infrastructure removal")
 	return e
 }
 
@@ -144,22 +132,11 @@ description: ` + description + `
 	return skillDir
 }
 
-// Exec executes a command in the sandbox and returns the result.
+// Exec executes a command and returns result.
+// Sandbox execution disabled during sandbox infrastructure removal.
 func (e *TestEnv) Exec(ctx context.Context, command string) (providers.ExecResult, error) {
-	// Create a sandbox (name must start with "ayo-" to be found by List)
-	sb, err := e.SandboxProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "ayo-test-" + e.t.Name(),
-	})
-	if err != nil {
-		return providers.ExecResult{}, err
-	}
-	defer e.SandboxProvider.Delete(ctx, sb.ID, true)
-
-	// Execute command (don't set WorkingDir since baseDir isn't mounted in container)
-	return e.SandboxProvider.Exec(ctx, sb.ID, providers.ExecOptions{
-		Command: command,
-		Timeout: 30 * time.Second,
-	})
+	// Sandbox infrastructure removed - skip execution
+	return providers.ExecResult{}, fmt.Errorf("sandbox execution disabled during infrastructure removal")
 }
 
 // Cleanup performs test cleanup.

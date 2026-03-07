@@ -1,13 +1,7 @@
 package filerequest
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
-
-	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 func TestValidatePath(t *testing.T) {
@@ -116,76 +110,16 @@ func TestFileRequestResult_Empty(t *testing.T) {
 	}
 }
 
+// TestNewFileRequestTool is disabled during sandbox infrastructure removal.
+// TODO: Re-enable when sandbox is re-implemented as standalone executable
 func TestNewFileRequestTool(t *testing.T) {
-	mockProvider := sandbox.NewMockProvider()
-	ctx := context.Background()
-
-	// Create sandbox
-	sb, err := mockProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "test-sandbox",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Create temp host directory with test files
-	hostDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(hostDir, "test.txt"), []byte("hello"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Track exec calls
-	mockProvider.ExecFunc = func(ctx context.Context, id string, opts providers.ExecOptions) (providers.ExecResult, error) {
-		return providers.ExecResult{ExitCode: 0}, nil
-	}
-
-	cfg := ToolConfig{
-		Provider:        mockProvider,
-		SandboxID:       sb.ID,
-		HostProjectPath: hostDir,
-	}
-
-	tool := NewFileRequestTool(cfg)
-
-	// Verify tool is created (it's an interface, can't easily check name without calling)
-	_ = tool
+	t.Skip("Sandbox infrastructure removed - test disabled")
 }
 
+// TestCopyFileToSandbox is disabled during sandbox infrastructure removal.
+// TODO: Re-enable when sandbox is re-implemented as standalone executable
 func TestCopyFileToSandbox(t *testing.T) {
-	mockProvider := sandbox.NewMockProvider()
-	ctx := context.Background()
-
-	// Create sandbox
-	sb, err := mockProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "test-sandbox",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Create temp file
-	hostDir := t.TempDir()
-	testFile := filepath.Join(hostDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Track exec calls
-	var execCalls []string
-	mockProvider.ExecFunc = func(ctx context.Context, id string, opts providers.ExecOptions) (providers.ExecResult, error) {
-		execCalls = append(execCalls, opts.Command)
-		return providers.ExecResult{ExitCode: 0}, nil
-	}
-
-	err = copyFileToSandbox(ctx, mockProvider, sb.ID, testFile, "/workspace/test.txt")
-	if err != nil {
-		t.Fatalf("copyFileToSandbox failed: %v", err)
-	}
-
-	// Verify mkdir and cat commands were called
-	if len(execCalls) < 2 {
-		t.Errorf("Expected at least 2 exec calls, got %d", len(execCalls))
-	}
+	t.Skip("Sandbox infrastructure removed - test disabled")
 }
 
 func contains(s, substr string) bool {

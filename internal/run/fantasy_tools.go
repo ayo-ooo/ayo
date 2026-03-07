@@ -18,7 +18,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
 	"github.com/alexcabrera/ayo/internal/plugins"
-	"github.com/alexcabrera/ayo/internal/sandbox"
+	// Removed sandbox import during sandbox infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/tools"
@@ -30,8 +31,12 @@ import (
 
 // Tool parameter types for Fantasy
 
-// BashParams is an alias to sandbox.BashParams.
-type BashParams = sandbox.BashParams
+// BashParams defines parameters for bash command execution.
+type BashParams struct {
+	Command        string `json:"command"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	WorkingDir     string `json:"working_dir,omitempty"`
+}
 
 const (
 	fantasyDefaultToolTimeout = 30 * time.Second
@@ -113,7 +118,7 @@ type FantasyToolSet struct {
 	baseDir         string
 	memoryQueue     *memory.Queue           // Optional async memory queue
 	depth           int
-	sandboxExecutor *sandbox.Executor       // Optional sandbox executor for bash
+	// sandboxExecutor *sandbox.Executor       // Disabled during sandbox infrastructure removal
 	statefulTools   []tools.StatefulTool    // Tools that need cleanup
 }
 
@@ -123,7 +128,7 @@ type ToolSetOptions struct {
 	BaseDir            string
 	MemoryQueue        *memory.Queue
 	Depth              int
-	SandboxExecutor    *sandbox.Executor
+	// SandboxExecutor    *sandbox.Executor  // Disabled during sandbox infrastructure removal
 	CapabilitySearcher *capabilities.CapabilitySearcher // Optional for find_agent tool
 	PlannerTools       []fantasy.AgentTool              // Tools from planner plugins
 	ShareService       *share.Service                   // Optional for request_access tool
@@ -183,12 +188,8 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 
 		switch resolvedName {
 		case "bash":
-			// Use sandbox executor if provided, otherwise use local execution
-			if opts.SandboxExecutor != nil {
-				fantasyTools = append(fantasyTools, sandbox.NewBashTool(opts.SandboxExecutor))
-			} else {
-				fantasyTools = append(fantasyTools, NewBashTool(baseDir))
-			}
+			// Sandbox infrastructure removed - use local execution only
+			fantasyTools = append(fantasyTools, NewBashTool(baseDir))
 			loadedTools[resolvedName] = true
 		case "memory":
 			fantasyTools = append(fantasyTools, NewMemoryToolWithQueue(opts.MemoryQueue))
@@ -267,7 +268,7 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 		baseDir:         baseDir,
 		memoryQueue:     opts.MemoryQueue,
 		depth:           opts.Depth,
-		sandboxExecutor: opts.SandboxExecutor,
+		// sandboxExecutor: opts.SandboxExecutor, // Disabled during sandbox infrastructure removal
 		statefulTools:   statefulTools,
 	}
 }

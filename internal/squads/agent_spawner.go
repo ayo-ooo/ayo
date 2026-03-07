@@ -9,9 +9,15 @@ import (
 	"github.com/alexcabrera/ayo/internal/tickets"
 )
 
+// SquadService defines the interface needed by AgentSpawner.
+// This is a placeholder until squad infrastructure is re-implemented.
+type SquadService interface {
+	EnsureAgentUser(ctx context.Context, squadName, agentHandle string) error
+}
+
 // AgentSpawner manages spawning agent sessions for squad tickets.
 type AgentSpawner struct {
-	service *Service
+	service SquadService
 
 	mu              sync.RWMutex
 	runningAgents   map[string]context.CancelFunc // key: "squad:agent" -> cancel func
@@ -19,7 +25,8 @@ type AgentSpawner struct {
 }
 
 // NewAgentSpawner creates a new agent spawner.
-func NewAgentSpawner(service *Service) *AgentSpawner {
+// service can be nil if squad infrastructure is not available.
+func NewAgentSpawner(service SquadService) *AgentSpawner {
 	return &AgentSpawner{
 		service:       service,
 		runningAgents: make(map[string]context.CancelFunc),
@@ -50,8 +57,10 @@ func (s *AgentSpawner) SpawnAgentSession(ctx context.Context, squadName, agentHa
 	}
 
 	// Ensure agent user exists in squad
-	if err := s.service.EnsureAgentUser(ctx, squadName, agentHandle); err != nil {
-		return fmt.Errorf("ensure agent user: %w", err)
+	if s.service != nil {
+		if err := s.service.EnsureAgentUser(ctx, squadName, agentHandle); err != nil {
+			return fmt.Errorf("ensure agent user: %w", err)
+		}
 	}
 
 	// Create cancellable context for this agent session

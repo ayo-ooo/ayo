@@ -60,16 +60,17 @@ func TestHarness_ExecNone(t *testing.T) {
 	ctx, cancel := env.Context()
 	defer cancel()
 
+	// Sandbox infrastructure removed - Exec should return error
 	result, err := env.Exec(ctx, "echo hello")
-	if err != nil {
-		t.Fatalf("exec: %v", err)
+	if err == nil {
+		t.Fatal("expected error from Exec, got nil")
 	}
-
-	if result.ExitCode != 0 {
-		t.Errorf("exit code: got %d, want 0", result.ExitCode)
+	if err.Error() != "sandbox execution disabled during infrastructure removal" {
+		t.Errorf("error message: got %q, want 'sandbox execution disabled during infrastructure removal'", err.Error())
 	}
-	if result.Stdout != "hello\n" {
-		t.Errorf("stdout: got %q, want %q", result.Stdout, "hello\n")
+	// Result should be empty since we errored out
+	if result.ExitCode != 0 || result.Stdout != "" || result.Stderr != "" {
+		t.Errorf("expected empty result, got ExitCode=%d, Stdout=%q, Stderr=%q", result.ExitCode, result.Stdout, result.Stderr)
 	}
 }
 

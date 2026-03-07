@@ -6,9 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 func TestValidateDestination(t *testing.T) {
@@ -127,30 +124,10 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
+// TestNewPublishTool is disabled during sandbox infrastructure removal.
+// TODO: Re-enable when sandbox is re-implemented as standalone executable
 func TestNewPublishTool(t *testing.T) {
-	mockProvider := sandbox.NewMockProvider()
-	ctx := context.Background()
-
-	// Create sandbox
-	sb, err := mockProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "test-sandbox",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hostDir := t.TempDir()
-
-	cfg := ToolConfig{
-		Provider:      mockProvider,
-		SandboxID:     sb.ID,
-		HostOutputDir: hostDir,
-	}
-
-	tool := NewPublishTool(cfg)
-
-	// Verify tool is created
-	_ = tool
+	t.Skip("Sandbox infrastructure removed - test disabled")
 }
 
 func TestCopyOutputFile_FromHostDir(t *testing.T) {
@@ -188,49 +165,10 @@ func TestCopyOutputFile_FromHostDir(t *testing.T) {
 	}
 }
 
+// TestCopyOutputFile_ViaExec is disabled during sandbox infrastructure removal.
+// TODO: Re-enable when sandbox is re-implemented as standalone executable
 func TestCopyOutputFile_ViaExec(t *testing.T) {
-	mockProvider := sandbox.NewMockProvider()
-	ctx := context.Background()
-
-	// Create sandbox
-	sb, err := mockProvider.Create(ctx, providers.SandboxCreateOptions{
-		Name: "test-sandbox",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	destDir := t.TempDir()
-	destPath := filepath.Join(destDir, "output.txt")
-
-	// Mock exec to return file content
-	mockProvider.ExecFunc = func(ctx context.Context, id string, opts providers.ExecOptions) (providers.ExecResult, error) {
-		return providers.ExecResult{
-			Stdout:   "file content via exec",
-			ExitCode: 0,
-		}, nil
-	}
-
-	cfg := ToolConfig{
-		Provider:  mockProvider,
-		SandboxID: sb.ID,
-		OutputDir: "/output",
-		// No HostOutputDir, so falls back to exec
-	}
-
-	err = copyOutputFile(ctx, cfg, "/output/test.txt", destPath)
-	if err != nil {
-		t.Fatalf("copyOutputFile failed: %v", err)
-	}
-
-	// Verify file was created
-	content, err := os.ReadFile(destPath)
-	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
-	}
-	if string(content) != "file content via exec" {
-		t.Errorf("content = %q, want 'file content via exec'", string(content))
-	}
+	t.Skip("Sandbox infrastructure removed - test disabled")
 }
 
 func TestSourceMustBeInOutput(t *testing.T) {

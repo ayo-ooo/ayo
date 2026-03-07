@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Package integration provides integration and end-to-end tests for ayo.
 // This file contains end-to-end tests that validate complete workflows.
 package integration

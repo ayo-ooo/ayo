@@ -16,10 +16,11 @@ import (
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
-	"github.com/alexcabrera/ayo/internal/paths"
+	// "github.com/alexcabrera/ayo/internal/paths" // Temporarily unused during sandbox removal
 	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
+	// Removed sandbox import during sandbox infrastructure removal
+	// "github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
@@ -827,7 +828,10 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 
 	baseDir, _ := os.Getwd()
 	
-	// Check if agent has sandbox enabled and we have a provider
+	// Sandbox functionality temporarily disabled
+	// TODO: Re-enable when sandbox infrastructure is re-implemented as standalone executable
+	var sandboxID string
+	/*
 	var sandboxExecutor *sandbox.Executor
 	var sandboxID string
 	if ag.Config.SandboxEnabled() && r.sandboxProvider != nil {
@@ -976,6 +980,7 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 			fmt.Fprintf(os.Stderr, "[sandbox] Agent %s has sandbox enabled but no provider available\n", ag.Handle)
 		}
 	}
+	*/
 	
 	// Collect planner tools if available
 	// Priority: squad planners > @ayo planners
@@ -997,7 +1002,6 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		BaseDir:           baseDir,
 		MemoryQueue:       r.memoryQueue,
 		Depth:             r.depth,
-		SandboxExecutor:   sandboxExecutor,
 		ShareService:      r.shareService,
 		SessionID:         sandboxID, // Use sandbox ID for session-scoped shares
 		PlannerTools:      plannerTools,
@@ -1389,22 +1393,25 @@ func isAyoAgent(handle string) bool {
 
 // ensureAyoSandbox ensures the dedicated @ayo sandbox exists and is running.
 // Returns the sandbox info for use with the sandbox executor.
+// TODO: Re-enable when sandbox infrastructure is re-implemented as standalone executable
+/*
 func (r *Runner) ensureAyoSandbox(ctx context.Context, baseDir string) (providers.Sandbox, error) {
 	// Use the sandbox package's EnsureAyoSandbox function
 	appleProvider, ok := r.sandboxProvider.(*sandbox.AppleProvider)
 	if !ok {
 		return providers.Sandbox{}, fmt.Errorf("ayo sandbox requires Apple Container provider")
 	}
-	
+
 	sb, err := sandbox.EnsureAyoSandbox(ctx, appleProvider)
 	if err != nil {
 		return providers.Sandbox{}, err
 	}
-	
+
 	// Add the current working directory as a mount
 	// This allows @ayo to access the user's project
 	// Note: The mount is configured in EnsureAyoSandbox, but we may want to
 	// add dynamic mounts here in the future
-	
+
 	return sb, nil
 }
+*/

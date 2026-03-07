@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
-	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox"
 )
 
 // NewMockPlannerTool creates a simple mock tool for testing planner tool injection.
@@ -141,6 +139,9 @@ func TestNewFantasyToolSet_StatefulToolsTracked(t *testing.T) {
 	}
 }
 
+// TestNewFantasyToolSet_WithSandboxExecutor is disabled during sandbox infrastructure removal.
+// TODO: Re-enable when sandbox infrastructure is re-implemented as standalone executable
+/*
 func TestNewFantasyToolSet_WithSandboxExecutor(t *testing.T) {
 	// Test that sandbox executor is used when provided
 	provider := sandbox.NewNoneProvider()
@@ -174,6 +175,7 @@ func TestNewFantasyToolSet_WithSandboxExecutor(t *testing.T) {
 		t.Error("expected sandbox executor to be stored")
 	}
 }
+*/
 
 func TestNewFantasyToolSet_WithoutSandboxExecutor(t *testing.T) {
 	// Test that local bash is used when no sandbox executor provided
@@ -191,11 +193,6 @@ func TestNewFantasyToolSet_WithoutSandboxExecutor(t *testing.T) {
 	info := tools[0].Info()
 	if info.Name != "bash" {
 		t.Errorf("expected bash tool, got %s", info.Name)
-	}
-
-	// Verify no sandbox executor
-	if ts.sandboxExecutor != nil {
-		t.Error("expected no sandbox executor")
 	}
 }
 

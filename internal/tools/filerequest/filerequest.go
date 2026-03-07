@@ -13,7 +13,8 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/alexcabrera/ayo/internal/providers"
-	"github.com/alexcabrera/ayo/internal/sandbox/workingcopy"
+	// Sandbox infrastructure removed - TODO: Re-enable when sandbox is re-implemented as standalone executable
+	// "github.com/alexcabrera/ayo/internal/sandbox/workingcopy"
 )
 
 // FileRequestParams are the parameters for the file_request tool.
@@ -89,7 +90,9 @@ type ToolConfig struct {
 
 	// SandboxWorkingCopy is the working copy in the sandbox.
 	// If nil, files are copied directly without working copy tracking.
-	SandboxWorkingCopy *workingcopy.WorkingCopy
+	// Sandbox infrastructure removed - TODO: Re-enable when sandbox is re-implemented as standalone executable
+	// SandboxWorkingCopy *workingcopy.WorkingCopy
+	SandboxWorkingCopy interface{}
 
 	// AllowedPrefixes restricts which paths can be requested.
 	// If empty, all paths under HostProjectPath are allowed.
@@ -137,11 +140,13 @@ func NewFileRequestTool(cfg ToolConfig) fantasy.AgentTool {
 
 			destination := params.Destination
 			if destination == "" {
-				if cfg.SandboxWorkingCopy != nil {
-					destination = cfg.SandboxWorkingCopy.SandboxPath
-				} else {
-					destination = "/workspace"
-				}
+				// Sandbox infrastructure removed - TODO: Re-enable when sandbox is re-implemented as standalone executable
+				// if cfg.SandboxWorkingCopy != nil {
+				// 	destination = cfg.SandboxWorkingCopy.SandboxPath
+				// } else {
+				// 	destination = "/workspace"
+				// }
+				destination = "/workspace"
 			}
 
 			for _, reqPath := range params.Paths {
@@ -267,43 +272,7 @@ func copyFileToSandbox(ctx context.Context, provider providers.SandboxProvider, 
 }
 
 // copyDirectoryToSandbox copies a directory from host to sandbox.
+// Sandbox infrastructure removed - TODO: Re-enable when sandbox is re-implemented as standalone executable
 func copyDirectoryToSandbox(ctx context.Context, provider providers.SandboxProvider, sandboxID, hostPath, sandboxPath string) ([]string, error) {
-	var copied []string
-
-	// Create tar of host directory
-	tarData, err := workingcopy.CreateTarFromDir(hostPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create tar: %w", err)
-	}
-
-	// Create destination directory
-	_, err = provider.Exec(ctx, sandboxID, providers.ExecOptions{
-		Command: fmt.Sprintf("mkdir -p %s", sandboxPath),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create dir: %w", err)
-	}
-
-	// Extract tar in sandbox
-	_, err = provider.Exec(ctx, sandboxID, providers.ExecOptions{
-		Command:    "tar",
-		Args:       []string{"-xf", "-", "-C", sandboxPath},
-		Stdin:      tarData,
-		WorkingDir: sandboxPath,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("extract tar: %w", err)
-	}
-
-	// List files that were copied
-	err = filepath.Walk(hostPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		relPath, _ := filepath.Rel(hostPath, path)
-		copied = append(copied, filepath.Join(filepath.Base(hostPath), relPath))
-		return nil
-	})
-
-	return copied, err
+	return nil, fmt.Errorf("directory copy disabled during sandbox infrastructure removal")
 }
