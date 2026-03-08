@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexcabrera/ayo/internal/session"
+	// TODO: Re-implement session for build system
+	// "github.com/alexcabrera/ayo/internal/session"
 )
 
 func TestRenderHistory_Empty(t *testing.T) {

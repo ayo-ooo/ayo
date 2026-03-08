@@ -319,6 +319,39 @@ func SaveConstitution(squadName, content string) error {
 	return nil
 }
 
+// SaveTeamConstitution saves the SQUAD.md file for a team project.
+func SaveTeamConstitution(teamDir, content string) error {
+	path := filepath.Join(teamDir, "SQUAD.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return fmt.Errorf("write SQUAD.md: %w", err)
+	}
+	debug.Log("saved team constitution", "team", teamDir)
+	return nil
+}
+
+// LoadTeamConstitution loads the SQUAD.md file for a team project.
+func LoadTeamConstitution(teamDir string) (*Constitution, error) {
+	path := filepath.Join(teamDir, "SQUAD.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read SQUAD.md: %w", err)
+	}
+
+	frontmatter, body, err := parseFrontmatter(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse SQUAD.md frontmatter: %w", err)
+	}
+
+	return &Constitution{
+		Raw:         body,
+		SquadName:   filepath.Base(teamDir),
+		Frontmatter: frontmatter,
+	}, nil
+}
+
 // CreateDefaultConstitution creates a default SQUAD.md template for a new squad.
 func CreateDefaultConstitution(squadName string, agents []string) error {
 	var agentSection strings.Builder

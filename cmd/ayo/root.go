@@ -19,14 +19,17 @@ import (
 	// "github.com/alexcabrera/ayo/internal/daemon"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/embedding"
-	"github.com/alexcabrera/ayo/internal/memory"
+	// "github.com/alexcabrera/ayo/internal/memory" - Removed in build system
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
-	"github.com/alexcabrera/ayo/internal/pipe"
+	// TODO: Re-implement pipe detection for build system
+	// "github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/run"
-	"github.com/alexcabrera/ayo/internal/session"
-	"github.com/alexcabrera/ayo/internal/share"
+	// TODO: Re-implement persistence for build system
+	// // TODO: Re-implement session for build system
+	// "github.com/alexcabrera/ayo/internal/session" - Removed as part of framework cleanup
+	// "github.com/alexcabrera/ayo/internal/share" - Removed as part of framework cleanup
 	"github.com/alexcabrera/ayo/internal/smallmodel"
 	"github.com/alexcabrera/ayo/internal/squads"
 	"github.com/alexcabrera/ayo/internal/ui"
@@ -156,23 +159,24 @@ Examples:
 					return err
 				}
 
-				// Initialize session services
-				services, err := session.Connect(cmd.Context(), paths.DatabasePath())
-				if err != nil {
-					// Log warning but continue without persistence
-					debug.Log("session persistence unavailable", "error", err)
-					services = nil
-				}
-				if services != nil {
-					defer services.Close()
-				}
+				// TODO: Re-implement session services for build system
+				// services, err := session.Connect(cmd.Context(), paths.DatabasePath())
+				var _ interface{} = nil // services (unused until re-implementation)
+				// if err != nil {
+				// 	// Log warning but continue without persistence
+				// 	debug.Log("session persistence unavailable", "error", err)
+				// 	services = nil
+				// }
+				// if services != nil {
+				// 	defer services.Close()
+				// }
 
 				// Create memory services if database available
 				var memSvc *memory.Service
 				var formSvc *memory.FormationService
 				var smallModelSvc *smallmodel.Service
 				var memQueue *memory.Queue
-				if services != nil {
+				if false { // services != nil
 					// Create Ollama-based embedder and small model service
 					var embedder embedding.Embedder
 					ollamaClient := ollama.NewClient(ollama.WithHost(cfg.OllamaHost))
@@ -188,12 +192,13 @@ Examples:
 					} else {
 						debug.Log("Ollama not available, memory features disabled", "host", cfg.OllamaHost)
 					}
-					memSvc = memory.NewService(services.Queries(), embedder)
+					// TODO: Re-implement memory services for build system
+					// memSvc = memory.NewService(services.Queries(), embedder)
 					if embedder != nil {
 						defer embedder.Close()
 					}
 					formSvc = memory.NewFormationService(memSvc)
-					
+
 					// Create async memory queue
 					memQueue = memory.NewQueue(memSvc, memory.QueueConfig{
 						BufferSize: 100,
@@ -211,7 +216,7 @@ Examples:
 					})
 					memQueue.Start()
 					defer memQueue.Stop(5 * time.Second)
-					
+
 					// Register callback for memory formation feedback
 					formSvc.OnFormation(func(result memory.FormationResult) {
 						var msg string
@@ -241,7 +246,9 @@ Examples:
 				plannerMgr := planners.NewSandboxPlannerManager(nil, cfg)
 
 				runner, err := run.NewRunner(cfg, debugFlag, run.RunnerOptions{
-					Services:         services,
+					// TODO: Re-implement session services for build system
+					// Services:         services,
+					Services:         nil,
 					MemoryService:    memSvc,
 					FormationService: formSvc,
 					SmallModel:       smallModelSvc,
@@ -255,12 +262,18 @@ Examples:
 				}
 
 				// Non-interactive mode: prompt provided as positional args or stdin
-				if len(promptArgs) > 0 || pipe.IsStdinPiped() {
+				// TODO: Re-implement pipe detection for build system
+				// if len(promptArgs) > 0 || pipe.IsStdinPiped() {
+				if len(promptArgs) > 0 { // || pipe.IsStdinPiped()
 					var prompt string
 
-					if pipe.IsStdinPiped() {
+					// TODO: Re-implement stdin reading for build system
+					// if pipe.IsStdinPiped() {
+					if false { // pipe.IsStdinPiped()
 						// Read from stdin
-						stdinData, err := pipe.ReadStdin()
+						// TODO: Re-implement stdin reading for build system
+						// stdinData, err := pipe.ReadStdin()
+						stdinData, err := "", error(nil) // pipe.ReadStdin()
 						if err != nil {
 							return fmt.Errorf("read stdin: %w", err)
 						}
@@ -295,18 +308,19 @@ Examples:
 					defer cancel()
 
 					var result run.TextResult
-					
+
 					// Determine session ID for continuation
 					effectiveSessionID := sessionID
-					if continueSession && effectiveSessionID == "" {
-						// --continue without -s: use the latest session
-						latestSess, err := getLatestSession(cmd.Context(), services)
-						if err != nil {
-							return fmt.Errorf("no sessions found to continue: %w", err)
-						}
-						effectiveSessionID = latestSess.ID
-					}
-					
+					// TODO: Re-implement session continuation for build system
+					// if continueSession && effectiveSessionID == "" {
+					// 	// --continue without -s: use the latest session
+					// 	latestSess, err := getLatestSession(cmd.Context(), services)
+					// 	if err != nil {
+					// 		return fmt.Errorf("no sessions found to continue: %w", err)
+					// 	}
+					// 	effectiveSessionID = latestSess.ID
+					// }
+
 					if effectiveSessionID != "" {
 						// Continue existing session
 						result, err = runner.ContinueSessionWithPrompt(ctx, ag, effectiveSessionID, prompt, attachments)
@@ -325,7 +339,9 @@ Examples:
 					fmt.Println(result.Response)
 
 					// Print session ID to stderr (visible even when piped)
-					if result.SessionID != "" && !pipe.IsStdoutPiped() {
+					// TODO: Re-implement pipe detection for build system
+					// if result.SessionID != "" && !pipe.IsStdoutPiped() {
+					if result.SessionID != "" { // && !pipe.IsStdoutPiped()
 						sessionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 						fmt.Fprintln(os.Stderr, sessionStyle.Render(fmt.Sprintf("\nSession: %s", result.SessionID)))
 					}
@@ -357,8 +373,10 @@ Examples:
 	cmd.AddCommand(newBuildCmd())
 	cmd.AddCommand(newFreshCmd())
 	cmd.AddCommand(newCheckitCmd())
+	cmd.AddCommand(newAddAgentCmd())
 	cmd.AddCommand(auditCmd)
 	cmd.AddCommand(newFlowsCmd(&cfgPath))
+	cmd.AddCommand(newPluginsCmd())
 
 	return cmd
 }
@@ -413,7 +431,19 @@ func printInputValidationError(err error) error {
 // buildFreeformPreamble creates a preamble for agents without input schemas
 // when receiving piped input from another agent.
 func buildFreeformPreamble(jsonInput string) string {
-	ctx := pipe.GetChainContext()
+	// TODO: Re-implement chain context for build system
+	// type ChainContext struct {
+	// 	Depth              int
+	// 	Source             string
+	// 	SourceDescription  string
+	// }
+	// ctx := pipe.GetChainContext()
+	type chainContext struct {
+		Depth             int
+		Source            string
+		SourceDescription string
+	}
+	var ctx *chainContext = nil // pipe.GetChainContext()
 
 	var preamble strings.Builder
 	preamble.WriteString("You received structured output from a previous agent in a chain.\n\n")
@@ -438,6 +468,8 @@ func buildFreeformPreamble(jsonInput string) string {
 }
 
 // getLatestSession returns the most recent session from the database.
+// TODO: Re-implement session persistence for build system
+/*
 func getLatestSession(ctx context.Context, services *session.Services) (session.Session, error) {
 	if services == nil {
 		return session.Session{}, errors.New("session storage not available")
@@ -451,6 +483,7 @@ func getLatestSession(ctx context.Context, services *session.Services) (session.
 	}
 	return sessions[0], nil
 }
+*/
 
 // looksLikeSubcommand checks if a string looks like it could be a mistyped subcommand.
 // Returns true if the string is a single lowercase word that resembles command syntax.
@@ -593,7 +626,71 @@ func completeHandles(toComplete string) ([]string, cobra.ShellCompDirective) {
 	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
-// invokeSquad is disabled during daemon infrastructure removal.
+// invokeSquad executes a team project with the given handle and prompt.
+// In the new build system, this loads team projects from team.toml files.
 func invokeSquad(ctx context.Context, handle, prompt string) error {
-	return fmt.Errorf("squad functionality is temporarily unavailable during daemon infrastructure removal")
+	// Try to load team project from current directory
+	teamProject, err := squads.TryLoadTeamFromCurrentDir()
+	if err != nil {
+		return fmt.Errorf("failed to load team project: %w", err)
+	}
+	if teamProject == nil {
+		return fmt.Errorf("no team.toml found in current directory. Add more agents to automatically create a team project")
+	}
+
+	// Check if the team name matches the handle (without # prefix)
+	expectedHandle := "#" + teamProject.Name
+	if handle != expectedHandle {
+		return fmt.Errorf("team handle '%s' doesn't match team name '%s' (expected '#%s')", handle, teamProject.Name, teamProject.Name)
+	}
+
+	// Load all agents in the team
+	var agents []*agent.Agent
+	for _, agentName := range teamProject.ListTeamAgents() {
+		agentPath, exists := teamProject.GetAgentPath(agentName)
+		if !exists {
+			return fmt.Errorf("agent '%s' not found in team configuration", agentName)
+		}
+
+		// Load agent from its directory
+		ag, err := agent.LoadFromProject(agentPath, agentName)
+		if err != nil {
+			return fmt.Errorf("failed to load agent '%s': %w", agentName, err)
+		}
+		agents = append(agents, &ag)
+	}
+
+	if len(agents) == 0 {
+		return fmt.Errorf("no agents found in team project")
+	}
+
+	// Create runner for execution
+	runner, err := run.NewRunner(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create runner: %w", err)
+	}
+
+	// Execute team coordination
+	// For now, execute agents sequentially (simple coordination)
+	// TODO: Implement proper team coordination based on team.toml settings
+	for i, ag := range agents {
+		debug.Log("executing team agent", "agent", ag.Handle, "index", i+1, "of", len(agents))
+		
+		// Execute the agent using the runner
+		result, err := runner.Text(ctx, *ag, prompt, attachments)
+		if err != nil {
+			return fmt.Errorf("agent '%s' failed: %w", ag.Handle, err)
+		}
+
+		// Output the result
+		fmt.Println(result)
+
+		// For sequential execution, pass the result to the next agent
+		if i < len(agents)-1 {
+			prompt = result // Use output as input for next agent
+		}
+	}
+
+	debug.Log("team execution completed", "team", teamProject.Name, "agents", len(agents))
+	return nil
 }

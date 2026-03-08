@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alexcabrera/ayo/internal/db"
+	// TODO: Re-implement db for build system
+	// "github.com/alexcabrera/ayo/internal/db"
 )
 
 func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {

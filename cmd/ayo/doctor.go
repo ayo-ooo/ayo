@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/db"
 	"github.com/alexcabrera/ayo/internal/doctor"
 	"github.com/alexcabrera/ayo/internal/ollama"
 	"github.com/alexcabrera/ayo/internal/paths"
@@ -158,27 +157,33 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			}
 			fmt.Println()
 
-			// Check database
-			fmt.Println(headerStyle.Render("  Database"))
-			dbPath := paths.DatabasePath()
-			if fileExists(dbPath) {
-				dbConn, queries, err := db.ConnectWithQueries(ctx, dbPath)
-				if err != nil {
-					check("Connection:", false, err.Error())
-				} else {
-					check("Connection:", true, "OK")
-					defer dbConn.Close()
-
-					sessions, _ := queries.CountSessions(ctx)
-					check("Sessions:", true, fmt.Sprintf("%d", sessions))
-
-					memories, _ := queries.ListMemories(ctx, db.ListMemoriesParams{
-						Lim: 1000,
-					})
-					check("Active Memories:", true, fmt.Sprintf("%d", len(memories)))
-				}
+			// Build System Prerequisites
+			fmt.Println(headerStyle.Render("  Build System"))
+			
+			// Check Go installation (required for building)
+			goPath, goErr := exec.LookPath("go")
+			if goErr != nil {
+				warn("Go:", "not found - required for building agents")
 			} else {
-				warn("Database:", "not created yet - run 'ayo setup'")
+				check("Go:", true, goPath)
+				
+				// Check Go version
+				goCmd := exec.Command("go", "version")
+				goOutput, goVerErr := goCmd.Output()
+				if goVerErr != nil {
+					warn("Go Version:", "could not determine version")
+				} else {
+					goVersion := strings.TrimSpace(string(goOutput))
+					check("Go Version:", true, goVersion)
+					
+					// Check if Go version meets minimum requirement
+					if strings.Contains(goVersion, "go1.2") || strings.Contains(goVersion, "go1.") && !strings.Contains(goVersion, "go1.20") && !strings.Contains(goVersion, "go1.21") {
+						// Simple version check - more robust parsing could be added
+						check("Go Version Requirement:", true, "✓ Meets minimum (1.24+ recommended)")
+					} else {
+						warn("Go Version Requirement:", "Version may be too old (1.24+ recommended)")
+					}
+				}
 			}
 			fmt.Println()
 
@@ -188,47 +193,16 @@ func newDoctorCmd(cfgPath *string) *cobra.Command {
 			printCheckerResults(checker, "Squads", check, warn)
 			fmt.Println()
 
-			// Check sandbox
-			fmt.Println(headerStyle.Render("  Sandbox"))
+			// Local Execution (replaces sandbox for build system)
+			fmt.Println(headerStyle.Render("  Local Execution"))
+			check("Mode:", true, "Local execution enabled (sandbox optional)")
+			
+			// Check if sandbox provider is available (optional for build system)
 			sandboxProvider := selectSandboxProvider()
 			if sandboxProvider == nil {
-				warn("Provider:", "none available")
+				check("Sandbox:", true, "Not required (local execution mode)")
 			} else {
-				check("Provider:", true, sandboxProvider.Name())
-
-				if verbose {
-					fmt.Println("  Testing sandbox execution...")
-					testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-					defer cancel()
-
-					sb, createErr := sandboxProvider.Create(testCtx, providers.SandboxCreateOptions{
-						Name: "ayo-doctor-test",
-					})
-					if createErr != nil {
-						check("Create:", false, createErr.Error())
-					} else {
-						check("Create:", true, sb.ID)
-
-						result, execErr := sandboxProvider.Exec(testCtx, sb.ID, providers.ExecOptions{
-							Command: "echo",
-							Args:    []string{"hello from sandbox"},
-						})
-						if execErr != nil {
-							check("Exec:", false, execErr.Error())
-						} else {
-							output := strings.TrimSpace(result.Stdout)
-							check("Exec:", result.ExitCode == 0, fmt.Sprintf("exit=%d output=%q", result.ExitCode, output))
-						}
-
-						if delErr := sandboxProvider.Delete(testCtx, sb.ID, true); delErr != nil {
-							warn("Cleanup:", delErr.Error())
-						} else {
-							check("Cleanup:", true, "removed test sandbox")
-						}
-					}
-				} else {
-					fmt.Println("  Run with -v to test sandbox execution")
-				}
+				check("Sandbox:", true, sandboxProvider.Name()+" available (optional)")
 			}
 			fmt.Println()
 

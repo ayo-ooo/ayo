@@ -9,6 +9,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/debug"
 	"github.com/alexcabrera/ayo/internal/paths"
+	"github.com/pelletier/go-toml/v2"
 )
 
 // AyoConfig represents the top-level ayo.json structure for squads.
@@ -104,4 +105,53 @@ func AyoConfigExists(squadName string) bool {
 	ayoPath := filepath.Join(squadDir, "ayo.json")
 	_, err := os.Stat(ayoPath)
 	return err == nil
+}
+
+// TeamConfigExists returns true if team.toml exists in a directory.
+func TeamConfigExists(teamDir string) bool {
+	teamPath := filepath.Join(teamDir, "team.toml")
+	_, err := os.Stat(teamPath)
+	return err == nil
+}
+
+// LoadTeamConfigFromTOML loads team configuration from team.toml file.
+// This is the new team project format for the build system.
+func LoadTeamConfigFromTOML(teamDir string) (*TeamConfig, error) {
+	teamPath := filepath.Join(teamDir, "team.toml")
+	data, err := os.ReadFile(teamPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			debug.Log("no team.toml found", "dir", teamDir)
+			return nil, nil // No config is not an error
+		}
+		return nil, fmt.Errorf("read team.toml: %w", err)
+	}
+
+	var config TeamConfig
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("parse team.toml: %w", err)
+	}
+
+	debug.Log("loaded team.toml", "dir", teamDir, "team", config.Team.Name)
+	return &config, nil
+}
+
+// TeamConfig represents the team.toml configuration structure
+type TeamConfig struct {
+	Team struct {
+		Name        string `toml:"name"`
+		Description string `toml:"description"`
+		Coordination string `toml:"coordination"`
+	} `toml:"team"`
+	Agents map[string]struct {
+		Path string `toml:"path"`
+	} `toml:"agents"`
+	Workspace struct {
+		SharedPath string `toml:"shared_path"`
+		OutputPath string `toml:"output_path"`
+	} `toml:"workspace"`
+	Coordination struct {
+		Strategy      string `toml:"strategy"`
+		MaxIterations int    `toml:"max_iterations"`
+	} `toml:"coordination"`
 }

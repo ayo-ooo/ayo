@@ -1,6 +1,6 @@
 ---
 id: ayo-j5c2
-status: open
+status: closed
 deps: [ayo-c30f, ayo-5ob9]
 links: []
 created: 2026-03-07T21:04:10Z

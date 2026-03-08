@@ -34,6 +34,22 @@ myreviewer/
     └── system.md        # System prompt
 ```
 
+### 2. Initialize a new team project
+
+```bash
+# Create a new team project
+ayo init myteam
+yo add-agent myteam reviewer
+```
+
+This creates:
+```
+myteam/
+├── team.toml            # Team configuration
+└── workspace/           # Shared workspace
+    └── shared-workspace
+```
+
 ### 2. Customize your agent
 
 Edit `config.toml` to define:
@@ -344,6 +360,303 @@ myteam/
     └── shared-workspace
 ```
 
+## Project Structure Conventions
+
+Ayo supports two types of projects with distinct structures:
+
+### Single-Agent Projects
+
+Single-agent projects contain one agent with its own configuration and resources:
+
+```
+myagent/
+├── config.toml          # Agent configuration (required)
+├── skills/             # Agent-specific skills (optional)
+│   └── *.md            # Skill definitions
+├── tools/              # Custom Go tools (optional)
+│   └── *.go            # Tool implementations
+├── prompts/            # Prompt templates (optional)
+│   ├── system.md       # System prompt (recommended)
+│   └── *.md            # Additional prompts
+├── data/               # Agent data (optional)
+│   └── *.json          # Structured data files
+└── README.md           # Project documentation (recommended)
+```
+
+**Key Files:**
+- `config.toml` - Main configuration file with agent settings
+- `prompts/system.md` - System prompt defining agent behavior
+- `skills/*.md` - Agent skills and capabilities
+- `tools/*.go` - Custom tools written in Go
+
+### Multi-Agent Team Projects
+
+Team projects coordinate multiple agents working together:
+
+```
+myteam/
+├── team.toml            # Team configuration (required)
+├── agents/             # Individual agent configurations
+│   ├── agent1/         # First agent
+│   │   ├── config.toml # Agent-specific config
+│   │   ├── prompts/    # Agent prompts
+│   │   └── skills/     # Agent skills
+│   ├── agent2/         # Second agent
+│   │   ├── config.toml # Agent-specific config
+│   │   └── ...         # Other agent files
+│   └── ...             # Additional agents
+├── workspace/          # Shared workspace (required)
+│   ├── shared-data/    # Shared files and data
+│   └── results/        # Output and results
+├── team-prompts/       # Team-level prompts (optional)
+│   └── *.md           # Coordination prompts
+└── README.md           # Team documentation (recommended)
+```
+
+**Key Files:**
+- `team.toml` - Team configuration with agent coordination rules
+- `agents/*/config.toml` - Individual agent configurations
+- `workspace/` - Shared directory for team collaboration
+- `team-prompts/*.md` - Prompts for team coordination
+
+### Configuration Files
+
+#### Single-Agent: config.toml
+
+```toml
+[agent]
+name = "myagent"
+description = "Agent description"
+model = "claude-3-5-sonnet"
+
+[agent.tools]
+allowed = ["bash", "file_read", "file_write", "git"]
+
+[agent.memory]
+enabled = true
+scope = "agent"
+
+[agent.sandbox]
+network = false
+host_path = "."
+
+[cli]
+mode = "hybrid"
+description = "CLI description"
+```
+
+#### Team Project: team.toml
+
+```toml
+[team]
+name = "myteam"
+description = "Team description"
+coordination = "sequential"  # or "parallel", "hierarchical"
+
+[agents]
+agent1 = { path = "agents/agent1" }
+agent2 = { path = "agents/agent2" }
+
+[workspace]
+shared_path = "workspace"
+output_path = "workspace/results"
+
+[coordination]
+strategy = "round-robin"  # Coordination strategy
+max_iterations = 5      # Maximum coordination iterations
+```
+
+## Team Projects (Multi-Agent Coordination)
+
+Ayo supports multi-agent teams through `team.toml` configuration files. Teams allow multiple agents to collaborate on tasks with coordinated execution.
+
+### Team Project Structure
+
+```
+myteam/
+├── team.toml            # Team configuration
+├── SQUAD.md             # Team constitution (optional)
+├── workspace/           # Shared workspace
+│   └── shared-data/
+├── agents/               # Agent directories
+│   ├── agent1/          # First agent
+│   │   ├── config.toml  # Agent configuration
+│   │   └── prompts/     # Agent prompts
+│   │       └── system.md
+│   └── agent2/          # Second agent
+│       ├── config.toml  # Agent configuration
+│       └── prompts/
+│           └── system.md
+└── schemas/              # Input/output schemas (optional)
+    ├── input.json        # Input schema
+    └── output.json       # Output schema
+```
+
+### Team Configuration Fields
+
+#### `[team]` Section
+- `name` (string, required): Team name (used for #handle invocation)
+- `description` (string): Team description
+- `coordination` (string): Coordination mode - "sequential", "parallel", or "hierarchical"
+
+#### `[agents]` Section
+- Agent mappings (map): Agent name → path mapping
+- Paths can be relative to team directory or absolute
+- Example: `agent1 = { path = "agents/agent1" }`
+
+#### `[workspace]` Section
+- `shared_path` (string): Path to shared workspace directory
+- `output_path` (string): Path for team output results
+
+#### `[coordination]` Section
+- `strategy` (string): Coordination strategy ("round-robin", "waterfall", etc.)
+- `max_iterations` (int): Maximum coordination iterations
+
+### Team Constitution (SQUAD.md)
+
+Teams can include a `SQUAD.md` file that defines:
+- Team mission and objectives
+- Agent roles and responsibilities
+- Coordination protocols
+- Shared context and guidelines
+
+The constitution is automatically injected into each agent's system prompt.
+
+### Team Execution
+
+To execute a team project:
+
+```bash
+# Navigate to team directory
+cd myteam
+
+# Execute team with prompt
+ayo #myteam "complete this complex task"
+```
+
+The system will:
+1. Load `team.toml` configuration
+2. Load all agents from specified paths
+3. Execute agents according to coordination strategy
+4. Manage shared workspace and output
+
+### Coordination Strategies
+
+#### Sequential (Default)
+Agents execute one after another, with each agent's output becoming the next agent's input.
+
+#### Parallel
+Agents execute simultaneously with shared context (coming soon).
+
+#### Hierarchical
+Agents execute in a leader-follower pattern (coming soon).
+
+### Team Project Commands
+
+```bash
+# Initialize a new team project
+ayo init myteam
+yo add-agent myteam reviewer  # Automatically creates team.toml
+
+# Add an agent to existing team
+ayo add-agent myteam newagent
+
+# Execute team
+ayo #myteam "solve this problem"
+
+# Build team as standalone executable
+ayo build myteam
+```
+
+### Best Practices for Team Projects
+
+1. **Start small**: Begin with 2-3 agents and expand as needed
+2. **Clear roles**: Define distinct responsibilities for each agent
+3. **Shared context**: Use SQUAD.md for team-wide knowledge
+4. **Incremental testing**: Test agents individually before team execution
+5. **Workspace organization**: Structure shared workspace for easy collaboration
+
+## Execution Model
+
+The new build system executes agents and teams differently than the old framework:
+
+### Single Agent Execution
+```bash
+ayo @agent "prompt"
+```
+1. Loads agent from `config.toml` in current directory or `agents/` subdirectory
+2. Executes agent with prompt using configured model
+3. Outputs response to stdout
+4. Creates session for continuation
+
+### Team Execution
+```bash
+ayo #team "prompt"
+```
+1. Loads team from `team.toml` in current directory
+2. Loads all agents from specified paths
+3. Executes agents according to coordination strategy
+4. Manages shared workspace and output
+5. Returns final team response
+
+### Key Differences from Old Framework
+
+| Feature | Old Framework | New Build System |
+|---------|--------------|------------------|
+| Agent storage | Centralized `~/.config/ayo/agents/` | Project-based `config.toml` files |
+| Execution | Daemon-managed sandboxes | Direct execution from project directories |
+| Persistence | Central database | Per-agent local storage |
+| Teams | Squad sandboxes | Team projects with `team.toml` |
+| Distribution | Framework-dependent | Standalone executables |
+
+## Migration Guide
+
+### From Framework Agents to Build System
+
+1. **Create new agent project**:
+   ```bash
+   ayo init myagent
+   ```
+
+2. **Copy configuration**: Move agent settings from framework to `config.toml`
+
+3. **Update prompts**: Move system prompts to `prompts/system.md`
+
+4. **Test locally**:
+   ```bash
+   cd myagent
+   ayo @myagent "test prompt"
+   ```
+
+5. **Build executable**:
+   ```bash
+   ayo build .
+   ```
+
+### From Squads to Team Projects
+
+1. **Create team project**:
+   ```bash
+   ayo init myteam
+yo add-agent myteam agent1  # Auto-creates team.toml
+   ```
+
+2. **Add agents**:
+   ```bash
+   ayo add-agent myteam agent1
+   ayo add-agent myteam agent2
+   ```
+
+3. **Configure team**: Edit `team.toml` with coordination settings
+
+4. **Add constitution**: Create `SQUAD.md` with team rules
+
+5. **Test team execution**:
+   ```bash
+   cd myteam
+   ayo #myteam "team task"
+   ```
+
 ## Commands
 
 ### ayo init
@@ -383,6 +696,64 @@ Flags:
   --target-os string       Target OS (default: current OS)
   --target-arch string     Target architecture (default: current arch)
 ```
+
+### ayo add-agent
+
+Add an agent to an existing project:
+
+```bash
+# Add agent to single-agent project (converts to multi-agent)
+ayo add-agent myproject reviewer
+
+# Add agent to team project
+ayo add-agent myteam analyzer
+
+# Add agent with custom template
+ayo add-agent myproject security-agent --template advanced
+
+# Add agent with custom description and model
+ayo add-agent myproject tester --description "Test automation agent" --model gpt-4-turbo
+```
+
+**Flags:**
+- `--name string` - Agent name (default: second argument)
+- `-d, --description string` - Agent description
+- `-m, --model string` - Default model (default: claude-3-5-sonnet)
+- `--template string` - Template: simple, standard, advanced (default: standard)
+
+**What it does:**
+- Creates agent subdirectory in `agents/{agent-name}/`
+- Generates agent-specific `config.toml` with template configuration
+- Creates `prompts/`, `skills/`, and `tools/` directories
+- Adds example system prompt and skill (template-dependent)
+- Updates `team.toml` for team projects to include the new agent
+- Supports three templates with different tool sets and configurations
+
+## Project Structure Best Practices
+
+### Single-Agent Projects
+
+1. **Keep it simple**: Start with the `standard` template and customize as needed
+2. **Organize skills**: Group related skills in subdirectories (e.g., `skills/code/`, `skills/docs/`)
+3. **Document tools**: Add README files in the `tools/` directory explaining custom tools
+4. **Version control**: Use git to track changes to your agent configuration
+5. **Environment separation**: Use different config files for development vs production
+
+### Team Projects
+
+1. **Clear agent roles**: Define distinct responsibilities for each agent
+2. **Shared workspace**: Use the `workspace/` directory for inter-agent communication
+3. **Coordination strategy**: Choose appropriate coordination (sequential, parallel, hierarchical)
+4. **Agent isolation**: Keep agent-specific files in their respective `agents/*/` directories
+5. **Team documentation**: Document the team structure and workflow in README.md
+
+### Template Selection Guide
+
+| Template | Use Case | Tools | Memory Scope |
+|----------|----------|-------|--------------|
+| `simple` | Basic agents, minimal setup | bash, file_read, file_write | agent |
+| `standard` | General-purpose agents | bash, file_read, file_write, git | agent |
+| `advanced` | Complex agents with network access | bash, file_read, file_write, git, web_search | session |
 
 ## Examples
 
@@ -746,7 +1117,7 @@ A: No, agents are now standalone executables. Use `./agent` instead.
 
 **Q: What happened to squads?**
 
-A: Multi-agent teams are supported via `team.toml` files. Use `ayo build --team`.
+A: Multi-agent teams are supported via `team.toml` files. Teams are created automatically when you add multiple agents to a project using `ayo add-agent`.
 
 **Q: Can I have multiple agents in one project?**
 

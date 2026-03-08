@@ -32,7 +32,7 @@ The resulting binary can be distributed and run independently.
 
 Examples:
   ayo build ./myagent
-  ayo build ./myteam --team
+  ayo build ./myteam
   ayo build . --output ./bin/myagent
   ayo build . --target-os linux --target-arch amd64`,
 		Args: cobra.ExactArgs(1),

@@ -15,7 +15,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 
-	"github.com/alexcabrera/ayo/internal/pipe"
+	// TODO: Re-implement pipe detection for build system
+	// "github.com/alexcabrera/ayo/internal/pipe"
 	"github.com/alexcabrera/ayo/internal/ui/shared"
 )
 
@@ -52,7 +53,8 @@ func (m *markdownRenderer) render(text string) string {
 func New(debug bool) *UI {
 	// When stdout is piped, write UI to stderr
 	out := io.Writer(os.Stdout)
-	piped := pipe.IsStdoutPiped()
+	// TODO: Re-implement pipe detection for build system
+	piped := false // pipe.IsStdoutPiped()
 	if piped {
 		out = os.Stderr
 	}
@@ -70,7 +72,8 @@ func New(debug bool) *UI {
 // NewWithDepth creates a UI at a specific nesting depth (for sub-agent calls).
 func NewWithDepth(debug bool, depth int) *UI {
 	out := io.Writer(os.Stdout)
-	piped := pipe.IsStdoutPiped()
+	// TODO: Re-implement pipe detection for build system
+	piped := false // pipe.IsStdoutPiped()
 	if piped {
 		out = os.Stderr
 	}

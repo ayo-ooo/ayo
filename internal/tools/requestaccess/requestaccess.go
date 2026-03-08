@@ -13,7 +13,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/huh"
 
-	"github.com/alexcabrera/ayo/internal/share"
+
 )
 
 // RequestAccessParams are the parameters for the request_access tool.
@@ -58,8 +58,9 @@ func (r RequestAccessResult) String() string {
 
 // ToolConfig configures the request_access tool.
 type ToolConfig struct {
-	// ShareService is used to add new shares when access is granted.
-	ShareService *share.Service
+	// ShareService has been removed as part of framework cleanup.
+	// File access is now handled directly by the build system.
+	// ShareService *share.Service
 
 	// SessionID is the current session ID (for session-scoped shares).
 	SessionID string
@@ -150,16 +151,17 @@ func NewRequestAccessTool(cfg ToolConfig) fantasy.AgentTool {
 			}
 
 			// Check if already shared
-			if cfg.ShareService != nil {
-				if existing := cfg.ShareService.GetByPath(absPath); existing != nil {
-					result := RequestAccessResult{
-						Granted:   true,
-						MountPath: fmt.Sprintf("/workspace/%s", existing.Name),
-						Message:   "Path is already shared",
-					}
-					return fantasy.NewTextResponse(result.String()), nil
-				}
-			}
+			// ShareService has been removed as part of framework cleanup
+			// if cfg.ShareService != nil {
+			// 	if existing := cfg.ShareService.GetByPath(absPath); existing != nil {
+			// 		result := RequestAccessResult{
+			// 			Granted:   true,
+			// 			MountPath: fmt.Sprintf("/workspace/%s", existing.Name),
+			// 			Message:   "Path is already shared",
+			// 		}
+			// 		return fantasy.NewTextResponse(result.String()), nil
+			// 	}
+			// }
 
 			// Determine mount name
 			mountName := params.Name
@@ -211,15 +213,16 @@ func NewRequestAccessTool(cfg ToolConfig) fantasy.AgentTool {
 			}
 
 			// Add share
-			if cfg.ShareService != nil {
-				if err := cfg.ShareService.Add(absPath, mountName, sessionScoped, cfg.SessionID); err != nil {
-					result := RequestAccessResult{
-						Granted: false,
-						Message: fmt.Sprintf("Failed to create share: %v", err),
+			// ShareService has been removed as part of framework cleanup
+			// if cfg.ShareService != nil {
+			// 	if err := cfg.ShareService.Add(absPath, mountName, sessionScoped, cfg.SessionID); err != nil {
+			// 		result := RequestAccessResult{
+			// 			Granted: false,
+			// 			Message: fmt.Sprintf("Failed to create share: %v", err),
 					}
 					return fantasy.NewTextResponse(result.String()), nil
-				}
-			}
+				// }
+			// }
 
 			result := RequestAccessResult{
 				Granted:   true,

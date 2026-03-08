@@ -13,7 +13,8 @@ import (
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/capabilities"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/db"
+	// TODO: Re-implement db for build system
+	// "github.com/alexcabrera/ayo/internal/db" - Removed as part of framework cleanup
 	"github.com/alexcabrera/ayo/internal/paths"
 )
 
@@ -43,33 +44,10 @@ Examples:
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withConfig(cfgPath, func(cfg config.Config) error {
-				// Ensure builtins are installed
-				if err := builtin.Install(); err != nil {
-					return fmt.Errorf("install builtins: %w", err)
-				}
-
-				// Open database
-				database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-				if err != nil {
-					return fmt.Errorf("open database: %w", err)
-				}
-				defer database.Close()
-
-				repo := capabilities.NewRepository(queries)
-
-				// Search mode
-				if search != "" {
-					return searchCapabilities(cmd.Context(), cfg, repo, search)
-				}
-
-				// All agents mode
-				if all || len(args) == 0 {
-					return listAllCapabilities(cmd.Context(), cfg, repo)
-				}
-
-				// Single agent mode
-				handle := agent.NormalizeHandle(args[0])
-				return showAgentCapabilities(cmd.Context(), cfg, repo, handle)
+				// Capabilities system has been removed as part of framework cleanup
+				// In the build system, capabilities are determined at build time
+				// and embedded in the compiled executable
+				return fmt.Errorf("agent capabilities are no longer supported in the build system. Capabilities are now determined at build time and embedded in executables")
 			})
 		},
 	}
@@ -147,182 +125,109 @@ func showAgentCapabilities(ctx context.Context, cfg config.Config, repo *capabil
 
 	// Styles
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
-	iconStyle := lipgloss.NewStyle().Foreground(cyan)
-	handleStyle := lipgloss.NewStyle().Foreground(cyan).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(text)
+	subheaderStyle := lipgloss.NewStyle().Bold(true).Foreground(cyan)
 	mutedStyle := lipgloss.NewStyle().Foreground(muted)
-	dividerStyle := lipgloss.NewStyle().Foreground(subtle)
+	textStyle := lipgloss.NewStyle().Foreground(text)
+	subtleStyle := lipgloss.NewStyle().Foreground(subtle)
+	greenStyle := lipgloss.NewStyle().Foreground(green)
+	yellowStyle := lipgloss.NewStyle().Foreground(yellow)
+	redStyle := lipgloss.NewStyle().Foreground(red)
 
-	// Confidence color function
-	confidenceStyle := func(conf float64) lipgloss.Style {
-		if conf >= 0.8 {
-			return lipgloss.NewStyle().Foreground(green)
-		} else if conf >= 0.5 {
-			return lipgloss.NewStyle().Foreground(yellow)
-		}
-		return lipgloss.NewStyle().Foreground(red)
-	}
-
-	fmt.Println()
-	fmt.Println("  " + headerStyle.Render("Capabilities for ") + handleStyle.Render(handle))
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
+	// Header
+	fmt.Println(headerStyle.Render("Agent Capabilities"))
+	fmt.Println(subheaderStyle.Render(handle))
 	fmt.Println()
 
+	// Capabilities list
 	if len(caps) == 0 {
-		fmt.Println(mutedStyle.Render("  No capabilities inferred yet."))
-		fmt.Println(mutedStyle.Render("  Run: ayo agent capabilities refresh " + handle))
-		fmt.Println()
+		fmt.Println(mutedStyle.Render("No capabilities found"))
+		fmt.Println(mutedStyle.Render("Run: ayo agents capabilities refresh --all"))
 		return nil
 	}
 
 	for _, cap := range caps {
-		icon := iconStyle.Render("◆")
-		name := handleStyle.Render(cap.Name)
-		conf := confidenceStyle(cap.Confidence).Render(fmt.Sprintf("(confidence: %.2f)", cap.Confidence))
-		fmt.Printf("  %s %s %s\n", icon, name, conf)
-
+		fmt.Println(greenStyle.Render("• " + cap.Name))
 		if cap.Description != "" {
-			desc := cap.Description
-			if len(desc) > 60 {
-				desc = desc[:57] + "..."
-			}
-			fmt.Printf("    %s\n", descStyle.Render(desc))
+			fmt.Println(textStyle.Render("  " + cap.Description))
 		}
-
-		fmt.Printf("    %s\n\n", mutedStyle.Render("Source: "+cap.Source))
+		if cap.Source != "" {
+			fmt.Println(subtleStyle.Render("  Source: " + cap.Source))
+		}
+		if cap.Confidence > 0 {
+			confidence := fmt.Sprintf("%.1f%%", cap.Confidence*100)
+			fmt.Println(subtleStyle.Render("  Confidence: "+confidence))
+		}
+		fmt.Println()
 	}
 
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-
-	if len(caps) > 0 && caps[0].UpdatedAt > 0 {
-		lastUpdated := time.Unix(caps[0].UpdatedAt, 0)
-		ago := capFormatTimeAgo(lastUpdated)
-		fmt.Printf("  %s %s\n", mutedStyle.Render("Last updated:"), mutedStyle.Render(ago))
-		if caps[0].InputHash != "" {
-			shortHash := caps[0].InputHash
-			if len(shortHash) > 8 {
-				shortHash = shortHash[:8] + "..."
-			}
-			fmt.Printf("  %s %s\n", mutedStyle.Render("Input hash:"), mutedStyle.Render(shortHash))
-		}
-	}
-	fmt.Println()
+	// Footer
+	fmt.Println(subtleStyle.Render("Capabilities help @ayo route tasks to the right agent"))
 
 	return nil
 }
 
-func listAllCapabilities(ctx context.Context, _ config.Config, repo *capabilities.Repository) error {
-	caps, err := repo.GetAllCapabilities(ctx)
+func listAllCapabilities(ctx context.Context, cfg config.Config, repo *capabilities.Repository) error {
+	// Get all agents
+	agents, err := agent.List(cfg)
 	if err != nil {
-		return fmt.Errorf("get capabilities: %w", err)
+		return fmt.Errorf("list agents: %w", err)
+	}
+
+	if len(agents) == 0 {
+		fmt.Println("No agents found")
+		return nil
 	}
 
 	// JSON output
 	if globalOutput.JSON {
-		type capJSON struct {
-			AgentID     string  `json:"agent_id"`
-			Name        string  `json:"name"`
-			Description string  `json:"description"`
-			Confidence  float64 `json:"confidence"`
-			Source      string  `json:"source"`
+		type agentCapJSON struct {
+			Agent string `json:"agent"`
+			Capabilities []struct {
+				Name        string  `json:"name"`
+				Description string  `json:"description"`
+				Confidence  float64 `json:"confidence"`
+				Source      string  `json:"source"`
+			} `json:"capabilities"`
 		}
-		var out []capJSON
-		for _, cap := range caps {
-			out = append(out, capJSON{
-				AgentID:     cap.AgentID,
-				Name:        cap.Name,
-				Description: cap.Description,
-				Confidence:  cap.Confidence,
-				Source:      cap.Source,
-			})
+
+		var result []agentCapJSON
+		for _, ag := range agents {
+			caps, err := repo.GetCapabilities(ctx, ag.Handle)
+			if err != nil {
+				continue
+			}
+
+			agentCaps := agentCapJSON{Agent: ag.Handle}
+			for _, cap := range caps {
+				agentCaps.Capabilities = append(agentCaps.Capabilities, struct {
+					Name        string  `json:"name"`
+					Description string  `json:"description"`
+					Confidence  float64 `json:"confidence"`
+					Source      string  `json:"source"`
+				}{
+					Name:        cap.Name,
+					Description: cap.Description,
+					Confidence:  cap.Confidence,
+					Source:      cap.Source,
+				})
+			}
+			result = append(result, agentCaps)
 		}
-		globalOutput.PrintData(out, "")
+
+		globalOutput.PrintData(result, "")
 		return nil
 	}
 
 	// Quiet mode
 	if globalOutput.Quiet {
-		for _, cap := range caps {
-			fmt.Printf("%s\t%s\n", cap.AgentID, cap.Name)
-		}
-		return nil
-	}
-
-	// Group by agent
-	byAgent := make(map[string][]capabilities.StoredCapability)
-	for _, cap := range caps {
-		byAgent[cap.AgentID] = append(byAgent[cap.AgentID], cap)
-	}
-
-	// Color palette
-	purple := lipgloss.Color("#a78bfa")
-	cyan := lipgloss.Color("#67e8f9")
-	muted := lipgloss.Color("#6b7280")
-	subtle := lipgloss.Color("#374151")
-
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
-	handleStyle := lipgloss.NewStyle().Foreground(cyan).Bold(true)
-	mutedStyle := lipgloss.NewStyle().Foreground(muted)
-	dividerStyle := lipgloss.NewStyle().Foreground(subtle)
-
-	fmt.Println()
-	fmt.Println(headerStyle.Render("  All Agent Capabilities"))
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-	fmt.Println()
-
-	if len(byAgent) == 0 {
-		fmt.Println(mutedStyle.Render("  No capabilities inferred yet."))
-		fmt.Println(mutedStyle.Render("  Run: ayo agents capabilities refresh --all"))
-		fmt.Println()
-		return nil
-	}
-
-	for agentID, agentCaps := range byAgent {
-		fmt.Printf("  %s\n", handleStyle.Render(agentID))
-		for _, cap := range agentCaps {
-			fmt.Printf("    • %s (%.2f)\n", cap.Name, cap.Confidence)
-		}
-		fmt.Println()
-	}
-
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-	fmt.Println(mutedStyle.Render(fmt.Sprintf("  %d agents, %d capabilities", len(byAgent), len(caps))))
-	fmt.Println()
-
-	return nil
-}
-
-func searchCapabilities(ctx context.Context, _ config.Config, repo *capabilities.Repository, query string) error {
-	caps, err := repo.SearchCapabilities(ctx, query, 20)
-	if err != nil {
-		return fmt.Errorf("search capabilities: %w", err)
-	}
-
-	// JSON output
-	if globalOutput.JSON {
-		type resultJSON struct {
-			AgentID     string  `json:"agent_id"`
-			Name        string  `json:"name"`
-			Description string  `json:"description"`
-			Confidence  float64 `json:"confidence"`
-		}
-		var out []resultJSON
-		for _, cap := range caps {
-			out = append(out, resultJSON{
-				AgentID:     cap.AgentID,
-				Name:        cap.Name,
-				Description: cap.Description,
-				Confidence:  cap.Confidence,
-			})
-		}
-		globalOutput.PrintData(out, "")
-		return nil
-	}
-
-	// Quiet mode
-	if globalOutput.Quiet {
-		for _, cap := range caps {
-			fmt.Printf("%s\t%s\n", cap.AgentID, cap.Name)
+		for _, ag := range agents {
+			caps, err := repo.GetCapabilities(ctx, ag.Handle)
+			if err != nil {
+				continue
+			}
+			for _, cap := range caps {
+				fmt.Printf("%s:%s\n", ag.Handle, cap.Name)
+			}
 		}
 		return nil
 	}
@@ -332,42 +237,144 @@ func searchCapabilities(ctx context.Context, _ config.Config, repo *capabilities
 	cyan := lipgloss.Color("#67e8f9")
 	muted := lipgloss.Color("#6b7280")
 	text := lipgloss.Color("#e5e7eb")
-	subtle := lipgloss.Color("#374151")
 
+	// Styles
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
-	handleStyle := lipgloss.NewStyle().Foreground(cyan).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(text)
+	subheaderStyle := lipgloss.NewStyle().Bold(true).Foreground(cyan)
 	mutedStyle := lipgloss.NewStyle().Foreground(muted)
-	dividerStyle := lipgloss.NewStyle().Foreground(subtle)
+	textStyle := lipgloss.NewStyle().Foreground(text)
 
-	fmt.Println()
-	fmt.Println(headerStyle.Render(fmt.Sprintf(`  Agents matching "%s"`, query)))
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
+	// Header
+	fmt.Println(headerStyle.Render("All Agent Capabilities"))
 	fmt.Println()
 
-	if len(caps) == 0 {
-		fmt.Println(mutedStyle.Render("  No matching capabilities found."))
-		fmt.Println()
+	// List capabilities by agent
+	for _, ag := range agents {
+		caps, err := repo.GetCapabilities(ctx, ag.Handle)
+		if err != nil {
+			continue
+		}
+
+		if len(caps) > 0 {
+			fmt.Println(subheaderStyle.Render(ag.Handle))
+			for _, cap := range caps {
+				fmt.Println(textStyle.Render("  • " + cap.Name))
+			}
+			fmt.Println()
+		}
+	}
+
+	// Footer
+	fmt.Println(mutedStyle.Render("Use --search to find agents with specific capabilities"))
+
+	return nil
+}
+
+func searchCapabilities(ctx context.Context, cfg config.Config, repo *capabilities.Repository, query string) error {
+	// Get all agents
+	agents, err := agent.List(cfg)
+	if err != nil {
+		return fmt.Errorf("list agents: %w", err)
+	}
+
+	// Search capabilities
+	var matches []struct {
+		Agent string
+		Cap   capabilities.Capability
+	}
+
+	for _, ag := range agents {
+		caps, err := repo.GetCapabilities(ctx, ag.Handle)
+		if err != nil {
+			continue
+		}
+
+		for _, cap := range caps {
+			if strings.Contains(strings.ToLower(cap.Name), strings.ToLower(query)) ||
+				(strings.Contains(strings.ToLower(cap.Description), strings.ToLower(query))) {
+				matches = append(matches, struct {
+					Agent string
+					Cap   capabilities.Capability
+				}{
+					Agent: ag.Handle,
+					Cap:   cap,
+				})
+			}
+		}
+	}
+
+	// JSON output
+	if globalOutput.JSON {
+		type matchJSON struct {
+			Agent        string  `json:"agent"`
+			Name        string  `json:"name"`
+			Description string  `json:"description"`
+			Confidence  float64 `json:"confidence"`
+			Source      string  `json:"source"`
+		}
+
+		var result []matchJSON
+		for _, match := range matches {
+			result = append(result, matchJSON{
+				Agent:       match.Agent,
+				Name:        match.Cap.Name,
+				Description: match.Cap.Description,
+				Confidence:  match.Cap.Confidence,
+				Source:      match.Cap.Source,
+			})
+		}
+
+		globalOutput.PrintData(result, "")
+		return nil
+	}
+
+	// Quiet mode
+	if globalOutput.Quiet {
+		for _, match := range matches {
+			fmt.Printf("%s:%s\n", match.Agent, match.Cap.Name)
+		}
+		return nil
+	}
+
+	// Color palette
+	purple := lipgloss.Color("#a78bfa")
+	cyan := lipgloss.Color("#67e8f9")
+	muted := lipgloss.Color("#6b7280")
+	text := lipgloss.Color("#e5e7eb")
+	green := lipgloss.Color("#34d399")
+
+	// Styles
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
+	subheaderStyle := lipgloss.NewStyle().Bold(true).Foreground(cyan)
+	mutedStyle := lipgloss.NewStyle().Foreground(muted)
+	textStyle := lipgloss.NewStyle().Foreground(text)
+	greenStyle := lipgloss.NewStyle().Foreground(green)
+
+	// Header
+	fmt.Println(headerStyle.Render(fmt.Sprintf("Search Results for '%s'", query)))
+	fmt.Println()
+
+	if len(matches) == 0 {
+		fmt.Println(mutedStyle.Render("No matching capabilities found"))
 		return nil
 	}
 
 	// Group by agent
-	byAgent := make(map[string][]capabilities.StoredCapability)
-	for _, cap := range caps {
-		byAgent[cap.AgentID] = append(byAgent[cap.AgentID], cap)
+	byAgent := make(map[string][]capabilities.Capability)
+	for _, match := range matches {
+		byAgent[match.Agent] = append(byAgent[match.Agent], match.Cap)
 	}
 
-	for agentID, agentCaps := range byAgent {
-		fmt.Printf("  %s\n", handleStyle.Render(agentID))
-		for _, cap := range agentCaps {
-			fmt.Printf("    %s: %s\n", cap.Name, descStyle.Render(capTruncate(cap.Description, 50)))
+	for agent, caps := range byAgent {
+		fmt.Println(subheaderStyle.Render(agent))
+		for _, cap := range caps {
+			fmt.Println(greenStyle.Render("  • " + cap.Name))
+			if cap.Description != "" {
+				fmt.Println(textStyle.Render("    " + cap.Description))
+			}
 		}
 		fmt.Println()
 	}
-
-	fmt.Println(dividerStyle.Render("  " + strings.Repeat("─", 58)))
-	fmt.Println(mutedStyle.Render(fmt.Sprintf("  %d matching capabilities", len(caps))))
-	fmt.Println()
 
 	return nil
 }
@@ -377,123 +384,30 @@ func refreshCapabilitiesCmd(cfgPath *string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "refresh [agent]",
-		Short: "Refresh capabilities for an agent",
-		Long: `Re-run capability inference for an agent or all agents.
+		Short: "Refresh agent capabilities",
+		Long: `Refresh inferred capabilities for agents.
 
-This analyzes the agent's system prompt, skills, and schemas to
-infer what tasks the agent can perform.
+This re-analyzes agent system prompts, skills, and schemas to update
+capability inferences.
 
 Examples:
+  # Refresh capabilities for a specific agent
   ayo agents capabilities refresh @code-reviewer
+
+  # Refresh capabilities for all agents
   ayo agents capabilities refresh --all`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withConfig(cfgPath, func(cfg config.Config) error {
-				// Ensure builtins are installed
-				if err := builtin.Install(); err != nil {
-					return fmt.Errorf("install builtins: %w", err)
-				}
-
-				// Open database
-				database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-				if err != nil {
-					return fmt.Errorf("open database: %w", err)
-				}
-				defer database.Close()
-
-				repo := capabilities.NewRepository(queries)
-
-				// Get agent handles to refresh
-				var handles []string
-				if all {
-					handles, err = agent.ListHandles(cfg)
-					if err != nil {
-						return fmt.Errorf("list agents: %w", err)
-					}
-				} else if len(args) > 0 {
-					handles = []string{agent.NormalizeHandle(args[0])}
-				} else {
-					return fmt.Errorf("specify an agent or use --all")
-				}
-
-				// Use heuristic inference (no LLM required)
-				for _, handle := range handles {
-					ag, err := agent.Load(cfg, handle)
-					if err != nil {
-						if !globalOutput.Quiet {
-							fmt.Printf("  Skip %s: %v\n", handle, err)
-						}
-						continue
-					}
-
-					// Build inference input
-					input := capabilities.InferenceInput{
-						SystemPrompt: ag.System,
-						SkillNames:   make([]string, len(ag.Skills)),
-					}
-					for i, s := range ag.Skills {
-						input.SkillNames[i] = s.Name
-					}
-
-					// Run heuristic inference
-					result := capabilities.InferWithoutLLM(input)
-
-					// Store results
-					if err := repo.StoreCapabilities(cmd.Context(), handle, result); err != nil {
-						if !globalOutput.Quiet {
-							fmt.Printf("  Error storing %s: %v\n", handle, err)
-						}
-						continue
-					}
-
-					if !globalOutput.Quiet {
-						fmt.Printf("  ✓ Refreshed %s: %d capabilities\n", handle, len(result.Capabilities))
-					}
-				}
-
-				return nil
+				// Capabilities system has been removed as part of framework cleanup
+				// In the build system, capabilities are determined at build time
+				// and embedded in the compiled executable
+				return fmt.Errorf("agent capabilities refresh is no longer supported in the build system. Capabilities are now determined at build time and embedded in executables")
 			})
 		},
 	}
 
-	cmd.Flags().BoolVar(&all, "all", false, "refresh all agents")
+	cmd.Flags().BoolVar(&all, "all", false, "refresh capabilities for all agents")
 
 	return cmd
-}
-
-// capTruncate shortens a string to maxLen, adding ellipsis if needed.
-// Prefixed with "cap" to avoid conflict with other truncate functions.
-func capTruncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-// capFormatTimeAgo formats a time as "X ago" string.
-// Prefixed with "cap" to avoid conflict with other formatTimeAgo functions.
-func capFormatTimeAgo(t time.Time) string {
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		mins := int(d.Minutes())
-		if mins == 1 {
-			return "1 minute ago"
-		}
-		return fmt.Sprintf("%d minutes ago", mins)
-	case d < 24*time.Hour:
-		hours := int(d.Hours())
-		if hours == 1 {
-			return "1 hour ago"
-		}
-		return fmt.Sprintf("%d hours ago", hours)
-	default:
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day ago"
-		}
-		return fmt.Sprintf("%d days ago", days)
-	}
 }

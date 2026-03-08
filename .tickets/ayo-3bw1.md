@@ -1,6 +1,6 @@
 ---
 id: ayo-3bw1
-status: open
+status: completed
 deps: [ayo-jfqs, ayo-gl1u]
 links: []
 created: 2026-03-07T21:04:56Z

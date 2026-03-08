@@ -1,8 +1,8 @@
 ---
 id: ayo-7dik
-status: open
+status: closed
 deps: []
-links: []
+links: ["epic:daemon-cleanup"]
 created: 2026-03-07T21:03:55Z
 type: task
 priority: 2

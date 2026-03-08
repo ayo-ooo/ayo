@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -37,10 +38,10 @@ type CheckResult struct {
 
 // Summary contains aggregate check results.
 type Summary struct {
-	Passed   int            `json:"passed"`
-	Warnings int            `json:"warnings"`
-	Errors   int            `json:"errors"`
-	Results  []CheckResult  `json:"results"`
+	Passed   int           `json:"passed"`
+	Warnings int           `json:"warnings"`
+	Errors   int           `json:"errors"`
+	Results  []CheckResult `json:"results"`
 }
 
 // Checker runs health checks.
@@ -242,23 +243,56 @@ func (c *Checker) CheckPaths(ctx context.Context) {
 
 // CheckSquads lists squad status.
 func (c *Checker) CheckSquads(ctx context.Context) {
+	// Check for old squad system (deprecated)
 	squads, err := paths.ListSquads()
-	if err != nil || len(squads) == 0 {
+	if err != nil {
+		c.Add(CheckResult{
+			Name:     "Squads",
+			Category: "Squads",
+			Status:   StatusWarn,
+			Message:  "error checking squads: " + err.Error(),
+		})
+		return
+	}
+
+	// Check for new team projects in current directory
+	teamProjects := 0
+	if TeamConfigExists(".") {
+		teamProjects = 1
+	}
+
+	if len(squads) == 0 && teamProjects == 0 {
 		c.Add(CheckResult{
 			Name:     "Squads",
 			Category: "Squads",
 			Status:   StatusPass,
-			Message:  "none configured",
+			Message:  "none configured (use 'ayo init' to create a project, then 'ayo add-agent' to add more agents)",
 		})
 		return
+	}
+
+	// Report both old squads and new team projects
+	var messages []string
+	if len(squads) > 0 {
+		messages = append(messages, fmt.Sprintf("%d legacy squads: %s", len(squads), strings.Join(squads, ", ")))
+	}
+	if teamProjects > 0 {
+		messages = append(messages, "1 team project (team.toml)")
 	}
 
 	c.Add(CheckResult{
 		Name:     "Squads",
 		Category: "Squads",
 		Status:   StatusPass,
-		Message:  fmt.Sprintf("%d configured: %s", len(squads), strings.Join(squads, ", ")),
+		Message:  strings.Join(messages, "; "),
 	})
+}
+
+// TeamConfigExists checks if team.toml exists in a directory.
+func TeamConfigExists(dir string) bool {
+	teamPath := filepath.Join(dir, "team.toml")
+	_, err := os.Stat(teamPath)
+	return err == nil
 }
 
 // Helper functions

@@ -10,7 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/alexcabrera/ayo/internal/session"
+	// TODO: Re-implement session for build system
+	// "github.com/alexcabrera/ayo/internal/session" - Removed as part of framework cleanup
 )
 
 // HistoryViewerResult indicates the outcome of the history viewer.
@@ -86,8 +87,8 @@ type HistoryViewer struct {
 	content      string
 }
 
-// NewHistoryViewer creates a new history viewer for the given session messages.
-func NewHistoryViewer(messages []session.Message, agentHandle, sessionTitle string) HistoryViewer {
+// NewHistoryViewer creates a new history viewer for the given messages.
+func NewHistoryViewer(messages []Message, agentHandle, sessionTitle string) HistoryViewer {
 	content := RenderHistory(messages, agentHandle)
 
 	return HistoryViewer{
@@ -226,7 +227,7 @@ func (m HistoryViewer) footerView() string {
 }
 
 // RunHistoryViewer displays the history viewer and returns the result.
-func RunHistoryViewer(messages []session.Message, agentHandle, sessionTitle string) (HistoryViewerResult, error) {
+func RunHistoryViewer(messages []Message, agentHandle, sessionTitle string) (HistoryViewerResult, error) {
 	viewer := NewHistoryViewer(messages, agentHandle, sessionTitle)
 
 	p := tea.NewProgram(

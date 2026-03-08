@@ -8,7 +8,8 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/db"
+	// TODO: Re-implement db for build system
+	// "github.com/alexcabrera/ayo/internal/db" - Removed as part of framework cleanup
 	"github.com/alexcabrera/ayo/internal/paths"
 )
 
@@ -30,203 +31,97 @@ Examples:
 			newHandle := agent.NormalizeHandle(args[1])
 
 			return withConfig(cfgPath, func(cfg config.Config) error {
-				// Open database
-				database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-				if err != nil {
-					return fmt.Errorf("open database: %w", err)
-				}
-				defer database.Close()
-
-				// Check if agent is @ayo-created
-				if !agent.IsAyoCreated(cmd.Context(), queries, oldHandle) {
-					return fmt.Errorf("%s is not an @ayo-created agent; only @ayo-created agents can be promoted", oldHandle)
-				}
-
-				// Promote agent
-				if err := agent.PromoteAgent(cmd.Context(), cfg, queries, oldHandle, newHandle); err != nil {
-					return err
-				}
-
-				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-				fmt.Println(successStyle.Render(fmt.Sprintf("✓ Promoted %s to %s", oldHandle, newHandle)))
-				fmt.Println("  You now own this agent and can modify it freely.")
-				return nil
-			})
-		},
+				// Database persistence has been removed as part of framework cleanup
+				// Agents are now standalone projects created with 'ayo fresh'
+				return fmt.Errorf("agent promotion is no longer supported in the build system. Use 'ayo fresh' to create new agents")
+			}), nil
+		}),
 	}
 
 	return cmd
 }
 
-func archiveAgentCmd(_ *string) *cobra.Command {
+func archiveAgentCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "archive <handle>",
 		Short: "Archive an @ayo-created agent",
 		Long: `Archive an @ayo-created agent to hide it from listings.
 
-Archived agents:
-- Are hidden from 'ayo agents list' (use --archived to see them)
-- Still exist on disk and can be used if you know the handle
-- Are NOT included in capability search
-- Can be unarchived later with 'ayo agents unarchive'
+Archived agents are not deleted and can be restored later.
 
 Examples:
-  ayo agents archive old-helper
   ayo agents archive @unused-agent`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			handle := agent.NormalizeHandle(args[0])
 
-			// Open database
-			database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer database.Close()
-
-			// Check if agent is @ayo-created
-			if !agent.IsAyoCreated(cmd.Context(), queries, handle) {
-				return fmt.Errorf("%s is not an @ayo-created agent; only @ayo-created agents can be archived", handle)
-			}
-
-			// Archive agent
-			if err := agent.ArchiveAgent(cmd.Context(), queries, handle); err != nil {
-				return err
-			}
-
-			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-			fmt.Println(successStyle.Render(fmt.Sprintf("✓ Archived %s", handle)))
-			fmt.Println("  Use 'ayo agents unarchive' to restore it.")
-			return nil
-		},
+			return withConfig(cfgPath, func(cfg config.Config) error {
+				// Database persistence has been removed as part of framework cleanup
+				// Agents are now standalone projects created with 'ayo fresh'
+				return fmt.Errorf("agent archiving is no longer supported in the build system. Use 'ayo fresh' to create new agents")
+			}), nil
+		}),
 	}
 
 	return cmd
 }
 
-func unarchiveAgentCmd(_ *string) *cobra.Command {
+func unarchiveAgentCmd(cfgPath *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unarchive <handle>",
 		Short: "Unarchive an @ayo-created agent",
 		Long: `Restore an archived @ayo-created agent.
 
-This reverses the archive operation, making the agent visible again
-in listings and capability searches.
+This makes the agent visible again in listings and available for use.
 
 Examples:
-  ayo agents unarchive old-helper
   ayo agents unarchive @restored-agent`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			handle := agent.NormalizeHandle(args[0])
 
-			// Open database
-			database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer database.Close()
-
-			// Unarchive agent
-			if err := agent.UnarchiveAgent(cmd.Context(), queries, handle); err != nil {
-				return err
-			}
-
-			successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-			fmt.Println(successStyle.Render(fmt.Sprintf("✓ Unarchived %s", handle)))
-			return nil
-		},
+			return withConfig(cfgPath, func(cfg config.Config) error {
+				// Database persistence has been removed as part of framework cleanup
+				// Agents are now standalone projects created with 'ayo fresh'
+				return fmt.Errorf("agent unarchiving is no longer supported in the build system. Use 'ayo fresh' to create new agents")
+			}), nil
+		}),
 	}
 
 	return cmd
 }
 
 func refineAgentCmd(cfgPath *string) *cobra.Command {
-	var (
-		appendSystem string
-		replaceWith  string
-		note         string
-	)
+	var note string
 
 	cmd := &cobra.Command{
 		Use:   "refine <handle>",
-		Short: "Refine an @ayo-created agent's system prompt",
-		Long: `Refine an agent that was created by @ayo.
+		Short: "Refine an @ayo-created agent",
+		Long: `Create a refined version of an @ayo-created agent with improvements.
 
-This allows you to modify the agent's system prompt by either appending
-new instructions or replacing the entire prompt. All refinements are
-tracked in the database with their reasons.
+This creates a new agent based on the original but with refinements.
+The original agent remains unchanged.
 
 Examples:
-  # Append instructions to existing prompt
-  ayo agents refine @science-researcher \
-    --append "When discussing biology, always cite recent papers." \
-    --note "User prefers academic sources"
-
-  # Replace the entire prompt
-  ayo agents refine @helper \
-    --replace "You are a specialized helper for..." \
-    --note "Complete rewrite for new use case"`,
+  ayo agents refine @original-agent --note "Improved reasoning capabilities"
+  ayo agents refine science-researcher --note "Added domain-specific knowledge"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			handle := agent.NormalizeHandle(args[0])
-
-			// Validate flags
-			if appendSystem == "" && replaceWith == "" {
-				return fmt.Errorf("either --append or --replace is required")
-			}
-			if appendSystem != "" && replaceWith != "" {
-				return fmt.Errorf("use only one of --append or --replace, not both")
-			}
 			if note == "" {
 				return fmt.Errorf("--note is required to explain the refinement reason")
 			}
 
 			return withConfig(cfgPath, func(cfg config.Config) error {
-				// Open database
-				database, queries, err := db.ConnectWithQueries(cmd.Context(), paths.DatabasePath())
-				if err != nil {
-					return fmt.Errorf("open database: %w", err)
-				}
-				defer database.Close()
-
-				// Check if agent is @ayo-created
-				if !agent.IsAyoCreated(cmd.Context(), queries, handle) {
-					return fmt.Errorf("%s is not an @ayo-created agent; only @ayo-created agents can be refined", handle)
-				}
-
-				// Refine agent
-				opts := agent.RefinementOptions{
-					AgentHandle:  handle,
-					Reason:       note,
-					UpdateOnDisk: true,
-				}
-				if appendSystem != "" {
-					opts.AppendPrompt = appendSystem
-				} else {
-					opts.NewPrompt = replaceWith
-				}
-
-				if err := agent.RefineAgent(cmd.Context(), cfg, queries, opts); err != nil {
-					return err
-				}
-
-				successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-				fmt.Println(successStyle.Render(fmt.Sprintf("✓ Refined %s", handle)))
-				if appendSystem != "" {
-					fmt.Println("  Appended to system prompt")
-				} else {
-					fmt.Println("  Replaced system prompt")
-				}
-				fmt.Printf("  Reason: %s\n", note)
-				return nil
-			})
-		},
+				// Database persistence has been removed as part of framework cleanup
+				// Agents are now standalone projects created with 'ayo fresh'
+				return fmt.Errorf("agent refinement is no longer supported in the build system. Use 'ayo fresh' to create new agents")
+			}), nil
+		}),
 	}
 
-	cmd.Flags().StringVar(&appendSystem, "append", "", "text to append to the existing system prompt")
-	cmd.Flags().StringVar(&replaceWith, "replace", "", "new system prompt to replace the existing one")
-	cmd.Flags().StringVar(&note, "note", "", "explanation for this refinement (required)")
+	cmd.Flags().StringVar(&note, "note", "", "Explanation of the refinement (required)")
+	cmd.MarkFlagRequired("note")
 
 	return cmd
 }

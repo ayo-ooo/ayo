@@ -29,7 +29,7 @@ func CheckModifiedAgents() ([]ModifiedAgent, error) {
 	var modified []ModifiedAgent
 
 	// Get list of embedded agents
-	entries, err := agentsFS.ReadDir("agents")
+	entries, err := skillsFS.ReadDir("agents")
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func compareAgentFiles(handle, installedDir string) ([]string, error) {
 	var modifiedFiles []string
 	embeddedBase := filepath.Join("agents", handle)
 
-	err := fs.WalkDir(agentsFS, embeddedBase, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(skillsFS, embeddedBase, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func compareAgentFiles(handle, installedDir string) ([]string, error) {
 		installedPath := filepath.Join(installedDir, relPath)
 
 		// Read embedded file
-		embeddedData, err := agentsFS.ReadFile(path)
+		embeddedData, err := skillsFS.ReadFile(path)
 		if err != nil {
 			return nil // Skip
 		}
@@ -124,7 +124,7 @@ func compareAgentFiles(handle, installedDir string) ([]string, error) {
 		relPath, _ := filepath.Rel(installedDir, path)
 		embeddedPath := filepath.Join(embeddedBase, relPath)
 
-		if _, err := agentsFS.ReadFile(embeddedPath); err != nil {
+		if _, err := skillsFS.ReadFile(embeddedPath); err != nil {
 			// File exists in installed but not in embedded - it's an addition
 			modifiedFiles = append(modifiedFiles, relPath+" (added)")
 		}
@@ -169,9 +169,10 @@ func ForceInstall() (string, error) {
 	}
 
 	// Extract all agents (including agent-specific skills)
-	if err := extractAgents(installDir); err != nil {
-		return "", fmt.Errorf("extract agents: %w", err)
-	}
+	// Deprecated: Agents are now standalone projects, skip agent extraction
+	// if err := extractAgents(installDir); err != nil {
+	// 	return "", fmt.Errorf("extract agents: %w", err)
+	// }
 
 	// Extract shared built-in skills
 	if err := extractSkills(skillsInstallDir); err != nil {
@@ -212,7 +213,7 @@ func needsInstall(versionFile string) bool {
 
 // extractAgents copies all embedded agents to the install directory
 func extractAgents(installDir string) error {
-	return fs.WalkDir(agentsFS, "agents", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(skillsFS, "agents", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -231,7 +232,7 @@ func extractAgents(installDir string) error {
 		}
 
 		// Read embedded file
-		data, err := agentsFS.ReadFile(path)
+		data, err := skillsFS.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("read embedded %s: %w", path, err)
 		}

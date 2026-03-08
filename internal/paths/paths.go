@@ -746,8 +746,38 @@ func EnsureAyoAgentHomeDir(agentHandle string) (string, error) {
 
 // SquadsDir returns the base data directory for squad sandboxes.
 // Location: ~/.local/share/ayo/sandboxes/squads
+// DEPRECATED: Use team projects instead
 func SquadsDir() string {
 	return filepath.Join(DataDir(), "sandboxes", "squads")
+}
+
+// TeamProjectDir returns the directory for team projects.
+// In the new build system, teams are defined as projects with team.toml files.
+// This function returns the current working directory or specified team directory.
+func TeamProjectDir(teamDir string) string {
+	if teamDir == "" {
+		// Return current directory for team projects
+		return "."
+	}
+	return teamDir
+}
+
+// TeamWorkspaceDir returns the workspace directory for a team project.
+// Location: {teamDir}/workspace
+func TeamWorkspaceDir(teamDir string) string {
+	return filepath.Join(TeamProjectDir(teamDir), "workspace")
+}
+
+// TeamAgentsDir returns the agents directory for a team project.
+// Location: {teamDir}/agents
+func TeamAgentsDir(teamDir string) string {
+	return filepath.Join(TeamProjectDir(teamDir), "agents")
+}
+
+// TeamConfigPath returns the path to a team's team.toml file.
+// Location: {teamDir}/team.toml
+func TeamConfigPath(teamDir string) string {
+	return filepath.Join(TeamProjectDir(teamDir), "team.toml")
 }
 
 // SquadDir returns the data directory for a specific squad sandbox.
@@ -853,4 +883,14 @@ func RemoveSquadDir(name string) error {
 // Location: ~/.config/ayo/triggers/
 func TriggersConfigDir() string {
 	return filepath.Join(ConfigDir(), "triggers")
+}
+
+// RemoteAgentsCacheDir returns the directory where remote agents are cached.
+// Location: ~/.local/share/ayo/remote-agents/
+// In dev mode: ./.local/share/ayo/remote-agents/
+func RemoteAgentsCacheDir() string {
+	if IsDevMode() {
+		return filepath.Join(DevRoot(), ".local", "share", "ayo", "remote-agents")
+	}
+	return filepath.Join(DataDir(), "remote-agents")
 }
