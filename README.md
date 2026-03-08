@@ -33,6 +33,23 @@ ayo build my-agent
 ./my-agent --interactive
 ```
 
+**🔥 New: Plugin System Now Fully Functional!**
+
+Ayo now supports a complete plugin system for extending functionality:
+
+```bash
+# Install plugins from git repositories
+yo plugin install https://github.com/acme/ayo-plugins-devtools
+
+# Install local plugins for development
+yo plugin install ./my-local-plugin
+
+# Manage installed plugins
+yo plugin list
+yo plugin show devtools
+yo plugin remove devtools
+```
+
 ---
 
 ## Agent Projects

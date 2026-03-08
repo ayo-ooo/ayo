@@ -1137,7 +1137,14 @@ A: Not needed for standalone agents. Agents manage their own lifecycle.
 
 **Q: Can I use plugins?**
 
-A: Plugins are not yet supported in the build system. Use custom tools instead.
+A: Yes! The plugin system is now fully functional. You can install plugins with:
+
+```bash
+yo plugin install https://github.com/acme/ayo-plugins-devtools
+yo plugin install ./my-local-plugin
+```
+
+Plugins extend Ayo with additional agents, tools, skills, and providers. See the [Plugin Reference](#plugin-reference) section below.
 
 **Q: How do I debug a built agent?**
 
@@ -1148,7 +1155,7 @@ A: Use `AYO_DEBUG=1` environment variable and check logs.
 Planned features:
 
 - [ ] Multi-agent team orchestration
-- [ ] Plugin system for custom tool distributions
+- [x] Plugin system for custom tool distributions (fully implemented!)
 - [ ] Agent marketplace/sharing
 - [ ] Automatic dependency management
 - [x] Integrated testing framework (evals - implemented!)
@@ -1158,3 +1165,101 @@ Planned features:
 - [ ] Performance profiling tools
 - [ ] Visual configuration editor
 - [ ] Full agent execution in evals (currently uses placeholder)
+
+## Plugin Reference
+
+### Plugin CLI Commands
+
+```bash
+# Install a plugin from git repository
+yo plugin install https://github.com/acme/ayo-plugins-devtools
+
+# Install from local directory
+yo plugin install ./my-local-plugin
+
+# List installed plugins
+yo plugin list
+
+# Show plugin details
+yo plugin show plugin-name
+
+# Remove a plugin
+yo plugin remove plugin-name
+```
+
+### Plugin Types Supported
+
+1. **Agent Plugins**: Pre-configured agents
+2. **Skill Plugins**: Reusable knowledge and behavior patterns
+3. **Tool Plugins**: Additional tool implementations
+4. **Provider Plugins**: Memory, sandbox, embedding providers
+5. **Planner Plugins**: Near-term and long-term planning tools
+
+### Plugin Structure
+
+```
+my-plugin/
+├── manifest.json          # Plugin manifest (required)
+├── agents/               # Agent definitions
+│   └── agent-name/
+│       ├── config.toml   # Agent configuration
+│       ├── prompts/      # Prompt templates
+│       └── skills/        # Agent skills
+├── skills/               # Shared skills
+│   └── skill-name/       # Individual skills
+├── tools/                # Tool implementations
+│   └── tool-name/        # Individual tools
+└── providers/            # Provider implementations
+```
+
+### Manifest Specification
+
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "description": "Plugin description",
+  "agents": ["agent1", "agent2"],
+  "skills": ["skill1", "skill2"],
+  "tools": ["tool1", "tool2"],
+  "providers": [
+    {
+      "name": "memory-provider",
+      "type": "memory",
+      "description": "Custom memory provider"
+    }
+  ],
+  "delegates": {
+    "task-type": "@agent-name"
+  },
+  "default_tools": {
+    "search": "web-search"
+  }
+}
+```
+
+### Creating Plugins
+
+1. **Create plugin directory**: `mkdir my-plugin && cd my-plugin`
+2. **Create manifest.json**: Define plugin metadata and components
+3. **Add agents/tools/skills**: Create appropriate subdirectories
+4. **Test locally**: `ayo plugin install ./my-plugin`
+5. **Publish**: Push to git repository with `ayo-plugins-` prefix
+
+### Plugin Best Practices
+
+- **Versioning**: Use semantic versioning (MAJOR.MINOR.PATCH)
+- **Documentation**: Include README.md with usage examples
+- **Testing**: Test plugins before publishing
+- **Dependencies**: Declare all dependencies in manifest
+- **Naming**: Use lowercase alphanumeric names with hyphens
+
+### OpenClaw Integration (Planned)
+
+Ayo's plugin system is designed to support OpenClaw integration in the future. The architecture allows for:
+
+- **OpenClaw Skill Plugins**: Load SKILL.md format skills
+- **OpenClaw Tool Categories**: Map to Ayo's tool category system
+- **OpenClaw Event Bus**: Bridge with Ayo's messaging system
+
+See [OPENCLAW_INTEGRATION_PLAN.md](OPENCLAW_INTEGRATION_PLAN.md) for detailed integration strategy.

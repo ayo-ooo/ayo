@@ -1047,6 +1047,183 @@ type Plugin interface {
 }
 ```
 
+**Plugin CLI Commands**:
+
+The Ayo build system includes a comprehensive plugin management CLI:
+
+```bash
+# Install plugins
+yo plugin install <plugin-ref> [--force]
+
+# Remove plugins
+yo plugin remove <plugin-name>
+
+# List installed plugins
+yo plugin list [--all]
+
+# Show plugin details
+yo plugin show <plugin-name>
+```
+
+**Install Command**:
+```bash
+# Install from git repository (HTTPS)
+yo plugin install https://github.com/acme/ayo-plugins-devtools
+
+# Install from git repository (SSH)
+yo plugin install git@github.com:acme/ayo-plugins-tools.git
+
+# Install from local directory
+yo plugin install ./my-local-plugin
+
+# Force reinstall if already exists
+yo plugin install https://github.com/acme/ayo-plugins-devtools --force
+```
+
+**Remove Command**:
+```bash
+# Remove a plugin (removes both registry entry and files)
+yo plugin remove devtools
+```
+
+**List Command**:
+```bash
+# List enabled plugins
+yo plugin list
+
+# List all plugins including disabled ones
+yo plugin list --all
+```
+
+**Show Command**:
+```bash
+# Show detailed plugin information
+yo plugin show devtools
+```
+
+**Plugin Manifest Structure**:
+
+```json
+{
+  "name": "devtools",
+  "version": "1.0.0",
+  "description": "Development tools plugin",
+  "author": "Acme Corp",
+  "repository": "https://github.com/acme/ayo-plugins-devtools",
+  "license": "MIT",
+  "agents": ["@devtools/code-reviewer"],
+  "skills": ["code-analysis", "documentation"],
+  "tools": ["code-search", "doc-generator"],
+  "delegates": {
+    "coding": "@devtools/code-reviewer"
+  },
+  "default_tools": {
+    "search": "code-search"
+  },
+  "dependencies": {
+    "binaries": ["git", "jq"],
+    "plugins": []
+  },
+  "post_install": "scripts/setup.sh",
+  "ayo_version": ">=0.5.0"
+}
+```
+
+**Plugin Discovery Process**:
+
+1. **Registry Scan**: Check `~/.local/share/ayo/packages.json`
+2. **Directory Scan**: Search `~/.local/share/ayo/plugins/`
+3. **Manifest Validation**: Validate `manifest.json` against schema
+4. **Component Verification**: Ensure all declared components exist
+5. **Dependency Check**: Verify required binaries and plugins
+
+**Plugin Loading Priority**:
+1. User-defined components (`~/.config/ayo/`)
+2. Installed plugins (`~/.local/share/ayo/plugins/`)
+3. Built-in components
+
+**Security Features**:
+- Manifest validation against JSON schema
+- Dependency checking with install hints
+- Security scanning of plugin files
+- Sandboxed execution where applicable
+- Post-install script validation
+
+**Performance Considerations**:
+- Plugin metadata caching
+- Lazy loading of plugin components
+- Parallel plugin scanning
+- Memory-efficient manifest parsing
+
+**Error Handling**:
+- Invalid manifests: Detailed validation errors
+- Missing dependencies: Helpful install hints
+- Version conflicts: Clear compatibility messages
+- Load failures: Graceful degradation
+
+**Best Practices**:
+- Use semantic versioning (MAJOR.MINOR.PATCH)
+- Include comprehensive README.md
+- Declare all dependencies explicitly
+- Test plugins before publishing
+- Use lowercase alphanumeric names with hyphens
+- Follow the `ayo-plugins-<name>` repository naming convention
+
+**Troubleshooting**:
+
+```bash
+# Check plugin installation
+yo plugin list
+
+# Verify plugin files
+ls ~/.local/share/ayo/plugins/<plugin-name>
+
+# Check registry
+cat ~/.local/share/ayo/packages.json
+
+# Reinstall with force
+yo plugin install <plugin-ref> --force
+```
+
+### OpenClaw Integration (Planned)
+
+**Overview**:
+Ayo's plugin architecture is designed for future OpenClaw integration, enabling access to 700+ OpenClaw skills and extensions.
+
+**Integration Strategy**:
+1. **Skill Format Conversion**: OpenClaw SKILL.md → Ayo Tool Interface
+2. **Plugin Discovery**: Scan for OpenClaw `package.json` extensions
+3. **Event Bus Bridge**: Connect OpenClaw pub/sub with Ayo messaging
+4. **Dependency Management**: Handle OpenClaw SDK requirements
+
+**Architecture Compatibility**:
+- OpenClaw Gateway → Ayo Plugin Registry
+- OpenClaw Skills → Ayo Tools
+- OpenClaw Providers → Ayo Providers
+- OpenClaw Events → Ayo Messaging
+
+**Implementation Phases**:
+1. **Phase 1**: Skill plugin integration (3-5 days)
+2. **Phase 2**: Plugin discovery (2-3 days)  
+3. **Phase 3**: Event bus bridge (4-6 days)
+
+**Expected Benefits**:
+- Access to 700+ pre-built OpenClaw skills
+- Compatibility with OpenClaw ecosystem
+- Enhanced tooling capabilities
+- Cross-platform skill portability
+
+**Technical Considerations**:
+- Version compatibility between ecosystems
+- Performance impact of skill loading
+- Security sandboxing requirements
+- Dependency isolation strategies
+
+**Resources**:
+- [OpenClaw Architecture Guide](https://eastondev.com/blog/en/posts/ai/20260205-openclaw-architecture-guide/)
+- [OpenClaw Extension Ecosystem](https://help.apiyi.com/en/openclaw-extensions-ecosystem-guide-en.html)
+- [Detailed Integration Plan](OPENCLAW_INTEGRATION_PLAN.md)
+
 ### Custom Tools
 
 **Tool Definition**:
