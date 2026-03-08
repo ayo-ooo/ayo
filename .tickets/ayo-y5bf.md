@@ -1,8 +1,8 @@
 ---
 id: ayo-y5bf
-status: open
+status: closed
 deps: []
-links: []
+links: ["epic:daemon-cleanup"]
 created: 2026-03-07T21:04:00Z
 type: task
 priority: 2

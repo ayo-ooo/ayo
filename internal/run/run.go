@@ -15,12 +15,13 @@ import (
 
 	"github.com/alexcabrera/ayo/internal/agent"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/memory"
+	// "github.com/alexcabrera/ayo/internal/memory" - Removed in build system
 	// "github.com/alexcabrera/ayo/internal/paths" // Temporarily unused during sandbox removal
 	"github.com/alexcabrera/ayo/internal/planners"
 	"github.com/alexcabrera/ayo/internal/providers"
 	// Removed sandbox import during sandbox infrastructure removal
 	// "github.com/alexcabrera/ayo/internal/sandbox"
+	// TODO: Re-implement session for build system
 	"github.com/alexcabrera/ayo/internal/session"
 	"github.com/alexcabrera/ayo/internal/share"
 	"github.com/alexcabrera/ayo/internal/smallmodel"
@@ -36,16 +37,17 @@ type Runner struct {
 	depth            int // 0 = top-level, 1+ = sub-agent calls
 	sessions         map[string]*ChatSession
 	services         *session.Services        // nil = no persistence
-	memoryService    *memory.Service          // nil = no memory
-	formationService *memory.FormationService // nil = no async formation
-	smallModel       *smallmodel.Service      // nil = no small model for memory extraction
+	// memoryService    *memory.Service          // Removed in build system
+	// formationService *memory.FormationService // Removed in build system
+	// smallModel       *smallmodel.Service      // Removed in build system
+	// memoryQueue      *memory.Queue            // Removed in build system
 	onAsyncStatus    func(uipkg.AsyncStatusMsg) // nil = no async status callback
-	memoryQueue      *memory.Queue            // nil = sync memory operations
 	streamWriter     StreamWriter             // nil = use default PrintWriter
 	sandboxProvider  providers.SandboxProvider      // nil = no sandbox, run locally
 	squadName        string                         // squad name for constitution injection (empty = no squad)
 	dispatcher       *Dispatcher                    // nil = no semantic dispatch
-	shareService     *share.Service                 // nil = no share service for request_access
+	// shareService has been removed as part of framework cleanup
+	// shareService     *share.Service                 // nil = no share service for request_access
 	plannerManager   *planners.SandboxPlannerManager // nil = no planners
 	ayoPlanners      *planners.SandboxPlanners       // cached planners for @ayo sandbox
 	squadPlanners    *planners.SandboxPlanners       // planners for squad context
@@ -123,7 +125,7 @@ func NewRunner(cfg config.Config, debug bool, opts RunnerOptions) (*Runner, erro
 		sandboxProvider:  opts.SandboxProvider,
 		squadName:        opts.SquadName,
 		dispatcher:       opts.Dispatcher,
-		shareService:     opts.ShareService,
+		// shareService:     opts.ShareService,
 		plannerManager:   opts.PlannerManager,
 		squadPlanners:    opts.SquadPlanners,
 		squadInvoker:     opts.SquadInvoker,
@@ -1002,7 +1004,7 @@ func (r *Runner) buildFantasyAgent(ctx context.Context, ag agent.Agent) (fantasy
 		BaseDir:           baseDir,
 		MemoryQueue:       r.memoryQueue,
 		Depth:             r.depth,
-		ShareService:      r.shareService,
+		// ShareService:      r.shareService,
 		SessionID:         sandboxID, // Use sandbox ID for session-scoped shares
 		PlannerTools:      plannerTools,
 		SquadName:         r.squadName,

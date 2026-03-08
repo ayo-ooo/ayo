@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alexcabrera/ayo/internal/session"
+	// TODO: Re-implement session for build system
+	// "github.com/alexcabrera/ayo/internal/session"
 )
 
 func TestWithSessionID(t *testing.T) {

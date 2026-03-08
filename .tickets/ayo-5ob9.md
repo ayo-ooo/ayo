@@ -1,8 +1,8 @@
 ---
 id: ayo-5ob9
-status: open
+status: closed
 deps: []
-links: []
+links: ["epic:build-system-core", "subtask:build-system-refactor"]
 created: 2026-03-07T21:04:46Z
 type: task
 priority: 2

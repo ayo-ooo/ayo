@@ -3,18 +3,17 @@ package builtin
 
 import (
 	"embed"
-	"encoding/json"
+	"fmt"
 	"io/fs"
 	"path"
-	"sort"
 	"strings"
 )
 
-//go:embed agents/*
-var agentsFS embed.FS
-
 //go:embed prompts/*
 var promptsFS embed.FS
+
+//go:embed skills/*
+var skillsFS embed.FS
 
 // ConfigSchema is the embedded JSON schema for ayo configuration.
 // Loaded from the root ayo-config-schema.json via a separate embed directive.
@@ -45,83 +44,28 @@ type SkillDefinition struct {
 }
 
 // ListAgents returns all built-in agent handles
+// Deprecated: Agents are now standalone projects created with `ayo fresh`
 func ListAgents() []string {
-	entries, err := agentsFS.ReadDir("agents")
-	if err != nil {
-		return nil
-	}
-
-	var handles []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// Directory names include @ prefix (e.g., @ayo)
-			handles = append(handles, entry.Name())
-		}
-	}
-	sort.Strings(handles)
-	return handles
+	return []string{} // No built-in agents in build system
 }
 
 // HasAgent checks if a built-in agent exists with the given handle
+// Deprecated: Agents are now standalone projects created with `ayo fresh`
 func HasAgent(handle string) bool {
-	// Normalize to include @ prefix to match directory name
-	if !strings.HasPrefix(handle, "@") {
-		handle = "@" + handle
-	}
-	_, err := agentsFS.ReadDir(path.Join("agents", handle))
-	return err == nil
+	return false // No built-in agents in build system
 }
 
 // LoadAgent loads a built-in agent definition
+// Deprecated: Agents are now standalone projects created with `ayo fresh`
 func LoadAgent(handle string) (AgentDefinition, error) {
-	// Normalize to include @ prefix to match directory name
-	if !strings.HasPrefix(handle, "@") {
-		handle = "@" + handle
-	}
-	basePath := path.Join("agents", handle)
-
-	def := AgentDefinition{
-		Handle: handle,
-	}
-
-	// Load config.json
-	configData, err := agentsFS.ReadFile(path.Join(basePath, "config.json"))
-	if err == nil {
-		if err := json.Unmarshal(configData, &def.Config); err != nil {
-			return def, err
-		}
-		def.Description = def.Config.Description
-	}
-
-	// Load system.md
-	systemData, err := agentsFS.ReadFile(path.Join(basePath, "system.md"))
-	if err != nil {
-		return def, err
-	}
-	def.System = strings.TrimSpace(string(systemData))
-
-	// Load skills if present
-	skillsPath := path.Join(basePath, "skills")
-	skillEntries, err := agentsFS.ReadDir(skillsPath)
-	if err == nil {
-		for _, entry := range skillEntries {
-			if entry.IsDir() {
-				skill, err := loadSkill(path.Join(skillsPath, entry.Name()))
-				if err == nil {
-					def.Skills = append(def.Skills, skill)
-				}
-			}
-		}
-	}
-
-	return def, nil
+	return AgentDefinition{}, fmt.Errorf("builtin agents are no longer supported in the build system. Use 'ayo fresh' to create new agents")
 }
 
 func loadSkill(skillPath string) (SkillDefinition, error) {
 	var skill SkillDefinition
 
 	// Read SKILL.md for metadata
-	skillMD, err := agentsFS.ReadFile(path.Join(skillPath, "SKILL.md"))
+	skillMD, err := skillsFS.ReadFile(path.Join(skillPath, "SKILL.md"))
 	if err != nil {
 		return skill, err
 	}
@@ -156,9 +100,10 @@ func loadSkill(skillPath string) (SkillDefinition, error) {
 	return skill, nil
 }
 
-// FS returns the embedded filesystem for built-in agents
+// FS returns the embedded filesystem for built-in skills.
+// Agents are no longer embedded - use 'ayo fresh' to create new agents
 func FS() fs.FS {
-	sub, _ := fs.Sub(agentsFS, "agents")
+	sub, _ := fs.Sub(skillsFS, "skills")
 	return sub
 }
 

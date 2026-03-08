@@ -131,3 +131,19 @@ func GetContextDir(name string) string {
 func GetWorkspaceDir(name string) string {
 	return paths.SquadWorkspaceDir(name)
 }
+
+// GetTeamWorkspaceDir returns the workspace directory for a team project.
+func GetTeamWorkspaceDir(teamDir string) string {
+	return paths.TeamWorkspaceDir(teamDir)
+}
+
+// GetTeamAgentsDir returns the agents directory for a team project.
+func GetTeamAgentsDir(teamDir string) string {
+	return paths.TeamAgentsDir(teamDir)
+}
+
+// LoadTeamFromProject loads a team configuration from a project directory.
+// This is the new team project format for the build system.
+func LoadTeamFromProject(teamDir string) (*TeamConfig, error) {
+	return LoadTeamConfigFromTOML(teamDir)
+}

@@ -13,7 +13,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"github.com/alexcabrera/ayo/internal/db"
+	// TODO: Re-implement db for build system
+	// "github.com/alexcabrera/ayo/internal/db" - Removed as part of framework cleanup
 	"github.com/alexcabrera/ayo/internal/flows"
 	"github.com/alexcabrera/ayo/internal/paths"
 )

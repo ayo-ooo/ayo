@@ -31,11 +31,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
+
 	"charm.land/fantasy/schema"
 
 	"github.com/alexcabrera/ayo/internal/builtin"
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/delegates"
+	// "github.com/alexcabrera/ayo/internal/delegates" - Removed as part of framework cleanup
 	"github.com/alexcabrera/ayo/internal/guardrails"
 	"github.com/alexcabrera/ayo/internal/paths"
 	"github.com/alexcabrera/ayo/internal/skills"
@@ -82,9 +84,10 @@ func (t TrustLevel) String() string {
 }
 
 type Config struct {
+	Name        string   `json:"name,omitempty"`
+	Description string   `json:"description,omitempty"`
 	Model       string   `json:"model"`
 	SystemFile  string   `json:"system_file"`
-	Description string   `json:"description,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 
 	// ModelConfig provides model-specific settings like temperature.
@@ -478,40 +481,113 @@ func ListHandles(cfg config.Config) ([]string, error) {
 func Load(cfg config.Config, handle string) (Agent, error) {
 	normalized := NormalizeHandle(handle)
 
-	// Build directory list in priority order:
-	// 1. ./.config/ayo/agents (local project)
-	// 2. ./.local/share/ayo/agents (local project data)
-	// 3. cfg.AgentsDir (user config, typically ~/.config/ayo/agents)
-	// 4. ~/.local/share/ayo/agents (user data / built-in)
-	// 5. Plugin agent directories
-	dirs := paths.AgentsDirs()
+	// Build system approach: agents are defined by config.toml files in project directories
+	// Priority order for build system:
+	// 1. Current directory (for ayo build .)
+	// 2. Specified project directory
+	// 3. Agents subdirectory in current project (for multi-agent projects)
+	// 4. Remote agents cache (for ayo add-agent remote)
 
-	// Add cfg.AgentsDir if not already included
-	if cfg.AgentsDir != "" && !slices.Contains(dirs, cfg.AgentsDir) {
-		// Insert cfg.AgentsDir before builtin dir
-		builtinDir := builtin.InstallDir()
-		var newDirs []string
-		inserted := false
-		for _, d := range dirs {
-			if d == builtinDir && !inserted {
-				newDirs = append(newDirs, cfg.AgentsDir)
-				inserted = true
-			}
-			newDirs = append(newDirs, d)
-		}
-		if !inserted {
-			newDirs = append(newDirs, cfg.AgentsDir)
-		}
-		dirs = newDirs
+	// Try current directory first (for ayo build .)
+	if agent, err := tryLoadFromProject(".", normalized); err == nil {
+		return agent, nil
 	}
 
-	// Add plugin directories at the end (lower priority than user/builtin)
-	dirs = append(dirs, paths.AllPluginAgentsDirs()...)
+	// Try agents subdirectory (for multi-agent projects)
+	agentsDir := filepath.Join(".", "agents", normalized)
+	if agent, err := tryLoadFromProject(agentsDir, normalized); err == nil {
+		return agent, nil
+	}
 
-	// Build set of data directories where builtins live
+	// Try remote agents cache
+	cacheDir := paths.RemoteAgentsCacheDir()
+	cachedAgentDir := filepath.Join(cacheDir, normalized)
+	if agent, err := tryLoadFromProject(cachedAgentDir, normalized); err == nil {
+		return agent, nil
+	}
+
+	// Legacy support: try old framework directories for backward compatibility
+	// This will be removed in future versions
+	if agent, err := tryLegacyLoad(cfg, normalized); err == nil {
+		return agent, nil
+	}
+
+	return Agent{}, fmt.Errorf("agent not found: %s. In build system, agents must be defined in config.toml files. Use 'ayo fresh' to create new agents or 'ayo add-agent' to add existing agents", normalized)
+}
+
+// tryLoadFromProject attempts to load an agent from a project directory
+func tryLoadFromProject(projectDir string, handle string) (Agent, error) {
+	var agent Agent
+
+	// Check if directory exists
+	info, err := os.Stat(projectDir)
+	if err != nil {
+		return agent, err
+	}
+	if !info.IsDir() {
+		return agent, errors.New("agent path is not a directory")
+	}
+
+	// Look for config.toml (build system format)
+	configPath := filepath.Join(projectDir, "config.toml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return agent, fmt.Errorf("no config.toml found in %s", projectDir)
+	}
+
+	// Load agent configuration from TOML (build system format)
+	agentConfig, err := loadAgentConfigTOML(projectDir)
+	if err != nil {
+		return agent, err
+	}
+
+	// Set up agent structure
+	agent.Handle = handle
+	agent.Dir = projectDir
+	agent.Model = agentConfig.Model
+	agent.Config = agentConfig
+	agent.BuiltIn = false
+
+	// Load system prompt
+	systemPath := agentConfig.SystemFile
+	if systemPath == "" {
+		systemPath = filepath.Join(projectDir, "prompts", "system.md")
+	} else if !filepath.IsAbs(systemPath) {
+		systemPath = filepath.Join(projectDir, systemPath)
+	}
+
+	systemContent, err := os.ReadFile(systemPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return agent, fmt.Errorf("read system prompt: %w", err)
+		}
+		// No system prompt is OK for build system
+		systemContent = []byte("You are a helpful AI assistant.")
+	}
+	agent.System = strings.TrimSpace(string(systemContent))
+	agent.CombinedSystem = agent.System // Simple approach for now
+
+	// Build skills prompt (stub for now)
+	agent.SkillsPrompt = "" // Will be built by skills system
+
+	// Build tools prompt (stub for now)
+	agent.ToolsPrompt = "" // Will be built by tools system
+
+	return agent, nil
+}
+
+// LoadFromProject loads an agent from a project directory (build system format).
+// This is the public API for loading agents from config.toml projects.
+func LoadFromProject(projectDir string, handle string) (Agent, error) {
+	return tryLoadFromProject(projectDir, handle)
+}
+
+// tryLegacyLoad attempts legacy framework loading for backward compatibility
+// TODO: Remove this function in next major version
+func tryLegacyLoad(cfg config.Config, normalized string) (Agent, error) {
+	// Old framework directory search (deprecated)
+	dirs := paths.AgentsDirs()
 	builtinDirs := paths.DataDirs()
 
-	// Try each directory
 	for _, dir := range dirs {
 		isBuiltIn := isDataDir(dir, builtinDirs)
 		agent, err := loadFromDir(cfg, normalized, dir, isBuiltIn)
@@ -523,7 +599,7 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 		}
 	}
 
-	// If not found in any directory, check if it's a built-in that needs installing
+	// Legacy builtin support (deprecated)
 	if builtin.HasAgent(normalized) {
 		if installErr := builtin.Install(); installErr != nil {
 			return Agent{}, fmt.Errorf("install built-in agents: %w", installErr)
@@ -531,7 +607,7 @@ func Load(cfg config.Config, handle string) (Agent, error) {
 		return loadFromDir(cfg, normalized, builtin.InstallDir(), true)
 	}
 
-	return Agent{}, fmt.Errorf("agent not found: %s", normalized)
+	return Agent{}, errors.New("not found in legacy directories")
 }
 
 func loadFromDir(cfg config.Config, normalized string, baseDir string, isBuiltIn bool) (Agent, error) {
@@ -669,36 +745,14 @@ func readOptional(path string) string {
 
 // buildDelegateContext builds an XML block with configured delegates.
 // This tells the agent which other agents handle specific task types.
+// Deprecated: Delegation system removed as part of framework cleanup
 func buildDelegateContext(cfg config.Config, agentDelegates map[string]string) string {
-	allDelegates := delegates.GetAllDelegates(agentDelegates, cfg)
-	if len(allDelegates) == 0 {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString("<delegate_context>\n")
-	b.WriteString("The following task types have configured delegate agents:\n\n")
-
-	// Sort keys for consistent output
-	keys := make([]string, 0, len(allDelegates))
-	for k := range allDelegates {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, taskType := range keys {
-		agent := allDelegates[taskType]
-		b.WriteString(fmt.Sprintf("- %s: %s\n", taskType, agent))
-	}
-
-	b.WriteString("\nUse `ayo @agent` via bash to delegate to the appropriate agent.\n")
-	b.WriteString("</delegate_context>")
-	return b.String()
+	// Delegation system has been removed as part of framework cleanup
+	// Agents are now standalone projects without delegation
+	return ""
 }
 
 // buildEnvContext returns environment information for the system prompt.
-// This is placed at the top so the model has immediate context about
-// the runtime environment and current time.
 // When sandboxMode is true, host-specific paths are omitted since the agent
 // will run in an isolated container with different paths.
 func buildEnvContext(sandboxMode bool) string {
@@ -860,6 +914,50 @@ type AyoConfig struct {
 	Agent   *Config `json:"agent,omitempty"`
 }
 
+// loadAgentConfigTOML loads agent configuration from config.toml (build system format)
+func loadAgentConfigTOML(dir string) (Config, error) {
+	cfg := Config{}
+
+	// Try config.toml first (build system format)
+	configPath := filepath.Join(dir, "config.toml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// Fall back to legacy JSON formats for backward compatibility
+			return loadAgentConfig(dir)
+		}
+		return cfg, err
+	}
+
+	// Parse TOML configuration
+	var tomlConfig struct {
+		Agent struct {
+			Name        string   `toml:"name"`
+			Description string   `toml:"description"`
+			Model       string   `toml:"model"`
+			SystemFile  string   `toml:"system_file"`
+			AllowedTools []string `toml:"allowed_tools"`
+			TrustLevel  string   `toml:"trust"`
+		} `toml:"agent"`
+	}
+
+	if err := toml.Unmarshal(data, &tomlConfig); err != nil {
+		return cfg, fmt.Errorf("invalid config.toml: %w", err)
+	}
+
+	// Map TOML config to internal Config structure
+	cfg.Name = tomlConfig.Agent.Name
+	cfg.Description = tomlConfig.Agent.Description
+	cfg.Model = tomlConfig.Agent.Model
+	cfg.SystemFile = tomlConfig.Agent.SystemFile
+	cfg.AllowedTools = tomlConfig.Agent.AllowedTools
+	cfg.TrustLevel = TrustLevel(tomlConfig.Agent.TrustLevel)
+
+	return cfg, nil
+}
+
+// loadAgentConfig loads agent configuration from JSON files (legacy framework format)
+// Deprecated: Use loadAgentConfigTOML for build system
 func loadAgentConfig(dir string) (Config, error) {
 	cfg := Config{}
 	

@@ -1,8 +1,8 @@
 ---
 id: ayo-9nqe
-status: open
+status: completed
 deps: [ayo-gn7f, ayo-ujgk]
-links: []
+links: ["epic:features"]
 created: 2026-03-07T21:04:51Z
 type: task
 priority: 2

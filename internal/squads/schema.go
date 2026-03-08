@@ -111,3 +111,11 @@ func (e *SchemaParseError) Error() string {
 func (e *SchemaParseError) Unwrap() error {
 	return e.Err
 }
+
+
+
+// LoadTeamSchemas loads schemas from a team project directory.
+// Looks for schemas in the team directory structure.
+func LoadTeamSchemas(teamDir string) (*SquadSchemas, error) {
+	return loadSchemasFromDir(teamDir)
+}
