@@ -38,7 +38,8 @@ myreviewer/
 
 ```bash
 # Create a new team project
-ayo init myteam --team
+ayo init myteam
+yo add-agent myteam reviewer
 ```
 
 This creates:
@@ -554,7 +555,8 @@ Agents execute in a leader-follower pattern (coming soon).
 
 ```bash
 # Initialize a new team project
-ayo init myteam --team
+ayo init myteam
+yo add-agent myteam reviewer  # Automatically creates team.toml
 
 # Add an agent to existing team
 ayo add-agent myteam newagent
@@ -563,7 +565,7 @@ ayo add-agent myteam newagent
 ayo #myteam "solve this problem"
 
 # Build team as standalone executable
-ayo build myteam --team
+ayo build myteam
 ```
 
 ### Best Practices for Team Projects
@@ -635,7 +637,8 @@ ayo #team "prompt"
 
 1. **Create team project**:
    ```bash
-   ayo init myteam --team
+   ayo init myteam
+yo add-agent myteam agent1  # Auto-creates team.toml
    ```
 
 2. **Add agents**:
@@ -1114,7 +1117,7 @@ A: No, agents are now standalone executables. Use `./agent` instead.
 
 **Q: What happened to squads?**
 
-A: Multi-agent teams are supported via `team.toml` files. Use `ayo build --team`.
+A: Multi-agent teams are supported via `team.toml` files. Teams are created automatically when you add multiple agents to a project using `ayo add-agent`.
 
 **Q: Can I have multiple agents in one project?**
 

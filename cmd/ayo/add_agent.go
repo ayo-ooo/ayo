@@ -114,12 +114,12 @@ func runAddAgent(dir, name, description, model, template string) error {
 						agentCount++
 					}
 				}
-				
+
 				// If we already have 1 agent and are adding another, promote to team
 				if agentCount >= 1 {
 					// Create team project
 					teamName := filepath.Base(absDir)
-					
+
 					// Get existing agent names
 					existingAgents := []string{}
 					for _, entry := range entries {
@@ -127,15 +127,15 @@ func runAddAgent(dir, name, description, model, template string) error {
 							existingAgents = append(existingAgents, entry.Name())
 						}
 					}
-					
+
 					// Add the new agent to the list
 					existingAgents = append(existingAgents, name)
-					
+
 					// Create team project
 					if err := createTeamProjectFromSingleAgent(teamName, absDir, existingAgents); err != nil {
 						return fmt.Errorf("failed to create team project: %w", err)
 					}
-					
+
 					isTeamProject = true
 					fmt.Printf("Promoted project to team format with %d agents\n", len(existingAgents))
 				}
@@ -435,8 +435,8 @@ func createTeamProjectFromSingleAgent(teamName, teamDir string, agentNames []str
 	// Create team.toml
 	teamConfig := struct {
 		Team struct {
-			Name        string `toml:"name"`
-			Description string `toml:"description"`
+			Name         string `toml:"name"`
+			Description  string `toml:"description"`
 			Coordination string `toml:"coordination"`
 		} `toml:"team"`
 		Agents map[string]struct {
@@ -452,12 +452,12 @@ func createTeamProjectFromSingleAgent(teamName, teamDir string, agentNames []str
 		} `toml:"coordination"`
 	}{
 		Team: struct {
-			Name        string `toml:"name"`
-			Description string `toml:"description"`
+			Name         string `toml:"name"`
+			Description  string `toml:"description"`
 			Coordination string `toml:"coordination"`
 		}{
-			Name:        teamName,
-			Description: "Team description",
+			Name:         teamName,
+			Description:  "Team description",
 			Coordination: "sequential",
 		},
 		Agents: make(map[string]struct {

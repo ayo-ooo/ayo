@@ -38,10 +38,10 @@ type CheckResult struct {
 
 // Summary contains aggregate check results.
 type Summary struct {
-	Passed   int            `json:"passed"`
-	Warnings int            `json:"warnings"`
-	Errors   int            `json:"errors"`
-	Results  []CheckResult  `json:"results"`
+	Passed   int           `json:"passed"`
+	Warnings int           `json:"warnings"`
+	Errors   int           `json:"errors"`
+	Results  []CheckResult `json:"results"`
 }
 
 // Checker runs health checks.
@@ -266,7 +266,7 @@ func (c *Checker) CheckSquads(ctx context.Context) {
 			Name:     "Squads",
 			Category: "Squads",
 			Status:   StatusPass,
-			Message:  "none configured (use 'ayo init --team' to create team projects)",
+			Message:  "none configured (use 'ayo init' to create a project, then 'ayo add-agent' to add more agents)",
 		})
 		return
 	}

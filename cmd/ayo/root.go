@@ -376,6 +376,7 @@ Examples:
 	cmd.AddCommand(newAddAgentCmd())
 	cmd.AddCommand(auditCmd)
 	cmd.AddCommand(newFlowsCmd(&cfgPath))
+	cmd.AddCommand(newPluginsCmd())
 
 	return cmd
 }
