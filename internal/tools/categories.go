@@ -1,103 +1,67 @@
-// Package tools provides tool category management and stateful tool abstractions.
+// Package tools provides tool management for the build system.
 package tools
 
-import (
-	"github.com/alexcabrera/ayo/internal/config"
-)
-
-// ExecutionContext specifies where a tool should execute.
-type ExecutionContext string
+// ToolType represents the type of tool.
+type ToolType string
 
 const (
-	// ExecHost means the tool executes on the host machine.
-	// Examples: memory search, agent_call, filesystem browsing.
-	ExecHost ExecutionContext = "host"
-
-	// ExecSandbox means the tool executes inside the sandbox.
-	// Examples: bash, code execution.
-	ExecSandbox ExecutionContext = "sandbox"
-
-	// ExecBridge means the tool needs access to both host and sandbox.
-	// Examples: file_request (host->sandbox), publish (sandbox->host).
-	ExecBridge ExecutionContext = "bridge"
+	// Builtin tools that are provided by ayo
+	ToolTypeBuiltin ToolType = "builtin"
+	
+	// External tools that are executable programs
+	ToolTypeExternal ToolType = "external"
 )
 
-// ToolExecContext maps tool names to their execution context.
-// Tools not listed default to ExecSandbox when a sandbox is available.
-var ToolExecContext = map[string]ExecutionContext{
-	// Host-side tools - these access host services or filesystem
-	"memory":     ExecHost,
-	"agent_call": ExecHost,
-	"delegate":   ExecHost,
-	"todo":       ExecHost,
-
-	// Sandbox tools - these execute commands inside the sandbox
-	"bash": ExecSandbox,
-
-	// Bridge tools - these need access to both host and sandbox
-	"file_request": ExecBridge,
-	"publish":      ExecBridge,
+// Tool represents a tool that can be used by agents.
+type Tool struct {
+	Name        string
+	Type        ToolType
+	Description string
+	Path        string // For external tools, the path to the executable
 }
 
-// GetExecutionContext returns the execution context for a tool.
-// If the tool is not explicitly mapped, returns ExecSandbox as default.
-func GetExecutionContext(toolName string) ExecutionContext {
-	if ctx, ok := ToolExecContext[toolName]; ok {
-		return ctx
+// BuiltinTools lists the tools that are built into ayo.
+var BuiltinTools = map[string]Tool{
+	"bash": {
+		Name:        "bash",
+		Type:        ToolTypeBuiltin,
+		Description: "Execute shell commands",
+	},
+	"file_read": {
+		Name:        "file_read",
+		Type:        ToolTypeBuiltin,
+		Description: "Read file contents",
+	},
+	"file_write": {
+		Name:        "file_write",
+		Type:        ToolTypeBuiltin,
+		Description: "Write to files",
+	},
+	"git": {
+		Name:        "git",
+		Type:        ToolTypeBuiltin,
+		Description: "Git operations",
+	},
+}
+
+// GetTool returns a tool by name.
+func GetTool(name string) (Tool, bool) {
+	if tool, exists := BuiltinTools[name]; exists {
+		return tool, true
 	}
-	return ExecSandbox
+	return Tool{}, false
 }
 
-// IsHostTool returns true if the tool should execute on the host.
-func IsHostTool(toolName string) bool {
-	return GetExecutionContext(toolName) == ExecHost
+// IsBuiltinTool returns true if the tool is a builtin tool.
+func IsBuiltinTool(name string) bool {
+	_, exists := BuiltinTools[name]
+	return exists
 }
 
-// IsSandboxTool returns true if the tool should execute in the sandbox.
-func IsSandboxTool(toolName string) bool {
-	return GetExecutionContext(toolName) == ExecSandbox
+// IsExternalTool returns true if the tool is an external executable.
+func IsExternalTool(name string) bool {
+	return !IsBuiltinTool(name)
 }
-
-// IsBridgeTool returns true if the tool needs both host and sandbox access.
-func IsBridgeTool(toolName string) bool {
-	return GetExecutionContext(toolName) == ExecBridge
-}
-
-// Category represents a semantic tool slot that can be filled by different implementations.
-// Categories allow users to swap implementations without changing agent configurations.
-type Category string
-
-// Defined tool categories.
-const (
-	// CategoryPlan is for durable project planning that persists across sessions.
-	// No default - must be provided by plugin (e.g., ticket).
-	// Note: The built-in "todo" tool is always available separately (not via category).
-	CategoryPlan Category = "plan"
-
-	// CategoryShell is for command execution.
-	// Default: "bash"
-	CategoryShell Category = "shell"
-
-	// CategorySearch is for web search capabilities.
-	// No default - must be provided by plugin.
-	CategorySearch Category = "search"
-)
-
-// builtinDefaults maps categories to their default tool implementations.
-// These are the tools that ship with ayo.
-// Note: CategoryPlan and CategorySearch have no defaults - they require plugins.
-var builtinDefaults = map[Category]string{
-	CategoryShell: "bash",
-}
-
-// knownCategories lists all defined categories (with or without defaults).
-var knownCategories = map[Category]bool{
-	CategoryPlan:   true,
-	CategoryShell:  true,
-	CategorySearch: true,
-}
-
-// IsCategory returns true if the name is a known tool category.
 func IsCategory(name string) bool {
 	return knownCategories[Category(name)]
 }

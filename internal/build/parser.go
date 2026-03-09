@@ -11,6 +11,22 @@ import (
 	"github.com/alexcabrera/ayo/internal/build/types"
 )
 
+// WriteConfig writes a config to a TOML file
+func WriteConfig(config types.Config, path string) error {
+	// Marshal to TOML
+	data, err := toml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("marshal TOML: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config file: %w", err)
+	}
+
+	return nil
+}
+
 // ParseConfig reads and parses a config.toml file
 func ParseConfig(path string) (*types.Config, error) {
 	// Read the file

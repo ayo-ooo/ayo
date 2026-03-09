@@ -1,14 +1,12 @@
 package types
 
-// Config represents the complete configuration for an agent or team executable
+// Config represents the configuration for an agent executable
 type Config struct {
 	Agent    AgentConfig    `toml:"agent"`
 	CLI      CLIConfig      `toml:"cli"`
-	Input    InputConfig    `toml:"input"`
-	Output   OutputConfig   `toml:"output"`
-	Prompts  PromptsConfig  `toml:"prompts"`
-	Triggers TriggersConfig `toml:"triggers,omitempty"`
-	Evals    EvalsConfig    `toml:"evals,omitempty"`
+	Input    InputConfig    `toml:"input,omitempty"`
+	Output   OutputConfig   `toml:"output,omitempty"`
+	Prompts  PromptsConfig  `toml:"prompts,omitempty"`
 }
 
 // AgentConfig contains agent-specific settings
@@ -18,7 +16,6 @@ type AgentConfig struct {
 	Model       string          `toml:"model"`
 	Tools       AgentTools      `toml:"tools,omitempty"`
 	Memory      AgentMemory     `toml:"memory,omitempty"`
-	Sandbox     AgentSandbox    `toml:"sandbox,omitempty"`
 }
 
 // AgentTools defines which tools the agent can use
@@ -29,13 +26,7 @@ type AgentTools struct {
 // AgentMemory configures agent memory settings
 type AgentMemory struct {
 	Enabled bool   `toml:"enabled"`
-	Scope   string `toml:"scope"` // "agent" | "session" | "global"
-}
-
-// AgentSandbox configures sandbox settings
-type AgentSandbox struct {
-	Network  bool   `toml:"network"`
-	HostPath string `toml:"host_path"`
+	Scope   string `toml:"scope"` // "agent" | "session"
 }
 
 // CLIConfig defines the command-line interface for the executable
@@ -71,20 +62,4 @@ type OutputConfig struct {
 type PromptsConfig struct {
 	System string `toml:"system,omitempty"`
 	User   string `toml:"user,omitempty"`
-}
-
-// TriggersConfig defines automatic triggers for agent execution
-type TriggersConfig struct {
-	Watch    []string `toml:"watch,omitempty"`    // Files/directories to watch
-	Schedule string   `toml:"schedule,omitempty"` // Cron expression
-	Events   []string `toml:"events,omitempty"`  // Event types to respond to
-}
-
-// EvalsConfig defines evaluation settings for testing agent outputs
-type EvalsConfig struct {
-	Enabled         bool   `toml:"enabled"`                    // Whether to run evaluations
-	File            string `toml:"file"`                       // Path to evals.csv file
-	JudgeModel      string `toml:"judge_model"`               // Model to use for judging
-	JudgeProvider   string `toml:"judge_provider"`            // Provider to use for judging
-	Criteria        string `toml:"criteria"`                  // Evaluation criteria (e.g., "accuracy,helpfulness")
 }
