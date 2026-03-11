@@ -33,6 +33,7 @@ func init() {
 func newBuildCmd() *cobra.Command {
 	var output string
 	var targetOS, targetArch string
+	var buildAll bool
 
 	cmd := &cobra.Command{
 		Use:   "build [directory]",
@@ -51,10 +52,14 @@ Examples:
   ayo build ./myagent
   ayo build ./myteam
   ayo build . --output ./bin/myagent
-  ayo build . --target-os linux --target-arch amd64`,
+  ayo build . --target-os linux --target-arch amd64
+  ayo build . --all  # Build for all common platforms`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
+			if buildAll {
+				return runBuildAll(dir, output)
+			}
 			return runBuild(dir, output, targetOS, targetArch)
 		},
 	}
@@ -62,6 +67,7 @@ Examples:
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output binary path (default: <agent-name> or <team-name>)")
 	cmd.Flags().StringVar(&targetOS, "target-os", runtime.GOOS, "Target OS (default: current OS)")
 	cmd.Flags().StringVar(&targetArch, "target-arch", runtime.GOARCH, "Target architecture (default: current arch)")
+	cmd.Flags().BoolVar(&buildAll, "all", false, "Build for all common platforms")
 
 	return cmd
 }
@@ -324,6 +330,101 @@ replace github.com/alexcabrera/ayo => %s
 	}
 
 	fmt.Printf("Successfully built: %s\n", outputPath)
+	return nil
+}
+
+// runBuildAll builds the agent for all common platforms
+func runBuildAll(dir, output string) error {
+	// Load configuration to get agent name and build targets
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("resolve directory: %w", err)
+	}
+
+	config, _, err := build.LoadConfigFromDir(absDir)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Default output directory if not specified
+	if output == "" {
+		output = filepath.Join(absDir, "dist")
+	}
+
+	// Create output directory
+	if err := os.MkdirAll(output, 0755); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
+	}
+
+	// Determine targets to build
+	var targets []struct {
+		os   string
+		arch string
+	}
+
+	if len(config.Build.Targets) > 0 {
+		// Use targets from configuration
+		for _, t := range config.Build.Targets {
+			targets = append(targets, struct{ os, arch string }{t.OS, t.Arch})
+		}
+	} else {
+		// Default to common platforms
+		targets = []struct {
+			os   string
+			arch string
+		}{
+			{"linux", "amd64"},
+			{"linux", "arm64"},
+			{"darwin", "amd64"},
+			{"darwin", "arm64"},
+			{"windows", "amd64"},
+		}
+	}
+
+	var errors []error
+	var successes []string
+
+	fmt.Printf("Building for %d platforms...\n\n", len(targets))
+
+	for _, target := range targets {
+		// Determine output filename
+		outputFile := config.Agent.Name
+		if target.os == "windows" {
+			outputFile += ".exe"
+		}
+		outputPath := filepath.Join(output, fmt.Sprintf("%s-%s-%s", outputFile, target.os, target.arch))
+
+		fmt.Printf("Building for %s/%s...\n", target.os, target.arch)
+
+		if err := runBuild(dir, outputPath, target.os, target.arch); err != nil {
+			errors = append(errors, fmt.Errorf("%s/%s: %w", target.os, target.arch, err))
+			fmt.Printf("Failed to build for %s/%s: %v\n\n", target.os, target.arch, err)
+		} else {
+			successes = append(successes, outputPath)
+			fmt.Printf("Built successfully for %s/%s\n\n", target.os, target.arch)
+		}
+	}
+
+	// Print summary
+	fmt.Println("Build Summary:")
+	fmt.Printf("  Success: %d\n", len(successes))
+	fmt.Printf("  Failed:  %d\n", len(errors))
+
+	if len(successes) > 0 {
+		fmt.Println("\nSuccessfully built:")
+		for _, path := range successes {
+			fmt.Printf("  %s\n", path)
+		}
+	}
+
+	if len(errors) > 0 {
+		fmt.Println("\nFailed builds:")
+		for _, err := range errors {
+			fmt.Printf("  %v\n", err)
+		}
+		return fmt.Errorf("some builds failed")
+	}
+
 	return nil
 }
 

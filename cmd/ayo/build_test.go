@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/alexcabrera/ayo/internal/build"
+	"github.com/alexcabrera/ayo/internal/build/types"
 )
 
 func TestGetCacheDir(t *testing.T) {
@@ -262,5 +265,144 @@ func TestRunCleanCache(t *testing.T) {
 	if err := runCleanCache(); err != nil {
 		// This is expected if there's no real cache, but shouldn't crash
 		t.Logf("runCleanCache returned (expected): %v", err)
+	}
+}
+
+func TestBuildConfig(t *testing.T) {
+	config := types.BuildConfig{
+		Targets: []types.BuildTarget{
+			{OS: "linux", Arch: "amd64"},
+			{OS: "linux", Arch: "arm64"},
+			{OS: "darwin", Arch: "amd64"},
+			{OS: "darwin", Arch: "arm64"},
+			{OS: "windows", Arch: "amd64"},
+		},
+	}
+
+	if len(config.Targets) != 5 {
+		t.Errorf("expected 5 targets, got %d", len(config.Targets))
+	}
+
+	for i, target := range config.Targets {
+		if target.OS == "" {
+			t.Errorf("target %d: OS is empty", i)
+		}
+		if target.Arch == "" {
+			t.Errorf("target %d: Arch is empty", i)
+		}
+	}
+}
+
+func TestBuildConfigEmpty(t *testing.T) {
+	config := types.BuildConfig{}
+
+	if len(config.Targets) != 0 {
+		t.Errorf("expected 0 targets, got %d", len(config.Targets))
+	}
+}
+
+func TestRunBuildAllWithConfigTargets(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configContent := `[agent]
+name = "test-agent"
+description = "Test agent for builds"
+model = "gpt-4o"
+
+[agent.provider]
+type = "openai"
+api_key = "test-key"
+
+[memory]
+type = "ephemeral"
+
+[cli]
+enabled = true
+mode = "freeform"
+description = "Test agent"
+
+[[build.targets]]
+os = "linux"
+arch = "amd64"
+
+[[build.targets]]
+os = "darwin"
+arch = "arm64"
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+		t.Fatalf("failed to create prompts dir: %v", err)
+	}
+
+	config, _, err := build.LoadConfigFromDir(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if len(config.Build.Targets) != 2 {
+		t.Errorf("expected 2 build targets, got %d", len(config.Build.Targets))
+	}
+
+	expectedTargets := []struct{ os, arch string }{
+		{"linux", "amd64"},
+		{"darwin", "arm64"},
+	}
+
+	for i, expected := range expectedTargets {
+		if i >= len(config.Build.Targets) {
+			t.Fatalf("missing target %d", i)
+		}
+		actual := config.Build.Targets[i]
+		if actual.OS != expected.os {
+			t.Errorf("target %d: expected OS %q, got %q", i, expected.os, actual.OS)
+		}
+		if actual.Arch != expected.arch {
+			t.Errorf("target %d: expected Arch %q, got %q", i, expected.arch, actual.Arch)
+		}
+	}
+}
+
+func TestRunBuildAllDefaultTargets(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configContent := `[agent]
+description = "Test agent for builds"
+name = "test-agent"
+model = "gpt-4o"
+
+[agent.provider]
+type = "openai"
+api_key = "test-key"
+
+[memory]
+type = "ephemeral"
+
+[cli]
+enabled = true
+mode = "freeform"
+description = "Test agent"
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+		t.Fatalf("failed to create prompts dir: %v", err)
+	}
+
+	config, _, err := build.LoadConfigFromDir(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if len(config.Build.Targets) != 0 {
+		t.Errorf("expected 0 build targets in config, got %d", len(config.Build.Targets))
 	}
 }

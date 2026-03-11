@@ -12,6 +12,7 @@ type Config struct {
 	Input    InputConfig    `toml:"input,omitempty"`
 	Output   OutputConfig   `toml:"output,omitempty"`
 	Prompts  PromptsConfig  `toml:"prompts,omitempty"`
+	Build    BuildConfig    `toml:"build,omitempty"`
 }
 
 // Validate validates the configuration and returns an error if invalid.
@@ -156,6 +157,17 @@ type OutputConfig struct {
 type PromptsConfig struct {
 	System string `toml:"system,omitempty"`
 	User   string `toml:"user,omitempty"`
+}
+
+// BuildConfig contains build configuration settings
+type BuildConfig struct {
+	Targets []BuildTarget `toml:"targets,omitempty"`
+}
+
+// BuildTarget defines a build target platform
+type BuildTarget struct {
+	OS   string `toml:"os"`
+	Arch string `toml:"arch"`
 }
 
 // IsValidModel checks if a model string is supported.
