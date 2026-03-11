@@ -33,15 +33,28 @@ brew install ayo-ooo/tap/ayo
 
 ### Create a New Agent
 
+**Important**: After building from source, either:
+1. Use `./ayo` from the ayo/ayo directory, OR
+2. Run `sudo mv ayo /usr/local/bin/` to install system-wide
+
 ```bash
+# If ayo is in PATH (after installing):
 ayo fresh my-agent
+
+# If using local build from ayo/ayo directory:
+./ayo fresh my-agent
+
 cd my-agent
 ```
 
 ### Build Your Agent
 
 ```bash
+# From the agent directory:
 ayo build .
+
+# Or if using local build from ayo/ayo:
+../../ayo build .
 ```
 
 ### Run Your Agent
@@ -413,6 +426,30 @@ description = "Organize files"
 ```
 
 ## Troubleshooting
+
+### Unknown Command Error (e.g., "Unknown command 'fresh'")
+
+If you get an error like "Unknown command 'fresh'" or a message about sending prompts to agents, you're running an old ayo binary.
+
+```bash
+# You're running the old ayo (CLI framework) - check which ayo is being used
+which ayo
+
+# Build and use the new ayo (build system)
+cd /path/to/ayo/ayo
+go build -o ayo ./cmd/ayo
+
+# Test it works
+./ayo --version
+./ayo --help
+
+# Then use it to create agents
+./ayo fresh my-agent
+
+# OR install system-wide
+sudo mv ayo /usr/local/bin/
+# Now you can use: ayo fresh my-agent
+```
 
 ### Build Fails
 
