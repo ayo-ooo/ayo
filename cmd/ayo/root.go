@@ -22,6 +22,7 @@ Usage:
   ayo build <directory>  Build agent executable
   ayo package <directory> Package agent for distribution
   ayo release <directory> Bump version and prepare release
+  ayo dev <directory>     Development mode with hot reload
   ayo checkit <directory> Validate configuration
   ayo add-agent <team> <name> Add agent to team
   ayo clean [directory]  Clean build artifacts and cache
@@ -31,6 +32,7 @@ Examples:
   ayo build my-agent
   ayo package my-agent
   ayo release my-agent --bump patch
+  ayo dev my-agent
   ayo checkit my-agent
   ayo add-agent my-team reviewer
   ayo clean my-agent
@@ -54,6 +56,7 @@ For more information, visit: https://github.com/alexcabrera/ayo`,
 	cmd.AddCommand(newBuildCmd())
 	cmd.AddCommand(newPackageCmd())
 	cmd.AddCommand(newReleaseCmd())
+	cmd.AddCommand(newDevCmd())
 	cmd.AddCommand(newCheckitCmd())
 	cmd.AddCommand(newAddAgentCmd())
 	cmd.AddCommand(newCleanCmd())
