@@ -5,7 +5,9 @@ import (
 	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -25,16 +27,25 @@ func Execute(configToml, systemPrompt []byte, skillsFS, toolsFS embed.FS) error 
 		return fmt.Errorf("parse config: %w", err)
 	}
 
+	// Load skills from embedded filesystem
+	skills, err := loadSkills(skillsFS)
+	if err != nil {
+		return fmt.Errorf("load skills: %w", err)
+	}
+
+	// Combine system prompt with skills
+	fullSystemPrompt := combineSystemPromptAndSkills(string(systemPrompt), skills)
+
 	// Create language model
 	model, err := createLanguageModel(config.Agent.Model)
 	if err != nil {
 		return fmt.Errorf("create language model: %w", err)
 	}
 
-	// Create Fantasy agent
+	// Create Fantasy agent with enhanced system prompt
 	agent := fantasy.NewAgent(
 		model,
-		fantasy.WithSystemPrompt(string(systemPrompt)),
+		fantasy.WithSystemPrompt(fullSystemPrompt),
 	)
 
 	// Get user input from CLI args or stdin
@@ -147,3 +158,69 @@ func formatResponse(response string) string {
 		BorderForeground(lipgloss.Color("62"))
 	return style.Render(response)
 }
+
+// loadSkills reads all skill files from the embedded filesystem.
+// Returns a map of skill name to content.
+func loadSkills(skillsFS embed.FS) (map[string]string, error) {
+	skills := make(map[string]string)
+
+	// Walk the skills directory
+	if err := fs.WalkDir(skillsFS, "skills", func(filePath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if d.IsDir() {
+			return nil
+		}
+
+		// Read file content
+		content, err := skillsFS.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("read skill file %s: %w", filePath, err)
+		}
+
+		// Extract skill name from path
+		// filePath is like "skills/coding.md" or "skills/writing.md"
+		skillName := path.Base(filePath)
+
+		skills[skillName] = string(content)
+
+		return nil
+	}); err != nil && err != fs.ErrNotExist {
+		// ErrNotExist is OK - it means no skills directory
+		return nil, fmt.Errorf("walk skills directory: %w", err)
+	}
+
+	return skills, nil
+}
+
+// combineSystemPromptAndSkills combines the system prompt with loaded skills.
+// Skills are appended to the system prompt in a structured format.
+func combineSystemPromptAndSkills(systemPrompt string, skills map[string]string) string {
+	if len(skills) == 0 {
+		return systemPrompt
+	}
+
+	var builder strings.Builder
+
+	// Add original system prompt
+	if systemPrompt != "" {
+		builder.WriteString(systemPrompt)
+		builder.WriteString("\n\n")
+	}
+
+	// Add skills section
+	builder.WriteString("## Skills\n\n")
+	builder.WriteString("You have the following skills available:\n\n")
+
+	for name, content := range skills {
+		// Remove .md extension for cleaner display
+		displayName := strings.TrimSuffix(name, ".md")
+		builder.WriteString(fmt.Sprintf("### %s\n\n%s\n\n", displayName, content))
+	}
+
+	return builder.String()
+}
+
