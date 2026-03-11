@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -94,4 +95,55 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestExtractToolDescription tests extracting descriptions from tool scripts.
+func TestExtractToolDescription(t *testing.T) {
+	tests := []struct {
+		name       string
+		script     string
+		toolName   string
+		wantPrefix string
+	}{
+		{
+			name:       "script with comment",
+			script:     "# This tool calculates prime numbers\necho calculating...",
+			toolName:   "primes",
+			wantPrefix: "This tool calculates prime numbers",
+		},
+		{
+			name:       "script without comment",
+			script:     "echo calculating...",
+			toolName:   "primes",
+			wantPrefix: "Execute the primes tool",
+		},
+		{
+			name:       "script with multiple comments",
+			script:     "# Calculate primes\n# This is efficient\necho calculating...",
+			toolName:   "primes",
+			wantPrefix: "Calculate primes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractToolDescription(tt.script, tt.toolName)
+			if !strings.HasPrefix(result, tt.wantPrefix) {
+				t.Errorf("extractToolDescription() = %v, want prefix %v", result, tt.wantPrefix)
+			}
+		})
+	}
+}
+
+// TestCreateBashTool tests the bash tool creation.
+func TestCreateBashTool(t *testing.T) {
+	tool := createBashTool()
+
+	info := tool.Info()
+	if info.Name != "bash" {
+		t.Errorf("tool name = %v, want bash", info.Name)
+	}
+	if info.Description == "" {
+		t.Error("tool description should not be empty")
+	}
 }
