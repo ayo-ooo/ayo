@@ -1,467 +1,452 @@
-# ayo - Build System for AI Agents
+# Ayo - AI Agent Build System
 
-**Ayo is a pure build system for creating standalone AI agent executables.**
+Ayo is a build system for compiling AI agent definitions into standalone, distributable executable binaries.
+
+## Features
+
+- **Pure Build System**: Compiles agent definitions to standalone binaries - no runtime framework required
+- **Cross-Platform**: Build for Linux, macOS, Windows, and more
+- **Build Caching**: Intelligent caching to avoid rebuilding unchanged agents
+- **Development Mode**: Hot reload with automatic rebuilds on file changes
+- **Package Management**: Create distributable archives with checksums
+- **Version Management**: Semantic versioning with git integration
+- **Skills & Tools**: Modular system for agent capabilities
+
+## Installation
+
+### From Source
 
 ```bash
-# Create a new agent project
-ayo fresh my-agent
-
-# Build the agent
-ayo build my-agent
-
-# Run the compiled agent
-./my-agent "Hello, analyze this code"
+git clone https://github.com/ayo-ooo/ayo.git
+cd ayo/ayo
+go build -o ayo ./cmd/ayo
+sudo mv ayo /usr/local/bin/
 ```
 
-## Overview
+### Using Homebrew (macOS)
 
-Ayo transforms agent definitions into self-contained, distributable executables. No runtime dependencies, no framework required - just pure agent binaries.
-
-### Key Features
-
-- **Pure Build System**: Compile agents to standalone binaries
-- **No Runtime Framework**: Built agents run independently
-- **Simple Project Structure**: Single `config.toml` per agent
-- **Cross-Platform**: Build for Linux, macOS, Windows
-- **Tool Integration**: Use existing CLI tools, no Go required
-
-## 📚 Comprehensive Documentation
-
-Ayo provides a complete operator manual that takes you from novice to expert:
-
-### 🎓 Learning Path
-
-```mermaid
-graph LR
-    A[Getting Started] --> B[Basic Usage]
-    B --> C[Intermediate Techniques]
-    C --> D[Advanced Patterns]
-    D --> E[Expert Reference]
-    E --> F[Troubleshooting]
+```bash
+brew install ayo-ooo/tap/ayo
 ```
-
-### 📖 Operator Manual
-
-| Level | Guide | Description |
-|-------|-------|-------------|
-| 🟢 Novice | [Getting Started](docs/operator-manual/01-getting-started.md) | Installation, first agent, basic concepts |
-| 🟡 Beginner | [Basic Usage](docs/operator-manual/02-basic-usage.md) | Configuration, tools, I/O patterns, debugging |
-| 🟠 Intermediate | [Intermediate Techniques](docs/operator-manual/03-intermediate-techniques.md) | Prompt engineering, skills, memory optimization |
-| 🔴 Advanced | [Advanced Patterns](docs/operator-manual/04-advanced-patterns.md) | Multi-agent systems, production deployment, scaling |
-| 🟣 Expert | [Expert Reference](docs/operator-manual/05-expert-reference.md) | Internals, design patterns, contributing |
-| 🛠 All Levels | [Troubleshooting](docs/operator-manual/06-troubleshooting.md) | Common issues, best practices, optimization |
-
-### 🍳 Cookbook
-
-Practical examples and recipes:
-- [Cookbook](docs/COOKBOOK.md) - File processing, web automation, data analysis
-- [Patterns](docs/patterns/) - Ticket workers, scheduled agents, watchers
-
-### 📖 Reference
-
-- [Operator Manual](docs/OPERATOR_MANUAL.md) - Comprehensive usage guide
-- [Build System](docs/BUILD_SYSTEM.md) - Technical overview
-- [Concepts](docs/concepts.md) - Core concepts and architecture
 
 ## Quick Start
 
-### 1. Create an agent project
+### Create a New Agent
 
 ```bash
 ayo fresh my-agent
+cd my-agent
 ```
 
-This creates:
-```
-my-agent/
-├── config.toml          # Agent configuration
-├── skills/             # Agent skills (optional)
-├── tools/               # Executable tools (optional)
-└── prompts/
-    └── system.md       # System prompt
-```
-
-### 2. Configure your agent
-
-Edit `config.toml`:
-
-```toml
-[agent]
-name = "my-agent"
-description = "My AI assistant"
-model = "claude-3-5-sonnet"
-
-[cli]
-mode = "hybrid"        # freeform, hybrid, or structured
-description = "My agent CLI"
-
-[agent.tools]
-allowed = ["bash", "file_read", "file_write"]
-```
-
-### 3. Build your agent
+### Build Your Agent
 
 ```bash
-ayo build my-agent
+ayo build .
 ```
 
-### 4. Run your agent
+### Run Your Agent
 
 ```bash
-./my-agent "Analyze this code"
+./.build/bin/my-agent
 ```
 
-## Project Structure
+### Development Mode
 
-### Single Agent
+```bash
+# Watch for changes and automatically rebuild
+ayo dev .
 
-```
-my-agent/
-├── config.toml          # Main configuration
-├── skills/             # Agent skills (optional)
-│   └── custom/          # Custom skills
-│       └── SKILL.md    # Skill definition
-├── tools/               # Executable tools (optional)
-│   └── mytool           # Any executable program
-└── prompts/             # Prompt templates
-    └── system.md       # System prompt
-```
-
-### Multi-Agent Team
-
-```
-my-team/
-├── config.toml          # Main configuration
-├── agents/             # Multiple agents
-│   ├── agent1/
-│   │   └── config.toml  # Agent 1 config
-│   └── agent2/
-│       └── config.toml  # Agent 2 config
-├── workspace/           # Shared workspace (optional)
-└── team.toml           # Team configuration
+# Watch, rebuild, and run after each build
+ayo dev . --run
 ```
 
 ## Commands
 
-### `ayo fresh`
+### `ayo fresh <name>`
 
-Create a new agent project.
+Create a new agent project with a template.
 
 ```bash
-# Create agent with defaults
 ayo fresh my-agent
-
-# With custom settings
-ayo fresh my-agent \
-  --description "Code reviewer" \
-  --model "gpt-4-turbo" \
-  --template advanced
 ```
 
-### `ayo build`
+Creates:
+- `config.toml` - Agent configuration
+- `prompts/system.txt` - System prompt
+- `prompts/user.txt` - User prompt template
+- `skills/` - Custom skills
+- `tools/` - Custom tools
 
-Compile agent to standalone executable.
+### `ayo build <directory>`
+
+Build an agent executable.
 
 ```bash
-# Build current directory
-ayo build
+# Build for current platform
+ayo build my-agent
 
-# Build specific project
-ayo build ./my-agent
+# Build with specific output path
+ayo build my-agent -o /tmp/my-agent
 
-# Cross-compile for Linux
-ayo build ./my-agent --target-os linux --target-arch amd64
+# Build for specific platform
+ayo build my-agent --os linux --arch amd64
 
-# Specify output path
-ayo build ./my-agent --output ./bin/my-agent
+# Build for all platforms
+ayo build my-agent --all
 ```
 
-### `ayo checkit`
+**Options:**
+- `-o, --output <path>` - Output binary path
+- `--os <os>` - Target operating system (linux, darwin, windows)
+- `--arch <arch>` - Target architecture (amd64, arm64)
+- `--all` - Build for all common platforms
 
-Validate configuration and project structure.
+### `ayo dev <directory>`
+
+Development mode with hot reload.
 
 ```bash
-# Validate current project
-ayo checkit
+# Watch and rebuild on changes
+ayo dev my-agent
 
-# Validate specific project
-ayo checkit ./my-agent
+# Watch, rebuild, and run
+ayo dev my-agent --run
 
-# Verbose output
-ayo checkit --verbose
+# Verbose logging
+ayo dev my-agent --verbose
 ```
 
-### `ayo add-agent`
+**Options:**
+- `--run` - Run the agent after each build
+- `-v, --verbose` - Enable verbose output
 
-Add agent to existing team project.
+### `ayo package <directory>`
+
+Create distributable archives.
 
 ```bash
-# Add agent to team
-ayo add-agent ./my-team reviewer
+# Package with version from config
+ayo package my-agent
 
-# With custom settings
-ayo add-agent ./my-team security-agent \
-  --description "Security analysis" \
-  --model "gpt-4-turbo"
+# Package with specific version
+ayo package my-agent --version 1.0.0
+
+# Specify archive format
+ayo package my-agent --format zip
 ```
+
+**Options:**
+- `-v, --version <version>` - Version string
+- `-f, --format <format>` - Archive format (tar.gz, zip, auto)
+
+### `ayo release <directory>`
+
+Manage versions and prepare releases.
+
+```bash
+# Bump patch version
+ayo release my-agent --bump patch
+
+# Bump minor version
+ayo release my-agent --bump minor
+
+# Bump major version
+ayo release my-agent --bump major
+
+# Create pre-release
+ayo release my-agent --bump patch --pre beta
+```
+
+**Options:**
+- `--bump <type>` - Version part to bump (major, minor, patch)
+- `--pre <identifier>` - Pre-release identifier
+- `--build <metadata>` - Build metadata
+
+### `ayo checkit <directory>`
+
+Validate agent configuration.
+
+```bash
+ayo checkit my-agent
+```
+
+### `ayo clean [directory]`
+
+Clean build artifacts and cache.
+
+```bash
+# Clean specific agent
+ayo clean my-agent
+
+# Clear build cache
+ayo clean --cache
+```
+
+**Options:**
+- `--cache` - Clear the entire build cache
 
 ## Configuration
 
-### `config.toml`
+Agent configuration is defined in `config.toml`:
 
 ```toml
 [agent]
-name = "my-agent"              # Agent name
-description = "My AI assistant" # Agent description
-model = "claude-3-5-sonnet"     # LLM model
-
-[cli]
-mode = "hybrid"                # CLI interaction mode
-description = "My agent CLI"   # CLI description
+name = "my-agent"
+description = "A helpful AI assistant"
+version = "1.0.0"
+model = "gpt-4"
+temperature = 0.7
+max_tokens = 2000
 
 [agent.tools]
-allowed = ["bash", "file_read", "file_write"]  # Allowed tools
+allowed = ["file_read", "file_write", "web_search"]
 
 [agent.memory]
-enabled = true                  # Enable memory
-scope = "agent"                # Memory scope
+enabled = true
+scope = "session"
 
-[input]
-schema = ""                    # JSON schema for input (optional)
+[cli]
+mode = "freeform"
+description = "Interact with the AI assistant"
 
-[output]
-schema = ""                    # JSON schema for output (optional)
+[cli.flags]
+name = "input"
+type = "string"
+description = "Your question or request"
+required = true
+
+[[build.targets]]
+os = "linux"
+arch = "amd64"
+
+[[build.targets]]
+os = "darwin"
+arch = "arm64"
 ```
 
-### CLI Modes
+### Config Sections
 
-- **freeform**: Natural language conversation
-- **hybrid**: Mix of structured and freeform
-- **structured**: Strict input/output schemas
+**[agent]** - Core agent settings
+- `name` - Agent name (required)
+- `description` - Agent description (required)
+- `version` - Semantic version (optional)
+- `model` - Model to use (required): gpt-*, claude-*, o1-*, gemini-*
+- `temperature` - Sampling temperature (0.0 - 2.0)
+- `max_tokens` - Maximum response tokens
 
-## Tools
+**[agent.tools]** - Tool permissions
+- `allowed` - List of allowed tools
 
-Ayo uses existing CLI programs as tools. No Go code required.
+**[agent.memory]** - Memory configuration
+- `enabled` - Enable memory
+- `scope` - Memory scope: "agent" or "session"
 
-### Built-in Tools
+**[cli]** - CLI interface
+- `mode` - CLI mode: "freeform", "structured", or "hybrid"
+- `description` - CLI description
+- `flags` - Custom CLI flags
 
-- `bash`: Execute shell commands
-- `file_read`: Read file contents
-- `file_write`: Write to files
-- `git`: Git operations
-- `web_search`: Web search (requires API key)
+**[build]** - Build configuration
+- `targets` - Build targets for cross-platform builds
 
-### Custom Tools
+## Directory Structure
 
-Add any executable to the `tools/` directory:
+```
+my-agent/
+├── config.toml          # Agent configuration
+├── prompts/             # Prompt templates
+│   ├── system.txt       # System prompt
+│   └── user.txt         # User prompt template
+├── skills/              # Custom skills
+│   └── my_skill.go      # Skill implementation
+├── tools/               # Custom tools
+│   └── my_tool.go       # Tool implementation
+├── .build/              # Build output
+│   └── bin/             # Compiled binaries
+└── releases/            # Packaged releases
+```
+
+## Cross-Platform Building
+
+Build for multiple platforms in one command:
 
 ```bash
-# Make a script executable
-chmod +x tools/my-custom-tool
-
-# Reference in config.toml
-[agent.tools]
-allowed = ["bash", "file_read", "my-custom-tool"]
+# Build for all common platforms
+ayo build my-agent --all
 ```
 
-## Building Agents
-
-### Basic Build
-
-```bash
-ayo build my-agent
-```
-
-### Cross-Platform Builds
-
-```bash
-# Linux AMD64
-ayo build my-agent --target-os linux --target-arch amd64
-
-# Windows ARM64
-ayo build my-agent --target-os windows --target-arch arm64
-
-# macOS ARM64
-ayo build my-agent --target-os darwin --target-arch arm64
-```
-
-### Output Options
-
-```bash
-# Specify output directory
-ayo build my-agent --output ./dist/my-agent
-
-# Build in current directory
-ayo build my-agent --output ./my-agent-bin
-```
-
-## Running Agents
-
-### Direct Execution
-
-```bash
-./my-agent "Analyze this code"
-```
-
-### Interactive Mode
-
-```bash
-./my-agent --interactive
-```
-
-### Structured Input
-
-```bash
-./my-agent --input '{"file": "main.go", "task": "review"}'
-```
-
-## Advanced Features
-
-### Input/Output Schemas
-
-Define JSON schemas for structured interaction:
+Or define custom build targets in `config.toml`:
 
 ```toml
-[input]
-schema = '''
-{
-  "type": "object",
-  "properties": {
-    "file": {"type": "string"},
-    "task": {"type": "string"}
-  },
-  "required": ["file", "task"]
-}
-'''
+[[build.targets]]
+os = "linux"
+arch = "amd64"
 
-[output]
-schema = '''
-{
-  "type": "object",
-  "properties": {
-    "result": {"type": "string"},
-    "score": {"type": "number"}
-  }
-}
-'''
+[[build.targets]]
+os = "linux"
+arch = "arm64"
+
+[[build.targets]]
+os = "darwin"
+arch = "amd64"
+
+[[build.targets]]
+os = "darwin"
+arch = "arm64"
+
+[[build.targets]]
+os = "windows"
+arch = "amd64"
 ```
 
-### Environment Variables
+## Build Caching
+
+Ayo automatically caches builds to speed up subsequent builds:
+
+- Cache location: `~/.cache/ayo/`
+- Cache key: Hash of config, prompts, skills, tools, and target platform
+- Clear cache: `ayo clean --cache`
+
+## Version Management
+
+Use semantic versioning with git integration:
 
 ```bash
-# Override model
-AYO_MODEL=gpt-4-turbo ./my-agent
+# Bump patch version (1.0.0 -> 1.0.1)
+ayo release my-agent --bump patch
 
-# Set API keys
-OPENAI_API_KEY=sk-... ./my-agent
-ANTHROPIC_API_KEY=sk-... ./my-agent
+# Bump minor version (1.0.0 -> 1.1.0)
+ayo release my-agent --bump minor
+
+# Bump major version (1.0.0 -> 2.0.0)
+ayo release my-agent --bump major
+
+# Create pre-release (1.0.0-beta)
+ayo release my-agent --bump patch --pre beta
 ```
 
-### Team Coordination
+This updates:
+- `config.toml` version field
+- Git tag (for non-pre-release versions)
+- `CHANGELOG.md` with new section
 
-For multi-agent projects, use `team.toml`:
+## Packaging
 
-```toml
-[team]
-name = "my-team"
-coordination = "sequential"
+Create distributable packages:
 
-[agents]
-agent1 = { path = "agents/agent1" }
-agent2 = { path = "agents/agent2" }
+```bash
+# Package for distribution
+ayo package my-agent
+
+# Creates:
+# releases/my-agent-1.0.0-linux-amd64.tar.gz
+# releases/my-agent-1.0.0-darwin-arm64.tar.gz
+# releases/my-agent-1.0.0.sha256
 ```
+
+Verify checksums:
+
+```bash
+cd releases
+sha256sum -c my-agent-1.0.0.sha256
+```
+
+## Development Workflow
+
+1. **Create**: `ayo fresh my-agent`
+2. **Develop**: Edit config.toml, prompts, skills, tools
+3. **Dev Mode**: `ayo dev . --run` (automatic rebuilds)
+4. **Test**: `./.build/bin/my-agent`
+5. **Version**: `ayo release . --bump patch`
+6. **Build**: `ayo build . --all`
+7. **Package**: `ayo package .`
+8. **Release**: `git push origin main --tags`
 
 ## Examples
 
-### Code Review Agent
+### Simple Q&A Agent
 
-```bash
-# Create agent
-ayo fresh code-reviewer --template advanced
+```toml
+[agent]
+name = "qa-bot"
+description = "Simple Q&A assistant"
+model = "gpt-4"
 
-# Configure for code analysis
-ayo build code-reviewer
-
-# Review code
-./code-reviewer --file main.go --task "review"
+[cli]
+mode = "freeform"
+description = "Ask a question"
 ```
 
-### Document Processing Team
+### Structured Data Processing
 
-```bash
-# Create team
-ayo fresh doc-team
+```toml
+[agent]
+name = "data-processor"
+description = "Process structured data"
+model = "gpt-4"
 
-# Add agents
-ayo add-agent doc-team summarizer
-ayo add-agent doc-team translator
+[cli]
+mode = "structured"
+description = "Process input data"
 
-# Build team
-ayo build doc-team
-
-# Process documents
-./doc-team --input documents/ --output processed/
+[cli.flags]
+name = "format"
+type = "string"
+description = "Output format (json, csv)"
+required = true
 ```
 
-### Data Analysis Agent
+### File Operations
 
-```bash
-# Create agent with structured I/O
-ayo fresh data-analyst
+```toml
+[agent]
+name = "file-organizer"
+description = "Organize files"
+model = "gpt-4"
 
-# Configure schemas in config.toml
-ayo build data-analyst
+[agent.tools]
+allowed = ["file_read", "file_write", "file_list"]
 
-# Analyze data
-./data-analyst --data data.csv --query "find trends"
+[cli]
+mode = "freeform"
+description = "Organize files"
 ```
 
 ## Troubleshooting
 
-### Build Issues
+### Build Fails
+
+- Ensure Go is installed: `go version`
+- Check config.toml is valid: `ayo checkit .`
+- Enable verbose output: `ayo build . -v`
+
+### Missing Module Root
 
 ```bash
-# Clean and rebuild
-ayo clean
-ayo build
-
-# Verbose output
-ayo build --verbose
+# Build ayo from its source directory
+cd /path/to/ayo/ayo
+go build -o ayo ./cmd/ayo
 ```
 
-### Permission Issues
+### Cache Issues
 
 ```bash
-chmod +x ./my-agent
+# Clear the build cache
+ayo clean --cache
+
+# Build again
+ayo build .
 ```
 
-### Configuration Errors
+## Contributing
 
-```bash
-ayo checkit --verbose
-```
-
-## Migration from Framework
-
-If migrating from the old Ayo framework:
-
-```bash
-# Old structure
-~/.config/ayo/agents/my-agent/
-
-# New structure
-./my-agent/
-├── config.toml
-└── prompts/
-    └── system.md
-```
+Contributions are welcome! Please read our contributing guidelines.
 
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License - see LICENSE file for details.
 
 ## Support
 
-- Issues: https://github.com/alexcabrera/ayo/issues
-- Documentation: https://github.com/alexcabrera/ayo/docs
-- Discussions: https://github.com/alexcabrera/ayo/discussions
+- GitHub: https://github.com/ayo-ooo/ayo
+- Issues: https://github.com/ayo-ooo/ayo/issues
