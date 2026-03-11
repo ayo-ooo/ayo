@@ -7,7 +7,7 @@ import (
 )
 
 // Registry manages provider instances by type.
-// It supports built-in defaults that can be overridden by plugins.
+// It supports built-in defaults.
 type Registry struct {
 	mu        sync.RWMutex
 	providers map[ProviderType]map[string]Provider

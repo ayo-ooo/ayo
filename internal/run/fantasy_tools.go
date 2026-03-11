@@ -17,7 +17,7 @@ import (
 	"github.com/alexcabrera/ayo/internal/capabilities"
 	"github.com/alexcabrera/ayo/internal/config"
 	"github.com/alexcabrera/ayo/internal/memory"
-	"github.com/alexcabrera/ayo/internal/plugins"
+	// Removed plugins import during plugin system removal
 	// Removed sandbox import during sandbox infrastructure removal
 	// "github.com/alexcabrera/ayo/internal/sandbox"
 	"github.com/alexcabrera/ayo/internal/share"
@@ -230,11 +230,8 @@ func NewFantasyToolSet(opts ToolSetOptions) FantasyToolSet {
 			}))
 			loadedTools[resolvedName] = true
 		default:
-			// Try to load as external tool from plugins
-			if tool := loadExternalTool(resolvedName, baseDir, opts.Depth, &cfg); tool != nil {
-				fantasyTools = append(fantasyTools, tool)
-				loadedTools[resolvedName] = true
-			}
+			// Unknown tool - skip
+			// In build system, tools are simple executables loaded differently
 		}
 	}
 
@@ -515,48 +512,3 @@ func NewMemoryToolWithQueue(queue *memory.Queue) fantasy.AgentTool {
 	)
 }
 
-// loadExternalTool attempts to load a tool from installed plugins.
-// Returns nil if the tool is not found.
-// It first checks if the toolName is a tool alias (e.g., "search") and resolves it
-// to the configured default tool (e.g., "searxng").
-func loadExternalTool(toolName string, baseDir string, depth int, cfg *config.Config) fantasy.AgentTool {
-	// First, check if this is a tool alias that should be resolved
-	resolvedName := resolveToolAlias(toolName, cfg)
-
-	// Load plugin registry
-	registry, err := plugins.LoadRegistry()
-	if err != nil {
-		return nil
-	}
-
-	// Search all enabled plugins for this tool
-	for _, plugin := range registry.ListEnabled() {
-		for _, tool := range plugin.Tools {
-			if tool == resolvedName {
-				// Load tool definition
-				def, err := plugins.LoadToolDefinition(plugin.Path, resolvedName)
-				if err != nil {
-					continue
-				}
-
-				return NewExternalTool(def, plugin.Path, baseDir, depth)
-			}
-		}
-	}
-
-	return nil
-}
-
-// resolveToolAlias checks if the given tool name is an alias and returns the
-// configured concrete tool name. Returns the original name if no alias is configured.
-func resolveToolAlias(toolName string, cfg *config.Config) string {
-	if cfg == nil || cfg.DefaultTools == nil {
-		return toolName
-	}
-
-	if resolved, ok := cfg.DefaultTools[toolName]; ok && resolved != "" {
-		return resolved
-	}
-
-	return toolName
-}

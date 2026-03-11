@@ -20,8 +20,6 @@ const (
 	SourceUserShared
 	// SourceBuiltIn is a skill from the built-in skills directory (~/.local/share/ayo/skills).
 	SourceBuiltIn
-	// SourcePlugin is a skill from an installed plugin.
-	SourcePlugin
 )
 
 // String returns a human-readable name for the skill source.
@@ -33,8 +31,6 @@ func (s SkillSource) String() string {
 		return "user"
 	case SourceBuiltIn:
 		return "built-in"
-	case SourcePlugin:
-		return "plugin"
 	default:
 		return "unknown"
 	}

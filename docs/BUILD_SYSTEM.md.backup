@@ -46,13 +46,8 @@ This creates:
 ```
 myteam/
 ├── team.toml            # Team configuration
-├── workspace/           # Shared workspace
-│   └── shared-workspace
-├── schemas/              # Input/output schemas (optional)
-│   ├── input.json        # Input schema
-│   └── output.json       # Output schema
-└── prompts/             # Team-level prompts (optional)
-    └── system.md         # Team system prompt
+└── workspace/           # Shared workspace
+    └── shared-workspace
 ```
 
 ### 2. Customize your agent
@@ -258,11 +253,7 @@ Full-featured configuration:
 
 ```
 myagent/
-├── config.toml
-├── prompts/
-│   └── system.md
-├── input.jsonschema
-└── output.jsonschema
+└── config.toml
 ```
 
 ### Standard Agent
@@ -275,10 +266,8 @@ myagent/
 │       └── SKILL.md
 ├── tools/
 │   └── mytool.go
-├── prompts/
-│   └── system.md
-├── input.jsonschema
-└── output.jsonschema
+└── prompts/
+    └── system.md
 ```
 
 ### Multi-Agent Team
@@ -318,8 +307,6 @@ myagent/
 - `prompts/system.md` - System prompt defining agent behavior
 - `skills/*.md` - Agent skills and capabilities
 - `tools/*.go` - Custom tools written in Go
-- `input.jsonschema` - JSON Schema defining input format
-- `output.jsonschema` - JSON Schema defining output format
 
 ### Multi-Agent Team Projects
 
@@ -349,8 +336,7 @@ myteam/
 - `team.toml` - Team configuration with agent coordination rules
 - `agents/*/config.toml` - Individual agent configurations
 - `workspace/` - Shared directory for team collaboration
-- `schemas/*.json` - Input/output schemas for team coordination
-- `prompts/*.md` - Team-level prompts and system messages
+- `team-prompts/*.md` - Prompts for team coordination
 
 ### Configuration Files
 
@@ -688,6 +674,114 @@ ayo add-agent myproject tester --description "Test automation agent" --model gpt
 | `standard` | General-purpose agents | bash, file_read, file_write, git | agent |
 | `advanced` | Complex agents with network access | bash, file_read, file_write, git, web_search | session |
 
+## Examples
+
+### Code Reviewer Agent
+
+config.toml:
+```toml
+[agent]
+name = "myreviewer"
+description = "Security-focused code reviewer"
+model = "claude-3-5-sonnet"
+
+[cli]
+mode = "hybrid"
+description = "Review code for security issues"
+
+[cli.flags]
+  [cli.flags.repo]
+  name = "repo"
+  type = "string"
+  short = "r"
+  position = 0
+  required = true
+  description = "Repository path"
+
+  [cli.flags.files]
+  name = "files"
+  type = "array"
+  short = "f"
+  description = "Files to review"
+
+[agent.tools]
+allowed = ["bash", "file_read", "file_write", "git"]
+
+[agent.memory]
+enabled = true
+scope = "session"
+
+[agent.sandbox]
+network = false
+host_path = "."
+```
+
+Usage:
+```bash
+# Build
+ayo build myreviewer
+
+# Run with structured flags
+./myreviewer --repo . --files main.go auth.go
+
+# Run with freeform
+./myreviewer "review main.go for SQL injection vulnerabilities"
+
+# Mixed
+./myreviewer --repo . "review auth.go"
+```
+
+### File Transformer Agent
+
+config.toml:
+```toml
+[agent]
+name = "transform"
+description = "Transform and process files"
+model = "gpt-4"
+
+[cli]
+mode = "structured"
+description = "Transform files according to rules"
+
+[cli.flags]
+  [cli.flags.input]
+  name = "input"
+  type = "string"
+  short = "i"
+  required = true
+  description = "Input file"
+
+  [cli.flags.output]
+  name = "output"
+  type = "string"
+  short = "o"
+  required = true
+  description = "Output file"
+
+  [cli.flags.format]
+  name = "format"
+  type = "string"
+  default = "json"
+  description = "Output format"
+
+[agent.tools]
+allowed = ["bash", "file_read", "file_write"]
+
+[input]
+[input.schema]
+type = "object"
+required = ["input", "output"]
+```
+
+Usage:
+```bash
+# Build
+ayo build transform
+
+# Run
+./transform --input data.json --output data.yml --format yaml
+```
 
 ## Distribution
 
@@ -983,87 +1077,3 @@ Planned features:
 - [ ] Performance profiling tools
 - [ ] Visual configuration editor
 - [ ] Full agent execution in evals (currently uses placeholder)
-## Examples
-
-### Code Reviewer Agent
-
-config.toml:
-```toml
-[agent]
-name = "myreviewer"
-description = "Security-focused code reviewer"
-model = "claude-3-5-sonnet"
-
-[agent.tools]
-allowed = ["bash", "file_read", "file_write", "git"]
-
-[agent.memory]
-enabled = true
-scope = "session"
-
-[agent.sandbox]
-network = false
-host_path = "."
-```
-
-prompts/system.md:
-```markdown
-# Security Code Reviewer
-
-You are an expert security code reviewer. Analyze code for vulnerabilities and provide structured reports.
-```
-
-input.jsonschema:
-```json
-{
-  "type": "object",
-  "properties": {
-    "repo": {"type": "string"},
-    "files": {"type": "array", "items": {"type": "string"}}
-  }
-}
-```
-
-Usage:
-```bash
-# Build
-ao build myreviewer
-
-# Run with JSON input
-./myreviewer '{"repo": ".", "files": ["main.go", "auth.go"]}'
-```
-
-### File Transformer Agent
-
-config.toml:
-```toml
-[agent]
-name = "transform"
-description = "Transform and process files"
-model = "gpt-4"
-
-[agent.tools]
-allowed = ["bash", "file_read", "file_write"]
-```
-
-input.jsonschema:
-```json
-{
-  "type": "object",
-  "required": ["input", "output"],
-  "properties": {
-    "input": {"type": "string"},
-    "output": {"type": "string"},
-    "format": {"type": "string", "default": "json"}
-  }
-}
-```
-
-Usage:
-```bash
-# Build
-ao build transform
-
-# Run
-./transform '{"input": "data.json", "output": "data.yml", "format": "yaml"}'
-```

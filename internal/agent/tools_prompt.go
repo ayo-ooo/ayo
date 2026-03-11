@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
 // isSearchToolAvailable checks if a search tool is configured and available.
@@ -24,21 +23,8 @@ func isSearchToolAvailable() bool {
 		return false
 	}
 
-	// Check if the tool exists in plugins
-	registry, err := plugins.LoadRegistry()
-	if err != nil {
-		return false
-	}
-
-	for _, plugin := range registry.ListEnabled() {
-		for _, tool := range plugin.Tools {
-			if tool == searchTool {
-				return true
-			}
-		}
-	}
-
-	return false
+	// Build system: tools are embedded in the binary, so if it's configured it's available
+	return true
 }
 
 // BuildToolsPrompt returns system prompt instructions for tool usage

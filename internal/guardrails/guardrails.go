@@ -18,3 +18,8 @@ func Register(agentName, skillName string, checks []string) error {
 func Unregister(agentName, skillName string) error {
 	return nil
 }
+
+// LegacyGuardrails returns the legacy guardrails prompt for compatibility.
+func LegacyGuardrails() string {
+	return ""
+}

@@ -456,19 +456,6 @@ func ListHandles(cfg config.Config) ([]string, error) {
 		}
 	}
 
-	// Add plugin agents
-	for _, dir := range paths.AllPluginAgentsDirs() {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if entry.IsDir() && strings.HasPrefix(entry.Name(), "@") {
-				handleSet[entry.Name()] = struct{}{}
-			}
-		}
-	}
-
 	// Convert to sorted slice
 	handles := make([]string, 0, len(handleSet))
 	for h := range handleSet {

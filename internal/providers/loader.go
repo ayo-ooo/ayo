@@ -5,22 +5,19 @@ import (
 	"fmt"
 
 	"github.com/alexcabrera/ayo/internal/config"
-	"github.com/alexcabrera/ayo/internal/plugins"
 )
 
-// Loader discovers and loads providers from built-ins and plugins.
+// Loader discovers and loads providers from built-ins.
 type Loader struct {
-	registry   *Registry
-	cfg        config.ProvidersConfig
-	pluginsDir string
+	registry *Registry
+	cfg      config.ProvidersConfig
 }
 
 // NewLoader creates a new provider loader.
-func NewLoader(registry *Registry, cfg config.ProvidersConfig, pluginsDir string) *Loader {
+func NewLoader(registry *Registry, cfg config.ProvidersConfig) *Loader {
 	return &Loader{
-		registry:   registry,
-		cfg:        cfg,
-		pluginsDir: pluginsDir,
+		registry: registry,
+		cfg:      cfg,
 	}
 }
 
@@ -46,17 +43,12 @@ func (l *Loader) LoadAll(ctx context.Context) error {
 		return fmt.Errorf("load builtins: %w", err)
 	}
 
-	// 2. Load plugin providers
-	if err := l.loadPlugins(ctx); err != nil {
-		return fmt.Errorf("load plugins: %w", err)
-	}
-
-	// 3. Set active providers based on config
+	// 2. Set active providers based on config
 	if err := l.setActiveProviders(); err != nil {
 		return fmt.Errorf("set active providers: %w", err)
 	}
 
-	// 4. Initialize all registered providers
+	// 3. Initialize all registered providers
 	configs := l.buildProviderConfigs()
 	if err := l.registry.InitAll(ctx, configs); err != nil {
 		return fmt.Errorf("init providers: %w", err)
@@ -76,69 +68,6 @@ func (l *Loader) loadBuiltins(_ context.Context) error {
 			return fmt.Errorf("register built-in %s: %w", key, err)
 		}
 	}
-	return nil
-}
-
-// loadPlugins discovers and loads providers from installed plugins.
-func (l *Loader) loadPlugins(ctx context.Context) error {
-	if l.pluginsDir == "" {
-		return nil
-	}
-
-	// Get installed plugins from the registry
-	pkgRegistry, err := plugins.LoadRegistry()
-	if err != nil {
-		// No registry file means no plugins installed
-		return nil
-	}
-
-	for _, pkg := range pkgRegistry.Plugins {
-		if pkg.Disabled {
-			continue
-		}
-		if err := l.loadPluginProviders(ctx, pkg); err != nil {
-			// Log warning but continue - don't fail entire load for one plugin
-			continue
-		}
-	}
-
-	return nil
-}
-
-// loadPluginProviders loads providers from a single plugin.
-func (l *Loader) loadPluginProviders(_ context.Context, pkg *plugins.InstalledPlugin) error {
-	// Load the plugin's manifest to check for providers
-	manifest, err := plugins.LoadManifest(pkg.Path)
-	if err != nil {
-		return err
-	}
-
-	if !manifest.HasProviders() {
-		return nil
-	}
-
-	for _, providerDef := range manifest.Providers {
-		// Convert plugin type to provider type
-		pt, err := pluginTypeToProviderType(providerDef.Type)
-		if err != nil {
-			continue
-		}
-
-		// Create a placeholder provider that can be replaced with actual implementation
-		// For now, we create stub providers that indicate they came from a plugin
-		stub := &PluginStubProvider{
-			name:         providerDef.Name,
-			providerType: pt,
-			pluginName:   pkg.Name,
-			entryPoint:   providerDef.EntryPoint,
-			config:       providerDef.Config,
-		}
-
-		if err := l.registry.Register(stub); err != nil {
-			continue
-		}
-	}
-
 	return nil
 }
 
@@ -225,55 +154,3 @@ func (l *Loader) buildProviderConfigs() map[string]map[string]any {
 
 	return configs
 }
-
-// pluginTypeToProviderType converts a plugin type to a provider type.
-func pluginTypeToProviderType(pt plugins.PluginType) (ProviderType, error) {
-	switch pt {
-	case plugins.PluginTypeMemory:
-		return ProviderTypeMemory, nil
-	case plugins.PluginTypeSandbox:
-		return ProviderTypeSandbox, nil
-	case plugins.PluginTypeEmbedding:
-		return ProviderTypeEmbedding, nil
-	case plugins.PluginTypeObserver:
-		return ProviderTypeObserver, nil
-	default:
-		return "", fmt.Errorf("not a provider type: %s", pt)
-	}
-}
-
-// PluginStubProvider is a placeholder for providers loaded from plugins.
-// It implements the Provider interface but delegates actual work to an external process.
-type PluginStubProvider struct {
-	name         string
-	providerType ProviderType
-	pluginName   string
-	entryPoint   string
-	config       map[string]any
-	initialized  bool
-}
-
-func (p *PluginStubProvider) Name() string       { return p.name }
-func (p *PluginStubProvider) Type() ProviderType { return p.providerType }
-
-func (p *PluginStubProvider) Init(_ context.Context, cfg map[string]any) error {
-	// Merge configs
-	for k, v := range cfg {
-		p.config[k] = v
-	}
-	p.initialized = true
-	return nil
-}
-
-func (p *PluginStubProvider) Close() error {
-	return nil
-}
-
-// PluginName returns the name of the plugin this provider came from.
-func (p *PluginStubProvider) PluginName() string { return p.pluginName }
-
-// EntryPoint returns the entry point for this provider.
-func (p *PluginStubProvider) EntryPoint() string { return p.entryPoint }
-
-// Config returns the provider configuration.
-func (p *PluginStubProvider) Config() map[string]any { return p.config }
