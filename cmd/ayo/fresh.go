@@ -125,6 +125,18 @@ func runFresh(dir, name, description, model, template string) error {
 		}
 	}
 
+	// Create .gitkeep in tools/ to ensure embed works when empty
+	toolsGitkeep := filepath.Join(absDir, "tools", ".gitkeep")
+	if err := os.WriteFile(toolsGitkeep, []byte("# Keep this directory for embed\n"), 0644); err != nil {
+		return fmt.Errorf("write tools/.gitkeep: %w", err)
+	}
+
+	// Create .gitkeep in skills/ to ensure embed works when empty
+	skillsGitkeep := filepath.Join(absDir, "skills", ".gitkeep")
+	if err := os.WriteFile(skillsGitkeep, []byte("# Keep this directory for embed\n"), 0644); err != nil {
+		return fmt.Errorf("write skills/.gitkeep: %w", err)
+	}
+
 	// Print success message
 	fmt.Printf("Created new agent project: %s\n", absDir)
 	fmt.Printf("\nNext steps:\n")

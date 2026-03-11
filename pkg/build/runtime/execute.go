@@ -339,8 +339,8 @@ func loadSkills(skillsFS embed.FS) (map[string]string, error) {
 			return err
 		}
 
-		// Skip directories
-		if d.IsDir() {
+		// Skip directories and placeholder files
+		if d.IsDir() || strings.HasSuffix(filePath, "placeholder") || strings.HasSuffix(filePath, ".gitkeep") {
 			return nil
 		}
 
@@ -420,8 +420,8 @@ func loadTools(toolsFS embed.FS, allowedTools []string) ([]fantasy.AgentTool, er
 			return err
 		}
 
-		// Skip directories and the placeholder file
-		if d.IsDir() || strings.HasSuffix(filePath, "placeholder") {
+		// Skip directories and placeholder files
+		if d.IsDir() || strings.HasSuffix(filePath, "placeholder") || strings.HasSuffix(filePath, ".gitkeep") {
 			return nil
 		}
 
