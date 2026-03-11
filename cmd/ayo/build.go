@@ -607,7 +607,13 @@ func findModuleRoot() (string, error) {
 
 	// Try executable location
 	if execPath, err := os.Executable(); err == nil {
-		if absPath, err := filepath.Abs(execPath); err == nil {
+		// Resolve symlinks to get the real path
+		realPath, err := filepath.EvalSymlinks(execPath)
+		if err != nil {
+			// If symlink resolution fails, use the original path
+			realPath = execPath
+		}
+		if absPath, err := filepath.Abs(realPath); err == nil {
 			startPaths = append(startPaths, filepath.Dir(absPath))
 		}
 	}
