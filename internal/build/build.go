@@ -12,35 +12,35 @@ import (
 // GenerateMainStub creates the main.go file for the built executable
 // This is a public wrapper around the private generateMainStub function
 func GenerateMainStub(path string, config *types.Config, configPath string) error {
-	// This is a simplified stub - in reality, this would be more sophisticated
-	// and would need to properly initialize the Fantasy framework, load tools, etc.
-
+	// Generate complete main.go with embedded resources
 	stub := fmt.Sprintf(`package main
 
 import (
 	_ "embed"
-	"fmt"
+	"os"
+
+	"github.com/alexcabrera/ayo/internal/build/runtime"
 )
 
 //go:embed config.toml
 var configToml []byte
 
+//go:embed prompts/system.md
+var systemPrompt []byte
+
+//go:embed skills/**/*.md
+var skills embed.FS
+
+//go:embed tools/*
+var tools embed.FS
+
 func main() {
-	// Placeholder: this would initialize the agent from embedded config
-	// and execute with the CLI arguments
-
-	fmt.Printf("Agent: %%s\n", "%s")
-	fmt.Printf("Description: %%s\n", "%s")
-	fmt.Printf("Config size: %%d bytes\n", len(configToml))
-
-	// TODO: Implement actual agent execution
-	// - Parse embedded config
-	// - Set up Fantasy agent
-	// - Parse CLI flags according to config
-	// - Execute agent with parsed input
-	// - Validate output against schema
+	if err := runtime.Execute(configToml, systemPrompt, skills, tools); err != nil {
+		os.Stderr.WriteString(err.Error() + "\n")
+		os.Exit(1)
+	}
 }
-`, config.Agent.Name, config.Agent.Description)
+`)
 
 	return os.WriteFile(path, []byte(stub), 0644)
 }
