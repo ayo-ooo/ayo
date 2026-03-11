@@ -22,12 +22,15 @@ Usage:
   ayo build <directory>  Build agent executable
   ayo checkit <directory> Validate configuration
   ayo add-agent <team> <name> Add agent to team
+  ayo clean [directory]  Clean build artifacts and cache
 
 Examples:
   ayo fresh my-agent
   ayo build my-agent
   ayo checkit my-agent
   ayo add-agent my-team reviewer
+  ayo clean my-agent
+  ayo clean --cache
 
 For more information, visit: https://github.com/alexcabrera/ayo`,
 		SilenceUsage:  true,
@@ -47,6 +50,7 @@ For more information, visit: https://github.com/alexcabrera/ayo`,
 	cmd.AddCommand(newBuildCmd())
 	cmd.AddCommand(newCheckitCmd())
 	cmd.AddCommand(newAddAgentCmd())
+	cmd.AddCommand(newCleanCmd())
 
 	// Version flag
 	cmd.Version = version.Version

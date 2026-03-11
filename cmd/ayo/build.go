@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,6 +66,71 @@ Examples:
 	return cmd
 }
 
+func newCleanCmd() *cobra.Command {
+	var cleanCache bool
+
+	cmd := &cobra.Command{
+		Use:   "clean [directory]",
+		Short: "Clean build artifacts and cache",
+		Long: `Clean build artifacts and optionally the ayo cache.
+
+This command removes build artifacts from agent directories. With the --cache flag,
+it also removes the entire ayo build cache.
+
+Examples:
+  ayo clean my-agent      # Remove .build directory from my-agent
+  ayo clean --cache       # Clear the entire build cache`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cleanCache {
+				return runCleanCache()
+			}
+			if len(args) == 0 {
+				return fmt.Errorf("please specify a directory to clean or use --cache to clear the cache")
+			}
+			return runCleanDir(args[0])
+		},
+	}
+
+	cmd.Flags().BoolVar(&cleanCache, "cache", false, "Clear the entire ayo build cache")
+
+	return cmd
+}
+
+func runCleanCache() error {
+	cacheDir, err := getCacheDir()
+	if err != nil {
+		return fmt.Errorf("get cache dir: %w", err)
+	}
+
+	if err := os.RemoveAll(cacheDir); err != nil {
+		return fmt.Errorf("remove cache dir: %w", err)
+	}
+
+	fmt.Printf("Cleaned cache: %s\n", cacheDir)
+	return nil
+}
+
+func runCleanDir(dir string) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("resolve directory: %w", err)
+	}
+
+	buildDir := filepath.Join(absDir, ".build")
+	if _, err := os.Stat(buildDir); os.IsNotExist(err) {
+		fmt.Println("No build artifacts found")
+		return nil
+	}
+
+	if err := os.RemoveAll(buildDir); err != nil {
+		return fmt.Errorf("remove build dir: %w", err)
+	}
+
+	fmt.Printf("Cleaned build artifacts from: %s\n", absDir)
+	return nil
+}
+
 func runBuild(dir, output, targetOS, targetArch string) error {
 	// Ensure we have the module root
 	if ModuleRoot == "" {
@@ -94,6 +163,38 @@ func runBuild(dir, output, targetOS, targetArch string) error {
 		return fmt.Errorf("resolve output path: %w", err)
 	}
 
+	// Check cache before building
+	fmt.Println("Checking build cache...")
+	buildHash, err := computeBuildHash(absDir, configPath, targetOS, targetArch)
+	if err != nil {
+		return fmt.Errorf("compute build hash: %w", err)
+	}
+
+	cacheDir, err := getCacheDir()
+	if err != nil {
+		return fmt.Errorf("get cache dir: %w", err)
+	}
+
+	// Check if cached binary exists with matching hash
+	cachedBinaryPath := filepath.Join(cacheDir, fmt.Sprintf("%s-%s-%s-%s", config.Agent.Name, targetOS, targetArch, buildHash))
+	if _, err := os.Stat(cachedBinaryPath); err == nil {
+		// Cache hit - copy cached binary to output
+		if err := copyFile(cachedBinaryPath, outputPath); err != nil {
+			return fmt.Errorf("copy from cache: %w", err)
+		}
+		if targetOS != "windows" {
+			if err := os.Chmod(outputPath, 0755); err != nil {
+				return fmt.Errorf("make executable: %w", err)
+			}
+		}
+		fmt.Printf("Using cached build: %s\n", outputPath)
+		return nil
+	}
+
+	// Cache miss - need to build
+	fmt.Println("Cache miss - building from source...")
+	fmt.Println("Preparing build directory...")
+
 	// Prepare resources in agent directory for embedding
 	// We'll build in-place in the agent directory to avoid module resolution issues
 	agentBuildDir := filepath.Join(absDir, ".build")
@@ -120,6 +221,7 @@ replace github.com/alexcabrera/ayo => %s
 	_ = os.WriteFile(filepath.Join(agentBuildDir, "go.sum"), []byte(""), 0644)
 
 	// Generate main.go stub in agent's .build directory
+	fmt.Println("Generating agent code...")
 	mainGoPath := filepath.Join(agentBuildDir, "main.go")
 	if err := generateMainStub(mainGoPath, config, configPath); err != nil {
 		return fmt.Errorf("generate main stub: %w", err)
@@ -192,8 +294,10 @@ replace github.com/alexcabrera/ayo => %s
 	}
 
 	// Run go build from agent's .build directory
+	fmt.Printf("Compiling binary for %s/%s...\n", targetOS, targetArch)
 	// Use -modfile to specify the go.mod we created
-	buildCmd := exec.Command("go", "build", "-modfile", filepath.Join(agentBuildDir, "go.mod"), "-o", outputPath, mainGoPath)
+	// Use -ldflags="-s -w" to reduce binary size by removing debug info
+	buildCmd := exec.Command("go", "build", "-modfile", filepath.Join(agentBuildDir, "go.mod"), "-ldflags=-s -w", "-o", outputPath, mainGoPath)
 	buildCmd.Dir = agentBuildDir
 	buildCmd.Env = append(os.Environ(),
 		fmt.Sprintf("GOOS=%s", targetOS),
@@ -214,7 +318,102 @@ replace github.com/alexcabrera/ayo => %s
 		}
 	}
 
+	// Save to cache
+	if err := copyFile(outputPath, cachedBinaryPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save to cache: %v\n", err)
+	}
+
 	fmt.Printf("Successfully built: %s\n", outputPath)
+	return nil
+}
+
+// getCacheDir returns the ayo cache directory path
+func getCacheDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	cacheDir := filepath.Join(homeDir, ".cache", "ayo")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", err
+	}
+	return cacheDir, nil
+}
+
+// computeBuildHash computes a hash of the agent's source files
+func computeBuildHash(dir, configPath, targetOS, targetArch string) (string, error) {
+	h := sha256.New()
+
+	// Hash config file
+	if err := hashFile(h, configPath); err != nil {
+		return "", err
+	}
+
+	// Hash prompts directory
+	promptsDir := filepath.Join(dir, "prompts")
+	if err := hashDirectory(h, promptsDir); err != nil {
+		return "", err
+	}
+
+	// Hash skills directory
+	skillsDir := filepath.Join(dir, "skills")
+	if err := hashDirectory(h, skillsDir); err != nil {
+		return "", err
+	}
+
+	// Hash tools directory
+	toolsDir := filepath.Join(dir, "tools")
+	if err := hashDirectory(h, toolsDir); err != nil {
+		return "", err
+	}
+
+	// Hash build target
+	h.Write([]byte(targetOS + ":" + targetArch))
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// hashFile hashes a single file
+func hashFile(h hash.Hash, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, that's OK
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+// hashDirectory hashes all files in a directory
+func hashDirectory(h hash.Hash, dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Directory doesn't exist, that's OK
+			return nil
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(dir, entry.Name())
+		if entry.IsDir() {
+			if err := hashDirectory(h, fullPath); err != nil {
+				return err
+			}
+		} else {
+			if err := hashFile(h, fullPath); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
