@@ -20,6 +20,8 @@ No runtime framework required - just pure agent executables.
 Usage:
   ayo fresh <name>        Create a new agent project
   ayo build <directory>  Build agent executable
+  ayo package <directory> Package agent for distribution
+  ayo release <directory> Bump version and prepare release
   ayo checkit <directory> Validate configuration
   ayo add-agent <team> <name> Add agent to team
   ayo clean [directory]  Clean build artifacts and cache
@@ -27,6 +29,8 @@ Usage:
 Examples:
   ayo fresh my-agent
   ayo build my-agent
+  ayo package my-agent
+  ayo release my-agent --bump patch
   ayo checkit my-agent
   ayo add-agent my-team reviewer
   ayo clean my-agent
@@ -48,6 +52,8 @@ For more information, visit: https://github.com/alexcabrera/ayo`,
 	// Add subcommands
 	cmd.AddCommand(newFreshCmd())
 	cmd.AddCommand(newBuildCmd())
+	cmd.AddCommand(newPackageCmd())
+	cmd.AddCommand(newReleaseCmd())
 	cmd.AddCommand(newCheckitCmd())
 	cmd.AddCommand(newAddAgentCmd())
 	cmd.AddCommand(newCleanCmd())

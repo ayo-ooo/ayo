@@ -30,6 +30,7 @@ func (c *Config) Validate() error {
 type AgentConfig struct {
 	Name        string      `toml:"name"`
 	Description string      `toml:"description"`
+	Version     string      `toml:"version,omitempty"` // Semantic version (e.g., "1.0.0")
 	Model       string      `toml:"model"`
 	Tools       AgentTools  `toml:"tools,omitempty"`
 	Memory      AgentMemory `toml:"memory,omitempty"`
