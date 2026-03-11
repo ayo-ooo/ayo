@@ -1,6 +1,6 @@
 ---
 id: ayo-bs1
-status: open
+status: done
 deps: []
 links: []
 created: 2026-03-11T18:00:00Z
