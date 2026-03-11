@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -139,19 +141,174 @@ func getUserInput(config *types.Config) (string, error) {
 	// Get input from command-line arguments
 	args := os.Args[1:] // Skip program name
 
-	// For now, just join arguments with spaces
-	// TODO: Implement structured input parsing based on config.CLI.Mode and flags
 	switch config.CLI.Mode {
 	case "structured":
-		// TODO: Implement structured flag parsing
-		return strings.Join(args, " "), nil
+		return parseStructuredInput(args, config)
 	case "freeform":
 		return strings.Join(args, " "), nil
 	case "hybrid":
-		// TODO: Implement hybrid mode (structured + freeform)
-		return strings.Join(args, " "), nil
+		// Hybrid mode: try structured first, fall back to freeform
+		input, err := parseStructuredInput(args, config)
+		if err != nil {
+			// If structured parsing fails, treat as freeform
+			return strings.Join(args, " "), nil
+		}
+		return input, nil
 	default:
 		return strings.Join(args, " "), nil
+	}
+}
+
+// parseStructuredInput parses command-line arguments according to the config's flags.
+func parseStructuredInput(args []string, config *types.Config) (string, error) {
+	// Create a map to collect flag values
+	values := make(map[string]any)
+	positionals := make([]string, 0)
+
+	// Find maximum position for positional arguments
+	maxPosition := -1
+	for _, flag := range config.CLI.Flags {
+		if flag.Position > maxPosition {
+			maxPosition = flag.Position
+		}
+	}
+	// Initialize positional array with empty strings
+	for i := 0; i <= maxPosition; i++ {
+		positionals = append(positionals, "")
+	}
+
+	// Parse arguments
+	i := 0
+	for i < len(args) {
+		arg := args[i]
+
+		// Check if it's a flag (--flag or -s)
+		if strings.HasPrefix(arg, "--") {
+			flagName := strings.TrimPrefix(arg, "--")
+			// Find the flag definition
+			flagDef, exists := config.CLI.Flags[flagName]
+			if !exists {
+				// Unknown flag, might be freeform input
+				return "", fmt.Errorf("unknown flag: %s", flagName)
+			}
+
+			// Parse the flag value
+			if flagDef.Type == "bool" {
+				// Boolean flags don't need a value
+				values[flagName] = true
+				i++
+			} else if flagDef.Multiple {
+				// Collect multiple values
+				var vals []string
+				i++
+				for i < len(args) && !strings.HasPrefix(args[i], "-") {
+					vals = append(vals, args[i])
+					i++
+				}
+				values[flagName] = vals
+			} else {
+				// Single value
+				if i+1 >= len(args) {
+					return "", fmt.Errorf("flag %s requires a value", flagName)
+				}
+				value, err := parseFlagValue(args[i+1], flagDef.Type)
+				if err != nil {
+					return "", fmt.Errorf("invalid value for flag %s: %w", flagName, err)
+				}
+				values[flagName] = value
+				i += 2
+			}
+		} else if strings.HasPrefix(arg, "-") && len(arg) == 2 {
+			// Short flag
+			shortFlag := strings.TrimPrefix(arg, "-")
+			// Find the flag with this short name
+			var flagName string
+			var flagDef types.CLIFlag
+			for name, flag := range config.CLI.Flags {
+				if flag.Short == shortFlag {
+					flagName = name
+					flagDef = flag
+					break
+				}
+			}
+			if flagName == "" {
+				return "", fmt.Errorf("unknown short flag: -%s", shortFlag)
+			}
+
+			// Parse the flag value (same logic as long flags)
+			if flagDef.Type == "bool" {
+				values[flagName] = true
+				i++
+			} else {
+				if i+1 >= len(args) {
+					return "", fmt.Errorf("flag -%s requires a value", shortFlag)
+				}
+				value, err := parseFlagValue(args[i+1], flagDef.Type)
+				if err != nil {
+					return "", fmt.Errorf("invalid value for flag -%s: %w", shortFlag, err)
+				}
+				values[flagName] = value
+				i += 2
+			}
+		} else {
+			// Positional argument
+			// Find which flag this belongs to
+			var flagName string
+			for name, flag := range config.CLI.Flags {
+				if flag.Position == len(positionals)-1 {
+					flagName = name
+					break
+				}
+			}
+			if flagName != "" {
+				// This is a positional argument for a flag
+				flagDef := config.CLI.Flags[flagName]
+				value, err := parseFlagValue(arg, flagDef.Type)
+				if err != nil {
+					return "", fmt.Errorf("invalid value for positional argument %s: %w", flagName, err)
+				}
+				values[flagName] = value
+			}
+			positionals[len(positionals)-1] = arg
+			i++
+		}
+	}
+
+	// Set defaults for missing flags
+	for name, flag := range config.CLI.Flags {
+		if _, exists := values[name]; !exists && flag.Default != nil {
+			values[name] = flag.Default
+		}
+		// Check required flags
+		if flag.Required && values[name] == nil {
+			return "", fmt.Errorf("required flag %s is missing", name)
+		}
+	}
+
+	// Convert to JSON for structured input
+	jsonData, err := json.Marshal(values)
+	if err != nil {
+		return "", fmt.Errorf("marshal input: %w", err)
+	}
+
+	return string(jsonData), nil
+}
+
+// parseFlagValue parses a string value according to the flag type.
+func parseFlagValue(value, flagType string) (any, error) {
+	switch flagType {
+	case "string":
+		return value, nil
+	case "int":
+		return strconv.Atoi(value)
+	case "float":
+		return strconv.ParseFloat(value, 64)
+	case "bool":
+		return strconv.ParseBool(value)
+	case "array":
+		return []string{value}, nil
+	default:
+		return nil, fmt.Errorf("unknown flag type: %s", flagType)
 	}
 }
 

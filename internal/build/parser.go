@@ -41,9 +41,14 @@ func ParseConfig(path string) (*types.Config, error) {
 		return nil, fmt.Errorf("parse TOML: %w", err)
 	}
 
-	// Validate required fields
-	if err := validateConfig(&config); err != nil {
-		return nil, err
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("validate config: %w", err)
+	}
+
+	// Validate model name
+	if !types.IsValidModel(config.Agent.Model) {
+		return nil, fmt.Errorf("unsupported model '%s': must be gpt-*, claude-*, o1-*, or gemini-*", config.Agent.Model)
 	}
 
 	// Validate JSON schemas if present
@@ -59,36 +64,7 @@ func ParseConfig(path string) (*types.Config, error) {
 		}
 	}
 
-	// Validate CLI configuration
-	if err := validateCLIConfig(&config.CLI); err != nil {
-		return nil, fmt.Errorf("CLI config validation: %w", err)
-	}
-
 	return &config, nil
-}
-
-// validateConfig checks that required configuration fields are present
-func validateConfig(config *types.Config) error {
-	// Check agent section
-	if config.Agent.Name == "" {
-		return fmt.Errorf("agent.name is required")
-	}
-	if config.Agent.Description == "" {
-		return fmt.Errorf("agent.description is required")
-	}
-	if config.Agent.Model == "" {
-		return fmt.Errorf("agent.model is required")
-	}
-
-	// Check CLI section
-	if config.CLI.Mode == "" {
-		return fmt.Errorf("cli.mode is required")
-	}
-	if config.CLI.Mode != "structured" && config.CLI.Mode != "freeform" && config.CLI.Mode != "hybrid" {
-		return fmt.Errorf("cli.mode must be 'structured', 'freeform', or 'hybrid', got '%s'", config.CLI.Mode)
-	}
-
-	return nil
 }
 
 // validateJSONSchema validates a JSON schema (provided as a map[string]any)
@@ -104,45 +80,6 @@ func validateJSONSchema(schema map[string]any, context string) error {
 	_, err = compiler.Compile(schemaJSON)
 	if err != nil {
 		return fmt.Errorf("compile schema: %w", err)
-	}
-
-	return nil
-}
-
-// validateCLIConfig validates the CLI configuration
-func validateCLIConfig(cli *types.CLIConfig) error {
-	// Check for duplicate flag names
-	flagNames := make(map[string]string)
-	for name, flag := range cli.Flags {
-		// Check that flag name matches the map key
-		if flag.Name != name {
-			return fmt.Errorf("flag name mismatch: map key '%s' does not match flag.name '%s'", name, flag.Name)
-		}
-
-		// Check flag type
-		validTypes := map[string]bool{
-			"string": true,
-			"int":    true,
-			"float":  true,
-			"bool":   true,
-			"array":  true,
-		}
-		if !validTypes[flag.Type] {
-			return fmt.Errorf("invalid flag type '%s' for flag '%s' (must be string, int, float, bool, or array)", flag.Type, flag.Name)
-		}
-
-		// Check for duplicate short flags
-		if flag.Short != "" {
-			if existing, exists := flagNames[flag.Short]; exists {
-				return fmt.Errorf("duplicate short flag '-%s' used by both '%s' and '%s'", flag.Short, existing, flag.Name)
-			}
-			flagNames[flag.Short] = flag.Name
-		}
-
-		// Check position is non-negative
-		if flag.Position < 0 {
-			return fmt.Errorf("invalid position %d for flag '%s' (must be >= 0)", flag.Position, flag.Name)
-		}
 	}
 
 	return nil
