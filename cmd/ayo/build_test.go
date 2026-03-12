@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alexcabrera/ayo/internal/build"
@@ -404,5 +405,439 @@ description = "Test agent"
 
 	if len(config.Build.Targets) != 0 {
 		t.Errorf("expected 0 build targets in config, got %d", len(config.Build.Targets))
+	}
+}
+
+func TestGenerateMainStub(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test config
+	configContent := `[agent]
+name = "test-agent"
+description = "Test agent for builds"
+model = "gpt-4o"
+
+[agent.provider]
+type = "openai"
+api_key = "test-key"
+
+[memory]
+type = "ephemeral"
+
+[cli]
+enabled = true
+mode = "freeform"
+description = "Test agent"
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	config, _, err := build.LoadConfigFromDir(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	// Generate main stub
+	mainGoPath := filepath.Join(tmpDir, "main.go")
+	if err := generateMainStub(mainGoPath, config, configPath); err != nil {
+		t.Fatalf("generateMainStub failed: %v", err)
+	}
+
+	// Verify main.go was created
+	if _, err := os.Stat(mainGoPath); os.IsNotExist(err) {
+		t.Fatal("main.go was not created")
+	}
+
+	// Read and verify content
+	content, err := os.ReadFile(mainGoPath)
+	if err != nil {
+		t.Fatalf("failed to read main.go: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Check for required imports
+	if !strings.Contains(contentStr, `import (
+	"embed"`) {
+		t.Error("main.go missing embed import")
+	}
+
+	// Check for embed directives
+	if !strings.Contains(contentStr, "//go:embed config.toml") {
+		t.Error("main.go missing config.toml embed directive")
+	}
+	if !strings.Contains(contentStr, "//go:embed prompts/system.md") {
+		t.Error("main.go missing system.md embed directive")
+	}
+	if !strings.Contains(contentStr, "//go:embed skills/*") {
+		t.Error("main.go missing skills embed directive")
+	}
+	if !strings.Contains(contentStr, "//go:embed tools/*") {
+		t.Error("main.go missing tools embed directive")
+	}
+
+	// Check for main function
+	if !strings.Contains(contentStr, "func main()") {
+		t.Error("main.go missing main function")
+	}
+
+	// Check for runtime.Execute call
+	if !strings.Contains(contentStr, "runtime.Execute") {
+		t.Error("main.go missing runtime.Execute call")
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create source file
+	srcFile := filepath.Join(tmpDir, "source.txt")
+	content := []byte("test content for copy")
+	if err := os.WriteFile(srcFile, content, 0644); err != nil {
+		t.Fatalf("failed to write source file: %v", err)
+	}
+
+	// Copy file
+	dstFile := filepath.Join(tmpDir, "dest.txt")
+	if err := copyFile(srcFile, dstFile); err != nil {
+		t.Fatalf("copyFile failed: %v", err)
+	}
+
+	// Verify destination exists
+	if _, err := os.Stat(dstFile); os.IsNotExist(err) {
+		t.Fatal("destination file was not created")
+	}
+
+	// Verify content matches
+	dstContent, err := os.ReadFile(dstFile)
+	if err != nil {
+		t.Fatalf("failed to read destination file: %v", err)
+	}
+
+	if string(dstContent) != string(content) {
+		t.Errorf("content mismatch: got %q, want %q", string(dstContent), string(content))
+	}
+
+	// Test copying non-existent file (should error)
+	nonExistentSrc := filepath.Join(tmpDir, "nonexistent.txt")
+	dstFile2 := filepath.Join(tmpDir, "dest2.txt")
+	if err := copyFile(nonExistentSrc, dstFile2); err == nil {
+		t.Error("copyFile should error for non-existent source file")
+	}
+}
+
+func TestCopyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create source directory structure
+	srcDir := filepath.Join(tmpDir, "source")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("failed to create source dir: %v", err)
+	}
+
+	// Create files in source
+	file1 := filepath.Join(srcDir, "file1.txt")
+	if err := os.WriteFile(file1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("failed to write file1: %v", err)
+	}
+
+	file2 := filepath.Join(srcDir, "file2.txt")
+	if err := os.WriteFile(file2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("failed to write file2: %v", err)
+	}
+
+	// Create subdirectory
+	subDir := filepath.Join(srcDir, "subdir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	file3 := filepath.Join(subDir, "file3.txt")
+	if err := os.WriteFile(file3, []byte("content3"), 0644); err != nil {
+		t.Fatalf("failed to write file3: %v", err)
+	}
+
+	// Copy directory
+	dstDir := filepath.Join(tmpDir, "destination")
+	if err := copyDir(srcDir, dstDir); err != nil {
+		t.Fatalf("copyDir failed: %v", err)
+	}
+
+	// Verify destination directory exists
+	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
+		t.Fatal("destination directory was not created")
+	}
+
+	// Verify all files were copied
+	dstFile1 := filepath.Join(dstDir, "file1.txt")
+	content1, err := os.ReadFile(dstFile1)
+	if err != nil {
+		t.Fatalf("failed to read dest file1: %v", err)
+	}
+	if string(content1) != "content1" {
+		t.Errorf("file1 content mismatch: got %q, want %q", string(content1), "content1")
+	}
+
+	dstFile2 := filepath.Join(dstDir, "file2.txt")
+	content2, err := os.ReadFile(dstFile2)
+	if err != nil {
+		t.Fatalf("failed to read dest file2: %v", err)
+	}
+	if string(content2) != "content2" {
+		t.Errorf("file2 content mismatch: got %q, want %q", string(content2), "content2")
+	}
+
+	// Verify subdirectory was copied
+	dstSubDir := filepath.Join(dstDir, "subdir")
+	if _, err := os.Stat(dstSubDir); os.IsNotExist(err) {
+		t.Fatal("subdirectory was not copied")
+	}
+
+	dstFile3 := filepath.Join(dstSubDir, "file3.txt")
+	content3, err := os.ReadFile(dstFile3)
+	if err != nil {
+		t.Fatalf("failed to read dest file3: %v", err)
+	}
+	if string(content3) != "content3" {
+		t.Errorf("file3 content mismatch: got %q, want %q", string(content3), "content3")
+	}
+
+	// Test copying non-existent directory (should error)
+	nonExistentSrc := filepath.Join(tmpDir, "nonexistent")
+	dstDir2 := filepath.Join(tmpDir, "dest2")
+	if err := copyDir(nonExistentSrc, dstDir2); err == nil {
+		t.Error("copyDir should error for non-existent source directory")
+	}
+}
+
+func TestCopyDirEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create empty source directory
+	srcDir := filepath.Join(tmpDir, "empty_source")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("failed to create empty source dir: %v", err)
+	}
+
+	// Copy empty directory
+	dstDir := filepath.Join(tmpDir, "empty_dest")
+	if err := copyDir(srcDir, dstDir); err != nil {
+		t.Fatalf("copyDir failed for empty directory: %v", err)
+	}
+
+	// Verify destination exists
+	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
+		t.Fatal("destination directory was not created for empty source")
+	}
+
+	// Verify destination is empty
+	entries, err := os.ReadDir(dstDir)
+	if err != nil {
+		t.Fatalf("failed to read destination dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected empty destination, got %d entries", len(entries))
+	}
+}
+
+func TestFindModuleRoot(t *testing.T) {
+	// Save original ModuleRoot
+	origModuleRoot := ModuleRoot
+	defer func() { ModuleRoot = origModuleRoot }()
+
+	// Test from current working directory (should find the ayo module)
+	if dir, err := findModuleRoot(); err != nil {
+		t.Logf("findModuleRoot returned error (may be expected if not in ayo module): %v", err)
+	} else if dir == "" {
+		t.Error("findModuleRoot returned empty directory")
+	} else {
+		// Verify go.mod exists in the returned directory
+		goModPath := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(goModPath); os.IsNotExist(err) {
+			t.Errorf("go.mod not found in returned module root: %s", dir)
+		}
+	}
+}
+
+func TestSearchForModuleFrom(t *testing.T) {
+	// Create a temporary directory structure
+tmpDir := t.TempDir()
+
+	// Create a go.mod file at the root
+	goModContent := `module github.com/alexcabrera/ayo
+
+go 1.25.5
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	// Create a subdirectory
+	subDir := filepath.Join(tmpDir, "subdir", "nested")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdirectories: %v", err)
+	}
+
+	// Search from subdirectory - should find the module root
+	foundDir, err := searchForModuleFrom(subDir)
+	if err != nil {
+		t.Errorf("searchForModuleFrom failed: %v", err)
+	}
+	if foundDir != tmpDir {
+		t.Errorf("expected %s, got %s", tmpDir, foundDir)
+	}
+
+	// Test searching from the module root itself
+	foundDir2, err := searchForModuleFrom(tmpDir)
+	if err != nil {
+		t.Errorf("searchForModuleFrom from root failed: %v", err)
+	}
+	if foundDir2 != tmpDir {
+		t.Errorf("expected %s, got %s", tmpDir, foundDir2)
+	}
+
+	// Test searching from a directory without ayo module
+	nonModuleDir := filepath.Join(tmpDir, "other_module")
+	if err := os.MkdirAll(nonModuleDir, 0755); err != nil {
+		t.Fatalf("failed to create other module dir: %v", err)
+	}
+
+	// Create a different go.mod in a separate location
+	separateTempDir := t.TempDir()
+	otherGoMod := `module other/module
+
+go 1.25.5
+`
+	if err := os.WriteFile(filepath.Join(separateTempDir, "go.mod"), []byte(otherGoMod), 0644); err != nil {
+		t.Fatalf("failed to write other go.mod: %v", err)
+	}
+
+	// Search from the separate temp directory which has a different go.mod
+	_, err = searchForModuleFrom(separateTempDir)
+	if err == nil {
+		t.Error("searchForModuleFrom should error when ayo module is not found")
+	}
+
+	// Test from a completely separate temp directory without any go.mod
+	separateDir := t.TempDir()
+	_, err = searchForModuleFrom(separateDir)
+	if err == nil {
+		t.Error("searchForModuleFrom should error when no go.mod is found")
+	}
+}
+
+func TestRunBuildErrors(t *testing.T) {
+	// Save and restore ModuleRoot
+	origModuleRoot := ModuleRoot
+	defer func() { ModuleRoot = origModuleRoot }()
+
+	// Test with empty ModuleRoot (should error)
+	ModuleRoot = ""
+
+	tmpDir := t.TempDir()
+
+	configContent := `[agent]
+name = "test-agent"
+model = "gpt-4o"
+
+[agent.provider]
+type = "openai"
+api_key = "test-key"
+
+[memory]
+type = "ephemeral"
+
+[cli]
+enabled = true
+mode = "freeform"
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+		t.Fatalf("failed to create prompts dir: %v", err)
+	}
+
+	// Test with non-existent directory
+	err := runBuild("/nonexistent/directory", "", "linux", "amd64")
+	if err == nil {
+		t.Error("runBuild should error for non-existent directory")
+	}
+
+	// Test with invalid config
+	invalidConfigDir := t.TempDir()
+	invalidConfigPath := filepath.Join(invalidConfigDir, "config.toml")
+	if err := os.WriteFile(invalidConfigPath, []byte("invalid config"), 0644); err != nil {
+		t.Fatalf("failed to write invalid config: %v", err)
+	}
+
+	err = runBuild(invalidConfigDir, "", "linux", "amd64")
+	if err == nil {
+		t.Error("runBuild should error for invalid config")
+	}
+}
+
+func TestRunBuildAll(t *testing.T) {
+	// Save and restore ModuleRoot
+	origModuleRoot := ModuleRoot
+	defer func() { ModuleRoot = origModuleRoot }()
+
+	tmpDir := t.TempDir()
+
+	// Create a minimal valid config
+	configContent := `[agent]
+name = "test-agent"
+model = "gpt-4o"
+
+[agent.provider]
+type = "openai"
+api_key = "test-key"
+
+[memory]
+type = "ephemeral"
+
+[cli]
+enabled = true
+mode = "freeform"
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+		t.Fatalf("failed to create prompts dir: %v", err)
+	}
+
+	// Test runBuildAll with valid directory but without ModuleRoot
+	// (should fail when trying to call runBuild)
+	ModuleRoot = ""
+	err := runBuildAll(tmpDir, filepath.Join(tmpDir, "dist"))
+	if err == nil {
+		t.Error("runBuildAll should error when ModuleRoot is not set")
+	}
+
+	// Test with non-existent directory
+	err = runBuildAll("/nonexistent/directory", "")
+	if err == nil {
+		t.Error("runBuildAll should error for non-existent directory")
+	}
+
+	// Test with invalid config
+	invalidConfigDir := t.TempDir()
+	invalidConfigPath := filepath.Join(invalidConfigDir, "config.toml")
+	if err := os.WriteFile(invalidConfigPath, []byte("invalid config"), 0644); err != nil {
+		t.Fatalf("failed to write invalid config: %v", err)
+	}
+
+	err = runBuildAll(invalidConfigDir, "")
+	if err == nil {
+		t.Error("runBuildAll should error for invalid config")
 	}
 }

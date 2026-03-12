@@ -46,8 +46,8 @@ func ParseConfig(path string) (*types.Config, error) {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}
 
-	// Validate model name
-	if !types.IsValidModel(config.Agent.Model) {
+	// Validate model name (only if specified)
+	if config.Agent.Model != "" && !types.IsValidModel(config.Agent.Model) {
 		return nil, fmt.Errorf("unsupported model '%s': must be gpt-*, claude-*, o1-*, or gemini-*", config.Agent.Model)
 	}
 

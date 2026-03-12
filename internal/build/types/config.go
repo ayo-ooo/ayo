@@ -31,7 +31,7 @@ type AgentConfig struct {
 	Name        string      `toml:"name"`
 	Description string      `toml:"description"`
 	Version     string      `toml:"version,omitempty"` // Semantic version (e.g., "1.0.0")
-	Model       string      `toml:"model"`
+	Model       string      `toml:"model,omitempty"`  // Model ID - if empty, auto-detect from environment
 	Tools       AgentTools  `toml:"tools,omitempty"`
 	Memory      AgentMemory `toml:"memory,omitempty"`
 	Temperature *float64    `toml:"temperature,omitempty"` // Model temperature (0.0 - 2.0)
@@ -46,9 +46,7 @@ func (a *AgentConfig) Validate() error {
 	if a.Description == "" {
 		return fmt.Errorf("description is required")
 	}
-	if a.Model == "" {
-		return fmt.Errorf("model is required")
-	}
+	// Model is now optional - will be auto-detected at runtime
 	if a.Temperature != nil && (*a.Temperature < 0.0 || *a.Temperature > 2.0) {
 		return fmt.Errorf("temperature must be between 0.0 and 2.0")
 	}

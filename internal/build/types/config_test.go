@@ -57,7 +57,7 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing model",
+			name: "missing model (allowed for auto-detection)",
 			config: Config{
 				Agent: AgentConfig{
 					Name:        "test-agent",
@@ -69,7 +69,7 @@ func TestConfig_Validate(t *testing.T) {
 					Description: "Test CLI",
 				},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "invalid CLI mode",
@@ -296,6 +296,103 @@ func TestCLIConfig_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "missing flag name",
+			config: CLIConfig{
+				Mode:        "structured",
+				Description: "desc",
+				Flags: map[string]CLIFlag{
+					"": {
+						Name:        "",
+						Type:        "string",
+						Description: "test flag",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing flag description",
+			config: CLIConfig{
+				Mode:        "structured",
+				Description: "desc",
+				Flags: map[string]CLIFlag{
+					"test": {
+						Name:        "test",
+						Type:        "string",
+						Description: "",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "flag with single character short",
+			config: CLIConfig{
+				Mode:        "structured",
+				Description: "desc",
+				Flags: map[string]CLIFlag{
+					"test": {
+						Name:        "test",
+						Type:        "string",
+						Short:       "t",
+						Description: "test flag",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "flag with empty short",
+			config: CLIConfig{
+				Mode:        "structured",
+				Description: "desc",
+				Flags: map[string]CLIFlag{
+					"test": {
+						Name:        "test",
+						Type:        "string",
+						Short:       "",
+						Description: "test flag",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "flag with all valid types",
+			config: CLIConfig{
+				Mode:        "structured",
+				Description: "desc",
+				Flags: map[string]CLIFlag{
+					"str": {
+						Name:        "str",
+						Type:        "string",
+						Description: "string flag",
+					},
+					"int": {
+						Name:        "int",
+						Type:        "int",
+						Description: "int flag",
+					},
+					"float": {
+						Name:        "float",
+						Type:        "float",
+						Description: "float flag",
+					},
+					"bool": {
+						Name:        "bool",
+						Type:        "bool",
+						Description: "bool flag",
+					},
+					"arr": {
+						Name:        "arr",
+						Type:        "array",
+						Description: "array flag",
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 

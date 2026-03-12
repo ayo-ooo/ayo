@@ -151,3 +151,104 @@ func TestMemoryConfiguration(t *testing.T) {
 	assert.True(t, config.Agent.Memory.Enabled)
 	assert.Equal(t, "agent", config.Agent.Memory.Scope)
 }
+
+// TestCopyFile tests the copyFile function
+func TestCopyFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ayo-copy-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a source file with some content
+	srcPath := filepath.Join(tmpDir, "source.txt")
+	srcContent := []byte("Hello, World!")
+	err = os.WriteFile(srcPath, srcContent, 0644)
+	require.NoError(t, err)
+
+	// Test successful copy
+	dstPath := filepath.Join(tmpDir, "destination.txt")
+	err = copyFile(srcPath, dstPath)
+	require.NoError(t, err)
+
+	// Verify the destination file exists and has the same content
+	dstContent, err := os.ReadFile(dstPath)
+	require.NoError(t, err)
+	assert.Equal(t, srcContent, dstContent)
+
+	// Test copying to a non-existent directory (should fail)
+	invalidDst := filepath.Join(tmpDir, "nonexistent", "file.txt")
+	err = copyFile(srcPath, invalidDst)
+	assert.Error(t, err)
+
+	// Test copying from a non-existent file (should fail)
+	nonExistentSrc := filepath.Join(tmpDir, "does-not-exist.txt")
+	err = copyFile(nonExistentSrc, dstPath)
+	assert.Error(t, err)
+}
+
+// TestBuildAgentErrors tests error cases in BuildAgent
+func TestBuildAgentErrors(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ayo-build-errors-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Test building from a non-existent directory
+	err = BuildAgent("/non/existent/directory", "/tmp/output", "linux", "amd64")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "load config")
+
+	// Test building from a directory without a config file
+	emptyDir := filepath.Join(tmpDir, "empty")
+	err = os.MkdirAll(emptyDir, 0755)
+	require.NoError(t, err)
+
+	err = BuildAgent(emptyDir, "/tmp/output", "linux", "amd64")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "load config")
+}
+
+// TestBuildAgentSetup verifies that BuildAgent correctly sets up the build directory
+func TestBuildAgentSetup(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ayo-build-setup-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a minimal agent configuration
+	config := types.Config{
+		Agent: types.AgentConfig{
+			Name:        "test-build-agent",
+			Description: "Test agent for build system",
+			Model:       "claude-3-5-sonnet",
+		},
+		CLI: types.CLIConfig{
+			Mode:        "freeform",
+			Description: "Test agent CLI",
+		},
+	}
+
+	configPath := filepath.Join(tmpDir, "config.toml")
+	err = WriteConfig(config, configPath)
+	require.NoError(t, err)
+
+	// Create prompts and skills directories to avoid embedding errors
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	err = os.MkdirAll(promptsDir, 0755)
+	require.NoError(t, err)
+	systemPath := filepath.Join(promptsDir, "system.md")
+	err = os.WriteFile(systemPath, []byte("Test system prompt"), 0644)
+	require.NoError(t, err)
+
+	skillsDir := filepath.Join(tmpDir, "skills")
+	err = os.MkdirAll(skillsDir, 0755)
+	require.NoError(t, err)
+
+	toolsDir := filepath.Join(tmpDir, "tools")
+	err = os.MkdirAll(toolsDir, 0755)
+	require.NoError(t, err)
+
+	// Test that BuildAgent fails appropriately when go build fails
+	// (since we don't have a proper go module setup in the temp dir)
+	outputPath := filepath.Join(tmpDir, "test-agent")
+	err = BuildAgent(tmpDir, outputPath, "linux", "amd64")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "go build failed")
+}

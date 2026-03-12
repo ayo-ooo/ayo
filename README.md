@@ -47,6 +47,20 @@ ayo fresh my-agent
 cd my-agent
 ```
 
+### Create a Team Project
+
+```bash
+# Create a new team project
+ayo fresh my-team
+```
+
+### Add Agent to Team
+
+```bash
+cd my-team
+ayo add-agent . reviewer
+```
+
 ### Build Your Agent
 
 ```bash
@@ -90,6 +104,18 @@ Creates:
 - `skills/` - Custom skills
 - `tools/` - Custom tools
 
+### `ayo add-agent <team> <name>`
+
+Add a new agent to an existing team project.
+
+```bash
+# Add agent to team
+cd my-team
+ayo add-agent . reviewer
+
+# Creates config.toml for the new agent in agents/reviewer/
+```
+
 ### `ayo build <directory>`
 
 Build an agent executable.
@@ -102,7 +128,7 @@ ayo build my-agent
 ayo build my-agent -o /tmp/my-agent
 
 # Build for specific platform
-ayo build my-agent --os linux --arch amd64
+ayo build my-agent --target-os linux --target-arch amd64
 
 # Build for all platforms
 ayo build my-agent --all
@@ -110,8 +136,8 @@ ayo build my-agent --all
 
 **Options:**
 - `-o, --output <path>` - Output binary path
-- `--os <os>` - Target operating system (linux, darwin, windows)
-- `--arch <arch>` - Target architecture (amd64, arm64)
+- `--target-os <os>` - Target operating system (linux, darwin, windows)
+- `--target-arch <arch>` - Target architecture (amd64, arm64)
 - `--all` - Build for all common platforms
 
 ### `ayo dev <directory>`

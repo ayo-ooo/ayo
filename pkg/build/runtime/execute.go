@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bufio"
 	"context"
 	"embed"
 	"encoding/json"
@@ -11,14 +12,19 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"charm.land/catwalk/pkg/embedded"
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	"charm.land/fantasy/providers/google"
 	"charm.land/fantasy/providers/openai"
+	"charm.land/fantasy/providers/openaicompat"
+	"charm.land/fantasy/providers/openrouter"
 	"github.com/alexcabrera/ayo/internal/build/types"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -26,6 +32,13 @@ import (
 // Execute runs the built agent with embedded resources.
 // This function is called from the generated main() function.
 func Execute(configToml, systemPrompt []byte, skillsFS, toolsFS embed.FS) error {
+	// Check for --help/-h before doing anything else
+	for _, arg := range os.Args[1:] {
+		if arg == "--help" || arg == "-h" {
+			return printHelp()
+		}
+	}
+
 	// Parse embedded config
 	var config types.Config
 	if err := toml.Unmarshal(configToml, &config); err != nil {
@@ -86,45 +99,407 @@ func Execute(configToml, systemPrompt []byte, skillsFS, toolsFS embed.FS) error 
 // createLanguageModel creates a Fantasy language model from the model ID.
 // Supports common model providers: OpenAI, Anthropic, etc.
 func createLanguageModel(modelID string) (fantasy.LanguageModel, error) {
-	// Detect provider from model ID
-	if strings.HasPrefix(modelID, "gpt-") {
-		// OpenAI model
-		apiKey := os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
-			return nil, fmt.Errorf("OPENAI_API_KEY environment variable not set")
-		}
-		provider, err := openai.New(openai.WithAPIKey(apiKey))
+	// Get API key with fallback to saved config
+	apiKey, provider, modelID, err := getAPIKey(modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create provider based on detected provider type
+	switch provider {
+	case "openai":
+		prov, err := openai.New(openai.WithAPIKey(apiKey))
 		if err != nil {
 			return nil, fmt.Errorf("create OpenAI provider: %w", err)
 		}
-		return provider.LanguageModel(context.Background(), modelID)
-	}
-
-	if strings.HasPrefix(modelID, "claude-") {
-		// Anthropic model
-		apiKey := os.Getenv("ANTHROPIC_API_KEY")
-		if apiKey == "" {
-			return nil, fmt.Errorf("ANTHROPIC_API_KEY environment variable not set")
-		}
-		provider, err := anthropic.New(anthropic.WithAPIKey(apiKey))
+		return prov.LanguageModel(context.Background(), modelID)
+	case "anthropic":
+		prov, err := anthropic.New(anthropic.WithAPIKey(apiKey))
 		if err != nil {
 			return nil, fmt.Errorf("create Anthropic provider: %w", err)
 		}
-		return provider.LanguageModel(context.Background(), modelID)
-	}
-
-	// Default: try to infer from model ID
-	// Try OpenAI as default
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey != "" {
-		provider, err := openai.New(openai.WithAPIKey(apiKey))
+		return prov.LanguageModel(context.Background(), modelID)
+	case "google":
+		prov, err := google.New(google.WithGeminiAPIKey(apiKey))
 		if err != nil {
-			return nil, fmt.Errorf("create OpenAI provider: %w", err)
+			return nil, fmt.Errorf("create Google provider: %w", err)
 		}
-		return provider.LanguageModel(context.Background(), modelID)
+		return prov.LanguageModel(context.Background(), modelID)
+	case "openrouter":
+		prov, err := openrouter.New(openrouter.WithAPIKey(apiKey))
+		if err != nil {
+			return nil, fmt.Errorf("create OpenRouter provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "xai":
+		// xAI uses OpenAI-compatible API
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL("https://api.x.ai/v1"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create xAI provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "groq":
+		// Groq uses OpenAI-compatible API
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL("https://api.groq.com/openai/v1"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create Groq provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "deepseek":
+		// DeepSeek uses OpenAI-compatible API
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL("https://api.deepseek.com"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create DeepSeek provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "cerebras":
+		// Cerebras uses OpenAI-compatible API
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL("https://api.cerebras.ai/v1"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create Cerebras provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "together":
+		// Together.ai uses OpenAI-compatible API
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL("https://api.together.xyz/v1"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create Together.ai provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	case "azure":
+		// Azure OpenAI requires different handling (endpoint in env var)
+		endpoint := os.Getenv("AZURE_OPENAI_ENDPOINT")
+		if endpoint == "" {
+			return nil, fmt.Errorf("AZURE_OPENAI_ENDPOINT not set")
+		}
+		prov, err := openaicompat.New(
+			openaicompat.WithAPIKey(apiKey),
+			openaicompat.WithBaseURL(endpoint),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create Azure OpenAI provider: %w", err)
+		}
+		return prov.LanguageModel(context.Background(), modelID)
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", provider)
+	}
+}
+
+// RuntimeConfig stores user preferences for the agent
+type RuntimeConfig struct {
+	Provider string `toml:"provider"`
+	Model    string `toml:"model"` // Optional: can be empty for auto-detection
+}
+
+// getAPIKey gets the API key, provider, and model ID from environment or saved config.
+// If modelID is empty, auto-detects the provider and uses its default model.
+// Returns: apiKey, providerID, modelID, error
+func getAPIKey(modelID string) (string, string, string, error) {
+	availableKeys := detectAvailableKeys()
+
+	if len(availableKeys) == 0 {
+		return "", "", "", fmt.Errorf("no API keys found in environment\n\nSet one of these environment variables to get started:\n  - ANTHROPIC_API_KEY (for Claude models)\n  - OPENAI_API_KEY (for GPT models)\n  - GEMINI_API_KEY (for Gemini models)\n  - OPENROUTER_API_KEY (for multi-provider access)\n  - XAI_API_KEY (for Grok models)\n  - GROQ_API_KEY (for fast inference)\n  - DEEPSEEK_API_KEY (for DeepSeek models)\n  - CEREBRAS_API_KEY (for Cerebras models)\n  - TOGETHER_API_KEY (for Together AI)\n  - AZURE_OPENAI_API_KEY (for Azure OpenAI)")
 	}
 
-	return nil, fmt.Errorf("unable to determine provider for model %s: set OPENAI_API_KEY or ANTHROPIC_API_KEY", modelID)
+	// If model ID is specified, use the legacy path
+	if modelID != "" {
+		return getAPIKeyForModel(modelID, availableKeys)
+	}
+
+	// Auto-detect: no model specified
+	return getAPIKeyAutoDetect(availableKeys)
+}
+
+// getAPIKeyForModel gets the API key for a specified model ID.
+// Returns: apiKey, providerID, modelID, error
+func getAPIKeyForModel(modelID string, availableKeys map[string]string) (string, string, string, error) {
+	detectedProvider := detectProviderFromModel(modelID)
+
+	// Try to load saved config
+	config, err := loadRuntimeConfig()
+	if err == nil && config.Provider != "" {
+		// Check if saved provider's key is available
+		if _, ok := availableKeys[config.Provider]; ok {
+			return availableKeys[config.Provider], config.Provider, modelID, nil
+		}
+	}
+
+	// If we detected a provider from model ID and that key is available
+	if detectedProvider != "" {
+		if key, ok := availableKeys[detectedProvider]; ok {
+			// Save this choice for future use
+			saveRuntimeConfig(&RuntimeConfig{Provider: detectedProvider, Model: modelID})
+			return key, detectedProvider, modelID, nil
+		}
+	}
+
+	// If only one key is available, use it
+	if len(availableKeys) == 1 {
+		for provider, key := range availableKeys {
+			// Save this choice for future use
+			saveRuntimeConfig(&RuntimeConfig{Provider: provider, Model: modelID})
+			return key, provider, modelID, nil
+		}
+	}
+
+	// Multiple keys available, no preference saved - prompt user
+	provider := promptForProvider(availableKeys)
+	if provider == "" {
+		return "", "", "", fmt.Errorf("no provider selected")
+	}
+
+	// Save user's choice
+	saveRuntimeConfig(&RuntimeConfig{Provider: provider, Model: modelID})
+	return availableKeys[provider], provider, modelID, nil
+}
+
+// getAPIKeyAutoDetect auto-detects provider and model when none is specified.
+// Returns: apiKey, providerID, modelID, error
+func getAPIKeyAutoDetect(availableKeys map[string]string) (string, string, string, error) {
+	// Try to load saved config
+	config, err := loadRuntimeConfig()
+	if err == nil && config.Provider != "" {
+		// Check if saved provider's key is available
+		if key, ok := availableKeys[config.Provider]; ok {
+			// If saved model exists and is valid, use it
+			modelID := config.Model
+			if modelID == "" {
+				modelID = getProviderDefaultModel(config.Provider)
+			}
+			if modelID != "" {
+				// Save the model to config if it wasn't there before
+				if config.Model == "" {
+					saveRuntimeConfig(&RuntimeConfig{Provider: config.Provider, Model: modelID})
+				}
+				return key, config.Provider, modelID, nil
+			}
+		}
+	}
+
+	// Priority order: openai > anthropic > google > openrouter > first available
+	priority := []string{"openai", "anthropic", "google", "openrouter"}
+	for _, provider := range priority {
+		if key, ok := availableKeys[provider]; ok {
+			modelID := getProviderDefaultModel(provider)
+			if modelID != "" {
+				saveRuntimeConfig(&RuntimeConfig{Provider: provider, Model: modelID})
+				return key, provider, modelID, nil
+			}
+		}
+	}
+
+	// If only one key is available, use it
+	if len(availableKeys) == 1 {
+		for provider, key := range availableKeys {
+			modelID := getProviderDefaultModel(provider)
+			if modelID != "" {
+				saveRuntimeConfig(&RuntimeConfig{Provider: provider, Model: modelID})
+				return key, provider, modelID, nil
+			}
+		}
+	}
+
+	// Multiple keys available, no priority matched - prompt user
+	provider := promptForProvider(availableKeys)
+	if provider == "" {
+		return "", "", "", fmt.Errorf("no provider selected")
+	}
+
+	modelID := getProviderDefaultModel(provider)
+	if modelID == "" {
+		return "", "", "", fmt.Errorf("unable to determine default model for provider '%s'. This is unexpected - please report this issue.", provider)
+	}
+
+	// Save user's choice
+	saveRuntimeConfig(&RuntimeConfig{Provider: provider, Model: modelID})
+	return availableKeys[provider], provider, modelID, nil
+}
+
+// detectProviderFromModel detects the provider from the model ID
+func detectProviderFromModel(modelID string) string {
+	switch {
+	case strings.HasPrefix(modelID, "gpt-") || strings.HasPrefix(modelID, "o1-") || strings.HasPrefix(modelID, "o3-"):
+		return "openai"
+	case strings.HasPrefix(modelID, "claude-"):
+		return "anthropic"
+	case strings.HasPrefix(modelID, "gemini-"):
+		return "google"
+	case strings.HasPrefix(modelID, "grok-"):
+		return "xai"
+	case strings.HasPrefix(modelID, "deepseek-"):
+		return "deepseek"
+	case strings.HasPrefix(modelID, "llama-") || strings.HasPrefix(modelID, "mixtral-"):
+		// Could be groq, together, or openrouter - ambiguous
+		return ""
+	default:
+		return ""
+	}
+}
+
+// providerEnvVars maps provider IDs to their environment variable names
+var providerEnvVars = map[string]string{
+	"anthropic":   "ANTHROPIC_API_KEY",
+	"openai":      "OPENAI_API_KEY",
+	"google":      "GEMINI_API_KEY",
+	"openrouter":  "OPENROUTER_API_KEY",
+	"azure":       "AZURE_OPENAI_API_KEY",
+	"groq":        "GROQ_API_KEY",
+	"deepseek":    "DEEPSEEK_API_KEY",
+	"cerebras":    "CEREBRAS_API_KEY",
+	"xai":         "XAI_API_KEY",
+	"together":    "TOGETHER_API_KEY",
+}
+
+// detectAvailableKeys checks which API keys are available in the environment
+func detectAvailableKeys() map[string]string {
+	keys := make(map[string]string)
+
+	for provider, envVar := range providerEnvVars {
+		if key := os.Getenv(envVar); key != "" {
+			keys[provider] = key
+		}
+	}
+
+	return keys
+}
+
+// getProviderDefaultModel returns the default model ID for a provider
+// Uses catwalk's embedded provider configurations.
+func getProviderDefaultModel(providerID string) string {
+	for _, p := range embedded.GetAll() {
+		if string(p.ID) == providerID {
+			return p.DefaultLargeModelID
+		}
+	}
+	return ""
+}
+
+// getConfigPath returns the path to the runtime config file
+func getConfigPath() (string, error) {
+	// Get binary name
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	binaryName := filepath.Base(execPath)
+
+	// Use ~/.config/{binary-name}/config.toml
+	configDir := filepath.Join(os.Getenv("HOME"), ".config", binaryName)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(configDir, "config.toml"), nil
+}
+
+// loadRuntimeConfig loads the runtime config from disk
+func loadRuntimeConfig() (*RuntimeConfig, error) {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var config RuntimeConfig
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// saveRuntimeConfig saves the runtime config to disk
+func saveRuntimeConfig(config *RuntimeConfig) error {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := toml.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, data, 0644)
+}
+
+// promptForProvider prompts the user to choose a provider
+func promptForProvider(availableKeys map[string]string) string {
+	fmt.Println("\nMultiple API keys detected. Please choose a provider:")
+	fmt.Println()
+
+	providers := make([]string, 0, len(availableKeys))
+	i := 1
+	for provider := range availableKeys {
+		providers = append(providers, provider)
+		fmt.Printf("  %d. %s\n", i, provider)
+		i++
+	}
+
+	fmt.Println()
+	fmt.Printf("Enter choice [1-%d]: ", len(providers))
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
+
+	input = strings.TrimSpace(input)
+	choice, err := strconv.Atoi(input)
+	if err != nil || choice < 1 || choice > len(providers) {
+		fmt.Println("Invalid choice")
+		return ""
+	}
+
+	selected := providers[choice-1]
+	fmt.Printf("\nUsing %s. This choice will be saved for future runs.\n", selected)
+
+	return selected
+}
+
+// printHelp displays usage information
+func printHelp() error {
+	// Get binary name
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	binaryName := filepath.Base(execPath)
+
+	fmt.Printf("Usage: %s [prompt]\n\n", binaryName)
+	fmt.Printf("An AI agent that responds to your prompts.\n\n")
+	fmt.Printf("Provider Setup:\n")
+	fmt.Printf("  Set an API key environment variable and we'll auto-detect the provider and model.\n")
+	fmt.Printf("  Supported providers: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY,\n")
+	fmt.Printf("  XAI_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, CEREBRAS_API_KEY,\n")
+	fmt.Printf("  TOGETHER_API_KEY, OPENROUTER_API_KEY, or AZURE_OPENAI_API_KEY\n\n")
+	fmt.Printf("Options:\n")
+	fmt.Printf("  -h, --help    Show this help message\n\n")
+	fmt.Printf("Examples:\n")
+	fmt.Printf("  %s \"What is the capital of France?\"\n", binaryName)
+	fmt.Printf("  echo \"Explain quantum computing\" | %s\n", binaryName)
+	fmt.Printf("  export OPENAI_API_KEY=sk-xxx && %s \"Hello world\"\n", binaryName)
+	return nil
 }
 
 // getUserInput gets user input based on CLI configuration.
@@ -161,6 +536,11 @@ func getUserInput(config *types.Config) (string, error) {
 
 // parseStructuredInput parses command-line arguments according to the config's flags.
 func parseStructuredInput(args []string, config *types.Config) (string, error) {
+	// If no flags are defined, return error to trigger fallback in hybrid mode
+	if len(config.CLI.Flags) == 0 {
+		return "", fmt.Errorf("no flags defined")
+	}
+
 	// Create a map to collect flag values
 	values := make(map[string]any)
 	positionals := make([]string, 0)

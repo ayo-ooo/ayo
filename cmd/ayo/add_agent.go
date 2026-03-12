@@ -394,7 +394,7 @@ You have access to various tools for file operations, bash commands, and more. U
 }
 
 func generateAgentExampleSkill(name string) string {
-	return `# Custom Skill: %[1]s Specific
+	return fmt.Sprintf(`# Custom Skill: %[1]s Specific
 
 This skill provides additional capabilities specific to the %[1]s agent.
 
@@ -428,7 +428,7 @@ Action: Read the code, identify the issue, propose and implement a fix
 ---
 Agent: %[1]s
 Purpose: Custom behavior specific to this agent
-`[1:]
+`, name)
 }
 
 func createTeamProjectFromSingleAgent(teamName, teamDir string, agentNames []string) error {

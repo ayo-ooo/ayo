@@ -437,3 +437,326 @@ func TestSaveConfig(t *testing.T) {
 		t.Errorf("version not saved correctly: %s", loadedConfig.Agent.Version)
 	}
 }
+
+func TestCreateArchive(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sourcePath := filepath.Join(tmpDir, "source.txt")
+	sourceContent := []byte("test content")
+	if err := os.WriteFile(sourcePath, sourceContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test tar.gz format
+	tarPath := filepath.Join(tmpDir, "archive.tar.gz")
+	if err := createArchive(sourcePath, tarPath, "tar.gz"); err != nil {
+		t.Fatalf("createArchive with tar.gz failed: %v", err)
+	}
+
+	// Verify archive exists
+	if _, err := os.Stat(tarPath); os.IsNotExist(err) {
+		t.Fatal("tar.gz archive not created")
+	}
+
+	// Test zip format
+	zipPath := filepath.Join(tmpDir, "archive.zip")
+	if err := createArchive(sourcePath, zipPath, "zip"); err != nil {
+		t.Fatalf("createArchive with zip failed: %v", err)
+	}
+
+	// Verify archive exists
+	if _, err := os.Stat(zipPath); os.IsNotExist(err) {
+		t.Fatal("zip archive not created")
+	}
+
+	// Test unsupported format
+	invalidPath := filepath.Join(tmpDir, "archive.invalid")
+	err := createArchive(sourcePath, invalidPath, "invalid")
+	if err == nil {
+		t.Error("createArchive should error for unsupported format")
+	}
+
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Errorf("expected 'unsupported format' error, got: %v", err)
+	}
+}
+
+func TestGetGitVersion(t *testing.T) {
+	// Test in a non-git directory (should error)
+	tmpDir := t.TempDir()
+
+	version, err := getGitVersion(tmpDir)
+	if err == nil {
+		t.Error("getGitVersion should error in non-git directory")
+	}
+	if version != "" {
+		t.Errorf("expected empty version on error, got: %s", version)
+	}
+}
+
+func TestCreateTarGzErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test with non-existent source file
+	nonExistent := filepath.Join(tmpDir, "nonexistent.txt")
+	destPath := filepath.Join(tmpDir, "archive.tar.gz")
+
+	err := createTarGz(nonExistent, destPath)
+	if err == nil {
+		t.Error("createTarGz should error for non-existent source file")
+	}
+}
+
+func TestCreateZipErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test with non-existent source file
+	nonExistent := filepath.Join(tmpDir, "nonexistent.txt")
+	destPath := filepath.Join(tmpDir, "archive.zip")
+
+	err := createZip(nonExistent, destPath)
+	if err == nil {
+		t.Error("createZip should error for non-existent source file")
+	}
+}
+
+func TestComputeFileHashErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test with non-existent file
+	nonExistent := filepath.Join(tmpDir, "nonexistent.txt")
+
+	_, err := computeFileHash(nonExistent)
+	if err == nil {
+		t.Error("computeFileHash should error for non-existent file")
+	}
+}
+
+func TestFindBuiltBinariesBuildDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test agent directory
+	agentDir := filepath.Join(tmpDir, "test-agent")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create .build/bin directory
+	buildBinDir := filepath.Join(agentDir, ".build", "bin")
+	if err := os.MkdirAll(buildBinDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create binaries in .build/bin (no prefix)
+	binaries := []string{"test-agent-linux-amd64", "test-agent-darwin-arm64"}
+	for _, bin := range binaries {
+		path := filepath.Join(buildBinDir, bin)
+		if err := os.WriteFile(path, []byte("binary"), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	found, err := findBuiltBinaries(agentDir, "test-agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find binaries from .build/bin when dist/ doesn't exist
+	if len(found) != 2 {
+		t.Errorf("expected 2 binaries from .build/bin, got %d", len(found))
+	}
+}
+
+func TestRunPackageMultipleBinaries(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test agent directory
+	agentDir := filepath.Join(tmpDir, "test-agent")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create config.toml with version
+	configContent := `[agent]
+name = "test-agent"
+description = "Test agent for packaging"
+version = "2.0.0"
+model = "gpt-4"
+
+[cli]
+mode = "freeform"
+description = "Test CLI"
+`
+	configPath := filepath.Join(agentDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create multiple mock binaries in dist/
+	distDir := filepath.Join(agentDir, "dist")
+	if err := os.MkdirAll(distDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	binaries := []struct {
+		name string
+		os   string
+		arch string
+	}{
+		{"test-agent-linux-amd64", "linux", "amd64"},
+		{"test-agent-darwin-arm64", "darwin", "arm64"},
+		{"test-agent-windows-amd64.exe", "windows", "amd64"},
+	}
+	for _, bin := range binaries {
+		binaryPath := filepath.Join(distDir, bin.name)
+		binaryContent := []byte("mock binary content")
+		if err := os.WriteFile(binaryPath, binaryContent, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Run package
+	err := runPackage(agentDir, "auto", "")
+	if err != nil {
+		t.Fatalf("runPackage failed: %v", err)
+	}
+
+	// Check that releases directory exists
+	releasesDir := filepath.Join(agentDir, "releases")
+	if _, err := os.Stat(releasesDir); os.IsNotExist(err) {
+		t.Fatalf("releases directory not created")
+	}
+
+	// Check that all three archives were created
+	expectedArchives := []string{
+		"test-agent-2.0.0-linux-amd64.tar.gz",
+		"test-agent-2.0.0-darwin-arm64.tar.gz",
+		"test-agent-2.0.0-windows-amd64.zip",
+	}
+
+	for _, archiveName := range expectedArchives {
+		archivePath := filepath.Join(releasesDir, archiveName)
+		if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+			t.Fatalf("archive not created: %s", archiveName)
+		}
+	}
+
+	// Verify checksums file contains all archives
+	checksumsPath := filepath.Join(releasesDir, "test-agent-2.0.0.sha256")
+	content, err := os.ReadFile(checksumsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contentStr := string(content)
+	for _, archiveName := range expectedArchives {
+		if !strings.Contains(contentStr, archiveName) {
+			t.Errorf("checksums file missing entry for %s", archiveName)
+		}
+	}
+}
+
+func TestRunPackageExplicitVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test agent directory
+	agentDir := filepath.Join(tmpDir, "test-agent")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create config.toml without version
+	configContent := `[agent]
+name = "test-agent"
+description = "Test agent for packaging"
+model = "gpt-4"
+
+[cli]
+mode = "freeform"
+description = "Test CLI"
+`
+	configPath := filepath.Join(agentDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a mock binary in dist/
+	distDir := filepath.Join(agentDir, "dist")
+	if err := os.MkdirAll(distDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryPath := filepath.Join(distDir, "test-agent-linux-amd64")
+	binaryContent := []byte("mock binary content")
+	if err := os.WriteFile(binaryPath, binaryContent, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run package with explicit version
+	err := runPackage(agentDir, "auto", "3.5.2")
+	if err != nil {
+		t.Fatalf("runPackage failed: %v", err)
+	}
+
+	// Check that archive was created with specified version
+	archivePath := filepath.Join(agentDir, "releases", "test-agent-3.5.2-linux-amd64.tar.gz")
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		t.Fatalf("archive not created: %s", archivePath)
+	}
+
+	// Verify checksums file uses specified version
+	checksumsPath := filepath.Join(agentDir, "releases", "test-agent-3.5.2.sha256")
+	if _, err := os.Stat(checksumsPath); os.IsNotExist(err) {
+		t.Fatal("checksums file not created with specified version")
+	}
+}
+
+func TestRunPackageZipFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test agent directory
+	agentDir := filepath.Join(tmpDir, "test-agent")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create config.toml
+	configContent := `[agent]
+name = "test-agent"
+description = "Test agent for packaging"
+version = "1.0.0"
+model = "gpt-4"
+
+[cli]
+mode = "freeform"
+description = "Test CLI"
+`
+	configPath := filepath.Join(agentDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a mock binary for Linux (normally would be tar.gz)
+	distDir := filepath.Join(agentDir, "dist")
+	if err := os.MkdirAll(distDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryPath := filepath.Join(distDir, "test-agent-linux-amd64")
+	binaryContent := []byte("mock binary content")
+	if err := os.WriteFile(binaryPath, binaryContent, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run package with zip format
+	err := runPackage(agentDir, "zip", "")
+	if err != nil {
+		t.Fatalf("runPackage failed: %v", err)
+	}
+
+	// Check that archive was created as zip even for Linux
+	archivePath := filepath.Join(agentDir, "releases", "test-agent-1.0.0-linux-amd64.zip")
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		t.Fatalf("zip archive not created for Linux binary: %s", archivePath)
+	}
+}
