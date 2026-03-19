@@ -1,0 +1,22 @@
+.read-only
+
+# Built binaries
+ayo
+code-review
+data-pipeline
+echo
+notifier
+research
+status-check
+summarize
+task-runner
+translate
+
+# Test coverage
+coverage.out
+
+# Tickets (temporary)
+.tickets/
+
+test-agent/test-agent
+scripts/ticket

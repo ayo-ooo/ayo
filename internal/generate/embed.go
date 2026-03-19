@@ -60,9 +60,27 @@ func GenerateEmbeds(proj *project.Project, pkgName string) (string, error) {
 		}
 	}
 
+	// Generate skills catalog when skills exist
+	if len(proj.Skills) > 0 {
+		b.WriteString("// skillsCatalog lists all available skills for the agent.\n")
+		b.WriteString("var skillsCatalog = `## Available Skills\n\n")
+		for _, skill := range proj.Skills {
+			b.WriteString(fmt.Sprintf("### %s\n", skill.Name))
+			if skill.Description != "" {
+				b.WriteString(skill.Description + "\n")
+			}
+			b.WriteString(fmt.Sprintf("embedded://%s/SKILL.md\n\n", skill.Path))
+		}
+		b.WriteString("`\n\n")
+	}
+
 	b.WriteString("// getSystemMessage returns the system message for the agent.\n")
 	b.WriteString("func getSystemMessage() string {\n")
-	b.WriteString("\treturn systemMessage\n")
+	if len(proj.Skills) > 0 {
+		b.WriteString("\treturn systemMessage + skillsCatalog\n")
+	} else {
+		b.WriteString("\treturn systemMessage\n")
+	}
 	b.WriteString("}\n")
 
 	if proj.Prompt != nil {
@@ -195,7 +213,11 @@ func GenerateEmbeds(proj *project.Project, pkgName string) (string, error) {
 func toSafeIdentifier(s string) string {
 	s = strings.ReplaceAll(s, "-", "_")
 	s = strings.ReplaceAll(s, ".", "_")
-	return cases.Title(language.English).String(s)
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		parts[i] = cases.Title(language.English).String(part)
+	}
+	return strings.Join(parts, "")
 }
 
 func GenerateGoMod(proj *project.Project) string {
@@ -205,6 +227,9 @@ go 1.22
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/charmbracelet/bubbles v0.20.0
+	github.com/charmbracelet/bubbletea v1.3.4
+	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/spf13/cobra v1.10.2
 	charm.land/fantasy v0.0.0
 )
