@@ -2,17 +2,22 @@
 
 ## Prerequisites
 
-- **Go 1.21+**: Required to build Ayo and generated agents
+- **Go 1.21+**: Required to build generated agents
 - **API Key**: An API key from a supported provider (Anthropic, OpenAI, etc.)
 
 ## Install Ayo CLI
 
-### From Source
+### Homebrew (recommended)
 
 ```bash
-git clone https://github.com/charmbracelet/ayo.git
-cd ayo
-go install ./cmd/ayo
+brew tap ayo-ooo/tap
+brew install ayo
+```
+
+### Go Install
+
+```bash
+go install github.com/ayo-ooo/ayo/cmd/ayo@latest
 ```
 
 ### Verify Installation
