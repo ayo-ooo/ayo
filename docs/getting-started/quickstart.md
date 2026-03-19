@@ -11,25 +11,21 @@ Build your first AI agent in 5 minutes.
 
 The simplest agent takes a string input and returns a response.
 
-### 1. Create Project Directory
+### 1. Generate Project
 
 ```bash
-mkdir echo-agent && cd echo-agent
+ayo fresh echo-agent
+cd echo-agent
 ```
 
-### 2. Create config.toml
+This creates:
+- `config.toml` - Agent configuration
+- `system.md` - System prompt
+- `.gitignore` - Common ignore patterns
 
-```toml
-[agent]
-name = "echo"
-version = "1.0.0"
-description = "Echo agent example"
+### 2. Customize system.md
 
-[model]
-suggested = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
-```
-
-### 3. Create system.md
+Edit `system.md` to define your agent's behavior:
 
 ```markdown
 # Echo Agent
@@ -39,7 +35,9 @@ You are a helpful assistant that echoes back messages with enthusiasm.
 When given input, respond with a friendly, enthusiastic version of the message.
 ```
 
-### 4. Create input.jsonschema
+### 3. Create input.jsonschema
+
+Create `input.jsonschema` to define the input:
 
 ```json
 {
@@ -55,18 +53,18 @@ When given input, respond with a friendly, enthusiastic version of the message.
 }
 ```
 
-### 5. Build
+### 4. Build
 
 ```bash
 ayo build .
 ```
 
-This generates an `echo` executable in the current directory.
+This generates an `echo-agent` executable in the current directory.
 
-### 6. Run
+### 5. Run
 
 ```bash
-./echo "Hello, World!"
+./echo-agent "Hello, World!"
 ```
 
 Output:
@@ -76,13 +74,14 @@ Output:
 
 ## What Happened
 
-1. Ayo read your configuration, system prompt, and input schema
-2. Generated a standalone Go binary with:
+1. `ayo fresh` scaffolded a new agent project with default files
+2. Ayo read your configuration, system prompt, and input schema
+3. Generated a standalone Go binary with:
    - CLI flag parsing for the `message` input
    - Type-safe input validation
    - LLM integration configured
-3. The binary calls the LLM with your system prompt and user input
-4. Returns the LLM's response
+4. The binary calls the LLM with your system prompt and user input
+5. Returns the LLM's response
 
 ## Next Steps
 
