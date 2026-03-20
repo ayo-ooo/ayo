@@ -136,6 +136,58 @@ func TestParseSchema_SchemaWithCLIExtensions(t *testing.T) {
 	}
 }
 
+func TestParseSchema_SchemaWithNewCLIHints(t *testing.T) {
+	input := []byte(`{
+		"type": "object",
+		"properties": {
+			"source": {
+				"type": "string",
+				"flag": "--src",
+				"file": true
+			},
+			"destination": {
+				"type": "string",
+				"flag": "--dest"
+			},
+			"config": {
+				"type": "string",
+				"file": true
+			}
+		}
+	}`)
+
+	got, err := ParseSchema(input)
+	if err != nil {
+		t.Fatalf("ParseSchema() error = %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		propName string
+		wantFlag string
+		wantFile bool
+	}{
+		{"source with flag and file", "source", "--src", true},
+		{"destination with flag only", "destination", "--dest", false},
+		{"config with file only", "config", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prop, ok := got.Properties[tt.propName]
+			if !ok {
+				t.Fatalf("missing property %q", tt.propName)
+			}
+			if prop.Flag != tt.wantFlag {
+				t.Errorf("Flag = %q, want %q", prop.Flag, tt.wantFlag)
+			}
+			if prop.File != tt.wantFile {
+				t.Errorf("File = %v, want %v", prop.File, tt.wantFile)
+			}
+		})
+	}
+}
+
 func TestParseSchema_InvalidJSON(t *testing.T) {
 	input := []byte(testutil.InvalidJSON())
 
@@ -341,6 +393,109 @@ func TestGenerateFlags_WithCLIExtensions(t *testing.T) {
 		t.Error("GenerateFlags() missing file flag")
 	} else if !fileFlag.IsFile {
 		t.Error("file flag IsFile should be true")
+	}
+}
+
+func TestGenerateFlags_WithNewCLIHints(t *testing.T) {
+	input := []byte(`{
+		"type": "object",
+		"properties": {
+			"source": {
+				"type": "string",
+				"flag": "--src",
+				"file": true
+			},
+			"output": {
+				"type": "string",
+				"flag": "--out"
+			},
+			"verbose": {
+				"type": "boolean"
+			}
+		}
+	}`)
+
+	schema, err := ParseSchema(input)
+	if err != nil {
+		t.Fatalf("ParseSchema() error = %v", err)
+	}
+
+	flags := GenerateFlags(schema)
+
+	var sourceFlag, outputFlag, verboseFlag *FlagDef
+	for i := range flags {
+		if flags[i].Name == "--src" {
+			sourceFlag = &flags[i]
+		}
+		if flags[i].Name == "--out" {
+			outputFlag = &flags[i]
+		}
+		if flags[i].Name == "--verbose" {
+			verboseFlag = &flags[i]
+		}
+	}
+
+	if sourceFlag == nil {
+		t.Error("GenerateFlags() missing source flag with custom name --src")
+	} else {
+		if sourceFlag.PropertyName != "source" {
+			t.Errorf("source flag PropertyName = %q, want %q", sourceFlag.PropertyName, "source")
+		}
+		if !sourceFlag.IsFile {
+			t.Error("source flag IsFile should be true")
+		}
+	}
+
+	if outputFlag == nil {
+		t.Error("GenerateFlags() missing output flag with custom name --out")
+	} else if outputFlag.IsFile {
+		t.Error("output flag IsFile should be false")
+	}
+
+	if verboseFlag == nil {
+		t.Error("GenerateFlags() missing verbose flag with auto-generated name --verbose")
+	}
+}
+
+func TestGenerateFlags_NewFieldsTakePrecedenceOverDeprecated(t *testing.T) {
+	input := []byte(`{
+		"type": "object",
+		"properties": {
+			"input": {
+				"type": "string",
+				"flag": "--new-flag",
+				"file": true,
+				"x-cli-flag": "--old-flag",
+				"x-cli-file": false
+			}
+		}
+	}`)
+
+	schema, err := ParseSchema(input)
+	if err != nil {
+		t.Fatalf("ParseSchema() error = %v", err)
+	}
+
+	flags := GenerateFlags(schema)
+
+	var inputFlag *FlagDef
+	for i := range flags {
+		if flags[i].PropertyName == "input" {
+			inputFlag = &flags[i]
+			break
+		}
+	}
+
+	if inputFlag == nil {
+		t.Fatal("GenerateFlags() missing input flag")
+	}
+
+	if inputFlag.Name != "--new-flag" {
+		t.Errorf("input flag Name = %q, want %q (new Flag should take precedence)", inputFlag.Name, "--new-flag")
+	}
+
+	if !inputFlag.IsFile {
+		t.Error("input flag IsFile should be true (new File should take precedence)")
 	}
 }
 

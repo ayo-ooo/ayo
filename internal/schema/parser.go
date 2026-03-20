@@ -16,8 +16,12 @@ type Property struct {
 	Description string   `json:"description"`
 	Default     any      `json:"default"`
 	Enum        []string `json:"enum"`
-	
-	// CLI extensions
+
+	// New CLI hints
+	Flag string `json:"flag"` // Custom flag name
+	File bool   `json:"file"` // Load file contents
+
+	// Deprecated CLI extensions (supported during migration)
 	CLIPosition int    `json:"x-cli-position"`
 	CLIFlag     string `json:"x-cli-flag"`
 	CLIShort    string `json:"x-cli-short"`
@@ -59,11 +63,14 @@ func GenerateFlags(schema *ParsedSchema) []FlagDef {
 			DefaultValue: prop.Default,
 			Description:  prop.Description,
 			Position:     prop.CLIPosition,
-			IsFile:       prop.CLIFile,
+			IsFile:       prop.File || prop.CLIFile, // Prefer new File field
 			Required:     requiredSet[name],
 		}
 
-		if prop.CLIFlag != "" {
+		// Prefer new Flag field over deprecated CLIFlag
+		if prop.Flag != "" {
+			flag.Name = prop.Flag
+		} else if prop.CLIFlag != "" {
 			flag.Name = prop.CLIFlag
 		} else if prop.CLIPosition == 0 {
 			flag.Name = "--" + name
