@@ -39,7 +39,7 @@ go install github.com/ayo-ooo/ayo/cmd/ayo@latest
 
 Configure your API key for your preferred provider:
 
-|| Environment Variable        | Provider                                           |
+| Environment Variable        | Provider                                           |
 | --------------------------- | -------------------------------------------------- |
 | `ANTHROPIC_API_KEY`         | Anthropic                                          |
 | `OPENAI_API_KEY`            | OpenAI                                             |
@@ -142,7 +142,7 @@ my-agent/
 
 ## Commands
 
-|| Command | Description |
+| Command | Description |
 |---------|-------------|
 | `ayo fresh <name>` | Create a new agent project |
 | `ayo runthat [path]` | Compile agent into standalone executable |
@@ -211,7 +211,7 @@ Define inputs using JSON Schema:
 
 **CLI Properties:**
 
-|| Property | Purpose |
+| Property | Purpose |
 |----------|---------|
 | `flag` | Custom flag name (default: kebab-case of property name) |
 | `file` | Set to `true` to load file content into field |
@@ -259,7 +259,7 @@ Analyze the following {{.format}} file:
 
 **Template Functions:**
 
-|| Function | Description |
+| Function | Description |
 |----------|-------------|
 | `{{.field}}` | Access input field |
 | `{{file "path"}}` | Load file contents |
@@ -299,7 +299,7 @@ Hooks receive context via environment variables and can modify behavior.
 
 The [examples/](examples/) directory contains complete working agents:
 
-|| Example | Features |
+| Example | Features |
 |---------|----------|
 | [echo](examples/echo/) | Minimal agent |
 | [translate](examples/translate/) | Input/output schemas, custom flags |
