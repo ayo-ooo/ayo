@@ -56,13 +56,13 @@ func init() {
 	compileAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
 	rootCmd.AddCommand(compileAlias)
 
-	dunnAlias := &cobra.Command{
-		Use:    "dunn [path]",
+	generateAlias := &cobra.Command{
+		Use:    "generate [path]",
 		Hidden: true,
 		Run:    runthatCmd.Run,
 	}
-	dunnAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
-	rootCmd.AddCommand(dunnAlias)
+	generateAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
+	rootCmd.AddCommand(generateAlias)
 }
 
 func buildProject(path string) error {
