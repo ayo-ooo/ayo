@@ -6,7 +6,7 @@ A complete walkthrough of agent structure and configuration.
 
 An Ayo agent project can include these files:
 
-| File | Required | Purpose |
+|| File | Required | Purpose |
 |------|----------|---------|
 | `config.toml` | Yes | Agent metadata and model settings |
 | `system.md` | Yes | System prompt for the LLM |
@@ -45,7 +45,7 @@ max_tokens = 2048
 
 ### Model Requirements
 
-| Field | Effect |
+|| Field | Effect |
 |-------|--------|
 | `requires_structured_output` | Agent needs JSON output mode |
 | `requires_tools` | Agent uses function calling |
@@ -79,7 +79,7 @@ If you have skills, list them here so the LLM knows about them.
 
 ## input.jsonschema
 
-Defines inputs using JSON Schema with CLI extensions:
+Defines inputs using JSON Schema:
 
 ```json
 {
@@ -87,8 +87,7 @@ Defines inputs using JSON Schema with CLI extensions:
   "properties": {
     "text": {
       "type": "string",
-      "description": "Input text",
-      "x-cli-position": 1
+      "description": "Input text"
     },
     "format": {
       "type": "string",
@@ -106,14 +105,32 @@ Defines inputs using JSON Schema with CLI extensions:
 }
 ```
 
-### CLI Extensions
+### CLI Properties
 
-| Extension | Purpose |
-|-----------|---------|
-| `x-cli-position` | Make a positional argument (1-indexed) |
-| `x-cli-flag` | Custom flag name |
-| `x-cli-short` | Short flag (e.g., `-f`) |
-| `x-cli-file` | Load file content into field |
+|| Property | Purpose |
+|----------|---------|
+| `flag` | Custom flag name (default: kebab-case of property name) |
+| `file` | Set to `true` to load file content into field |
+
+### Input Patterns
+
+Generated CLIs accept JSON input as the primary mechanism:
+
+```bash
+# Inline JSON
+./my-agent '{"text": "hello"}'
+
+# From file
+./my-agent input.json
+
+# From stdin
+echo '{"text": "hello"}' | ./my-agent -
+
+# Flag overrides
+./my-agent --text "hello" --format json
+```
+
+Only primitive types (string, integer, number, boolean) get flag overrides.
 
 ## output.jsonschema
 
@@ -157,7 +174,7 @@ Output format: {{.format}}
 
 ### Template Functions
 
-| Function | Description |
+|| Function | Description |
 |----------|-------------|
 | `{{.field}}` | Access input field |
 | `{{file "path"}}` | Load file contents |
@@ -177,8 +194,11 @@ ayo runthat .
 # Run with help
 ./my-agent --help
 
-# Run with inputs
-./my-agent "input text" --format json --verbose
+# Run with JSON input
+./my-agent '{"text": "input text", "format": "json"}'
+
+# Run with flag overrides
+./my-agent --text "input text" --format json --verbose
 ```
 
 ## Next Steps

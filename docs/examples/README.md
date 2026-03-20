@@ -8,17 +8,17 @@ Each example is a complete, buildable agent demonstrating specific features. Exa
 
 ## Examples
 
-| Example | Features | Complexity |
+|| Example | Features | Complexity |
 |---------|----------|------------|
-| [echo](#echo) | Basic string I/O | Minimal |
-| [status-check](#status-check) | Output-only schema | Basic |
-| [summarize](#summarize) | Input + output schemas | Basic |
-| [translate](#translate) | Custom CLI flags | Basic |
-| [code-review](#code-review) | File input, enums, integers | Intermediate |
-| [research](#research) | Prompt templates | Intermediate |
-| [task-runner](#task-runner) | Skills directory | Intermediate |
-| [notifier](#notifier) | Hooks directory | Intermediate |
-| [data-pipeline](#data-pipeline) | All features combined | Advanced |
+|| [echo](#echo) | Basic string I/O | Minimal |
+|| [status-check](#status-check) | Output-only schema | Basic |
+|| [summarize](#summarize) | Input + output schemas | Basic |
+|| [translate](#translate) | Custom CLI flags | Basic |
+|| [code-review](#code-review) | File input, enums, integers | Intermediate |
+|| [research](#research) | Prompt templates | Intermediate |
+|| [task-runner](#task-runner) | Skills directory | Intermediate |
+|| [notifier](#notifier) | Hooks directory | Intermediate |
+|| [data-pipeline](#data-pipeline) | All features combined | Advanced |
 
 ---
 
@@ -36,7 +36,6 @@ Minimal agent with string I/O.
 examples/echo/
 ├── config.toml
 ├── system.md
-├── input.jsonschema
 └── .gitignore
 ```
 
@@ -44,8 +43,6 @@ examples/echo/
 ```bash
 ./echo "Hello, World!"
 ```
-
-[Full Documentation](echo.md)
 
 ---
 
@@ -95,8 +92,14 @@ examples/summarize/
 
 **Usage:**
 ```bash
-./summarize "Long text to summarize..."
-./summarize input.txt -o summary.json
+# JSON input
+./summarize '{"text": "Long text to summarize..."}'
+
+# Flag override
+./summarize --text "Long text to summarize..."
+
+# File input
+./summarize input.json
 ```
 
 ---
@@ -106,10 +109,9 @@ examples/summarize/
 Custom CLI flag names.
 
 **Features:**
-- `x-cli-flag` custom flag names
-- `x-cli-short` short flags
-- Positional arguments
+- Custom flag names with `flag` property
 - Default values
+- Optional fields
 
 **Files:**
 ```
@@ -122,11 +124,15 @@ examples/translate/
 
 **Usage:**
 ```bash
-./translate "Hello" --to spanish
-./translate "Bonjour" -s french -t english
-```
+# JSON input
+./translate '{"text": "Hello", "to": "spanish"}'
 
-[Full Documentation](translate.md)
+# Flag overrides
+./translate --text "Hello" --to spanish
+
+# Stdin
+echo '{"text": "Hello"}' | ./translate - --to spanish
+```
 
 ---
 
@@ -135,7 +141,7 @@ examples/translate/
 File handling and complex types.
 
 **Features:**
-- `x-cli-file` file content loading
+- `file` property for file content loading
 - Enum constraints
 - Integer types
 - Array output
@@ -152,11 +158,12 @@ examples/code-review/
 
 **Usage:**
 ```bash
-./code-review main.go
-./code-review app.py --language python --severity error
-```
+# JSON input
+./code-review '{"file": "main.go"}'
 
-[Full Documentation](code-review.md)
+# Flag overrides
+./code-review --file main.go --language python --severity error
+```
 
 ---
 
@@ -183,11 +190,12 @@ examples/research/
 
 **Usage:**
 ```bash
-./research "quantum computing"
-RESEARCH_DEPTH=deep ./research "AI" --context paper.pdf
-```
+# JSON input
+./research '{"topic": "quantum computing"}'
 
-[Full Documentation](research.md)
+# With environment variable
+RESEARCH_DEPTH=deep ./research --topic "AI"
+```
 
 ---
 
@@ -216,11 +224,12 @@ examples/task-runner/
 
 **Usage:**
 ```bash
-./task-runner "Create a REST API"
-./task-runner "Build a CLI tool" --steps 5
-```
+# JSON input
+./task-runner '{"task": "Create a REST API"}'
 
-[Full Documentation](task-runner.md)
+# Flag overrides
+./task-runner --task "Build a CLI tool"
+```
 
 ---
 
@@ -248,11 +257,12 @@ examples/notifier/
 
 **Usage:**
 ```bash
-./notifier "Build complete" --channel slack
-./notifier "Alert!" --urgency critical
-```
+# JSON input
+./notifier '{"message": "Build complete", "channel": "slack"}'
 
-[Full Documentation](notifier.md)
+# Flag overrides
+./notifier --message "Alert!" --urgency critical
+```
 
 ---
 
@@ -290,11 +300,15 @@ examples/data-pipeline/
 
 **Usage:**
 ```bash
-./data-pipeline data.json --schema user-schema --output_format csv
-PIPELINE_MODE=production ./data-pipeline input.csv --schema report
-```
+# JSON input
+./data-pipeline '{"source": "data.json", "target_schema": "user-schema"}'
 
-[Full Documentation](data-pipeline.md)
+# Flag overrides
+./data-pipeline --source data.json --schema user-schema --output-format csv
+
+# With environment variable
+PIPELINE_MODE=production ./data-pipeline --source input.csv
+```
 
 ---
 
@@ -312,6 +326,24 @@ ayo runthat examples/<name>
 ./<name> --help
 ```
 
+## Input Patterns
+
+All examples support JSON input as the primary input mechanism:
+
+```bash
+# Inline JSON
+./agent '{"field": "value"}'
+
+# From file
+./agent input.json
+
+# From stdin
+echo '{"field": "value"}' | ./agent -
+
+# Flag overrides (combine with JSON or use alone)
+./agent --field value
+```
+
 ## Contributing
 
 To add a new example:
@@ -320,4 +352,4 @@ To add a new example:
 2. Add required files (config.toml, system.md)
 3. Add optional files (schemas, templates, skills, hooks)
 4. Test with `ayo runthat examples/<name>`
-5. Add documentation in `docs/examples/<name>.md`
+5. Update this gallery documentation
