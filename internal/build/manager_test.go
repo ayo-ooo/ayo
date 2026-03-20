@@ -133,22 +133,6 @@ func TestHasDependency(t *testing.T) {
 	}
 }
 
-func TestFindFantasyLibrary(t *testing.T) {
-	// This test verifies the function doesn't panic and returns an error
-	// when the library is not found
-	_, err := findFantasyLibrary()
-	// In the test environment, it might find the library or not
-	// depending on where the test is run
-	if err == nil {
-		// Found it - that's fine
-		return
-	}
-	// If not found, verify the error message
-	if err.Error() == "" {
-		t.Error("findFantasyLibrary() error message should not be empty")
-	}
-}
-
 func TestManager_Cleanup(t *testing.T) {
 	m := NewManager()
 

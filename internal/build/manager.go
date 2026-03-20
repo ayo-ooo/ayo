@@ -93,16 +93,6 @@ func (m *Manager) generateFiles(proj *project.Project) error {
 }
 
 func (m *Manager) copyAssets(proj *project.Project) error {
-	// Copy fantasy library into build directory
-	fantasySrc, err := findFantasyLibrary()
-	if err != nil {
-		return fmt.Errorf("finding fantasy library: %w", err)
-	}
-	fantasyDst := filepath.Join(m.buildDir, "fantasy")
-	if err := copyDirectory(fantasySrc, fantasyDst); err != nil {
-		return fmt.Errorf("copying fantasy library: %w", err)
-	}
-
 	systemPath := filepath.Join(m.buildDir, "system.md")
 	if err := os.WriteFile(systemPath, []byte(proj.System), 0644); err != nil {
 		return fmt.Errorf("copying system.md: %w", err)
@@ -221,40 +211,4 @@ func hasDependency(files map[string]string, dep string) bool {
 		}
 	}
 	return false
-}
-
-// findFantasyLibrary locates the fantasy library directory.
-// It searches in order: relative to executable, relative to current directory.
-func findFantasyLibrary() (string, error) {
-	// Try relative to executable (for installed ayo)
-	exe, err := os.Executable()
-	if err == nil {
-		exeDir := filepath.Dir(exe)
-		candidates := []string{
-			filepath.Join(exeDir, ".ayo", "fantasy"),
-			filepath.Join(exeDir, "..", ".ayo", "fantasy"),
-		}
-		for _, path := range candidates {
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-				return path, nil
-			}
-		}
-	}
-
-	// Try relative to current working directory (for development)
-	cwd, err := os.Getwd()
-	if err == nil {
-		candidates := []string{
-			filepath.Join(cwd, ".read-only", "libs", "fantasy"),
-			filepath.Join(cwd, ".ayo", "fantasy"),
-			filepath.Join(cwd, "..", ".ayo", "fantasy"),
-		}
-		for _, path := range candidates {
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-				return path, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("fantasy library not found - looked in .ayo/fantasy and .read-only/libs/fantasy")
 }
