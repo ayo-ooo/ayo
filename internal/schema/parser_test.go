@@ -362,11 +362,8 @@ func TestGenerateFlags_WithCLIExtensions(t *testing.T) {
 
 	flags := GenerateFlags(schema)
 
-	var inputFlag, outputFlag, fileFlag *FlagDef
+	var outputFlag, fileFlag *FlagDef
 	for i := range flags {
-		if flags[i].Position == 1 {
-			inputFlag = &flags[i]
-		}
 		if flags[i].Name == "--out" {
 			outputFlag = &flags[i]
 		}
@@ -375,18 +372,8 @@ func TestGenerateFlags_WithCLIExtensions(t *testing.T) {
 		}
 	}
 
-	if inputFlag == nil {
-		t.Error("GenerateFlags() missing positional input flag")
-	} else if inputFlag.Position != 1 {
-		t.Errorf("input flag position = %d, want 1", inputFlag.Position)
-	}
-
 	if outputFlag == nil {
 		t.Error("GenerateFlags() missing output flag with custom name")
-	} else {
-		if outputFlag.ShortName != "o" {
-			t.Errorf("output flag short = %q, want %q", outputFlag.ShortName, "o")
-		}
 	}
 
 	if fileFlag == nil {
@@ -430,7 +417,7 @@ func TestGenerateFlags_WithNewCLIHints(t *testing.T) {
 		if flags[i].Name == "--out" {
 			outputFlag = &flags[i]
 		}
-		if flags[i].Name == "--verbose" {
+		if flags[i].Name == "verbose" {
 			verboseFlag = &flags[i]
 		}
 	}
@@ -453,7 +440,7 @@ func TestGenerateFlags_WithNewCLIHints(t *testing.T) {
 	}
 
 	if verboseFlag == nil {
-		t.Error("GenerateFlags() missing verbose flag with auto-generated name --verbose")
+		t.Error("GenerateFlags() missing verbose flag with auto-generated name 'verbose'")
 	}
 }
 

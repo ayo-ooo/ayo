@@ -56,13 +56,17 @@ func GenerateFlags(schema *ParsedSchema) []FlagDef {
 	}
 
 	for name, prop := range schema.Properties {
+		// Only generate flags for primitive types
+		if !isPrimitiveType(prop.Type) {
+			continue
+		}
+
 		flag := FlagDef{
 			Name:         name,
 			PropertyName: name,
 			Type:         prop.Type,
 			DefaultValue: prop.Default,
 			Description:  prop.Description,
-			Position:     prop.CLIPosition,
 			IsFile:       prop.File || prop.CLIFile, // Prefer new File field
 			Required:     requiredSet[name],
 		}
@@ -72,16 +76,37 @@ func GenerateFlags(schema *ParsedSchema) []FlagDef {
 			flag.Name = prop.Flag
 		} else if prop.CLIFlag != "" {
 			flag.Name = prop.CLIFlag
-		} else if prop.CLIPosition == 0 {
-			flag.Name = "--" + name
-		}
-
-		if prop.CLIShort != "" {
-			flag.ShortName = prop.CLIShort
+		} else {
+			flag.Name = toKebab(name)
 		}
 
 		flags = append(flags, flag)
 	}
 
 	return flags
+}
+
+func isPrimitiveType(t string) bool {
+	switch t {
+	case "string", "integer", "number", "boolean":
+		return true
+	default:
+		return false
+	}
+}
+
+func toKebab(s string) string {
+	var result []rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '-', r+32) // Convert to lowercase
+		} else if r >= 'A' && r <= 'Z' {
+			result = append(result, r+32)
+		} else if r == '_' {
+			result = append(result, '-')
+		} else {
+			result = append(result, r)
+		}
+	}
+	return string(result)
 }

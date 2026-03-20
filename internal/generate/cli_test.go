@@ -131,8 +131,9 @@ func TestGenerateCLI_WithFlags(t *testing.T) {
 		t.Error("Generated code should use Float64Var for number flags")
 	}
 
-	if !strings.Contains(code, "Shorthand") {
-		t.Error("Generated code should set shorthand for short flags")
+	// Short flags are no longer generated
+	if strings.Contains(code, "Shorthand") {
+		t.Error("Generated code should not set shorthand (short flags deprecated)")
 	}
 }
 
@@ -172,6 +173,7 @@ func TestGenerateCLI_WithRequiredFlag(t *testing.T) {
 }
 
 func TestGenerateCLI_WithPositionalArgs(t *testing.T) {
+	// Positional args are no longer supported - JSON payload is the input
 	schemaJSON := `{
 		"type": "object",
 		"properties": {
@@ -203,12 +205,9 @@ func TestGenerateCLI_WithPositionalArgs(t *testing.T) {
 		t.Fatalf("GenerateCLI() error = %v", err)
 	}
 
-	if !strings.Contains(code, "input.File = args[0]") {
-		t.Error("Generated code should assign first positional arg to File")
-	}
-
-	if !strings.Contains(code, "input.Output = args[1]") {
-		t.Error("Generated code should assign second positional arg to Output")
+	// x-cli-position properties should still generate flags (not positional args)
+	if !strings.Contains(code, "StringVar(&file") {
+		t.Error("Generated code should generate flag for file property")
 	}
 }
 
@@ -225,8 +224,8 @@ func TestGenerateCLI_NoInput(t *testing.T) {
 		t.Fatalf("GenerateCLI() error = %v", err)
 	}
 
-	if !strings.Contains(code, "\tinput string") {
-		t.Error("Generated code should have default input string variable when no input schema")
+	if !strings.Contains(code, "jsonInput string") {
+		t.Error("Generated code should have jsonInput string variable when no input schema")
 	}
 
 	if !strings.Contains(code, "buildInput(args []string) string {") {
@@ -307,8 +306,9 @@ func TestGenerateFlags_DefaultFlagName(t *testing.T) {
 		t.Fatalf("Expected 1 flag, got %d", len(flags))
 	}
 
-	if flags[0].Name != "--query" {
-		t.Errorf("Expected flag name '--query', got %q", flags[0].Name)
+	// Auto-generated flag names use kebab-case without -- prefix
+	if flags[0].Name != "query" {
+		t.Errorf("Expected flag name 'query', got %q", flags[0].Name)
 	}
 }
 
@@ -326,12 +326,14 @@ func TestGenerateFlags_PositionalSkipped(t *testing.T) {
 	parsed := mustParseSchema(schemaJSON)
 	flags := schema.GenerateFlags(parsed)
 
+	// x-cli-position is still a primitive type, so it should generate a flag
 	if len(flags) != 1 {
 		t.Fatalf("Expected 1 flag, got %d", len(flags))
 	}
 
-	if flags[0].Position != 1 {
-		t.Errorf("Expected position 1, got %d", flags[0].Position)
+	// Position is no longer tracked - all primitives get flags
+	if flags[0].Name != "file" {
+		t.Errorf("Expected flag name 'file', got %q", flags[0].Name)
 	}
 }
 
