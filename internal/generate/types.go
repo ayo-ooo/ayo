@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/schema"
 )
 
 func GenerateTypes(inputSchema, outputSchema *schema.ParsedSchema, pkgName string) (string, error) {

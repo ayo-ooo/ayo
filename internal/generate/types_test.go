@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/schema"
-	"github.com/charmbracelet/ayo/internal/testutil"
+	"github.com/ayo-ooo/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/testutil"
 )
 
 func TestGenerateTypes_InputOnly(t *testing.T) {

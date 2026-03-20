@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/project"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )

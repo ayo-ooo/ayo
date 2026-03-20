@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/project"
-	"github.com/charmbracelet/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/schema"
 )
 
 func TestNewManager(t *testing.T) {

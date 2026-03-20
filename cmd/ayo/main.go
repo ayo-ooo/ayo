@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/charmbracelet/ayo/internal/cmd"
+	"github.com/ayo-ooo/ayo/internal/cmd"
 )
 
 func main() {

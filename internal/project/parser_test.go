@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/testutil"
+	"github.com/ayo-ooo/ayo/internal/testutil"
 )
 
 func TestParseProject_MinimalValid(t *testing.T) {

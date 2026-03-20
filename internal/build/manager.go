@@ -8,9 +8,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/charmbracelet/ayo/internal/generate"
-	"github.com/charmbracelet/ayo/internal/project"
-	"github.com/charmbracelet/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/generate"
+	"github.com/ayo-ooo/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/schema"
 )
 
 type Manager struct {

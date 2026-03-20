@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/project"
-	"github.com/charmbracelet/ayo/internal/schema"
-	"github.com/charmbracelet/ayo/internal/testutil"
+	"github.com/ayo-ooo/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/testutil"
 )
 
 func TestGenerateCLI_Basic(t *testing.T) {

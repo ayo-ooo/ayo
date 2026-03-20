@@ -4,42 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/project"
 )
-
-func TestGenerateAgent_APIKeyEnvMapping(t *testing.T) {
-	proj := &project.Project{
-		Path: "/test/agent",
-		Config: project.AgentConfig{
-			Name:        "test-agent",
-			Description: "Test agent",
-		},
-	}
-
-	code, err := GenerateAgent(proj, "main")
-	if err != nil {
-		t.Fatalf("GenerateAgent() error = %v", err)
-	}
-
-	providerEnvMap := map[string]string{
-		"anthropic":  "ANTHROPIC_API_KEY",
-		"openai":     "OPENAI_API_KEY",
-		"gemini":     "GEMINI_API_KEY",
-		"groq":       "GROQ_API_KEY",
-		"openrouter": "OPENROUTER_API_KEY",
-		"zai":        "ZAI_API_KEY",
-	}
-
-	for provider, expectedEnv := range providerEnvMap {
-		// Check the case statement for each provider
-		if !strings.Contains(code, `case "`+provider+`":`) {
-			t.Errorf("Missing case for provider %q in getAPIKeyEnv", provider)
-		}
-		if !strings.Contains(code, `return "`+expectedEnv+`"`) {
-			t.Errorf("Missing return for %q -> %q mapping", provider, expectedEnv)
-		}
-	}
-}
 
 func TestGenerateAgent_SelectModelStub(t *testing.T) {
 	proj := &project.Project{
@@ -231,24 +197,5 @@ func TestGenerateAgent_FlagToEnvKeyFlow(t *testing.T) {
 
 	if !strings.Contains(code, "os.Getenv(getAPIKeyEnv(provider))") {
 		t.Error("Should call getAPIKeyEnv with provider flag to get API key from env")
-	}
-}
-
-func TestGenerateAgent_DefaultEnvVarPattern(t *testing.T) {
-	proj := &project.Project{
-		Path: "/test/agent",
-		Config: project.AgentConfig{
-			Name:        "test-agent",
-			Description: "Test agent",
-		},
-	}
-
-	code, err := GenerateAgent(proj, "main")
-	if err != nil {
-		t.Fatalf("GenerateAgent() error = %v", err)
-	}
-
-	if !strings.Contains(code, `strings.ToUpper(p) + "_API_KEY"`) {
-		t.Error("Should have default pattern for unknown providers")
 	}
 }

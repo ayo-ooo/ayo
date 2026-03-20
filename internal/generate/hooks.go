@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/project"
 )
 
 // GenerateHooks generates the hook runner code for the generated agent

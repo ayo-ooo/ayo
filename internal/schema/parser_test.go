@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/testutil"
+	"github.com/ayo-ooo/ayo/internal/testutil"
 )
 
 func TestParseSchema_ValidObjectSchema(t *testing.T) {

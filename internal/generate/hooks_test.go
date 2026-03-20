@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/project"
 )
 
 func TestGenerateHooks_HookRunnerStruct(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/ayo/internal/project"
-	"github.com/charmbracelet/ayo/internal/testutil"
+	"github.com/ayo-ooo/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/testutil"
 )
 
 func TestNewGenerator(t *testing.T) {
@@ -184,12 +184,12 @@ func TestGenerateTUI(t *testing.T) {
 		t.Error("GenerateTUI() should define TUI states")
 	}
 
-	if !strings.Contains(code, "providerModels") {
-		t.Error("GenerateTUI() should define provider models map")
+	if !strings.Contains(code, "catwalk") {
+		t.Error("GenerateTUI() should import catwalk for model discovery")
 	}
 }
 
-func TestGenerateTUI_ProviderModels(t *testing.T) {
+func TestGenerateTUI_ProviderDiscovery(t *testing.T) {
 	proj := &project.Project{
 		Config: project.AgentConfig{
 			Name: "provider-test",
@@ -201,11 +201,22 @@ func TestGenerateTUI_ProviderModels(t *testing.T) {
 		t.Fatalf("GenerateTUI() error = %v", err)
 	}
 
-	providers := []string{"anthropic", "openai", "zai", "openrouter", "gemini", "groq"}
-	for _, provider := range providers {
-		if !strings.Contains(code, provider) {
-			t.Errorf("GenerateTUI() should include provider %q", provider)
-		}
+	// Check that it uses catwalk for dynamic provider discovery
+	if !strings.Contains(code, "getProviders") {
+		t.Error("GenerateTUI() should define getProviders function")
+	}
+
+	if !strings.Contains(code, "embedded.GetAll()") {
+		t.Error("GenerateTUI() should use embedded providers as fallback")
+	}
+
+	// Check for API key detection
+	if !strings.Contains(code, "hasAPIKey") {
+		t.Error("GenerateTUI() should define hasAPIKey function")
+	}
+
+	if !strings.Contains(code, "getAPIKeyEnv") {
+		t.Error("GenerateTUI() should define getAPIKeyEnv function")
 	}
 }
 

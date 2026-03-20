@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/charmbracelet/ayo/internal/build"
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/build"
+	"github.com/ayo-ooo/ayo/internal/project"
 	"github.com/spf13/cobra"
 )
 

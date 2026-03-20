@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/ayo/internal/project"
+	"github.com/ayo-ooo/ayo/internal/project"
 )
 
 func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
@@ -20,7 +20,6 @@ func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\t\"fmt\"\n")
 	b.WriteString("\t\"os\"\n")
 	b.WriteString("\t\"path/filepath\"\n")
-	b.WriteString("\t\"strings\"\n")
 	b.WriteString("\n")
 	b.WriteString("\t\"github.com/BurntSushi/toml\"\n")
 	b.WriteString("\t\"charm.land/fantasy\"\n")
@@ -110,51 +109,6 @@ func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("// selectModel launches the model selection TUI.\n")
 	b.WriteString("func selectModel() error {\n")
 	b.WriteString("\treturn runModelSelectionTUI()\n")
-	b.WriteString("}\n\n")
-	b.WriteString("// scanAvailableProviders checks environment for available API keys.\n")
-	b.WriteString("func scanAvailableProviders() []string {\n")
-	b.WriteString("\tvar available []string\n")
-	b.WriteString("\tfor _, p := range []string{\"anthropic\", \"openai\", \"zai\", \"openrouter\", \"gemini\", \"groq\"} {\n")
-	b.WriteString("\t\tif key := os.Getenv(getAPIKeyEnv(p)); strings.TrimSpace(key) != \"\" {\n")
-	b.WriteString("\t\t\tavailable = append(available, p)\n")
-	b.WriteString("\t\t}\n")
-	b.WriteString("\t}\n")
-	b.WriteString("\treturn available\n")
-	b.WriteString("}\n\n")
-	b.WriteString("// getDefaultModel returns the default model for a provider.\n")
-	b.WriteString("func getDefaultModel(provider string) string {\n")
-	b.WriteString("\tmodels := map[string]string{\n")
-	b.WriteString("\t\t\"anthropic\":  \"claude-3-5-sonnet-20241022\",\n")
-	b.WriteString("\t\t\"openai\":     \"gpt-4o\",\n")
-	b.WriteString("\t\t\"zai\":        \"zai-v4\",\n")
-	b.WriteString("\t\t\"openrouter\": \"anthropic/claude-3.5-sonnet\",\n")
-	b.WriteString("\t\t\"gemini\":     \"gemini-1.5-pro\",\n")
-	b.WriteString("\t\t\"groq\":       \"llama-3.3-70b-versatile\",\n")
-	b.WriteString("\t}\n")
-	b.WriteString("\tif m, ok := models[provider]; ok {\n")
-	b.WriteString("\t\treturn m\n")
-	b.WriteString("\t}\n")
-	b.WriteString("\treturn \"\"\n")
-	b.WriteString("}\n\n")
-
-	b.WriteString("// getAPIKeyEnv returns the environment variable name for a provider.\n")
-	b.WriteString("func getAPIKeyEnv(p string) string {\n")
-	b.WriteString("\tswitch p {\n")
-	b.WriteString("\tcase \"anthropic\":\n")
-	b.WriteString("\t\treturn \"ANTHROPIC_API_KEY\"\n")
-	b.WriteString("\tcase \"openai\":\n")
-	b.WriteString("\t\treturn \"OPENAI_API_KEY\"\n")
-	b.WriteString("\tcase \"gemini\":\n")
-	b.WriteString("\t\treturn \"GEMINI_API_KEY\"\n")
-	b.WriteString("\tcase \"groq\":\n")
-	b.WriteString("\t\treturn \"GROQ_API_KEY\"\n")
-	b.WriteString("\tcase \"openrouter\":\n")
-	b.WriteString("\t\treturn \"OPENROUTER_API_KEY\"\n")
-	b.WriteString("\tcase \"zai\":\n")
-	b.WriteString("\t\treturn \"ZAI_API_KEY\"\n")
-	b.WriteString("\tdefault:\n")
-	b.WriteString("\t\treturn strings.ToUpper(p) + \"_API_KEY\"\n")
-	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
 
 	hasInput := proj.Input != nil

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/ayo/internal/schema"
+	"github.com/ayo-ooo/ayo/internal/schema"
 )
 
 func ParseProject(path string) (*Project, error) {
