@@ -312,7 +312,14 @@ func (t *TUI) buildModelList(p ProviderItem) {
 	delegate.Styles.SelectedTitle = selectedStyle
 	delegate.SetHeight(3)
 
-	t.modelList = list.New(items, delegate, t.width-4, t.height-10)
+	w, h := t.width, t.height
+	if w == 0 {
+		w = 80
+	}
+	if h == 0 {
+		h = 24
+	}
+	t.modelList = list.New(items, delegate, w-4, h-10)
 	t.modelList.Title = fmt.Sprintf("Select Model · %s", p.provider.Name)
 	t.modelList.SetShowStatusBar(true)
 	t.modelList.SetFilteringEnabled(true)
