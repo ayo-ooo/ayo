@@ -13,7 +13,7 @@ Create a project, define your agent, build it:
 ayo fresh my-agent && cd my-agent
 
 # Define behavior (edit system.md)
-echo "You are a helpful coding assistant." > system.md
+echo "You are a helpful coding assistant." >| system.md
 
 # Build and run
 ayo runthat .
