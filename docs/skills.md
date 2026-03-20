@@ -19,7 +19,7 @@ skills/
 
 ## Build-Time Embedding
 
-Skills are embedded into the binary during `ayo build`:
+Skills are embedded into the binary during `ayo runthat`:
 
 ```go
 // Generated in embed.go

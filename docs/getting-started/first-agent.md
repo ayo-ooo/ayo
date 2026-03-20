@@ -172,7 +172,7 @@ Output format: {{.format}}
 
 ```bash
 # Build the agent
-ayo build .
+ayo runthat .
 
 # Run with help
 ./my-agent --help

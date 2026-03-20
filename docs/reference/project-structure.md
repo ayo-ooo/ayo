@@ -69,7 +69,7 @@ Directory containing executable scripts for lifecycle events. See [Hooks](hooks.
 
 ## Generated Files
 
-When you run `ayo build`, these files are generated:
+When you run `ayo runthat`, these files are generated:
 
 ```
 my-agent/
@@ -104,7 +104,7 @@ my-agent
 
 ## Build Output
 
-The `ayo build` command:
+The `ayo runthat` command:
 
 1. Validates the project structure
 2. Parses schemas and configuration

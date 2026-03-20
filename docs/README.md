@@ -69,7 +69,7 @@ your-agent/
 ```
 
 1. Define your agent with schemas and configuration
-2. Run `ayo build` to generate a standalone Go binary
+2. Run `ayo runthat` to generate a standalone Go binary
 3. Distribute the binary - no runtime dependencies
 
 ## Key Features

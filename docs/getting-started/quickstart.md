@@ -56,7 +56,7 @@ Create `input.jsonschema` to define the input:
 ### 4. Build
 
 ```bash
-ayo build .
+ayo runthat .
 ```
 
 This generates an `echo-agent` executable in the current directory.

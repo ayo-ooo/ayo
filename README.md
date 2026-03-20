@@ -16,7 +16,7 @@ ayo fresh my-agent && cd my-agent
 echo "You are a helpful coding assistant." > system.md
 
 # Build and run
-ayo build .
+ayo runthat .
 ./my-agent "Write a haiku about recursion"
 ```
 
@@ -113,7 +113,7 @@ Respond with accurate, natural-sounding translations.
 ### 5. Build and Run
 
 ```bash
-ayo build .
+ayo runthat .
 ./translate "Hello, world!" -t spanish
 ```
 
@@ -143,7 +143,7 @@ my-agent/
 | Command | Description |
 |---------|-------------|
 | `ayo fresh <name>` | Create a new agent project |
-| `ayo build [path]` | Compile agent into standalone executable |
+| `ayo runthat [path]` | Compile agent into standalone executable |
 | `ayo checkit [path]` | Validate an agent project |
 | `ayo --version` | Show version |
 | `ayo --help` | Show help |
@@ -284,7 +284,7 @@ The [examples/](examples/) directory contains complete working agents:
 
 ## What Happens Under the Hood
 
-When you run `ayo build`:
+When you run `ayo runthat`:
 
 1. Reads your `config.toml`, `system.md`, and schemas
 2. Generates a Go program with:

@@ -44,6 +44,21 @@ Checks:
 
 func init() {
 	rootCmd.AddCommand(checkitCmd)
+
+	// Hidden aliases
+	checkAlias := &cobra.Command{
+		Use:    "check [path]",
+		Hidden: true,
+		Run:    checkitCmd.Run,
+	}
+	rootCmd.AddCommand(checkAlias)
+
+	validateAlias := &cobra.Command{
+		Use:    "validate [path]",
+		Hidden: true,
+		Run:    checkitCmd.Run,
+	}
+	rootCmd.AddCommand(validateAlias)
 }
 
 func validateProject(path string) error {

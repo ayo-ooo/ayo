@@ -119,7 +119,7 @@ You are a helpful assistant that...
 ### 6. Build and Test
 
 ```bash
-ayo build .
+ayo runthat .
 ./my-agent "test input"
 ```
 

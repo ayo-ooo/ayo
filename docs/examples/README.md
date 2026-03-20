@@ -303,10 +303,10 @@ PIPELINE_MODE=production ./data-pipeline input.csv --schema report
 ```bash
 # Build any example
 cd examples/<name>
-ayo build .
+ayo runthat .
 
 # Or from the repository root
-ayo build examples/<name>
+ayo runthat examples/<name>
 
 # Run
 ./<name> --help
@@ -319,5 +319,5 @@ To add a new example:
 1. Create `examples/<name>/`
 2. Add required files (config.toml, system.md)
 3. Add optional files (schemas, templates, skills, hooks)
-4. Test with `ayo build examples/<name>`
+4. Test with `ayo runthat examples/<name>`
 5. Add documentation in `docs/examples/<name>.md`

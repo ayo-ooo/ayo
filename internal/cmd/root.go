@@ -43,7 +43,7 @@ Agents are defined by a directory convention containing:
 Examples:
   ayo fresh my-agent      Create a new agent project
   ayo checkit ./my-agent  Validate an agent project
-  ayo build ./my-agent    Compile to standalone executable`,
+  ayo runthat ./my-agent  Compile to standalone executable`,
 	Version: Version,
 }
 

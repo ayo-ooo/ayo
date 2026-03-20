@@ -69,12 +69,20 @@ The command creates a directory with the agent name containing:
 		fmt.Printf("\nNext steps:\n")
 		fmt.Printf("  1. Edit %s/system.md to define agent behavior\n", name)
 		fmt.Printf("  2. Run 'ayo checkit %s' to validate\n", name)
-		fmt.Printf("  3. Run 'ayo build %s' to compile\n", name)
+		fmt.Printf("  3. Run 'ayo runthat %s' to compile\n", name)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(freshCmd)
+
+	// Hidden alias
+	newAlias := &cobra.Command{
+		Use:    "new <name>",
+		Hidden: true,
+		Run:    freshCmd.Run,
+	}
+	rootCmd.AddCommand(newAlias)
 }
 
 func createProject(name string) error {

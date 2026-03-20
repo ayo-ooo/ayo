@@ -12,8 +12,8 @@ var (
 	buildOutputPath string
 )
 
-var buildCmd = &cobra.Command{
-	Use:   "build [path]",
+var runthatCmd = &cobra.Command{
+	Use:   "runthat [path]",
 	Short: "Compile an agent project into a standalone executable",
 	Long: `Compile an agent project into a standalone executable binary.
 
@@ -36,8 +36,33 @@ The build process:
 }
 
 func init() {
-	rootCmd.AddCommand(buildCmd)
-	buildCmd.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path (default: <agent-name>)")
+	rootCmd.AddCommand(runthatCmd)
+	runthatCmd.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path (default: <agent-name>)")
+
+	// Hidden aliases
+	buildAlias := &cobra.Command{
+		Use:    "build [path]",
+		Hidden: true,
+		Run:    runthatCmd.Run,
+	}
+	buildAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
+	rootCmd.AddCommand(buildAlias)
+
+	compileAlias := &cobra.Command{
+		Use:    "compile [path]",
+		Hidden: true,
+		Run:    runthatCmd.Run,
+	}
+	compileAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
+	rootCmd.AddCommand(compileAlias)
+
+	dunnAlias := &cobra.Command{
+		Use:    "dunn [path]",
+		Hidden: true,
+		Run:    runthatCmd.Run,
+	}
+	dunnAlias.Flags().StringVarP(&buildOutputPath, "output", "o", "", "Output binary path")
+	rootCmd.AddCommand(dunnAlias)
 }
 
 func buildProject(path string) error {
