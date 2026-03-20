@@ -224,7 +224,9 @@ func (t *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.width = msg.Width
 		t.height = msg.Height
 		t.providerList.SetSize(msg.Width-4, msg.Height-10)
-		t.modelList.SetSize(msg.Width-4, msg.Height-10)
+		if t.state != stateProviderSelect {
+			t.modelList.SetSize(msg.Width-4, msg.Height-10)
+		}
 
 	case tea.KeyMsg:
 		// Handle global keys
