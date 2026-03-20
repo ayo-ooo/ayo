@@ -8,10 +8,10 @@ When you run `ayo runthat`, several Go source files are generated. This document
 
 ## Generated Files
 
-| File | Purpose |
+|| File | Purpose |
 |------|---------|
 | `main.go` | Entry point and main logic |
-| `cli.go` | CLI flag parsing |
+| `cli.go` | CLI flag parsing and JSON input |
 | `types.go` | Input/output type definitions |
 | `embed.go` | Embedded static files |
 | `hooks.go` | Hook execution (if hooks exist) |
@@ -23,7 +23,7 @@ When you run `ayo runthat`, several Go source files are generated. This document
 
 The entry point that:
 
-1. Parses CLI flags
+1. Parses CLI flags and JSON input
 2. Initializes the LLM client
 3. Loads system prompt and prompt template
 4. Executes the agent
@@ -50,7 +50,8 @@ func main() {
 
 Generated when `input.jsonschema` exists. Contains:
 
-- Flag definitions for each input property
+- JSON input parsing (positional argument or stdin)
+- Flag definitions for primitive input properties
 - Flag parsing logic
 - Validation
 
@@ -64,23 +65,43 @@ type Input struct {
 func parseFlags() (*Input, error) {
     input := &Input{}
 
-    flag.StringVar(&input.Text, "text", "", "Text to process")
-    flag.StringVar(&input.Format, "format", "text", "Output format")
-    flag.IntVar(&input.Count, "count", 10, "Number of items")
+    // Parse JSON input if provided
+    if len(args) > 0 {
+        jsonInput := args[0]
+        if jsonInput == "-" {
+            jsonInput = readStdin()
+        }
+        json.Unmarshal([]byte(jsonInput), input)
+    }
+
+    // Define flag overrides (primitive types only)
+    flag.StringVar(&input.Text, "text", input.Text, "Text to process")
+    flag.StringVar(&input.Format, "format", input.Format, "Output format")
+    flag.IntVar(&input.Count, "count", input.Count, "Number of items")
 
     flag.Parse()
+
+    // Flags override JSON values
     return input, validate(input)
 }
 ```
 
+### Input Flow
+
+1. JSON input is parsed first (from positional arg, file, or stdin)
+2. Flags are defined with JSON values as defaults
+3. Flag parsing allows overrides
+4. Final values are validated
+
 ### Generated Flag Names
 
-| Schema Property | Generated Flag |
+|| Schema Property | Generated Flag |
 |-----------------|----------------|
 | `text` | `--text` |
 | `source_language` | `--source-language` |
-| `x-cli-flag: "src"` | `--src` |
-| `x-cli-short: "-s"` | `-s, --source` |
+| `"flag": "src"` | `--src` |
+
+Only primitive types (string, integer, number, boolean) get flags.
 
 ## types.go
 

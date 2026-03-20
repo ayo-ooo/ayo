@@ -17,7 +17,7 @@ echo "You are a helpful coding assistant." > system.md
 
 # Build and run
 ayo runthat .
-./my-agent "Write a haiku about recursion"
+echo '{"prompt": "Write a haiku about recursion"}' | ./my-agent -
 ```
 
 That's it. You now have a standalone CLI that calls an LLM with your system prompt.
@@ -39,7 +39,7 @@ go install github.com/ayo-ooo/ayo/cmd/ayo@latest
 
 Configure your API key for your preferred provider:
 
-| Environment Variable        | Provider                                           |
+|| Environment Variable        | Provider                                           |
 | --------------------------- | -------------------------------------------------- |
 | `ANTHROPIC_API_KEY`         | Anthropic                                          |
 | `OPENAI_API_KEY`            | OpenAI                                             |
@@ -69,20 +69,17 @@ Create `input.jsonschema` to define what the agent accepts:
   "properties": {
     "text": {
       "type": "string",
-      "description": "Text to translate",
-      "x-cli-position": 1
+      "description": "Text to translate"
     },
     "to": {
       "type": "string",
       "description": "Target language",
-      "x-cli-short": "-t"
+      "default": "spanish"
     }
   },
-  "required": ["text", "to"]
+  "required": ["text"]
 }
 ```
-
-The `x-cli-position` makes `text` a positional argument. The `x-cli-short` adds `-t` as a shorthand.
 
 ### 3. Define Output Schema (Optional)
 
@@ -114,7 +111,12 @@ Respond with accurate, natural-sounding translations.
 
 ```bash
 ayo runthat .
-./translate "Hello, world!" -t spanish
+
+# Run with JSON input
+./translate '{"text": "Hello, world!", "to": "spanish"}'
+
+# Or use flags to override specific fields
+./translate --text "Hello, world!" --to spanish
 ```
 
 Output:
@@ -140,7 +142,7 @@ my-agent/
 
 ## Commands
 
-| Command | Description |
+|| Command | Description |
 |---------|-------------|
 | `ayo fresh <name>` | Create a new agent project |
 | `ayo runthat [path]` | Compile agent into standalone executable |
@@ -148,9 +150,38 @@ my-agent/
 | `ayo --version` | Show version |
 | `ayo --help` | Show help |
 
+## JSON Input
+
+Generated CLIs accept JSON input as the primary input mechanism:
+
+```bash
+# From inline JSON
+./my-agent '{"field": "value"}'
+
+# From a file
+./my-agent input.json
+
+# From stdin
+echo '{"field": "value"}' | ./my-agent -
+```
+
+## Flag Overrides
+
+Flags let you override specific JSON fields from the command line:
+
+```bash
+# Combine JSON with flag overrides
+./my-agent '{"text": "hello"}' --language spanish
+
+# Use flags alone (all fields with defaults can be omitted)
+./my-agent --text "hello" --language spanish
+```
+
+Only primitive types (strings, numbers, integers, booleans) get flag overrides.
+
 ## Input Schema
 
-Define inputs using JSON Schema with CLI extensions:
+Define inputs using JSON Schema:
 
 ```json
 {
@@ -159,15 +190,14 @@ Define inputs using JSON Schema with CLI extensions:
     "file": {
       "type": "string",
       "description": "File to process",
-      "x-cli-position": 1,
-      "x-cli-file": true
+      "file": true
     },
     "format": {
       "type": "string",
       "description": "Output format",
       "enum": ["json", "yaml", "text"],
       "default": "text",
-      "x-cli-short": "-f"
+      "flag": "fmt"
     },
     "verbose": {
       "type": "boolean",
@@ -179,18 +209,16 @@ Define inputs using JSON Schema with CLI extensions:
 }
 ```
 
-**CLI Extensions:**
+**CLI Properties:**
 
-| Extension | Purpose |
-|-----------|---------|
-| `x-cli-position` | Make a positional argument (1-indexed) |
-| `x-cli-flag` | Custom flag name |
-| `x-cli-short` | Short flag (e.g., `-f`) |
-| `x-cli-file` | Load file content into field |
+|| Property | Purpose |
+|----------|---------|
+| `flag` | Custom flag name (default: kebab-case of property name) |
+| `file` | Set to `true` to load file content into field |
 
-Generates:
+The above schema generates:
 ```bash
-./agent <file> [-f json] [--verbose]
+./agent [json-input] [--file path] [--fmt text] [--verbose]
 ```
 
 ## Output Schema
@@ -231,7 +259,7 @@ Analyze the following {{.format}} file:
 
 **Template Functions:**
 
-| Function | Description |
+|| Function | Description |
 |----------|-------------|
 | `{{.field}}` | Access input field |
 | `{{file "path"}}` | Load file contents |
@@ -271,7 +299,7 @@ Hooks receive context via environment variables and can modify behavior.
 
 The [examples/](examples/) directory contains complete working agents:
 
-| Example | Features |
+|| Example | Features |
 |---------|----------|
 | [echo](examples/echo/) | Minimal agent |
 | [translate](examples/translate/) | Input/output schemas, custom flags |
@@ -288,7 +316,8 @@ When you run `ayo runthat`:
 
 1. Reads your `config.toml`, `system.md`, and schemas
 2. Generates a Go program with:
-   - CLI flag parsing based on `input.jsonschema`
+   - JSON input parsing (positional or stdin)
+   - Flag overrides for primitive fields
    - Type-safe input validation
    - LLM client configured for your provider
    - Structured output parsing if `output.jsonschema` exists

@@ -21,7 +21,7 @@ I need an agent that reviews code for developers to improve code quality.
 
 What does the agent need to know?
 
-| Input | Type | Required | Notes |
+|| Input | Type | Required | Notes |
 |-------|------|----------|-------|
 | code | string (file) | yes | Source code to review |
 | language | enum | no | Detect automatically |
@@ -31,7 +31,7 @@ What does the agent need to know?
 
 What should the agent produce?
 
-| Output | Type | Description |
+|| Output | Type | Description |
 |--------|------|-------------|
 | issues | array | List of problems found |
 | score | integer | Quality score 0-100 |
@@ -97,8 +97,7 @@ You are a helpful assistant that...
   "properties": {
     "input": {
       "type": "string",
-      "description": "Primary input",
-      "x-cli-position": 1
+      "description": "Primary input"
     }
   },
   "required": ["input"]
@@ -120,7 +119,46 @@ You are a helpful assistant that...
 
 ```bash
 ayo runthat .
-./my-agent "test input"
+
+# Test with JSON input
+./my-agent '{"input": "test input"}'
+
+# Or use flags
+./my-agent --input "test input"
+```
+
+## JSON Input Patterns
+
+### Basic Input
+
+Pass input as JSON:
+
+```bash
+./my-agent '{"input": "value"}'
+```
+
+### From File
+
+Read JSON from a file:
+
+```bash
+./my-agent input.json
+```
+
+### From Stdin
+
+Pipe JSON to the agent:
+
+```bash
+echo '{"input": "value"}' | ./my-agent -
+```
+
+### Flag Overrides
+
+Override specific fields with flags:
+
+```bash
+./my-agent '{"input": "value"}' --format json
 ```
 
 ## Iteration
@@ -144,10 +182,14 @@ ayo runthat .
 ```json
 {
   "properties": {
-    "text": { "type": "string", "x-cli-position": 1 },
+    "text": { "type": "string" },
     "format": { "type": "string", "default": "text" }
   }
 }
+```
+
+```bash
+./agent '{"text": "hello"}' --format json
 ```
 
 ### File Processing
@@ -155,9 +197,30 @@ ayo runthat .
 ```json
 {
   "properties": {
-    "file": { "type": "string", "x-cli-position": 1, "x-cli-file": true }
+    "file": { "type": "string", "file": true }
   }
 }
+```
+
+```bash
+./agent '{"file": "/path/to/file.txt"}'
+```
+
+### Custom Flag Names
+
+```json
+{
+  "properties": {
+    "output_path": {
+      "type": "string",
+      "flag": "output"
+    }
+  }
+}
+```
+
+```bash
+./agent --output /path/to/output
 ```
 
 ### Multi-Step Processing
