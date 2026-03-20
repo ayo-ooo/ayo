@@ -1,6 +1,6 @@
 # Input Schema
 
-Define agent inputs using JSON Schema with CLI extensions.
+Define agent inputs using JSON Schema. When `input.jsonschema` exists, the generated CLI accepts JSON payloads with optional flag overrides.
 
 ## Overview
 
@@ -9,8 +9,42 @@ The `input.jsonschema` file defines:
 - Input field names and types
 - Required vs optional fields
 - Default values
-- CLI flag configuration
 - Validation constraints
+
+**Key concept**: Pass a JSON payload matching your schema. Use flags to override specific fields without editing the JSON.
+
+## Usage Patterns
+
+### Pattern 1: Full JSON Payload
+
+```bash
+./code-review '{"file": "main.go", "language": "go", "strict": true}'
+```
+
+### Pattern 2: JSON + Flag Overrides
+
+```bash
+./code-review '{"file": "main.go"}' --strict --language python
+```
+
+Flags always override values in the JSON payload.
+
+### Pattern 3: Stdin
+
+```bash
+cat data.json | ./code-review -
+echo '{"file": "main.go"}' | ./code-review -
+```
+
+Use `-` to read JSON from stdin.
+
+### Pattern 4: Flags Only
+
+For simple schemas, you can skip the JSON entirely:
+
+```bash
+./translate --text "hello" --to spanish
+```
 
 ## Basic Structure
 
@@ -29,80 +63,39 @@ The `input.jsonschema` file defines:
 
 ## Supported Types
 
-| JSON Schema Type | Go Type | CLI Flag Type |
-|-----------------|---------|---------------|
-| `string` | `string` | `StringVar` |
-| `integer` | `int` | `IntVar` |
-| `number` | `float64` | `Float64Var` |
-| `boolean` | `bool` | `BoolVar` |
+| JSON Schema Type | Go Type | Flag Type |
+|-----------------|---------|-----------|
+| `string` | `string` | StringVar |
+| `integer` | `int` | IntVar |
+| `number` | `float64` | Float64Var |
+| `boolean` | `bool` | BoolVar |
 
-## CLI Extensions
+**Note**: Flags are only generated for primitive types (string, integer, number, boolean). Nested objects and arrays must be provided via JSON payload.
 
-### x-cli-position
+## Flag Generation
 
-Make a field a positional argument:
+Flags are auto-generated from property names:
+
+| Property Name | Generated Flag |
+|--------------|----------------|
+| `text` | `--text` |
+| `source_language` | `--source-language` |
+| `maxIssues` | `--max-issues` |
+
+### Custom Flag Names
+
+Override the flag name with the `flag` property:
 
 ```json
 {
-  "text": {
+  "source_language": {
     "type": "string",
-    "description": "Text to process",
-    "x-cli-position": 1
+    "flag": "from"
   }
 }
 ```
 
-Usage: `./agent "input text"`
-
-Position numbers determine argument order (1-indexed).
-
-### x-cli-flag
-
-Customize the flag name:
-
-```json
-{
-  "from": {
-    "type": "string",
-    "description": "Source language",
-    "x-cli-flag": "source-language"
-  }
-}
-```
-
-Usage: `./agent --source-language english`
-
-### x-cli-short
-
-Add a short flag:
-
-```json
-{
-  "format": {
-    "type": "string",
-    "description": "Output format",
-    "x-cli-short": "-f"
-  }
-}
-```
-
-Usage: `./agent -f json`
-
-### x-cli-file
-
-Load file contents into a field:
-
-```json
-{
-  "config_file": {
-    "type": "string",
-    "description": "Path to config file",
-    "x-cli-file": true
-  }
-}
-```
-
-When specified, the file contents are loaded and passed to the LLM, not just the path.
+Usage: `./agent --from english`
 
 ## Required Fields
 
@@ -119,7 +112,7 @@ List required fields in the `required` array:
 }
 ```
 
-Required fields without defaults must be provided.
+Required fields without defaults must be provided either in JSON or via flag.
 
 ## Default Values
 
@@ -163,36 +156,98 @@ Limit values to a specific set:
 }
 ```
 
+## File Loading
+
+For file paths that should load contents (not just the path), use the `file` property:
+
+```json
+{
+  "source": {
+    "type": "string",
+    "description": "Path to source file",
+    "file": true
+  }
+}
+```
+
+```bash
+# File contents are loaded automatically
+./agent '{"source": "main.go"}'
+
+# Also works with flags
+./agent --source main.go
+```
+
+The file contents (not the path) are passed to the LLM.
+
+## Schema Complexity Levels
+
+### Level 1: Simple (Primitives Only)
+
+```json
+{
+  "properties": {
+    "text": { "type": "string" },
+    "count": { "type": "integer", "default": 10 }
+  }
+}
+```
+
+All fields get flags. Use JSON or flags interchangeably.
+
+### Level 2: Nested Objects
+
+```json
+{
+  "properties": {
+    "config": {
+      "type": "object",
+      "properties": {
+        "timeout": { "type": "integer" },
+        "retries": { "type": "integer" }
+      }
+    }
+  }
+}
+```
+
+No flags for nested objects. Must use JSON payload:
+
+```bash
+./agent '{"config": {"timeout": 30, "retries": 3}}'
+```
+
+### Level 3: Arrays
+
+```json
+{
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
+```
+
+No flags for arrays. Must use JSON payload:
+
+```bash
+./agent '{"files": ["a.go", "b.go", "c.go"]}'
+```
+
 ## Complete Example
 
-From the translate example:
+Translate agent with minimal schema:
 
 ```json
 {
   "type": "object",
   "properties": {
-    "text": {
-      "type": "string",
-      "description": "Text to translate",
-      "x-cli-position": 1
-    },
-    "from": {
-      "type": "string",
-      "description": "Source language",
-      "x-cli-flag": "source-language",
-      "x-cli-short": "-s",
-      "default": "auto"
-    },
-    "to": {
-      "type": "string",
-      "description": "Target language",
-      "x-cli-short": "-t"
-    },
-    "formal": {
-      "type": "boolean",
-      "description": "Use formal tone",
-      "default": false
-    }
+    "text": { "type": "string", "description": "Text to translate" },
+    "from": { "type": "string", "description": "Source language", "default": "auto" },
+    "to": { "type": "string", "description": "Target language" },
+    "formal": { "type": "boolean", "description": "Use formal tone", "default": false }
   },
   "required": ["to"]
 }
@@ -202,13 +257,39 @@ Generates CLI:
 
 ```
 Usage:
-  translate [flags]
+  translate [json-input] [flags]
 
 Flags:
-      --formal                Use formal tone (default false)
-  -s, --source-language       Source language (default "auto")
-  -t, --to string             Target language
+      --text string      Text to translate
+      --from string      Source language (default "auto")
+      --to string        Target language (required)
+      --formal           Use formal tone (default false)
 ```
+
+Usage examples:
+
+```bash
+# Full JSON
+translate '{"text": "hello", "to": "spanish"}'
+
+# JSON with flag override
+translate '{"text": "hello"}' --to spanish --formal
+
+# Stdin
+echo '{"text":"hello","to":"spanish"}' | translate -
+
+# Flags only
+translate --text "hello" --to spanish
+```
+
+## Input Resolution Order
+
+1. Parse JSON payload (if provided)
+2. Apply flag overrides
+3. Apply defaults from schema
+4. Validate against schema
+
+Flags always take precedence over JSON values.
 
 ## Generated Code
 
@@ -224,25 +305,45 @@ type Input struct {
 }
 ```
 
-2. **Flag parsing** in `cli.go`:
-```go
-func parseFlags() (*Input, error) {
-    var input Input
-    flag.StringVar(&input.Text, "text", "", "Text to translate")
-    flag.StringVar(&input.From, "source-language", "auto", "Source language")
-    flag.StringVar(&input.To, "to", "", "Target language")
-    flag.BoolVar(&input.Formal, "formal", false, "Use formal tone")
-    // ...
+2. **CLI parsing** in `cli.go` that handles JSON input and flag overrides.
+
+## Migration from x-cli-* Extensions
+
+Previously, ayo used `x-cli-*` extensions for CLI configuration:
+
+| Old Property | New Approach |
+|-------------|--------------|
+| `x-cli-position: 1` | Use JSON payload |
+| `x-cli-flag: "name"` | Use `flag: "name"` |
+| `x-cli-short: "s"` | Not supported (removed) |
+| `x-cli-file: true` | Use `file: true` |
+
+The old extensions still work during migration but will be removed in a future version.
+
+**Before (verbose):**
+```json
+{
+  "text": {
+    "type": "string",
+    "x-cli-position": 1
+  },
+  "from": {
+    "type": "string",
+    "x-cli-flag": "source-language",
+    "x-cli-short": "s"
+  }
 }
 ```
 
-## Limitations
-
-- Arrays and nested objects are parsed but not fully supported for CLI flags
-- Complex types should use `x-cli-file` to load JSON/JSON5 content
+**After (minimal):**
+```json
+{
+  "text": { "type": "string" },
+  "from": { "type": "string", "flag": "source-language" }
+}
+```
 
 ## Next Steps
 
 - [Output Schema](output-schema.md) - Define output structure
-- [CLI Flags](cli-flags.md) - Advanced flag configuration
 - [Examples](../examples/README.md) - See complete examples
