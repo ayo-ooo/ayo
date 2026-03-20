@@ -26,8 +26,7 @@ That's it. You now have a standalone CLI that calls an LLM with your system prom
 
 **Homebrew:**
 ```bash
-brew tap ayo-ooo/tap
-brew install ayo
+brew install ayo-ooo/tap/ayo
 ```
 
 **Go install:**
@@ -37,14 +36,18 @@ go install github.com/ayo-ooo/ayo/cmd/ayo@latest
 
 **Prerequisites:**
 - Go 1.21+ (for building generated agents)
-- An API key from [Anthropic](https://anthropic.com) or [OpenAI](https://openai.com)
 
-Configure your API key:
-```bash
-export ANTHROPIC_API_KEY=your-key-here
-# or
-export OPENAI_API_KEY=your-key-here
-```
+Configure your API key for your preferred provider:
+
+| Environment Variable        | Provider                                           |
+| --------------------------- | -------------------------------------------------- |
+| `ANTHROPIC_API_KEY`         | Anthropic                                          |
+| `OPENAI_API_KEY`            | OpenAI                                             |
+| `GEMINI_API_KEY`            | Google Gemini                                      |
+| `GROQ_API_KEY`              | Groq                                               |
+| `OPENROUTER_API_KEY`        | OpenRouter                                         |
+| `CEREBRAS_API_KEY`          | Cerebras                                           |
+| `HF_TOKEN`                  | Hugging Face Inference                             |
 
 ## Tutorial: Building a Translation Agent
 

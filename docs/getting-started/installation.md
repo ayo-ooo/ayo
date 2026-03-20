@@ -3,15 +3,13 @@
 ## Prerequisites
 
 - **Go 1.21+**: Required to build generated agents
-- **API Key**: An API key from a supported provider (Anthropic, OpenAI, etc.)
 
 ## Install Ayo CLI
 
 ### Homebrew (recommended)
 
 ```bash
-brew tap ayo-ooo/tap
-brew install ayo
+brew install ayo-ooo/tap/ayo
 ```
 
 ### Go Install
@@ -28,16 +26,19 @@ ayo --version
 
 ## Configure API Keys
 
-Ayo agents use the [Fantasy](https://github.com/charmbracelet/fantasy) library for LLM access. Configure your API keys:
+Configure your API key for your preferred provider:
 
-### Option 1: Environment Variables
+| Environment Variable        | Provider                                           |
+| --------------------------- | -------------------------------------------------- |
+| `ANTHROPIC_API_KEY`         | Anthropic                                          |
+| `OPENAI_API_KEY`            | OpenAI                                             |
+| `GEMINI_API_KEY`            | Google Gemini                                      |
+| `GROQ_API_KEY`              | Groq                                               |
+| `OPENROUTER_API_KEY`        | OpenRouter                                         |
+| `CEREBRAS_API_KEY`          | Cerebras                                           |
+| `HF_TOKEN`                  | Hugging Face Inference                             |
 
-```bash
-export ANTHROPIC_API_KEY=your-key-here
-export OPENAI_API_KEY=your-key-here
-```
-
-### Option 2: Config File
+### Config File
 
 Create `~/.config/ayo/config.toml`:
 
