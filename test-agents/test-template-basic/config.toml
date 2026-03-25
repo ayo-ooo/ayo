@@ -1,0 +1,10 @@
+[agent]
+name = "test-template-basic"
+version = "1.0.0"
+description = "Test agent for validating basic template variable substitution"
+
+[model]
+suggested = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
+
+[defaults]
+temperature = 0.7

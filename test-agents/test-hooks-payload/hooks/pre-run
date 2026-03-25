@@ -1,0 +1,31 @@
+#!/bin/bash
+# Hook that reads and validates JSON payload
+echo "PAYLOAD HOOK EXECUTED" >&2
+
+# Read JSON payload from stdin
+PAYLOAD=$(cat)
+echo "Payload received: $PAYLOAD" >&2
+
+# Parse and validate payload structure
+if echo "$PAYLOAD" | grep -q '"input"'; then
+  echo "✓ Input data present in payload" >&2
+else
+  echo "✗ Input data missing from payload" >&2
+  exit 1
+fi
+
+if echo "$PAYLOAD" | grep -q '"agent"'; then
+  echo "✓ Agent metadata present in payload" >&2
+else
+  echo "✗ Agent metadata missing from payload" >&2
+  exit 1
+fi
+
+if echo "$PAYLOAD" | grep -q '"run"'; then
+  echo "✓ Run context present in payload" >&2
+else
+  echo "✗ Run context missing from payload" >&2
+  exit 1
+fi
+
+echo "Payload validation complete" >&2

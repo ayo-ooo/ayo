@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "A string value"
+    },
+    "age": {
+      "type": "integer",
+      "description": "An integer value"
+    },
+    "score": {
+      "type": "number",
+      "description": "A number value"
+    },
+    "active": {
+      "type": "boolean",
+      "description": "A boolean value"
+    }
+  },
+  "required": ["name"]
+}

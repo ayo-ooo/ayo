@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "sentiment": {
+          "type": "object",
+          "properties": {
+            "score": { "type": "number" },
+            "label": { "type": "string" }
+          }
+        },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "processed_at": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    }
+  },
+  "required": ["analysis", "metadata"]
+}

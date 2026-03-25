@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name to process"
+    },
+    "items": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Items to list"
+    },
+    "uppercase": {
+      "type": "boolean",
+      "description": "Whether to uppercase"
+    }
+  },
+  "required": ["name"]
+}

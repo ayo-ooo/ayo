@@ -1,0 +1,2 @@
+This is sample content for the file inclusion test.
+It should be included raw without any template processing.
