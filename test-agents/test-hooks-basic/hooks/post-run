@@ -1,5 +1,0 @@
-#!/bin/bash
-# Post-run hook for test-hooks-basic
-echo "POST-RUN HOOK EXECUTED" >&2
-echo "AGENT_NAME=$AYO_AGENT_NAME" >&2
-echo "RUN_ID=$AYO_RUN_ID" >&2
