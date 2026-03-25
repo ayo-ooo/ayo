@@ -1,9 +1,0 @@
-# Ayo
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Generated binary (uncomment with actual name)
-# test-agent
