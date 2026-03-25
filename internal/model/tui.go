@@ -8,10 +8,10 @@ import (
 
 	"charm.land/catwalk/pkg/catwalk"
 	ayo "github.com/ayo-ooo/ayo/internal/catwalk"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // TUI states
@@ -201,7 +201,9 @@ func NewTUI() *TUI {
 	l.SetShowTitle(true)
 	l.Styles.Title = titleStyle
 	l.Styles.StatusBar = detailStyle
-	l.FilterInput.PromptStyle = selectedStyle
+	filterStyles := l.FilterInput.Styles()
+	filterStyles.Focused.Prompt = selectedStyle
+	l.FilterInput.SetStyles(filterStyles)
 
 	return &TUI{
 		state:          stateProviderSelect,
@@ -229,7 +231,7 @@ func (t *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			t.modelList.SetSize(msg.Width-4, msg.Height-10)
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Handle global keys
 		if key.Matches(msg, defaultKeyMap.Quit) {
 			t.quitting = true
@@ -326,13 +328,15 @@ func (t *TUI) buildModelList(p ProviderItem) {
 	t.modelList.SetShowHelp(false)
 	t.modelList.Styles.Title = titleStyle
 	t.modelList.Styles.StatusBar = detailStyle
-	t.modelList.FilterInput.PromptStyle = selectedStyle
+	modelFilterStyles := t.modelList.FilterInput.Styles()
+	modelFilterStyles.Focused.Prompt = selectedStyle
+	t.modelList.FilterInput.SetStyles(modelFilterStyles)
 }
 
 // View renders the TUI
-func (t *TUI) View() string {
+func (t *TUI) View() tea.View {
 	if t.err != nil {
-		return errorStyle.Render(fmt.Sprintf("Error: %v", t.err))
+		return tea.NewView(errorStyle.Render(fmt.Sprintf("Error: %v", t.err)))
 	}
 
 	var b strings.Builder
@@ -346,7 +350,9 @@ func (t *TUI) View() string {
 		b.WriteString(t.renderConfirm())
 	}
 
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func (t *TUI) renderProviderSelect() string {
@@ -477,7 +483,7 @@ func (t *TUI) Run() (provider, model string, err error) {
 		return "", "", fmt.Errorf("no API keys found - please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or another provider's key")
 	}
 
-	p := tea.NewProgram(t, tea.WithAltScreen())
+	p := tea.NewProgram(t)
 	finalModel, err := p.Run()
 	if err != nil {
 		return "", "", fmt.Errorf("running TUI: %w", err)

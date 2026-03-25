@@ -22,10 +22,10 @@ func GenerateTUI(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\t\"strings\"\n\n")
 	b.WriteString("\t\"charm.land/catwalk/pkg/catwalk\"\n")
 	b.WriteString("\t\"charm.land/catwalk/pkg/embedded\"\n")
-	b.WriteString("\t\"github.com/charmbracelet/bubbles/key\"\n")
-	b.WriteString("\t\"github.com/charmbracelet/bubbles/list\"\n")
-	b.WriteString("\t\"github.com/charmbracelet/bubbletea\"\n")
-	b.WriteString("\t\"github.com/charmbracelet/lipgloss\"\n")
+	b.WriteString("\t\"charm.land/bubbles/v2/key\"\n")
+	b.WriteString("\t\"charm.land/bubbles/v2/list\"\n")
+	b.WriteString("\ttea \"charm.land/bubbletea/v2\"\n")
+	b.WriteString("\t\"charm.land/lipgloss/v2\"\n")
 	b.WriteString(")\n\n")
 
 	// TUI states
@@ -257,7 +257,7 @@ func GenerateTUI(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\t\tif m.state != stateProviderSelect {\n")
 	b.WriteString("\t\t\tm.modelList.SetSize(msg.Width-4, msg.Height-10)\n")
 	b.WriteString("\t\t}\n\n")
-	b.WriteString("\tcase tea.KeyMsg:\n")
+	b.WriteString("\tcase tea.KeyPressMsg:\n")
 	b.WriteString("\t\tif key.Matches(msg, defaultKeyMap.Quit) {\n")
 	b.WriteString("\t\t\tm.quitting = true\n")
 	b.WriteString("\t\t\treturn m, tea.Quit\n")
@@ -347,9 +347,9 @@ func GenerateTUI(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("}\n\n")
 
 	// View
-	b.WriteString("func (m *modelSelectionTUI) View() string {\n")
+	b.WriteString("func (m *modelSelectionTUI) View() tea.View {\n")
 	b.WriteString("\tif m.err != nil {\n")
-	b.WriteString("\t\treturn errorStyle.Render(fmt.Sprintf(\"Error: %v\", m.err))\n")
+	b.WriteString("\t\treturn tea.NewView(errorStyle.Render(fmt.Sprintf(\"Error: %v\", m.err)))\n")
 	b.WriteString("\t}\n\n")
 	b.WriteString("\tvar b strings.Builder\n\n")
 	b.WriteString("\tswitch m.state {\n")
@@ -360,7 +360,9 @@ func GenerateTUI(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\tcase stateConfirm:\n")
 	b.WriteString("\t\tb.WriteString(m.renderConfirm())\n")
 	b.WriteString("\t}\n\n")
-	b.WriteString("\treturn b.String()\n")
+	b.WriteString("\tv := tea.NewView(b.String())\n")
+	b.WriteString("\tv.AltScreen = true\n")
+	b.WriteString("\treturn v\n")
 	b.WriteString("}\n\n")
 
 	// renderProviderSelect
@@ -477,7 +479,7 @@ func GenerateTUI(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\t\treturn fmt.Errorf(\"no API keys found - please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or another provider's key\")\n")
 	b.WriteString("\t}\n\n")
 	b.WriteString("\ttui := newModelSelectionTUI()\n")
-	b.WriteString("\tp := tea.NewProgram(tui, tea.WithAltScreen())\n")
+	b.WriteString("\tp := tea.NewProgram(tui)\n")
 	b.WriteString("\tmodel, err := p.Run()\n")
 	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\treturn fmt.Errorf(\"running TUI: %w\", err)\n")
