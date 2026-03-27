@@ -146,3 +146,133 @@ name = "partial-agent"
 		t.Errorf("Version = %q, want empty", got.Version)
 	}
 }
+
+func TestParseConfig_InteractiveTrue(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	config := `[agent]
+name = "test-agent"
+version = "1.0.0"
+description = "Test"
+interactive = true
+`
+	os.WriteFile(configPath, []byte(config), 0644)
+
+	got, err := ParseConfig(configPath)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+
+	if got.Interactive == nil {
+		t.Fatal("Interactive is nil, want true")
+	}
+	if *got.Interactive != true {
+		t.Errorf("Interactive = %v, want true", *got.Interactive)
+	}
+	if !got.IsInteractive() {
+		t.Error("IsInteractive() = false, want true")
+	}
+}
+
+func TestParseConfig_InteractiveFalse(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	config := `[agent]
+name = "test-agent"
+version = "1.0.0"
+description = "Test"
+interactive = false
+`
+	os.WriteFile(configPath, []byte(config), 0644)
+
+	got, err := ParseConfig(configPath)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+
+	if got.Interactive == nil {
+		t.Fatal("Interactive is nil, want false")
+	}
+	if *got.Interactive != false {
+		t.Errorf("Interactive = %v, want false", *got.Interactive)
+	}
+	if got.IsInteractive() {
+		t.Error("IsInteractive() = true, want false")
+	}
+}
+
+func TestParseConfig_InteractiveDefault(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	config := `[agent]
+name = "test-agent"
+version = "1.0.0"
+description = "Test"
+`
+	os.WriteFile(configPath, []byte(config), 0644)
+
+	got, err := ParseConfig(configPath)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+
+	if got.Interactive != nil {
+		t.Errorf("Interactive = %v, want nil (default)", *got.Interactive)
+	}
+	if !got.IsInteractive() {
+		t.Error("IsInteractive() = false, want true (default)")
+	}
+}
+
+func TestParseConfig_InputOrder(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	config := `[agent]
+name = "test-agent"
+version = "1.0.0"
+description = "Test"
+input_order = ["prompt", "scope", "dry_run"]
+`
+	os.WriteFile(configPath, []byte(config), 0644)
+
+	got, err := ParseConfig(configPath)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+
+	if len(got.InputOrder) != 3 {
+		t.Fatalf("InputOrder length = %d, want 3", len(got.InputOrder))
+	}
+
+	expected := []string{"prompt", "scope", "dry_run"}
+	for i, v := range expected {
+		if got.InputOrder[i] != v {
+			t.Errorf("InputOrder[%d] = %q, want %q", i, got.InputOrder[i], v)
+		}
+	}
+}
+
+func TestParseConfig_InputOrderDefault(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	config := `[agent]
+name = "test-agent"
+version = "1.0.0"
+description = "Test"
+`
+	os.WriteFile(configPath, []byte(config), 0644)
+
+	got, err := ParseConfig(configPath)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+
+	if got.InputOrder != nil {
+		t.Errorf("InputOrder = %v, want nil (default)", got.InputOrder)
+	}
+}

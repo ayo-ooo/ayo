@@ -14,9 +14,11 @@ type configToml struct {
 }
 
 type agentSection struct {
-	Name        string `toml:"name"`
-	Version     string `toml:"version"`
-	Description string `toml:"description"`
+	Name        string   `toml:"name"`
+	Version     string   `toml:"version"`
+	Description string   `toml:"description"`
+	Interactive *bool    `toml:"interactive"`
+	InputOrder  []string `toml:"input_order"`
 }
 
 type modelSection struct {
@@ -47,6 +49,8 @@ func ParseConfig(path string) (*AgentConfig, error) {
 		Name:        cfg.Agent.Name,
 		Version:     cfg.Agent.Version,
 		Description: cfg.Agent.Description,
+		Interactive: cfg.Agent.Interactive,
+		InputOrder:  cfg.Agent.InputOrder,
 		Model: ModelRequirements{
 			RequiresStructuredOutput: cfg.Model.RequiresStructuredOutput,
 			RequiresTools:            cfg.Model.RequiresTools,

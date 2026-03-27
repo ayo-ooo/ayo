@@ -167,8 +167,10 @@ func TestGenerateCLI_WithRequiredFlag(t *testing.T) {
 		t.Fatalf("GenerateCLI() error = %v", err)
 	}
 
-	if !strings.Contains(code, "MarkFlagRequired") {
-		t.Error("Generated code should mark required flags")
+	// Required flags should trigger interactive form or error, not MarkFlagRequired
+	// The generated code should check for missing required fields
+	if !strings.Contains(code, "getMissingRequiredFields") {
+		t.Error("Generated code should check for missing required fields")
 	}
 }
 

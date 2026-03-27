@@ -57,7 +57,7 @@ func GenerateFlags(schema *ParsedSchema) []FlagDef {
 
 	for name, prop := range schema.Properties {
 		// Only generate flags for primitive types
-		if !isPrimitiveType(prop.Type) {
+		if !IsPrimitiveType(prop.Type) {
 			continue
 		}
 
@@ -86,7 +86,7 @@ func GenerateFlags(schema *ParsedSchema) []FlagDef {
 	return flags
 }
 
-func isPrimitiveType(t string) bool {
+func IsPrimitiveType(t string) bool {
 	switch t {
 	case "string", "integer", "number", "boolean":
 		return true

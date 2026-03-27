@@ -187,6 +187,24 @@ func ValidateProject(p *Project) []*ValidationError {
 		}
 	}
 
+	// Validate input_order references
+	if p.Input != nil && len(p.Config.InputOrder) > 0 {
+		inputSchema := p.Input.Parsed.(*schema.ParsedSchema)
+		schemaProps := make(map[string]bool)
+		for name := range inputSchema.Properties {
+			schemaProps[name] = true
+		}
+
+		for _, name := range p.Config.InputOrder {
+			if !schemaProps[name] {
+				errors = append(errors, &ValidationError{
+					File:    "config.toml",
+					Message: fmt.Sprintf("input_order references %q not found in input.jsonschema properties", name),
+				})
+			}
+		}
+	}
+
 	for _, skill := range p.Skills {
 		skillMdPath := filepath.Join(skill.Path, "SKILL.md")
 		if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {

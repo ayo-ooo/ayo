@@ -62,3 +62,14 @@ func toPascalCase(s string) string {
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
 }
+
+func toCamelCase(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+func escapeString(s string) string {
+	return strings.ReplaceAll(s, "\"", "\\\"")
+}

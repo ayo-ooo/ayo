@@ -43,6 +43,17 @@ type AgentConfig struct {
 	Description string
 	Model       ModelRequirements
 	Defaults    AgentDefaults
+	Interactive *bool    // nil = true (default), explicit false disables forms
+	InputOrder  []string // nil = use schema property order
+}
+
+// IsInteractive returns true if the agent allows interactive forms.
+// Returns true by default (when Interactive is nil).
+func (c *AgentConfig) IsInteractive() bool {
+	if c.Interactive == nil {
+		return true
+	}
+	return *c.Interactive
 }
 
 type ModelRequirements struct {
