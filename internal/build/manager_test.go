@@ -109,29 +109,6 @@ func TestCopyDirectory_NonExistent(t *testing.T) {
 	}
 }
 
-func TestHasDependency(t *testing.T) {
-	files := map[string]string{
-		"main.go":  `import "fmt"`,
-		"cli.go":   `import "github.com/spf13/cobra"`,
-		"agent.go": `import "charm.land/fantasy"`,
-	}
-
-	if !hasDependency(files, "fmt") {
-		t.Error("hasDependency() should find 'fmt'")
-	}
-
-	if !hasDependency(files, "cobra") {
-		t.Error("hasDependency() should find 'cobra'")
-	}
-
-	if !hasDependency(files, "fantasy") {
-		t.Error("hasDependency() should find 'fantasy'")
-	}
-
-	if hasDependency(files, "nonexistent") {
-		t.Error("hasDependency() should not find 'nonexistent'")
-	}
-}
 
 func TestManager_Cleanup(t *testing.T) {
 	m := NewManager()

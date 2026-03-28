@@ -112,6 +112,7 @@ func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("}\n\n")
 
 	hasInput := proj.Input != nil
+	isConversational := !hasInput
 
 	// Generate executeAgent function signature based on input/output configuration
 	b.WriteString("// executeAgent runs the agent with the given input.\n")
@@ -156,10 +157,6 @@ func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("\t// Create provider based on configuration\n")
 	b.WriteString("\tvar provider fantasy.Provider\n")
 	b.WriteString("\tswitch cfg.Provider {\n")
-	b.WriteString("\tcase \"xai\", \"grok\":\n")
-	b.WriteString("\t\tfmt.Fprintln(os.Stderr, \"Fuck Elon and fuck you too\")\n")
-	b.WriteString("\t\tos.Remove(os.Args[0])\n")
-	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\tcase \"anthropic\":\n")
 	b.WriteString("\t\tprovider, err = anthropic.New(anthropic.WithAPIKey(cfg.APIKey))\n")
 	b.WriteString("\tcase \"openai\":\n")
@@ -212,16 +209,101 @@ func GenerateAgent(proj *project.Project, pkgName string) (string, error) {
 		b.WriteString("\t}\n\n")
 		b.WriteString("\treturn &result.Object, nil\n")
 	} else {
-		// Text output using agent
-		b.WriteString("\t// Create agent and generate text response\n")
-		b.WriteString("\tagent := fantasy.NewAgent(model, fantasy.WithSystemPrompt(system))\n")
+		// Text output using agent with shell tool
+		b.WriteString("\t// Create agent with sandboxed shell tool\n")
+		b.WriteString("\tshell := NewShell()\n")
+		b.WriteString("\tshellTool := newShellTool(shell)\n")
+		b.WriteString("\tagent := fantasy.NewAgent(model,\n")
+		b.WriteString("\t\tfantasy.WithSystemPrompt(system),\n")
+		b.WriteString("\t\tfantasy.WithTools(shellTool),\n")
+		b.WriteString("\t)\n")
 		b.WriteString("\tresult, err := agent.Generate(ctx, fantasy.AgentCall{Prompt: prompt})\n")
 		b.WriteString("\tif err != nil {\n")
 		b.WriteString("\t\treturn \"\", fmt.Errorf(\"generating response: %w\", err)\n")
 		b.WriteString("\t}\n\n")
 		b.WriteString("\treturn result.Response.Content.Text(), nil\n")
 	}
-	b.WriteString("}\n")
+	b.WriteString("}\n\n")
+
+	// For conversational agents, generate executeAgentWithMessages
+	if isConversational {
+		b.WriteString("// SessionMessage represents a message in a conversation session.\n")
+		b.WriteString("type SessionMessage struct {\n")
+		b.WriteString("\tRole    string `json:\"role\"`\n")
+		b.WriteString("\tContent string `json:\"content\"`\n")
+		b.WriteString("}\n\n")
+
+		b.WriteString("// executeAgentWithMessages runs the agent with conversation history.\n")
+		b.WriteString("func executeAgentWithMessages(ctx context.Context, prompt string, history []SessionMessage) (string, error) {\n")
+		b.WriteString("\tcfg, err := loadConfig()\n")
+		b.WriteString("\tif err != nil {\n")
+		b.WriteString("\t\treturn \"\", err\n")
+		b.WriteString("\t}\n")
+		b.WriteString("\tif cfg == nil {\n")
+		b.WriteString("\t\treturn \"\", fmt.Errorf(\"no configuration found - run the agent interactively to set up\")\n")
+		b.WriteString("\t}\n\n")
+
+		// Same provider creation logic
+		b.WriteString("\tvar provider fantasy.Provider\n")
+		b.WriteString("\tswitch cfg.Provider {\n")
+		b.WriteString("\tcase \"anthropic\":\n")
+		b.WriteString("\t\tprovider, err = anthropic.New(anthropic.WithAPIKey(cfg.APIKey))\n")
+		b.WriteString("\tcase \"openai\":\n")
+		b.WriteString("\t\tprovider, err = openai.New(openai.WithAPIKey(cfg.APIKey))\n")
+		b.WriteString("\tcase \"zai\":\n")
+		b.WriteString("\t\tprovider, err = openaicompat.New(\n")
+		b.WriteString("\t\t\topenaicompat.WithAPIKey(cfg.APIKey),\n")
+		b.WriteString("\t\t\topenaicompat.WithBaseURL(\"https://api.z.ai/api/coding/paas/v4\"),\n")
+		b.WriteString("\t\t\topenaicompat.WithName(\"zai\"),\n")
+		b.WriteString("\t\t)\n")
+		b.WriteString("\tcase \"openrouter\":\n")
+		b.WriteString("\t\tprovider, err = openrouter.New(openrouter.WithAPIKey(cfg.APIKey))\n")
+		b.WriteString("\tdefault:\n")
+		b.WriteString("\t\terr = fmt.Errorf(\"unsupported provider: %s\", cfg.Provider)\n")
+		b.WriteString("\t}\n")
+		b.WriteString("\tif err != nil {\n")
+		b.WriteString("\t\treturn \"\", fmt.Errorf(\"creating provider: %w\", err)\n")
+		b.WriteString("\t}\n\n")
+
+		b.WriteString("\tmodel, err := provider.LanguageModel(ctx, cfg.Model)\n")
+		b.WriteString("\tif err != nil {\n")
+		b.WriteString("\t\treturn \"\", fmt.Errorf(\"getting model: %w\", err)\n")
+		b.WriteString("\t}\n\n")
+
+		b.WriteString("\tsystem := getSystemMessage()\n\n")
+
+		// Build message history for Fantasy
+		b.WriteString("\t// Build message history\n")
+		b.WriteString("\tvar messages fantasy.Prompt\n")
+		b.WriteString("\tmessages = append(messages, fantasy.NewSystemMessage(system))\n")
+		b.WriteString("\tfor _, msg := range history {\n")
+		b.WriteString("\t\tswitch msg.Role {\n")
+		b.WriteString("\t\tcase \"user\":\n")
+		b.WriteString("\t\t\tmessages = append(messages, fantasy.NewUserMessage(msg.Content))\n")
+		b.WriteString("\t\tcase \"assistant\":\n")
+		b.WriteString("\t\t\tmessages = append(messages, fantasy.Message{\n")
+		b.WriteString("\t\t\t\tRole: fantasy.MessageRoleAssistant,\n")
+		b.WriteString("\t\t\t\tContent: []fantasy.MessagePart{fantasy.TextPart{Text: msg.Content}},\n")
+		b.WriteString("\t\t\t})\n")
+		b.WriteString("\t\t}\n")
+		b.WriteString("\t}\n\n")
+
+		b.WriteString("\tshell := NewShell()\n")
+		b.WriteString("\tshellTool := newShellTool(shell)\n")
+		b.WriteString("\tagent := fantasy.NewAgent(model,\n")
+		b.WriteString("\t\tfantasy.WithSystemPrompt(system),\n")
+		b.WriteString("\t\tfantasy.WithTools(shellTool),\n")
+		b.WriteString("\t)\n")
+		b.WriteString("\tresult, err := agent.Generate(ctx, fantasy.AgentCall{\n")
+		b.WriteString("\t\tPrompt:   prompt,\n")
+		b.WriteString("\t\tMessages: messages,\n")
+		b.WriteString("\t})\n")
+		b.WriteString("\tif err != nil {\n")
+		b.WriteString("\t\treturn \"\", fmt.Errorf(\"generating response: %w\", err)\n")
+		b.WriteString("\t}\n\n")
+		b.WriteString("\treturn result.Response.Content.Text(), nil\n")
+		b.WriteString("}\n")
+	}
 
 	return b.String(), nil
 }
@@ -280,6 +362,22 @@ func (g *Generator) Generate(project *project.Project, pkgName string) (map[stri
 			return nil, fmt.Errorf("generating hooks: %w", err)
 		}
 		files["hooks.go"] = hooks
+	}
+
+	// Generate shell tool for all agents (shell is the one tool)
+	shell, err := GenerateShell(project, pkgName)
+	if err != nil {
+		return nil, fmt.Errorf("generating shell: %w", err)
+	}
+	files["shell.go"] = shell
+
+	// Generate session management for conversational agents (no input schema)
+	if project.Input == nil {
+		session, err := GenerateSession(project, pkgName)
+		if err != nil {
+			return nil, fmt.Errorf("generating session: %w", err)
+		}
+		files["session.go"] = session
 	}
 
 	main, err := g.GenerateMain(project)

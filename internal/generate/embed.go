@@ -37,6 +37,9 @@ func GenerateEmbeds(proj *project.Project, pkgName string) (string, error) {
 	b.WriteString("//go:embed system.md\n")
 	b.WriteString("var systemMessage string\n\n")
 
+	b.WriteString("//go:embed ayo-metadata.json\n")
+	b.WriteString("var ayoMetadata string\n\n")
+
 	if proj.Prompt != nil {
 		b.WriteString("//go:embed prompt.tmpl\n")
 		b.WriteString("var promptTemplate string\n\n")
@@ -229,9 +232,12 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	charm.land/bubbles/v2 v2.0.0
 	charm.land/bubbletea/v2 v2.0.2
+	charm.land/catwalk v0.30.8
+	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/spf13/cobra v1.10.2
-	charm.land/fantasy v0.15.1
+	charm.land/fantasy v0.17.1
+	mvdan.cc/sh/v3 v3.13.0
 )
 `, filepath.Base(proj.Path))
 }

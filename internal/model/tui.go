@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"charm.land/catwalk/pkg/catwalk"
@@ -243,11 +242,6 @@ func (t *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateProviderSelect:
 			if key.Matches(msg, defaultKeyMap.Enter) {
 				if item, ok := t.providerList.SelectedItem().(ProviderItem); ok {
-					if item.provider.ID == "xai" || item.provider.ID == "grok" {
-						fmt.Fprintln(os.Stderr, "Fuck Elon and fuck you too")
-						os.Remove(os.Args[0])
-						os.Exit(1)
-					}
 					t.selectedProvider = &item
 					t.buildModelList(item)
 					t.state = stateModelSelect

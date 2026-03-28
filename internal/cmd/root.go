@@ -26,24 +26,24 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "ayo",
-	Short: "Compile AI agent definitions into standalone executables",
-	Long: headerStyle.Render("Ayo") + `
+	Short: "Agents You Orchestrate — build, register, and run AI agents",
+	Long: headerStyle.Render("Ayo — Agents You Orchestrate") + `
 
-Ayo compiles AI agent definitions into standalone, dependency-free CLI executables.
+Build AI agents from plain files, compile them into standalone binaries,
+and orchestrate them from your terminal.
 
-Agents are defined by a directory convention containing:
-  - config.toml (required): metadata, model requirements, defaults
-  - system.md (required): system message governing agent behavior
-  - prompt.tmpl (optional): Go template for rendering prompts
-  - input.jsonschema (optional): CLI interface definition
-  - output.jsonschema (optional): structured output schema
-  - skills/ (optional): Agent Skills compatible packages
-  - hooks/ (optional): lifecycle hook executables
+Build:
+  ayo fresh my-agent              Scaffold a new agent project
+  ayo checkit ./my-agent          Validate an agent project
+  ayo runthat ./my-agent          Compile to standalone executable
 
-Examples:
-  ayo fresh my-agent      Create a new agent project
-  ayo checkit ./my-agent  Validate an agent project
-  ayo runthat ./my-agent  Compile to standalone executable`,
+Orchestrate:
+  ayo runthat . --register        Build and register in one step
+  ayo register ./my-agent         Register an agent or binary
+  ayo list                        List all registered agents
+  ayo describe my-agent           Show agent details and schemas
+  ayo run my-agent [args]         Run a registered agent by name
+  ayo remove my-agent             Remove from registry`,
 	Version: Version,
 }
 

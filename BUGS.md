@@ -1,20 +1,37 @@
 # Bug Report: Ayo Agent Testing
 
-**Test Date:** 2026-03-25
+**Test Date:** 2026-03-25 (updated 2026-03-27)
 **Ayo Version:** dev (latest build)
 **Test Environment:** macOS Darwin, tmux 3.6a
 **API Provider:** z.ai (ZAI_API_KEY configured)
 **Test Method:** tmux isolation using test-cli skill
 
-## Executive Summary
+## Update (2026-03-27)
+
+The following critical issues have been fixed:
+- **BUG-001 (Critical)**: Interactive form stubs replaced with working implementations. Forms now generate proper huh fields from schema, collect prefill values, and apply results back to flags.
+- **BUG-002/003 (Critical)**: Form crashes and close-immediately issues resolved by generating proper form code with field ordering, validation, and value binding.
+- **Profane/destructive code removed**: xai/grok provider selection no longer prints profanity or deletes the binary.
+- **Dead code cleaned up**: Removed unused `hasDependency` function, fixed unused imports.
+- **Generated go.mod fixed**: Updated Fantasy version from v0.15.1 to v0.17.1, added missing dependencies.
+- **20/20 valid test agents now compile**, all 9 examples compile.
+
+New features added:
+- **Conversational agent support**: Agents without input.jsonschema now get `--session` and `--chat` flags
+- **Session management**: Conversation history stored in ~/.local/share/agents/{name}/sessions/
+- **Interactive chat mode**: `--chat` launches a styled conversational TUI
+- **Shell tool**: All agents now have sandboxed shell access via Fantasy's tool system
+- **Command rename**: `ayo drop` replaces `ayo runthat` (runthat kept as hidden alias)
+
+## Executive Summary (Original)
 
 | Category | Count |
 |----------|-------|
-| Critical | 3 |
+| Critical | ~~3~~ 0 (fixed) |
 | High | 4 |
 | Medium | 3 |
 | Low | 2 |
-| **Total** | **12** |
+| **Total** | **9 remaining** |
 
 ---
 

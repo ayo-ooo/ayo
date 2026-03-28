@@ -230,8 +230,17 @@ func TestGenerateCLI_NoInput(t *testing.T) {
 		t.Error("Generated code should have jsonInput string variable when no input schema")
 	}
 
-	if !strings.Contains(code, "buildInput(args []string) string {") {
-		t.Error("Generated code should have buildInput returning string when no input schema")
+	// Conversational agents (no input schema) should have session and chat support
+	if !strings.Contains(code, "sessionID string") {
+		t.Error("Generated code should have sessionID flag for conversational agents")
+	}
+
+	if !strings.Contains(code, "chatMode bool") {
+		t.Error("Generated code should have chatMode flag for conversational agents")
+	}
+
+	if !strings.Contains(code, "runChatMode") {
+		t.Error("Generated code should call runChatMode for conversational agents")
 	}
 }
 
